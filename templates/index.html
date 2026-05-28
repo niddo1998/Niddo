@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Niddo - Software de Administración de Consorcios</title>
+    <meta name="description" content="Software N°1 para administrar consorcios. Balance automático, IA para facturas, cobro QR, votaciones, presupuestos. +300 administradores confían.">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #8B5CF6;
+            --primary-dark: #7C3AED;
+            --teal: #10B981;
+            --teal-dark: #059669;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .navbar {
+            background: white !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            padding: 1rem 0;
+        }
+
+        .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--teal) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-link {
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-link:hover {
+            color: var(--primary) !important;
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, #f8f9fa 0%, #fff9e6 100%);
+            padding: 120px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            background: rgba(139, 92, 246, 0.1);
+            border-radius: 50%;
+            top: -100px;
+            right: -50px;
+        }
+
+        .hero::after {
+            content: '';
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: rgba(16, 185, 129, 0.08);
+            border-radius: 50%;
+            bottom: -50px;
+            left: -50px;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 1.5rem;
+            color: #111;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: #555;
+            margin-bottom: 2rem;
+            max-width: 500px;
+        }
+
+        .btn-cta {
+            padding: 12px 28px;
+            font-weight: 600;
+            border-radius: 8px;
+            transition: all 0.3s;
+            border: none;
+        }
+
+        .btn-cta.primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+        }
+
+        .btn-cta.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+            color: white;
+        }
+
+        .btn-cta.secondary {
+            background: white;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .btn-cta.secondary:hover {
+            background: rgba(139, 92, 246, 0.05);
+        }
+
+        .stats-box {
+            display: flex;
+            gap: 3rem;
+            margin-top: 2.5rem;
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .hero-image {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            perspective: 1000px;
+        }
+
+        .device-mockup {
+            width: 100%;
+            max-width: 400px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            padding: 15px;
+            border: 8px solid #333;
+        }
+
+        .device-mockup-content {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--teal) 100%);
+            border-radius: 15px;
+            height: 500px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        /* Features Section */
+        .section {
+            padding: 100px 0;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 3.5rem;
+            color: #111;
+            text-align: center;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            border-color: var(--primary);
+        }
+
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: white;
+            margin: 0 auto 20px;
+        }
+
+        .feature-card h3 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #111;
+        }
+
+        .feature-card p {
+            color: #666;
+            font-size: 0.95rem;
+        }
+
+        /* Comparison Table */
+        .comparison-section {
+            background: #f8f9fa;
+        }
+
+        .table-responsive {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .table {
+            margin: 0;
+        }
+
+        .table thead {
+            background: #f8f9fa;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .table thead th {
+            padding: 20px;
+            color: #111;
+            font-weight: 700;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: none;
+        }
+
+        .table tbody td {
+            padding: 18px 20px;
+            border-color: #e5e7eb;
+            font-size: 0.95rem;
+        }
+
+        .table tbody tr {
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .table tbody tr:last-child {
+            border-bottom: none;
+        }
+
+        .check-icon {
+            color: var(--teal);
+            font-weight: bold;
+        }
+
+        .badge-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-exclusive {
+            background: rgba(139, 92, 246, 0.1);
+            color: var(--primary);
+        }
+
+        .badge-diferenciador {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--teal);
+        }
+
+        /* Footer */
+        .footer {
+            background: #111;
+            color: white;
+            padding: 50px 0 20px;
+        }
+
+        .footer h4 {
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: white;
+        }
+
+        .footer p, .footer a {
+            font-size: 0.95rem;
+            color: #aaa;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .footer a:hover {
+            color: var(--primary);
+        }
+
+        .footer-bottom {
+            border-top: 1px solid #333;
+            padding-top: 30px;
+            margin-top: 30px;
+            text-align: center;
+            color: #777;
+            font-size: 0.9rem;
+        }
+
+        /* Utilities */
+        .gradient-text {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--teal) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .hero p {
+                font-size: 1rem;
+            }
+
+            .stats-box {
+                flex-direction: column;
+                gap: 1.5rem;
+            }
+
+            .section-title {
+                font-size: 1.8rem;
+            }
+
+            .navbar-brand {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-dove me-2"></i>Niddo
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#admin">Para Administradores</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#vecinos">Para Vecinos</a>
+                    </li>
+                </ul>
+                <a href="/login" class="btn btn-cta primary ms-3">
+                    <i class="fas fa-sign-in-alt me-2"></i>Ingresar
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6 mb-5 mb-lg-0">
+                    <div class="hero-content">
+                        <h1>El software más completo para tu consorcio</h1>
+                        <p>Administra expensas, finanzas, proveedores y vecinos desde una única plataforma. Balance automático, IA para facturas, cobro con QR y mucho más.</p>
+                        <div style="display: flex; gap: 15px; margin-bottom: 2rem;">
+                            <a href="/login" class="btn btn-cta primary">
+                                <i class="fas fa-rocket me-2"></i>Probar Gratis
+                            </a>
+                            <button class="btn btn-cta secondary">
+                                <i class="fas fa-video me-2"></i>Ver Demo
+                            </button>
+                        </div>
+                        <div class="stats-box">
+                            <div class="stat">
+                                <div>
+                                    <div class="stat-value">+300</div>
+                                    <div class="stat-label">Administradores activos</div>
+                                </div>
+                            </div>
+                            <div class="stat">
+                                <div>
+                                    <div class="stat-value">+10K</div>
+                                    <div class="stat-label">Vecinos usando Niddo</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="hero-image">
+                        <div class="device-mockup">
+                            <div class="device-mockup-content">
+                                <div style="text-align: center;">
+                                    <i class="fas fa-chart-line" style="font-size: 3rem; margin-bottom: 1rem; display: block;"></i>
+                                    Dashboard inteligente
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Administradores Section -->
+    <section class="section" id="admin" style="background: #f8f9fa;">
+        <div class="container">
+            <div class="text-center mb-5">
+                <h2 class="section-title">Para Administradores</h2>
+                <p style="font-size: 1.1rem; color: #666; max-width: 600px; margin: 0 auto;">
+                    Gestión completa del consorcio: expensas, finanzas, sueldos, proveedores y más. Todo automatizado, todo en un lugar.
+                </p>
+            </div>
+
+            <div class="row g-4 mb-5">
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-receipt"></i>
+                        </div>
+                        <h3>Gestión de Expensas</h3>
+                        <p>Liquidación automática, QR obligatorio CABA, reconocimiento de facturas con IA, gastos recurrentes y envío digital.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-chart-bar"></i>
+                        </div>
+                        <h3>Contabilidad y Finanzas</h3>
+                        <p>Balance automático, conciliación bancaria, reportes exportables, gestión multiconsorcios e inversión del float.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <h3>Sueldos y Compliance</h3>
+                        <p>Liquidación de sueldos, aguinaldos, vacaciones, cargas sociales e informes anuales obligatorios.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-handshake"></i>
+                        </div>
+                        <h3>Proveedores</h3>
+                        <p>Gestión de proveedores y órdenes de pago, marketplace verificado de proveedores.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-users-cog"></i>
+                        </div>
+                        <h3>Equipo y Branding</h3>
+                        <p>Multiusuario para trabajo en equipo, branding personalizable (white label) e integraciones por API.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-star"></i>
+                        </div>
+                        <h3>Exclusivos Niddo</h3>
+                        <p>Inversión del float, marketplace diferenciador, votaciones online y presupuestos para vecinos.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <h3 style="margin-bottom: 2rem; text-align: center; font-size: 1.5rem; font-weight: 700;">Tabla Comparativa de Funcionalidades</h3>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left;">Funcionalidad</th>
+                            <th style="text-align: center;">Octopus</th>
+                            <th style="text-align: center;">AdminProp</th>
+                            <th style="text-align: center;">Octavo Piso</th>
+                            <th style="text-align: center;">Niddo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background: #f9f9f9; font-weight: 600;">
+                            <td colspan="5">GESTIÓN DE EXPENSAS</td>
+                        </tr>
+                        <tr>
+                            <td>Liquidación de expensas</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Código QR obligatorio CABA</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Reconocimiento de facturas con IA</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Gastos recurrentes automáticos</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Envío digital de expensas</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr style="background: #f9f9f9; font-weight: 600;">
+                            <td colspan="5">CONTABILIDAD Y FINANZAS</td>
+                        </tr>
+                        <tr>
+                            <td>Balance automático del consorcio</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Conciliación bancaria</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;">Parcial</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Reportes exportables (Excel/PDF)</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Gestión multiconsorcios (cartera)</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Inversión del float (capital en tránsito) <span class="badge-badge badge-exclusive">Exclusivo</span></td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr style="background: #f9f9f9; font-weight: 600;">
+                            <td colspan="5">SUELDOS Y COMPLIANCE</td>
+                        </tr>
+                        <tr>
+                            <td>Liquidación sueldos por convenio del sector</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Aguinaldos, vacaciones, liquidación final</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Presentación de cargas sociales</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Informes anuales obligatorios</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr style="background: #f9f9f9; font-weight: 600;">
+                            <td colspan="5">PROVEEDORES Y OPERACIONES</td>
+                        </tr>
+                        <tr>
+                            <td>Gestión de proveedores y órdenes de pago</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Marketplace de proveedores verificados <span class="badge-badge badge-diferenciador">Diferenciador</span></td>
+                            <td style="text-align: center;">Parcial</td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Multiusuario / trabajo en equipo</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Branding personalizable (white label)</td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>API abierta / integraciones</td>
+                            <td style="text-align: center;">Parcial</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Vecinos Section -->
+    <section class="section" id="vecinos">
+        <div class="container">
+            <div class="text-center mb-5">
+                <h2 class="section-title">Para Vecinos</h2>
+                <p style="font-size: 1.1rem; color: #666; max-width: 600px; margin: 0 auto;">
+                    Portal intuitivo para pagar expensas, reservar amenities, votar y estar siempre informado del consorcio.
+                </p>
+            </div>
+
+            <div class="row g-4 mb-5">
+                <div class="col-md-3">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-credit-card"></i>
+                        </div>
+                        <h3>Pagos y Finanzas</h3>
+                        <p>Paga expensas por QR, consulta historial de pagos y comprobantes, ve el estado del consorcio completo.</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-bell"></i>
+                        </div>
+                        <h3>Comunicación</h3>
+                        <p>Recibe notificaciones, consulta anuncios, carga reclamos y comunícate con administración.</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-calendar"></i>
+                        </div>
+                        <h3>Amenities</h3>
+                        <p>Reserva salón de fiestas, piscina, cancha de tenis y otros espacios del consorcio fácilmente.</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-vote-yea"></i>
+                        </div>
+                        <h3>Votaciones</h3>
+                        <p>Participa en votaciones online, consulta presupuestos y directorio de vecinos.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <h3 style="margin-bottom: 2rem; text-align: center; font-size: 1.5rem; font-weight: 700;">Funcionalidades para Vecinos</h3>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left;">Funcionalidad</th>
+                            <th style="text-align: center;">Octopus</th>
+                            <th style="text-align: center;">AdminProp</th>
+                            <th style="text-align: center;">Octavo Piso</th>
+                            <th style="text-align: center;">Niddo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background: #f9f9f9; font-weight: 600;">
+                            <td colspan="5">PAGOS Y FINANZAS</td>
+                        </tr>
+                        <tr>
+                            <td>Ver expensa del mes y vencimiento</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Pagar expensa por QR / billetera <span class="badge-badge badge-diferenciador">Core Niddo</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Historial de pagos y comprobantes</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Ver estado financiero del consorcio <span class="badge-badge badge-diferenciador">Completo</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;">Parcial</td>
+                            <td style="text-align: center;">Parcial</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Ver quién pagó y quién debe <span class="badge-badge badge-diferenciador">Diferenciador</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;">Parcial</td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr style="background: #f9f9f9; font-weight: 600;">
+                            <td colspan="5">COMUNICACIÓN Y GESTIÓN</td>
+                        </tr>
+                        <tr>
+                            <td>Portal web / app móvil (iOS y Android)</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;">Parcial</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Cargar y hacer seguimiento de reclamos</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Notificaciones push y por email</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Tablero de anuncios / novedades</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Reserva de amenities (SUM, parrilla, gym)</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;">Parcial</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Votaciones y encuestas online <span class="badge-badge badge-diferenciador">Diferenciador</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Directorio de vecinos y contactos del edificio</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Solicitar presupuestos a proveedores <span class="badge-badge badge-diferenciador">Diferenciador</span></td>
+                            <td style="text-align: center;">Parcial</td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;">—</td>
+                            <td style="text-align: center;"><span class="check-icon">✓</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="section" style="background: linear-gradient(135deg, var(--primary) 0%, var(--teal) 100%); color: white;">
+        <div class="container text-center">
+            <h2 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 1.5rem;">
+                Listo para transformar tu consorcio?
+            </h2>
+            <p style="font-size: 1.1rem; margin-bottom: 2.5rem; opacity: 0.95; max-width: 600px; margin-left: auto; margin-right: auto;">
+                Únete a +300 administradores y +10,000 vecinos que ya confían en Niddo.
+            </p>
+            <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                <a href="/login" class="btn btn-cta" style="background: white; color: var(--primary); padding: 14px 32px;">
+                    <i class="fas fa-rocket me-2"></i>Comenzar Ahora
+                </a>
+                <button class="btn btn-cta" style="border: 2px solid white; color: white; background: transparent; padding: 12px 30px;">
+                    <i class="fas fa-video me-2"></i>Solicitar Demo
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-3 mb-4">
+                    <h4 style="color: var(--primary); margin-bottom: 1.5rem;">
+                        <i class="fas fa-dove me-2"></i>Niddo
+                    </h4>
+                    <p>El software más completo para la administración de consorcios en Argentina.</p>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <h4>Producto</h4>
+                    <p><a href="#admin">Para Administradores</a></p>
+                    <p><a href="#vecinos">Para Vecinos</a></p>
+                    <p><a href="#">Pricing</a></p>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <h4>Empresa</h4>
+                    <p><a href="#">Acerca de</a></p>
+                    <p><a href="#">Blog</a></p>
+                    <p><a href="#">Contacto</a></p>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <h4>Legal</h4>
+                    <p><a href="#">Términos y Condiciones</a></p>
+                    <p><a href="#">Privacidad</a></p>
+                    <p><a href="#">Seguridad</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Niddo. Todos los derechos reservados. | Hecho en Argentina 🇦🇷</p>
+            </div>
+        </div>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+            <div class="row align-items-center min-vh-100">
+                <div class="col-lg-6">
+                    <div class="hero-content">
+                        <h1 class="display-4 fw-bold mb-4">Fácil, automático y sin estrés</h1>
+                        <p class="lead mb-4">Software N°1 para administrar consorcios en Argentina. Balance automático, facturas con IA, cobro con QR.</p>
+                        <div class="d-flex gap-3 mb-4">
+                            <button class="btn btn-primary btn-lg">
+                                <i class="fas fa-play me-2"></i>Ver video
+                            </button>
+                            <a href="/login" class="btn btn-outline-primary btn-lg">Ingresa</a>
+                        </div>
+                        <div class="stats">
+                            <p class="mb-0"><strong>+300</strong> administradores confían en nosotros</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="hero-image">
+                        <div class="dashboard-mockup">
+                            <div class="mockup-header">
+                                <span class="dot"></span>
+                                <span class="dot"></span>
+                                <span class="dot"></span>
+                            </div>
+                            <div class="mockup-content">
+                                <div class="mockup-chart"></div>
+                                <div class="mockup-stats">
+                                    <div class="stat-item"></div>
+                                    <div class="stat-item"></div>
+                                    <div class="stat-item"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Scripts -->
+                <div class="col-lg-6 mb-4">
+                    <div class="feature-card h-100">
+                        <div class="feature-icon">
+                            <i class="fas fa-home"></i>
+                        </div>
+                        <h3>Hogares</h3>
+                        <p>Gestión completa de unidades funcionales y residentes</p>
+                    </div>
+                </div>
+                <div class="col-lg-6 mb-4">
+                    <div class="feature-card h-100">
+                        <div class="feature-icon">
+                            <i class="fas fa-balance-scale"></i>
+                        </div>
+                        <h3>Balance automático</h3>
+                        <p>Toda la información contable se actualiza en tiempo real. Visualizá ingresos, egresos y saldos por consorcio sin cálculos manuales ni hojas de Excel. Consolidado claro por tipo de movimiento: efectivo, banco, cheques y saldos por consorcio.</p>
+                    </div>
+                </div>
+                <div class="col-lg-6 mb-4">
+                    <div class="feature-card h-100">
+                        <div class="feature-icon">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <h3>Lectura de facturas con IA</h3>
+                        <p>Subí cualquier factura y Niddo la interpreta automáticamente: proveedor, monto, fecha y más. La carga de gastos nunca fue tan rápida y precisa!</p>
+                    </div>
+                </div>
+                <div class="col-lg-6 mb-4">
+                    <div class="feature-card h-100">
+                        <div class="feature-icon">
+                            <i class="fas fa-file-invoice"></i>
+                        </div>
+                        <h3>Cobranzas por extracto</h3>
+                        <p>Se eliminan las conciliaciones manuales. Aumentá tu eficiencia cobrando sin perder tiempo revisando CBU por CBU.</p>
+                    </div>
+                </div>
+                <div class="col-lg-6 mb-4">
+                    <div class="feature-card h-100">
+                        <div class="feature-icon">
+                            <i class="fas fa-qrcode"></i>
+                        </div>
+                        <h3>Pagos con QR</h3>
+                        <p>Emití expensas con un QR personalizado para que cada vecino pueda pagar desde su celular con su billetera virtual favorita. Cobros más rápidos y vecinos felices!</p>
+                    </div>
+                </div>
+                <div class="col-lg-6 mb-4">
+                    <div class="feature-card h-100">
+                        <div class="feature-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <h3>Ganá tiempo para lo importante</h3>
+                        <p>Tu tiempo vale: usalo para crecer, innovar o simplemente descansar. Niddo elimina las preocupaciones del día a día.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    </div>
+
+    <!-- Vecinos Page Section -->
+    <div id="vecinos-section" class="page-section" style="display: none;">
+        <!-- Hero Section -->
+        <section class="hero-section vecinos-hero">
+            <div class="container">
+                <div class="row align-items-center min-vh-100">
+                    <div class="col-lg-6">
+                        <div class="hero-content">
+                            <h1 class="display-4 fw-bold mb-4">Pagá expensas, reservá amenities y más desde tu celu</h1>
+                            <p class="lead mb-4">Gestioná tu edificio desde la palma de tu mano. Mantenete comunicado siempre con tu consorcio.</p>
+                            <div class="d-flex gap-3 mb-4">
+                                <button class="btn btn-primary btn-lg">
+                                    <i class="fas fa-mobile-alt me-2"></i>Descargar App
+                                </button>
+                                <a href="/login" class="btn btn-outline-primary btn-lg">Ingresar</a>
+                            </div>
+                            <div class="stats">
+                                <p class="mb-0"><strong>+10,000</strong> vecinos ya usan Niddo</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="hero-image">
+                            <div class="dashboard-mockup">
+                                <div class="mockup-header">
+                                    <span class="dot"></span>
+                                    <span class="dot"></span>
+                                    <span class="dot"></span>
+                                </div>
+                                <div class="mockup-content">
+                                    <div class="mockup-chart"></div>
+                                    <div class="mockup-stats">
+                                        <div class="stat-item"></div>
+                                        <div class="stat-item"></div>
+                                        <div class="stat-item"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="features-section py-5">
+            <div class="container">
+                <div class="row vecinos-features">
+                    <div class="col-lg-6 mb-4">
+                        <div class="feature-card h-100">
+                            <div class="feature-icon">
+                                <i class="fas fa-bell"></i>
+                            </div>
+                            <h3>Mantenete comunicado siempre</h3>
+                            <p>Recibí avisos y comunicaciones oficiales de tu consorcio al instante. Nunca te pierdas información importante del edificio.</p>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 mb-4">
+                        <div class="feature-card h-100">
+                            <div class="feature-icon">
+                                <i class="fas fa-credit-card"></i>
+                            </div>
+                            <h3>Aboná e informá tus pagos fácil y rápido</h3>
+                            <p>Elegí tu método de pago seguro y mantené tus cuentas siempre al día. Pagá tus expensas desde la app con total seguridad.</p>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 mb-4">
+                        <div class="feature-card h-100">
+                            <div class="feature-icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <h3>Reportá incidencias al instante</h3>
+                            <p>Enviá solicitudes y hablá en tiempo real con tu administrador. Comunicá problemas o necesidades del edificio inmediatamente.</p>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 mb-4">
+                        <div class="feature-card h-100">
+                            <div class="feature-icon">
+                                <i class="fas fa-calendar-check"></i>
+                            </div>
+                            <h3>Reservá amenities en segundos</h3>
+                            <p>Gestioná y agendá amenities para ese evento tan especial, sin salir de la app. Reservá salón de fiestas, parrilla, piscina y más.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Proveedores Page Section -->
+    <div id="proveedores-section" class="page-section" style="display: none;">
+        <!-- Hero Section -->
+        <section class="hero-section proveedores-hero">
+            <div class="container">
+                <div class="row align-items-center min-vh-100">
+                    <div class="col-lg-6">
+                        <div class="hero-content">
+                            <h1 class="display-4 fw-bold mb-4">Portal de Proveedores</h1>
+                            <p class="lead mb-4">Cargá tus facturas y gestioná tu vínculo con administraciones de consorcios de forma simple, rápida y segura.</p>
+                            <div class="d-flex gap-3 mb-4">
+                                <button class="btn btn-primary btn-lg">
+                                    <i class="fas fa-handshake me-2"></i>Registrarme
+                                </button>
+                                <a href="/login" class="btn btn-outline-primary btn-lg">Ingresar</a>
+                            </div>
+                            <div class="stats">
+                                <p class="mb-0"><strong>+500</strong> proveedores confían en nosotros</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="hero-image">
+                            <div class="dashboard-mockup">
+                                <div class="mockup-header">
+                                    <span class="dot"></span>
+                                    <span class="dot"></span>
+                                    <span class="dot"></span>
+                                </div>
+                                <div class="mockup-content">
+                                    <div class="mockup-chart"></div>
+                                    <div class="mockup-stats">
+                                        <div class="stat-item"></div>
+                                        <div class="stat-item"></div>
+                                        <div class="stat-item"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="features-section py-5">
+            <div class="container">
+                <div class="row proveedores-features">
+                    <div class="col-lg-6 mb-4">
+                        <div class="feature-card h-100">
+                            <div class="feature-icon">
+                                <i class="fas fa-file-invoice"></i>
+                            </div>
+                            <h3>La gestión empieza cuando cargás tu factura</h3>
+                            <p>Subí tu factura al portal en segundos. El administrador la recibe automáticamente y el proceso de pago se pone en marcha. Así de simple es trabajar con Niddo: vos hacés tu parte, el sistema se encarga del resto.</p>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 mb-4">
+                        <div class="feature-card h-100">
+                            <div class="feature-icon">
+                                <i class="fas fa-folder-open"></i>
+                            </div>
+                            <h3>Visualizá todas tus facturas en un solo lugar</h3>
+                            <p>Accedé al historial de facturas enviadas, revisá sus estados y descargalas cuando las necesites. Tené el control total de tu facturación, sin depender de múltiples correos o sistemas.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Support Section -->
+    <section class="support-section py-5 bg-light">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <div class="support-content">
+                        <h2 class="display-5 fw-bold mb-4">Un equipo de expertos a tu lado</h2>
+                        <p class="lead mb-4">Con Niddo, sumás a tu gestión un equipo profesional con experiencia comprobada en cientos de consorcios. Somos especialistas en implementación y te acompañamos desde el primer día con soporte real y sin vueltas.</p>
+                        <p class="mb-4">Chat, WhatsApp, teléfono o mail: vos elegís cómo querés comunicarte.</p>
+                        <button class="btn btn-primary btn-lg">Empezá ahora</button>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="support-image">
+                        <div class="team-illustration">
+                            <div class="team-member">
+                                <i class="fas fa-headset"></i>
+                            </div>
+                            <div class="team-member">
+                                <i class="fas fa-comments"></i>
+                            </div>
+                            <div class="team-member">
+                                <i class="fas fa-phone"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials Section -->
+    <section class="testimonials-section py-5">
+        <div class="container">
+            <h2 class="text-center mb-5">Para administradores que aman la era digital</h2>
+            <div class="row">
+                <div class="col-md-3 mb-4">
+                    <div class="testimonial-card">
+                        <div class="avatar"></div>
+                        <h5>Pablo Vergara</h5>
+                        <p class="text-muted">Administrador</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="testimonial-card">
+                        <div class="avatar"></div>
+                        <h5>Carlos García Herrera</h5>
+                        <p class="text-muted">Administrador</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="testimonial-card">
+                        <div class="avatar"></div>
+                        <h5>Maria Elena Fernandez</h5>
+                        <p class="text-muted">Administradora</p>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="testimonial-card">
+                        <div class="avatar"></div>
+                        <h5>Marita Carreño</h5>
+                        <p class="text-muted">Administradora</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-3 mb-4">
+                    <h4 style="color: var(--primary); margin-bottom: 1.5rem;">
+                        <i class="fas fa-dove me-2"></i>Niddo
+                    </h4>
+                    <p>El software más completo para la administración de consorcios en Argentina.</p>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <h4>Producto</h4>
+                    <p><a href="#admin">Para Administradores</a></p>
+                    <p><a href="#vecinos">Para Vecinos</a></p>
+                    <p><a href="#">Pricing</a></p>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <h4>Empresa</h4>
+                    <p><a href="#">Acerca de</a></p>
+                    <p><a href="#">Blog</a></p>
+                    <p><a href="#">Contacto</a></p>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <h4>Legal</h4>
+                    <p><a href="#">Términos y Condiciones</a></p>
+                    <p><a href="#">Privacidad</a></p>
+                    <p><a href="#">Seguridad</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Niddo. Todos los derechos reservados. | Hecho en Argentina 🇦🇷</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
