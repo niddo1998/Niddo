@@ -10,220 +10,203 @@
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
         :root {
-            --purple: #7C3AED;
-            --purple-light: #8B5CF6;
-            --teal: #10B981;
-            --bg: #0d0d12;
-            --surface: #16161f;
-            --surface2: #1e1e2a;
+            --purple: #7C3AED; --purple-light: #8B5CF6;
+            --teal: #10B981; --red: #EF4444;
+            --bg: #0d0d12; --surface: #16161f; --surface2: #1e1e2a;
             --border: rgba(255,255,255,0.07);
-            --text: #f0f0f5;
-            --muted: #8b8b9e;
+            --text: #f0f0f5; --muted: #8b8b9e;
             --sidebar-w: 220px;
         }
         :root.light {
-            --bg: #f5f5fa;
-            --surface: #ffffff;
-            --surface2: #f0f0f8;
-            --border: rgba(0,0,0,0.08);
-            --text: #111118;
-            --muted: #6b6b80;
+            --bg: #f5f5fa; --surface: #ffffff; --surface2: #f0f0f8;
+            --border: rgba(0,0,0,0.08); --text: #111118; --muted: #6b6b80;
         }
 
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; transition: background 0.3s, color 0.3s; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text);
+               -webkit-font-smoothing: antialiased; transition: background .3s, color .3s; }
 
+        /* ── Sidebar ── */
         .sidebar {
-            background: var(--surface);
-            border-right: 1px solid var(--border);
-            min-height: 100vh; color: var(--text);
+            background: var(--surface); border-right: 1px solid var(--border);
             position: fixed; width: var(--sidebar-w); top: 0; left: 0;
-            display: flex; flex-direction: column; overflow-y: auto; z-index: 100;
-            transition: background 0.3s, border-color 0.3s;
+            height: 100vh; display: flex; flex-direction: column;
+            overflow-y: auto; z-index: 100; transition: background .3s, border-color .3s;
         }
         .sidebar-brand {
-            font-size: 1.1rem; font-weight: 800; padding: 18px 16px;
+            font-size: 1.05rem; font-weight: 800; padding: 16px;
             border-bottom: 1px solid var(--border);
             background: linear-gradient(135deg, var(--purple-light), var(--teal));
             -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
         }
-        .sidebar-nav { padding: 8px 8px; flex: 1; }
+        .sidebar-nav { padding: 6px 6px; flex: 1; }
         .nav-section-label {
-            font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em;
-            text-transform: uppercase; color: var(--muted);
-            padding: 14px 10px 4px;
+            font-size: 0.57rem; font-weight: 700; letter-spacing: .1em;
+            text-transform: uppercase; color: var(--muted); padding: 12px 10px 3px;
         }
         .nav-link {
             color: var(--muted); padding: 7px 10px; border-radius: 8px;
-            transition: all 0.15s; display: flex; align-items: center; gap: 9px;
-            text-decoration: none; font-size: 0.83rem; cursor: pointer; margin-bottom: 1px;
+            transition: all .15s; display: flex; align-items: center; gap: 8px;
+            text-decoration: none; font-size: 0.82rem; cursor: pointer; margin-bottom: 1px;
         }
-        .nav-link:hover { background: rgba(124,58,237,0.08); color: var(--text); }
-        .nav-link.active { background: rgba(124,58,237,0.12); color: var(--purple-light); font-weight: 600; }
-        .nav-icon { width: 15px; text-align: center; font-size: 0.8rem; }
+        .nav-link:hover { background: rgba(124,58,237,.08); color: var(--text); }
+        .nav-link.active { background: rgba(124,58,237,.12); color: var(--purple-light); font-weight: 600; }
         .badge-count {
-            margin-left: auto; font-size: 0.6rem; padding: 1px 7px;
+            margin-left: auto; font-size: .6rem; padding: 1px 7px;
             border-radius: 10px; font-weight: 700;
-            background: rgba(124,58,237,0.15); color: var(--purple-light);
+            background: rgba(124,58,237,.15); color: var(--purple-light);
         }
-        .sidebar-footer { padding: 10px 8px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
-        .btn-logout {
+        .sidebar-footer { padding: 8px 6px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 3px; }
+        .btn-sidebar {
             background: transparent; color: var(--muted); border: none;
             padding: 7px 10px; border-radius: 8px; cursor: pointer; width: 100%;
-            display: flex; align-items: center; gap: 9px; font-size: 0.83rem; transition: all 0.15s; font-family: 'Inter', sans-serif;
+            display: flex; align-items: center; gap: 8px; font-size: .82rem;
+            font-family: 'Inter', sans-serif; transition: all .15s;
         }
-        .btn-logout:hover { background: rgba(239,68,68,0.08); color: #f87171; }
-        .btn-theme {
-            background: transparent; color: var(--muted); border: none;
-            padding: 7px 10px; border-radius: 8px; cursor: pointer; width: 100%;
-            display: flex; align-items: center; gap: 9px; font-size: 0.83rem; transition: all 0.15s; font-family: 'Inter', sans-serif;
-        }
-        .btn-theme:hover { background: rgba(124,58,237,0.08); color: var(--text); }
+        .btn-sidebar:hover { background: rgba(124,58,237,.08); color: var(--text); }
+        .btn-sidebar.danger:hover { background: rgba(239,68,68,.08); color: #f87171; }
 
-        .main { margin-left: var(--sidebar-w); padding: 24px 28px; min-height: 100vh; max-width: 1280px; }
+        /* ── Main ── */
+        .main { margin-left: var(--sidebar-w); padding: 22px 26px; min-height: 100vh; }
         .section { display: none; }
-        .section.active { display: block; animation: fadeUp 0.2s ease; }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .section.active { display: block; animation: fadeUp .2s ease; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
-        .page-title { font-size: 1.2rem; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
-        .page-sub { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+        /* ── Page header ── */
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .page-title { font-size: 1.18rem; font-weight: 700; margin: 0; letter-spacing: -.02em; }
+        .page-sub { font-size: .77rem; color: var(--muted); margin-top: 2px; }
 
-        .kpi-row { display: flex; gap: 14px; margin-bottom: 22px; flex-wrap: wrap; }
-        .kpi { background: var(--surface); border: 1px solid var(--border); padding: 14px 18px; border-radius: 10px; flex: 1; min-width: 120px; transition: background 0.3s, border-color 0.3s; }
-        .kpi-val { font-size: 1.5rem; font-weight: 800; line-height: 1; }
-        .kpi-label { font-size: 0.73rem; color: var(--muted); margin-top: 3px; }
+        /* ── KPI row ── */
+        .kpi-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .kpi { background: var(--surface); border: 1px solid var(--border); padding: 14px 18px;
+               border-radius: 10px; flex: 1; min-width: 110px; }
+        .kpi-val { font-size: 1.45rem; font-weight: 800; line-height: 1; }
+        .kpi-label { font-size: .72rem; color: var(--muted); margin-top: 3px; }
+        .kpi-sub { font-size: .7rem; color: var(--muted); margin-top: 5px; }
 
-        .card { background: var(--surface); border-radius: 10px; border: 1px solid var(--border); margin-bottom: 14px; overflow: hidden; transition: background 0.3s, border-color 0.3s; }
-        .card-h { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-        .card-t { font-size: 0.86rem; font-weight: 700; margin: 0; }
-        .card-p { padding: 16px; }
+        /* ── Card ── */
+        .card { background: var(--surface); border-radius: 10px; border: 1px solid var(--border); margin-bottom: 14px; overflow: hidden; }
+        .card-h { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
+        .card-t { font-size: .85rem; font-weight: 700; margin: 0; }
+        .card-p { padding: 14px 16px; }
 
-        .row { display: flex; gap: 14px; flex-wrap: wrap; }
-        .col-lg-4 { flex: 1; min-width: 260px; }
-        .col-lg-5 { flex: 1.25; min-width: 280px; }
-        .col-lg-7 { flex: 1.75; min-width: 320px; }
-        .col-lg-8 { flex: 2; min-width: 320px; }
-        .g-4 { gap: 14px; }
-        .mb-5 { margin-bottom: 20px !important; }
-        .mb-4 { margin-bottom: 16px !important; }
-        .mb-3 { margin-bottom: 12px !important; }
-        .me-1 { margin-right: 4px; }
-        .me-2 { margin-right: 8px; }
-        .ms-auto { margin-left: auto; }
-
-        .tbl { font-size: 0.83rem; margin: 0; width: 100%; border-collapse: collapse; }
-        .tbl th { font-size: 0.68rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 9px 13px; border-bottom: 1px solid var(--border); text-align: left; }
+        /* ── Table ── */
+        .tbl { font-size: .82rem; width: 100%; border-collapse: collapse; }
+        .tbl th { font-size: .67rem; font-weight: 600; color: var(--muted); text-transform: uppercase;
+                  letter-spacing: .05em; padding: 9px 13px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
         .tbl td { padding: 9px 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
         .tbl tbody tr:last-child td { border-bottom: none; }
-        .tbl tbody tr:hover { background: rgba(124,58,237,0.04); }
+        .tbl tbody tr:hover { background: rgba(124,58,237,.04); }
+        .tbl-empty { text-align: center; color: var(--muted); padding: 32px; font-size: .84rem; }
 
-        .b { padding: 2px 8px; border-radius: 6px; font-size: 0.69rem; font-weight: 600; white-space: nowrap; }
-        .b-g { background: rgba(16,185,129,0.12); color: #34d399; }
-        .b-y { background: rgba(245,158,11,0.12); color: #fbbf24; }
-        .b-r { background: rgba(239,68,68,0.12); color: #f87171; }
-        .b-b { background: rgba(59,130,246,0.12); color: #60a5fa; }
+        /* ── Badges ── */
+        .b { padding: 2px 8px; border-radius: 6px; font-size: .68rem; font-weight: 600; white-space: nowrap; }
+        .b-g { background: rgba(16,185,129,.12); color: #34d399; }
+        .b-y { background: rgba(245,158,11,.12); color: #fbbf24; }
+        .b-r { background: rgba(239,68,68,.12); color: #f87171; }
+        .b-b { background: rgba(59,130,246,.12); color: #60a5fa; }
+        .b-p { background: rgba(124,58,237,.12); color: var(--purple-light); }
         .b-gr { background: var(--surface2); color: var(--muted); }
-        .b-p { background: rgba(124,58,237,0.12); color: var(--purple-light); }
+        :root.light .b-g { background:#ECFDF5; color:#065F46; }
+        :root.light .b-y { background:#FEF9C3; color:#854D0E; }
+        :root.light .b-r { background:#FEF2F2; color:#991B1B; }
+        :root.light .b-b { background:#EFF6FF; color:#1E40AF; }
+        :root.light .b-p { background:#F3F0FF; color:#5B21B6; }
+        :root.light .b-gr { background:#F4F4F5; color:#52525B; }
 
-        :root.light .b-g { background: #ECFDF5; color: #065F46; }
-        :root.light .b-y { background: #FEF9C3; color: #854D0E; }
-        :root.light .b-r { background: #FEF2F2; color: #991B1B; }
-        :root.light .b-b { background: #EFF6FF; color: #1E40AF; }
-        :root.light .b-gr { background: #F4F4F5; color: #52525B; }
-        :root.light .b-p { background: #F3F0FF; color: #5B21B6; }
+        /* ── Buttons ── */
+        .btn-p { background: var(--purple); color: #fff; border-radius: 7px; font-size: .81rem;
+                 padding: 6px 14px; border: none; cursor: pointer; font-family: 'Inter',sans-serif;
+                 font-weight: 600; transition: all .2s; display: inline-flex; align-items: center; gap: 5px; }
+        .btn-p:hover { background: var(--purple-light); box-shadow: 0 4px 14px rgba(124,58,237,.3); }
+        .btn-s { border: 1px solid var(--border); color: var(--muted); background: var(--surface);
+                 border-radius: 7px; font-size: .81rem; padding: 6px 14px; cursor: pointer;
+                 font-family: 'Inter',sans-serif; font-weight: 500; transition: all .15s;
+                 display: inline-flex; align-items: center; gap: 5px; }
+        .btn-s:hover { color: var(--text); border-color: rgba(124,58,237,.3); }
+        .btn-sm { padding: 3px 9px; font-size: .76rem; }
+        .btn-danger { background: rgba(239,68,68,.1); color: #f87171; border: 1px solid rgba(239,68,68,.2);
+                      border-radius: 7px; font-size: .76rem; padding: 3px 9px; cursor: pointer;
+                      font-family: 'Inter',sans-serif; font-weight: 600; transition: all .15s; }
+        .btn-danger:hover { background: rgba(239,68,68,.2); }
+        .btn-teal { background: var(--teal); color: #fff; border-radius: 7px; font-size: .81rem;
+                    padding: 6px 14px; border: none; cursor: pointer; font-family: 'Inter',sans-serif;
+                    font-weight: 600; transition: all .2s; display: inline-flex; align-items: center; gap: 5px; }
+        .btn-teal:hover { background: #059669; }
 
-        .btn-p { background: var(--purple); color: white; border-radius: 7px; font-size: 0.81rem; padding: 6px 14px; border: none; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 600; transition: all 0.2s; }
-        .btn-p:hover { background: var(--purple-light); box-shadow: 0 4px 14px rgba(124,58,237,0.3); }
-        .btn-s { border: 1px solid var(--border); color: var(--muted); background: var(--surface); border-radius: 7px; font-size: 0.81rem; padding: 6px 14px; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 500; transition: all 0.15s; }
-        .btn-s:hover { color: var(--text); border-color: rgba(124,58,237,0.3); }
-        .btn-sm { padding: 4px 10px; font-size: 0.77rem; }
-
-        .seg { background: var(--surface2); border-radius: 6px; padding: 2px; display: inline-flex; }
-        .seg button { padding: 4px 10px; border-radius: 4px; border: none; font-size: 0.75rem; font-weight: 500; color: var(--muted); background: transparent; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.15s; }
-        .seg button.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-
-        .upload-zone {
-            border: 2px dashed var(--border); border-radius: 8px; padding: 24px; text-align: center;
-            background: var(--surface2); cursor: pointer; transition: all 0.15s;
+        /* ── Forms & inputs ── */
+        .form-group { margin-bottom: 14px; }
+        .form-label { font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+                      color: var(--muted); margin-bottom: 5px; display: block; }
+        .form-ctrl {
+            border-radius: 7px; border: 1px solid var(--border); font-size: .83rem;
+            background: var(--surface2); color: var(--text); padding: 8px 11px;
+            font-family: 'Inter',sans-serif; width: 100%; outline: none;
+            transition: border-color .2s; appearance: auto;
         }
-        .upload-zone:hover { border-color: var(--purple-light); }
+        .form-ctrl:focus { border-color: var(--purple-light); box-shadow: 0 0 0 2px rgba(124,58,237,.12); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .form-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+        .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: .83rem; }
+        .checkbox-row input { width: 15px; height: 15px; }
 
-        .form-control, .form-select {
-            border-radius: 7px; border: 1px solid var(--border); font-size: 0.83rem;
-            background: var(--surface2); color: var(--text); padding: 7px 10px;
-            font-family: 'Inter', sans-serif; width: 100%; outline: none;
-            transition: border-color 0.2s, background 0.3s;
+        /* ── Tabs ── */
+        .tabs { display: flex; gap: 2px; background: var(--surface2); border-radius: 8px; padding: 3px; margin-bottom: 16px; }
+        .tab-btn { padding: 6px 16px; border-radius: 6px; border: none; font-size: .8rem; font-weight: 500;
+                   color: var(--muted); background: transparent; cursor: pointer; font-family: 'Inter',sans-serif; transition: all .15s; }
+        .tab-btn.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+
+        /* ── Filters bar ── */
+        .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+        .filters .form-ctrl { width: auto; }
+
+        /* ── Modal ── */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 9000;
+            display: none; align-items: center; justify-content: center;
         }
-        .form-control:focus, .form-select:focus { border-color: var(--purple-light); box-shadow: 0 0 0 2px rgba(124,58,237,0.12); }
-        .form-control-sm { padding: 5px 8px; font-size: 0.8rem; }
-        .form-select-sm { padding: 5px 8px; font-size: 0.8rem; }
-        .cfg-label { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
-
-        .alert-row {
-            display: flex; align-items: center; gap: 12px; padding: 10px 12px;
-            border-radius: 8px; cursor: pointer; transition: background 0.12s; border: 1px solid var(--border);
+        .modal-overlay.open { display: flex; animation: fadeIn .15s ease; }
+        .modal-box {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+            width: 560px; max-width: 94vw; max-height: 88vh; overflow-y: auto;
+            box-shadow: 0 24px 60px rgba(0,0,0,.45); animation: modalIn .2s ease;
         }
-        .alert-row:hover { background: rgba(124,58,237,0.05); border-color: rgba(124,58,237,0.2); }
-        .alert-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        .modal-box.wide { width: 720px; }
+        .modal-head { padding: 14px 18px; border-bottom: 1px solid var(--border);
+                      display: flex; justify-content: space-between; align-items: center; }
+        .modal-head h3 { font-size: .93rem; font-weight: 700; margin: 0; }
+        .modal-close { background: none; border: none; font-size: 1rem; color: var(--muted); cursor: pointer; }
+        .modal-close:hover { color: var(--text); }
+        .modal-body { padding: 18px; }
+        .modal-footer { padding: 14px 18px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes modalIn { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
 
-        .progress-bar-thin { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
-        .progress-bar-thin .fill { height: 100%; border-radius: 2px; }
-
-        .chat-item { display: flex; gap: 10px; padding: 10px 13px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.1s; }
-        .chat-item:hover, .chat-item.active { background: rgba(124,58,237,0.06); }
-        .avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.73rem; flex-shrink: 0; }
-        .bubble { max-width: 68%; padding: 8px 12px; border-radius: 10px; font-size: 0.83rem; line-height: 1.45; }
-        .bubble-out { background: var(--purple); color: white; border-bottom-right-radius: 3px; margin-left: auto; }
-        .bubble-in { background: var(--surface2); color: var(--text); border-bottom-left-radius: 3px; }
-
-        .detected-pill {
-            display: inline-flex; align-items: center; gap: 5px; background: rgba(124,58,237,0.08);
-            border: 1px solid rgba(124,58,237,0.15); border-radius: 6px; padding: 4px 10px; font-size: 0.79rem;
-        }
-        .detected-pill .lbl { color: var(--muted); font-size: 0.67rem; text-transform: uppercase; letter-spacing: 0.04em; }
-        .detected-pill .val { color: var(--text); font-weight: 600; }
-
-        .list-item { display: flex; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); }
-        .list-item:last-child { border-bottom: none; }
-
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-        /* Toast */
-        .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column-reverse; gap: 8px; }
-        .toast-msg {
-            padding: 10px 18px; border-radius: 8px; font-size: 0.83rem; font-weight: 500;
-            color: white; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-            animation: toastIn 0.25s ease, toastOut 0.3s ease 2.5s forwards;
-            display: flex; align-items: center; gap: 8px;
-        }
-        .toast-msg.t-ok { background: #059669; }
-        .toast-msg.t-err { background: #DC2626; }
-        .toast-msg.t-info { background: #2563EB; }
-        .toast-msg.t-warn { background: #D97706; }
+        /* ── Toast ── */
+        .toast-container { position: fixed; bottom: 22px; right: 22px; z-index: 9999;
+                           display: flex; flex-direction: column-reverse; gap: 8px; }
+        .toast-msg { padding: 10px 16px; border-radius: 8px; font-size: .83rem; font-weight: 500;
+                     color: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.25); max-width: 340px;
+                     animation: toastIn .25s ease, toastOut .3s ease 2.7s forwards; }
+        .toast-msg.ok { background: #059669; } .toast-msg.err { background: #DC2626; }
+        .toast-msg.info { background: #2563EB; } .toast-msg.warn { background: #D97706; }
         @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-8px); } }
 
-        /* Modal */
-        .modal-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9000;
-            display: none; align-items: center; justify-content: center;
-        }
-        .modal-overlay.open { display: flex; animation: fadeIn 0.15s ease; }
-        .modal-box {
-            background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: 480px; max-width: 90vw;
-            max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-            animation: modalIn 0.2s ease;
-        }
-        .modal-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .modal-head h3 { font-size: 0.93rem; font-weight: 700; margin: 0; }
-        .modal-close { background: none; border: none; font-size: 1rem; color: var(--muted); cursor: pointer; padding: 4px; }
-        .modal-close:hover { color: var(--text); }
-        .modal-body { padding: 18px; font-size: 0.83rem; color: var(--muted); line-height: 1.6; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes modalIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
-
-        .row-removing { transition: all 0.4s ease; opacity: 0; transform: translateX(20px); max-height: 0; overflow: hidden; padding: 0 !important; }
+        /* ── Misc ── */
+        .sep { height: 1px; background: var(--border); margin: 16px 0; }
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .text-muted { color: var(--muted); font-size: .82rem; }
+        .text-sm { font-size: .78rem; }
+        .inline-actions { display: flex; gap: 5px; align-items: center; }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+        .upload-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 20px;
+                       text-align: center; cursor: pointer; transition: all .15s; }
+        .upload-zone:hover { border-color: var(--purple-light); }
+        .progress-bar { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+        .progress-bar .fill { height: 100%; border-radius: 2px; }
+        .section-info { background: rgba(124,58,237,.06); border: 1px solid rgba(124,58,237,.14);
+                        border-radius: 8px; padding: 10px 14px; font-size: .82rem; color: var(--muted); margin-bottom: 14px; }
     </style>
 </head>
 <body>
@@ -232,27 +215,26 @@
     <div class="sidebar-brand">🏢 Niddo Admin</div>
     <div class="sidebar-nav">
         <div class="nav-section-label">General</div>
-        <a class="nav-link active" onclick="show('dashboard',this)"><span class="nav-icon">▦</span>Dashboard</a>
-        <a class="nav-link" onclick="show('consorcios',this)"><span class="nav-icon">🏬</span>Consorcios</a>
+        <a class="nav-link active" onclick="show('dashboard',this)">◈ Dashboard</a>
+        <a class="nav-link" onclick="show('consorcios',this)">🏬 Consorcios</a>
 
         <div class="nav-section-label">Operaciones</div>
-        <a class="nav-link" onclick="show('facturas',this)"><span class="nav-icon">🧾</span>Facturas<span class="badge-count">3</span></a>
-        <a class="nav-link" onclick="show('expensas',this)"><span class="nav-icon">📨</span>Expensas</a>
-        <a class="nav-link" onclick="show('pagos',this)"><span class="nav-icon">💳</span>Pagos<span class="badge-count">5</span></a>
-        <a class="nav-link" onclick="show('morosidad',this)"><span class="nav-icon">⚠️</span>Morosidad<span class="badge-count">4</span></a>
+        <a class="nav-link" onclick="show('gastos',this)">💸 Gastos</a>
+        <a class="nav-link" onclick="show('cobros',this)">💳 Cobros</a>
+        <a class="nav-link" onclick="show('proveedores',this)">🤝 Proveedores</a>
 
         <div class="nav-section-label">Finanzas</div>
-        <a class="nav-link" onclick="show('balance',this)"><span class="nav-icon">📊</span>Balance</a>
+        <a class="nav-link" onclick="show('balance',this)">📊 Balance</a>
 
         <div class="nav-section-label">Comunicación</div>
-        <a class="nav-link" onclick="show('mensajeria',this)"><span class="nav-icon">💬</span>Mensajería<span class="badge-count">2</span></a>
+        <a class="nav-link" onclick="show('mensajeria',this)">💬 Mensajería</a>
 
         <div class="nav-section-label">Sistema</div>
-        <a class="nav-link" onclick="show('config',this)"><span class="nav-icon">⚙️</span>Configuración</a>
+        <a class="nav-link" onclick="show('config',this)">⚙️ Configuración</a>
     </div>
     <div class="sidebar-footer">
-        <button class="btn-theme" id="theme-toggle">🌙 Cambiar tema</button>
-        <button class="btn-logout" onclick="window.location.href='/auth/logout'">↩ Cerrar sesión</button>
+        <button class="btn-sidebar" id="theme-toggle">🌙 Cambiar tema</button>
+        <button class="btn-sidebar danger" onclick="window.location.href='/auth/logout'">↩ Cerrar sesión</button>
     </div>
 </div>
 
@@ -261,1226 +243,1019 @@
 <!-- ═══ DASHBOARD ═══ -->
 <div id="sec-dashboard" class="section active">
     <div class="page-header">
-        <div><h1 class="page-title">Dashboard</h1><p class="page-sub">Mayo 2026</p></div>
-        <button class="btn-p" onclick="show('expensas',document.querySelector('[onclick*=expensas]'))"><i class="fas fa-paper-plane me-1"></i>Enviar expensas</button>
+        <div><h1 class="page-title">Dashboard</h1><p class="page-sub" id="dash-fecha"></p></div>
     </div>
-
-    <div class="kpi-row">
-        <div class="kpi"><div class="kpi-val">12</div><div class="kpi-label">Consorcios activos</div></div>
-        <div class="kpi"><div class="kpi-val">$3.1M</div><div class="kpi-label">Cobrado en mayo</div></div>
-        <div class="kpi"><div class="kpi-val" style="color:#D97706;">5</div><div class="kpi-label">Comprobantes por aprobar</div></div>
-        <div class="kpi"><div class="kpi-val" style="color:#DC2626;">4</div><div class="kpi-label">Usuarios en mora</div></div>
+    <div class="kpi-row" id="dash-kpis">
+        <div class="kpi"><div class="kpi-val" id="kpi-consorcios">—</div><div class="kpi-label">Consorcios activos</div></div>
+        <div class="kpi"><div class="kpi-val" id="kpi-gastos" style="color:#fbbf24">—</div><div class="kpi-label">Gastos pendientes</div></div>
+        <div class="kpi"><div class="kpi-val" id="kpi-mora" style="color:#f87171">—</div><div class="kpi-label">Vecinos en mora</div></div>
     </div>
-
-    <div class="row g-4">
-        <div class="col-lg-7">
-            <div class="card">
-                <div class="card-h"><span class="card-t">Pendientes</span></div>
-                <div class="card-p" style="display:flex;flex-direction:column;gap:8px;">
-                    <div class="alert-row" onclick="show('pagos',document.querySelector('[onclick*=pagos]'))">
-                        <div class="alert-dot" style="background:#D97706;"></div>
-                        <div style="flex:1;"><div style="font-size:0.84rem;font-weight:600;">5 comprobantes esperan aprobación</div><div style="font-size:0.74rem;color:#999;">Torres del Sol (2), Edificio Norte (1), Complejo Sur (2)</div></div>
-                        <i class="fas fa-chevron-right" style="color:#ccc;font-size:0.7rem;"></i>
-                    </div>
-                    <div class="alert-row" onclick="show('morosidad',document.querySelector('[onclick*=morosidad]'))">
-                        <div class="alert-dot" style="background:#DC2626;"></div>
-                        <div style="flex:1;"><div style="font-size:0.84rem;font-weight:600;">4 usuarios superaron el vencimiento</div><div style="font-size:0.74rem;color:#999;">Interés corriendo · tasa 2% diario</div></div>
-                        <i class="fas fa-chevron-right" style="color:#ccc;font-size:0.7rem;"></i>
-                    </div>
-                    <div class="alert-row" onclick="show('facturas',document.querySelector('[onclick*=facturas]'))">
-                        <div class="alert-dot" style="background:#2563EB;"></div>
-                        <div style="flex:1;"><div style="font-size:0.84rem;font-weight:600;">3 facturas detectadas por el scraper</div><div style="font-size:0.74rem;color:#999;">Edesur, Metrogas, ABL · vencen entre 15 y 22 de mayo</div></div>
-                        <i class="fas fa-chevron-right" style="color:#ccc;font-size:0.7rem;"></i>
-                    </div>
-                    <div class="alert-row" onclick="show('expensas',document.querySelector('[onclick*=expensas]'))">
-                        <div class="alert-dot" style="background:#7C3AED;"></div>
-                        <div style="flex:1;"><div style="font-size:0.84rem;font-weight:600;">Expensas de junio listas para revisión</div><div style="font-size:0.74rem;color:#999;">12 consorcios · esperando tu confirmación</div></div>
-                        <i class="fas fa-chevron-right" style="color:#ccc;font-size:0.7rem;"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-5">
-            <div class="card">
-                <div class="card-h"><span class="card-t">Próximos vencimientos</span></div>
-                <div class="card-p" style="font-size:0.84rem;">
-                    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;"><span>Vencimiento expensas · Torres del Sol</span><span style="color:#999;">10/05</span></div>
-                    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;"><span>Edesur · Complejo Sur</span><span style="color:#999;">15/05</span></div>
-                    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;"><span>Metrogas · Torres del Sol</span><span style="color:#999;">18/05</span></div>
-                    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;"><span>ABL · Edificio Norte</span><span style="color:#999;">22/05</span></div>
-                    <div style="display:flex;justify-content:space-between;padding:6px 0;"><span>Envío expensas junio</span><span style="color:#999;">01/06</span></div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <div class="section-info">💡 Usá el panel lateral para gestionar consorcios, gastos, cobros y proveedores. Los datos se cargan en tiempo real desde Supabase.</div>
 </div>
 
-<!-- ═══ FACTURAS ═══ -->
-<div id="sec-facturas" class="section">
+<!-- ═══ CONSORCIOS ═══ -->
+<div id="sec-consorcios" class="section">
     <div class="page-header">
-        <div><h1 class="page-title">Facturas</h1><p class="page-sub">Carga inteligente y agrupación por vencimiento</p></div>
+        <div><h1 class="page-title">Consorcios</h1><p class="page-sub">Administrá tus edificios y unidades funcionales</p></div>
         <div style="display:flex;gap:8px;">
-            <button class="btn-s btn-sm"><i class="fas fa-sync me-1"></i>Ejecutar scraper</button>
-            <button class="btn-p btn-sm"><i class="fas fa-upload me-1"></i>Cargar factura</button>
+            <button class="btn-s btn-sm" onclick="openBulkModal()">📤 Carga masiva</button>
+            <button class="btn-p btn-sm" onclick="openConsorioModal()">+ Añadir consorcio</button>
         </div>
     </div>
+    <div class="card">
+        <div class="card-h"><span class="card-t">Listado</span></div>
+        <table class="tbl" id="tbl-consorcios">
+            <thead><tr><th>Nombre</th><th>Dirección</th><th>CUIT</th><th>UFs</th><th>Encargado</th><th>Acciones</th></tr></thead>
+            <tbody id="tbody-consorcios"><tr><td colspan="6" class="tbl-empty">Cargando...</td></tr></tbody>
+        </table>
+    </div>
 
-    <div class="row g-4">
-        <div class="col-lg-5">
-            <div class="card">
-                <div class="card-h"><span class="card-t">Carga inteligente</span></div>
-                <div class="card-p">
-                    <div class="upload-zone mb-4">
-                        <i class="fas fa-cloud-upload-alt" style="font-size:1.5rem;color:#C4B5FD;display:block;margin-bottom:6px;"></i>
-                        <div style="font-size:0.84rem;color:#666;">Arrastrá una factura o hacé clic</div>
-                        <div style="font-size:0.72rem;color:#bbb;margin-top:2px;">PDF, JPG, PNG · hasta 10 MB</div>
-                    </div>
-
-                    <!-- Detected invoice -->
-                    <div style="border:1px solid #EDE9FE;border-radius:8px;padding:14px;margin-bottom:16px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                            <span style="font-size:0.82rem;font-weight:700;">Factura detectada</span>
-                            <span class="b b-g">95% confianza</span>
-                        </div>
-                        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
-                            <div class="detected-pill"><span class="lbl">Proveedor</span><span class="val">Edesur S.A.</span></div>
-                            <div class="detected-pill"><span class="lbl">Monto</span><span class="val">$45,200</span></div>
-                            <div class="detected-pill"><span class="lbl">Vence</span><span class="val">15/05/2026</span></div>
-                            <div class="detected-pill"><span class="lbl">Servicio</span><span class="val">Electricidad</span></div>
-                            <div class="detected-pill"><span class="lbl">Consorcio</span><span class="val">Complejo Sur</span></div>
-                            <div class="detected-pill"><span class="lbl">N°</span><span class="val">A-0001-00284531</span></div>
-                        </div>
-                        <div style="display:flex;gap:8px;">
-                            <button class="btn-p btn-sm" style="flex:1;"><i class="fas fa-check me-1"></i>Confirmar</button>
-                            <button class="btn-s btn-sm"><i class="fas fa-edit"></i></button>
-                        </div>
-                    </div>
-
-                    <div style="font-size:0.84rem;">
-                        <div class="list-item">
-                            <i class="fas fa-check-circle" style="color:#059669;"></i>
-                            <div style="flex:1;"><span style="font-weight:600;">Metrogas · $31,800</span><span style="color:#999;margin-left:8px;">Vence 18/05</span></div>
-                        </div>
-                        <div class="list-item">
-                            <i class="fas fa-check-circle" style="color:#059669;"></i>
-                            <div style="flex:1;"><span style="font-weight:600;">ABL Municipal · $28,500</span><span style="color:#999;margin-left:8px;">Vence 22/05</span></div>
-                        </div>
-                        <div class="list-item">
-                            <i class="fas fa-exclamation-circle" style="color:#D97706;"></i>
-                            <div style="flex:1;"><span style="font-weight:600;">Ascensores Técnicos</span><span style="color:#D97706;margin-left:8px;">Revisión manual</span></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-h">
-                    <span class="card-t">Scraper</span>
-                    <span class="b b-g">Hoy 08:00</span>
-                </div>
-                <div class="card-p">
-                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
-                        <span class="b b-g">Edesur</span>
-                        <span class="b b-g">Metrogas</span>
-                        <span class="b b-g">AySA</span>
-                        <span class="b b-b">ABL CABA</span>
-                        <span class="b b-gr" style="cursor:pointer;">+ Agregar</span>
-                    </div>
-                    <button class="btn-s btn-sm" style="width:100%;"><i class="fas fa-sync me-1"></i>Ejecutar ahora</button>
-                </div>
+    <!-- Vista detalle de un consorcio -->
+    <div id="consorcio-detail" style="display:none;">
+        <div class="page-header">
+            <div><h2 class="page-title" id="detail-nombre">—</h2><p class="page-sub" id="detail-dir">—</p></div>
+            <div style="display:flex;gap:8px;">
+                <button class="btn-s btn-sm" onclick="exportConsorcio('excel')">⬇ Excel</button>
+                <button class="btn-s btn-sm" onclick="exportConsorcio('pdf')">⬇ PDF</button>
+                <button class="btn-s btn-sm" onclick="closeDetail()">← Volver</button>
+                <button class="btn-teal btn-sm" onclick="openUFModal()">+ Añadir UF</button>
             </div>
         </div>
-
-        <div class="col-lg-7">
-            <div class="card">
-                <div class="card-h">
-                    <span class="card-t">Por vencimiento</span>
-                    <div class="seg">
-                        <button class="active">Fecha</button>
-                        <button>Consorcio</button>
-                        <button>Servicio</button>
-                    </div>
-                </div>
-
-                <div class="card-p" style="padding-top:12px;">
-                    <div style="font-size:0.72rem;font-weight:700;color:#DC2626;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Vence esta semana · $76,500</div>
-                    <table class="tbl" style="margin-bottom:20px;">
-                        <thead><tr><th>Proveedor</th><th>Consorcio</th><th>Monto</th><th>Vence</th><th></th></tr></thead>
-                        <tbody>
-                            <tr><td><strong>Edesur S.A.</strong><div style="font-size:0.72rem;color:#999;">Electricidad</div></td><td>Complejo Sur</td><td style="font-weight:600;">$45,200</td><td style="color:#DC2626;font-weight:600;">15/05</td><td><button class="btn-p btn-sm">Pagar</button></td></tr>
-                            <tr><td><strong>Metrogas</strong><div style="font-size:0.72rem;color:#999;">Gas</div></td><td>Torres del Sol</td><td style="font-weight:600;">$31,800</td><td style="color:#DC2626;font-weight:600;">18/05</td><td><button class="btn-p btn-sm">Pagar</button></td></tr>
-                        </tbody>
-                    </table>
-
-                    <div style="font-size:0.72rem;font-weight:700;color:#D97706;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Próxima semana · $294,500</div>
-                    <table class="tbl" style="margin-bottom:20px;">
-                        <thead><tr><th>Proveedor</th><th>Consorcio</th><th>Monto</th><th>Vence</th><th></th></tr></thead>
-                        <tbody>
-                            <tr><td><strong>ABL CABA</strong><div style="font-size:0.72rem;color:#999;">Impuesto</div></td><td>Edificio Norte</td><td style="font-weight:600;">$28,500</td><td>22/05</td><td><button class="btn-s btn-sm">Ver</button></td></tr>
-                            <tr><td><strong>AySA</strong><div style="font-size:0.72rem;color:#999;">Agua</div></td><td>Palermo Alto</td><td style="font-weight:600;">$22,000</td><td>24/05</td><td><button class="btn-s btn-sm">Ver</button></td></tr>
-                            <tr><td><strong>Ascensores Técnicos</strong><div style="font-size:0.72rem;color:#999;">Mantenimiento</div></td><td>Torre Catalinas</td><td style="font-weight:600;">$244,000</td><td>25/05</td><td><button class="btn-s btn-sm">Ver</button></td></tr>
-                        </tbody>
-                    </table>
-
-                    <div style="font-size:0.72rem;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Resto del mes · $186,000</div>
-                    <table class="tbl">
-                        <thead><tr><th>Proveedor</th><th>Consorcio</th><th>Monto</th><th>Vence</th><th></th></tr></thead>
-                        <tbody>
-                            <tr><td><strong>Edesur S.A.</strong><div style="font-size:0.72rem;color:#999;">Electricidad</div></td><td>Torres del Sol</td><td style="font-weight:600;">$52,000</td><td>28/05</td><td><button class="btn-s btn-sm">Ver</button></td></tr>
-                            <tr><td><strong>Seguro Zurich</strong><div style="font-size:0.72rem;color:#999;">Seguro</div></td><td>Belgrano Park</td><td style="font-weight:600;">$68,000</td><td>30/05</td><td><button class="btn-s btn-sm">Ver</button></td></tr>
-                            <tr><td><strong>Clean Masters</strong><div style="font-size:0.72rem;color:#999;">Limpieza</div></td><td>Recoleta Garden</td><td style="font-weight:600;">$35,000</td><td>31/05</td><td><button class="btn-s btn-sm">Ver</button></td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+        <div class="kpi-row" id="detail-kpis"></div>
+        <div class="card">
+            <div class="card-h"><span class="card-t">Unidades Funcionales</span></div>
+            <table class="tbl">
+                <thead><tr><th>Nro</th><th>Piso</th><th>Tipo</th><th>Sup. m²</th><th>Vecino</th><th>Email</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-ufs"><tr><td colspan="7" class="tbl-empty">Sin unidades cargadas</td></tr></tbody>
+            </table>
         </div>
     </div>
 </div>
 
-<!-- ═══ EXPENSAS ═══ -->
-<div id="sec-expensas" class="section">
+<!-- ═══ GASTOS ═══ -->
+<div id="sec-gastos" class="section">
     <div class="page-header">
-        <div><h1 class="page-title">Expensas</h1><p class="page-sub">Liquidación y envío automatizado · junio 2026</p></div>
-        <button class="btn-p"><i class="fas fa-paper-plane me-1"></i>Enviar aprobadas</button>
-    </div>
-
-    <div style="background:#F8F5FF;border:1px solid #EDE9FE;border-radius:8px;padding:10px 16px;font-size:0.82rem;color:#5B21B6;margin-bottom:20px;">
-        <i class="fas fa-info-circle me-2"></i>Las expensas fueron pre-armadas el 1° del mes. Revisá y aprobá antes de enviar.
-    </div>
-
-    <div class="row g-4">
-        <div class="col-lg-7">
-            <div class="card">
-                <div class="card-h">
-                    <span class="card-t">Liquidaciones</span>
-                    <div class="seg">
-                        <button class="active">Todas</button>
-                        <button>Pendientes</button>
-                        <button>Aprobadas</button>
-                        <button>Enviadas</button>
-                    </div>
-                </div>
-                <table class="tbl">
-                    <thead><tr><th>Consorcio</th><th>UFs</th><th>Total</th><th>Notas</th><th>Estado</th><th></th></tr></thead>
-                    <tbody>
-                        <tr><td><strong>Torres del Sol</strong></td><td>80</td><td>$412,000</td><td><span class="b b-y">1</span></td><td><span class="b b-g">Aprobada</span></td><td><button class="btn-p btn-sm"><i class="fas fa-paper-plane"></i></button> <button class="btn-s btn-sm"><i class="fas fa-eye"></i></button></td></tr>
-                        <tr><td><strong>Edificio Norte</strong></td><td>60</td><td>$256,000</td><td>—</td><td><span class="b b-g">Aprobada</span></td><td><button class="btn-p btn-sm"><i class="fas fa-paper-plane"></i></button> <button class="btn-s btn-sm"><i class="fas fa-eye"></i></button></td></tr>
-                        <tr><td><strong>Complejo Sur</strong></td><td>120</td><td>$640,000</td><td><span class="b b-y">2</span></td><td><span class="b b-y">Pendiente</span></td><td><button class="btn-p btn-sm"><i class="fas fa-check me-1"></i>Aprobar</button></td></tr>
-                        <tr><td><strong>Palermo Alto</strong></td><td>45</td><td>$198,000</td><td>—</td><td><span class="b b-y">Pendiente</span></td><td><button class="btn-p btn-sm"><i class="fas fa-check me-1"></i>Aprobar</button></td></tr>
-                        <tr><td><strong>Torre Catalinas</strong></td><td>200</td><td>$1,020,000</td><td><span class="b b-y">1</span></td><td><span class="b b-y">Pendiente</span></td><td><button class="btn-p btn-sm"><i class="fas fa-check me-1"></i>Aprobar</button></td></tr>
-                        <tr><td><strong>Belgrano Park</strong></td><td>90</td><td>$378,000</td><td>—</td><td><span class="b b-b">Enviada</span></td><td><button class="btn-s btn-sm"><i class="fas fa-eye"></i></button></td></tr>
-                    </tbody>
-                </table>
-            </div>
+        <div><h1 class="page-title">Gastos</h1><p class="page-sub">Facturas, servicios y pagos del consorcio</p></div>
+        <div style="display:flex;gap:8px;">
+            <button class="btn-s btn-sm" onclick="exportGastos('excel')">⬇ Excel</button>
+            <button class="btn-s btn-sm" onclick="exportGastos('pdf')">⬇ PDF</button>
+            <button class="btn-p btn-sm" onclick="openGastoModal()">+ Nuevo gasto</button>
         </div>
+    </div>
+    <div class="filters">
+        <select class="form-ctrl" id="filter-gastos-consorcio" onchange="loadGastos()">
+            <option value="">Todos los consorcios</option>
+        </select>
+        <input type="date" class="form-ctrl" id="filter-gastos-desde" onchange="loadGastos()">
+        <input type="date" class="form-ctrl" id="filter-gastos-hasta" onchange="loadGastos()">
+        <span class="text-muted text-sm" id="gastos-total-label"></span>
+    </div>
+    <div class="card">
+        <div class="card-h"><span class="card-t">Historial</span></div>
+        <table class="tbl">
+            <thead><tr><th>Fecha</th><th>Consorcio</th><th>Descripción</th><th>Categoría</th><th>Proveedor</th><th>Monto</th><th>Estado</th><th>Recurrente</th><th>Acciones</th></tr></thead>
+            <tbody id="tbody-gastos"><tr><td colspan="9" class="tbl-empty">Cargando...</td></tr></tbody>
+        </table>
+    </div>
+</div>
 
-        <div class="col-lg-5">
-            <div class="card">
-                <div class="card-h"><span class="card-t">Vista previa · Complejo Sur</span></div>
-                <div class="card-p">
-                    <div style="font-size:0.84rem;margin-bottom:14px;">
-                        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5;"><span>Electricidad (Edesur)</span><span style="font-weight:600;">$45,200</span></div>
-                        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5;"><span>Gas (Metrogas)</span><span style="font-weight:600;">$31,800</span></div>
-                        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5;"><span>Agua (AySA)</span><span style="font-weight:600;">$18,000</span></div>
-                        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5;"><span>Sueldo encargado</span><span style="font-weight:600;">$556,000</span></div>
-                        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5;"><span>Seguro de edificio</span><span style="font-weight:600;">$68,000</span></div>
-                        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5;"><span>Mantenimiento ascensor</span><span style="font-weight:600;">$220,000</span></div>
-                        <div style="display:flex;justify-content:space-between;padding:7px 0;font-weight:700;"><span>Total</span><span style="color:#7C3AED;">$640,000</span></div>
-                    </div>
-                    <div class="cfg-label">Notas para vecinos</div>
-                    <textarea class="form-control form-control-sm mb-3" rows="2" style="font-size:0.82rem;">Reparación cañería planta baja completada. Próximo mes: pintura fachada lateral.</textarea>
-                    <div class="cfg-label">Cosas a arreglar</div>
-                    <textarea class="form-control form-control-sm" rows="2" style="font-size:0.82rem;">Gotera en terraza pendiente. Portero eléctrico intermitente.</textarea>
-                </div>
-            </div>
+<!-- ═══ COBROS ═══ -->
+<div id="sec-cobros" class="section">
+    <div class="page-header">
+        <div><h1 class="page-title">Cobros</h1><p class="page-sub">Expensas y estado de pago por vecino</p></div>
+        <div style="display:flex;gap:8px;">
+            <button class="btn-s btn-sm" onclick="exportCobros()">⬇ Exportar</button>
+            <button class="btn-teal btn-sm" onclick="openGenerarModal()">⚡ Generar cobros</button>
+        </div>
+    </div>
+    <div class="tabs">
+        <button class="tab-btn active" onclick="cobrosTab('resumen',this)">Resumen por consorcio</button>
+        <button class="tab-btn" onclick="cobrosTab('mora',this)">Morosidad</button>
+    </div>
 
-            <div class="card">
-                <div class="card-h"><span class="card-t">Configuración de envío</span></div>
-                <div class="card-p">
-                    <div class="cfg-label">Envío automático</div>
-                    <select class="form-select form-select-sm mb-3"><option selected>1° de cada mes (con aprobación)</option><option>1° de cada mes (automático)</option></select>
-                    <div class="cfg-label">Vencimiento</div>
-                    <select class="form-select form-select-sm mb-3"><option selected>10 de cada mes</option><option>15 de cada mes</option></select>
-                    <div class="cfg-label">Canales</div>
-                    <div style="font-size:0.82rem;display:flex;flex-direction:column;gap:4px;">
-                        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" checked> Email</label>
-                        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" checked> Push</label>
-                        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox"> WhatsApp</label>
-                    </div>
-                </div>
-            </div>
+    <!-- Resumen -->
+    <div id="tab-resumen">
+        <div class="filters">
+            <select class="form-ctrl" id="filter-cobros-consorcio" onchange="loadCobros()"><option value="">Todos</option></select>
+            <input type="month" class="form-ctrl" id="filter-cobros-periodo" onchange="loadCobros()">
+        </div>
+        <div class="kpi-row" id="cobros-kpis"></div>
+        <div class="card">
+            <div class="card-h"><span class="card-t">Detalle de cobros</span></div>
+            <table class="tbl">
+                <thead><tr><th>Consorcio</th><th>UF</th><th>Vecino</th><th>Período</th><th>Monto</th><th>Interés</th><th>Total</th><th>Estado</th><th>Venc.</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-cobros"><tr><td colspan="10" class="tbl-empty">Cargando...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Morosidad -->
+    <div id="tab-mora" style="display:none;">
+        <div class="filters">
+            <select class="form-ctrl" id="filter-mora-consorcio" onchange="loadMora()"><option value="">Todos</option></select>
+            <span class="text-muted text-sm" id="mora-count-label"></span>
+        </div>
+        <div class="card">
+            <div class="card-h"><span class="card-t">Vecinos en mora o vencidos</span></div>
+            <table class="tbl">
+                <thead><tr><th>Consorcio</th><th>UF</th><th>Vecino</th><th>Email</th><th>Período</th><th>Deuda base</th><th>Interés</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-mora"><tr><td colspan="10" class="tbl-empty">Cargando...</td></tr></tbody>
+            </table>
         </div>
     </div>
 </div>
 
-<!-- ═══ PAGOS ═══ -->
-<div id="sec-pagos" class="section">
+<!-- ═══ PROVEEDORES ═══ -->
+<div id="sec-proveedores" class="section">
     <div class="page-header">
-        <div><h1 class="page-title">Conciliación de pagos</h1><p class="page-sub">Comprobantes de vecinos · aprobación del administrador</p></div>
-        <div class="seg">
-            <button class="active">Pendientes (5)</button>
-            <button>Aprobados</button>
-            <button>Rechazados</button>
-        </div>
+        <div><h1 class="page-title">Proveedores</h1><p class="page-sub">Empresas y personas que brindan servicios</p></div>
+        <button class="btn-p btn-sm" onclick="openProveedorModal()">+ Nuevo proveedor</button>
     </div>
-
-    <div class="kpi-row">
-        <div class="kpi"><div class="kpi-val" style="color:#D97706;">5</div><div class="kpi-label">Pendientes</div></div>
-        <div class="kpi"><div class="kpi-val">68</div><div class="kpi-label">Aprobados este mes</div></div>
-        <div class="kpi"><div class="kpi-val">87%</div><div class="kpi-label">Tasa de cobro</div></div>
-    </div>
-
-    <div class="row g-4">
-        <div class="col-lg-8">
-            <div class="card">
-                <div class="card-h"><span class="card-t">Pendientes de aprobación</span></div>
-                <table class="tbl">
-                    <thead><tr><th>Vecino</th><th>Consorcio</th><th>Monto</th><th>Comprobante</th><th>Validación</th><th></th></tr></thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>María López</strong><div style="font-size:0.72rem;color:#999;">UF 4B · hace 2 hs</div></td>
-                            <td>Torres del Sol</td>
-                            <td style="font-weight:600;">$5,150</td>
-                            <td><i class="fas fa-file-image" style="color:#999;me-1;"></i> <span style="font-size:0.78rem;">transferencia.jpg</span></td>
-                            <td><span class="b b-g">Monto coincide</span></td>
-                            <td><button class="btn-p btn-sm me-1"><i class="fas fa-check"></i></button><button class="btn-s btn-sm" style="color:#DC2626;border-color:#FCA5A5;"><i class="fas fa-times"></i></button></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Carlos Méndez</strong><div style="font-size:0.72rem;color:#999;">UF 7A · hace 5 hs</div></td>
-                            <td>Torres del Sol</td>
-                            <td style="font-weight:600;">$5,150</td>
-                            <td><i class="fas fa-file-pdf" style="color:#DC2626;me-1;"></i> <span style="font-size:0.78rem;">mercadopago.pdf</span></td>
-                            <td><span class="b b-g">Monto coincide</span></td>
-                            <td><button class="btn-p btn-sm me-1"><i class="fas fa-check"></i></button><button class="btn-s btn-sm" style="color:#DC2626;border-color:#FCA5A5;"><i class="fas fa-times"></i></button></td>
-                        </tr>
-                        <tr style="background:#FEF2F2;">
-                            <td><strong>Roberto Díaz</strong><div style="font-size:0.72rem;color:#999;">UF 12C · ayer</div></td>
-                            <td>Complejo Sur</td>
-                            <td style="font-weight:600;">$5,333</td>
-                            <td><i class="fas fa-file-image" style="color:#999;"></i> <span style="font-size:0.78rem;">pago_mayo.jpg</span></td>
-                            <td><span class="b b-r">Diferencia $533</span></td>
-                            <td><button class="btn-s btn-sm me-1"><i class="fas fa-comment"></i></button><button class="btn-s btn-sm" style="color:#DC2626;border-color:#FCA5A5;"><i class="fas fa-times"></i></button></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Ana Torres</strong><div style="font-size:0.72rem;color:#999;">UF 2A · ayer</div></td>
-                            <td>Complejo Sur</td>
-                            <td style="font-weight:600;">$5,333</td>
-                            <td><i class="fas fa-file-pdf" style="color:#DC2626;"></i> <span style="font-size:0.78rem;">bbva_transfer.pdf</span></td>
-                            <td><span class="b b-g">Monto coincide</span></td>
-                            <td><button class="btn-p btn-sm me-1"><i class="fas fa-check"></i></button><button class="btn-s btn-sm" style="color:#DC2626;border-color:#FCA5A5;"><i class="fas fa-times"></i></button></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Diego Martín</strong><div style="font-size:0.72rem;color:#999;">UF 6A · ayer</div></td>
-                            <td>Edificio Norte</td>
-                            <td style="font-weight:600;">$4,267</td>
-                            <td><i class="fas fa-file-image" style="color:#999;"></i> <span style="font-size:0.78rem;">comprobante.jpg</span></td>
-                            <td><span class="b b-g">Monto coincide</span></td>
-                            <td><button class="btn-p btn-sm me-1"><i class="fas fa-check"></i></button><button class="btn-s btn-sm" style="color:#DC2626;border-color:#FCA5A5;"><i class="fas fa-times"></i></button></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="col-lg-4">
-            <div class="card">
-                <div class="card-h"><span class="card-t">Cobranza por consorcio · Mayo</span></div>
-                <div class="card-p" style="font-size:0.84rem;">
-                    <div style="margin-bottom:12px;">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Torres del Sol</span><span style="color:#999;">74/80</span></div>
-                        <div class="progress-bar-thin"><div class="fill" style="width:92%;background:#059669;"></div></div>
-                    </div>
-                    <div style="margin-bottom:12px;">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Edificio Norte</span><span style="color:#999;">48/60</span></div>
-                        <div class="progress-bar-thin"><div class="fill" style="width:80%;background:#D97706;"></div></div>
-                    </div>
-                    <div style="margin-bottom:12px;">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Complejo Sur</span><span style="color:#999;">108/120</span></div>
-                        <div class="progress-bar-thin"><div class="fill" style="width:90%;background:#059669;"></div></div>
-                    </div>
-                    <div style="margin-bottom:12px;">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Palermo Alto</span><span style="color:#999;">31/45</span></div>
-                        <div class="progress-bar-thin"><div class="fill" style="width:69%;background:#DC2626;"></div></div>
-                    </div>
-                    <div>
-                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Belgrano Park</span><span style="color:#999;">82/90</span></div>
-                        <div class="progress-bar-thin"><div class="fill" style="width:91%;background:#059669;"></div></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ═══ MOROSIDAD ═══ -->
-<div id="sec-morosidad" class="section">
-    <div class="page-header">
-        <div><h1 class="page-title">Morosidad</h1><p class="page-sub">Seguimiento de vencimientos e interés por mora</p></div>
-        <button class="btn-p btn-sm"><i class="fas fa-bell me-1"></i>Enviar recordatorios</button>
-    </div>
-
-    <div class="row g-4">
-        <div class="col-lg-8">
-            <div class="card">
-                <div class="card-h"><span class="card-t">Usuarios en mora</span><span class="b b-r">4 activos</span></div>
-                <table class="tbl">
-                    <thead><tr><th>Vecino</th><th>Consorcio</th><th>Deuda</th><th>Días</th><th>Interés</th><th>Total</th><th></th></tr></thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Gustavo Pérez</strong><div style="font-size:0.72rem;color:#999;">UF 5C</div></td>
-                            <td>Palermo Alto</td><td>$4,400</td>
-                            <td style="color:#DC2626;font-weight:700;">18</td>
-                            <td style="color:#DC2626;">+$1,584</td>
-                            <td style="font-weight:700;">$5,984</td>
-                            <td><button class="btn-s btn-sm"><i class="fas fa-bell"></i></button> <button class="btn-s btn-sm"><i class="fas fa-comment"></i></button></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Fernando Ríos</strong><div style="font-size:0.72rem;color:#999;">UF 9A</div></td>
-                            <td>Palermo Alto</td><td>$4,400</td>
-                            <td style="color:#DC2626;font-weight:700;">18</td>
-                            <td style="color:#DC2626;">+$1,584</td>
-                            <td style="font-weight:700;">$5,984</td>
-                            <td><button class="btn-s btn-sm"><i class="fas fa-bell"></i></button> <button class="btn-s btn-sm"><i class="fas fa-comment"></i></button></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Lucía Herrera</strong><div style="font-size:0.72rem;color:#999;">UF 2D</div></td>
-                            <td>Edificio Norte</td><td>$4,267</td>
-                            <td style="color:#D97706;font-weight:700;">8</td>
-                            <td style="color:#D97706;">+$683</td>
-                            <td style="font-weight:700;">$4,950</td>
-                            <td><button class="btn-s btn-sm"><i class="fas fa-bell"></i></button> <button class="btn-s btn-sm"><i class="fas fa-comment"></i></button></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Martín Suárez</strong><div style="font-size:0.72rem;color:#999;">UF 11B</div></td>
-                            <td>Complejo Sur</td><td>$5,333</td>
-                            <td style="color:#D97706;font-weight:700;">5</td>
-                            <td style="color:#D97706;">+$533</td>
-                            <td style="font-weight:700;">$5,866</td>
-                            <td><button class="btn-s btn-sm"><i class="fas fa-bell"></i></button> <button class="btn-s btn-sm"><i class="fas fa-comment"></i></button></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="col-lg-4">
-            <div class="card">
-                <div class="card-h"><span class="card-t">Parámetros de mora</span></div>
-                <div class="card-p">
-                    <div class="cfg-label">Vencimiento de pago</div>
-                    <select class="form-select form-select-sm mb-3"><option selected>10 de cada mes</option><option>15 de cada mes</option></select>
-                    <div class="cfg-label">Tasa de interés por mora</div>
-                    <div style="display:flex;gap:6px;align-items:center;margin-bottom:12px;">
-                        <input type="number" class="form-control form-control-sm" value="2" style="width:60px;">
-                        <span style="font-size:0.8rem;color:#888;">% diario</span>
-                    </div>
-                    <div class="cfg-label">Días de gracia</div>
-                    <div style="display:flex;gap:6px;align-items:center;margin-bottom:12px;">
-                        <input type="number" class="form-control form-control-sm" value="0" style="width:60px;">
-                        <span style="font-size:0.8rem;color:#888;">días</span>
-                    </div>
-                    <div class="cfg-label">Recordatorios</div>
-                    <div style="font-size:0.82rem;display:flex;flex-direction:column;gap:4px;margin-bottom:14px;">
-                        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" checked> 5 días antes</label>
-                        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" checked> Día del vencimiento</label>
-                        <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" checked> Cada 3 días en mora</label>
-                    </div>
-                    <button class="btn-p btn-sm" style="width:100%;">Guardar</button>
-                </div>
-            </div>
-        </div>
+    <div class="card">
+        <div class="card-h"><span class="card-t">Listado</span></div>
+        <table class="tbl">
+            <thead><tr><th>Nombre</th><th>CUIT</th><th>Rubro</th><th>Email</th><th>Teléfono</th><th>Acciones</th></tr></thead>
+            <tbody id="tbody-proveedores"><tr><td colspan="6" class="tbl-empty">Cargando...</td></tr></tbody>
+        </table>
     </div>
 </div>
 
 <!-- ═══ BALANCE ═══ -->
 <div id="sec-balance" class="section">
     <div class="page-header">
-        <div><h1 class="page-title">Balance financiero</h1><p class="page-sub">Ingresos y egresos por consorcio</p></div>
+        <div><h1 class="page-title">Balance</h1><p class="page-sub">Ingresos y egresos por consorcio</p></div>
         <div style="display:flex;gap:8px;">
-            <select class="form-select form-select-sm" style="width:150px;"><option>Todos</option><option>Torres del Sol</option><option>Edificio Norte</option><option>Complejo Sur</option><option>Palermo Alto</option></select>
-            <button class="btn-s btn-sm"><i class="fas fa-file-excel me-1"></i>Excel</button>
-            <button class="btn-s btn-sm"><i class="fas fa-file-pdf me-1"></i>PDF</button>
+            <button class="btn-s btn-sm" onclick="exportBalance('excel')">⬇ Excel</button>
+            <button class="btn-s btn-sm" onclick="exportBalance('pdf')">⬇ PDF</button>
         </div>
     </div>
-
+    <div class="filters">
+        <select class="form-ctrl" id="filter-balance-consorcio" onchange="loadBalance()"><option value="">Todos los consorcios</option></select>
+        <input type="date" class="form-ctrl" id="filter-balance-desde" onchange="loadBalance()">
+        <input type="date" class="form-ctrl" id="filter-balance-hasta" onchange="loadBalance()">
+    </div>
     <div class="kpi-row">
-        <div class="kpi"><div class="kpi-val" style="color:#059669;">$3.1M</div><div class="kpi-label">Ingresos mayo</div></div>
-        <div class="kpi"><div class="kpi-val" style="color:#DC2626;">$2.4M</div><div class="kpi-label">Egresos mayo</div></div>
-        <div class="kpi"><div class="kpi-val" style="color:#7C3AED;">$680K</div><div class="kpi-label">Balance neto</div></div>
+        <div class="kpi"><div class="kpi-val" id="bal-ingresos" style="color:#34d399">—</div><div class="kpi-label">Ingresos (cobros)</div></div>
+        <div class="kpi"><div class="kpi-val" id="bal-egresos" style="color:#f87171">—</div><div class="kpi-label">Egresos (gastos)</div></div>
+        <div class="kpi"><div class="kpi-val" id="bal-resultado">—</div><div class="kpi-label">Resultado neto</div></div>
     </div>
-
-    <div class="row g-4 mb-2">
-        <div class="col-lg-7">
-            <div class="card">
-                <div class="card-h"><span class="card-t">Evolución · últimos 6 meses</span></div>
-                <div class="card-p"><canvas id="finChart" height="200"></canvas></div>
-            </div>
+    <div class="grid2">
+        <div class="card">
+            <div class="card-h"><span class="card-t">Ingresos (cobros pagados)</span></div>
+            <table class="tbl">
+                <thead><tr><th>Consorcio</th><th>Período</th><th>Monto</th></tr></thead>
+                <tbody id="tbody-bal-cobros"><tr><td colspan="3" class="tbl-empty">—</td></tr></tbody>
+            </table>
         </div>
-        <div class="col-lg-5">
-            <div class="card" style="height:calc(100% - 16px);">
-                <div class="card-h"><span class="card-t">Balance por consorcio</span></div>
-                <div class="card-p" style="font-size:0.84rem;">
-                    <div style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Torres del Sol</span><span style="color:#059669;font-weight:600;">+$98K</span></div><div class="progress-bar-thin"><div class="fill" style="width:85%;background:#059669;"></div></div></div>
-                    <div style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Edificio Norte</span><span style="color:#059669;font-weight:600;">+$42K</span></div><div class="progress-bar-thin"><div class="fill" style="width:60%;background:#059669;"></div></div></div>
-                    <div style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Complejo Sur</span><span style="color:#059669;font-weight:600;">+$120K</span></div><div class="progress-bar-thin"><div class="fill" style="width:95%;background:#059669;"></div></div></div>
-                    <div style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Palermo Alto</span><span style="color:#DC2626;font-weight:600;">-$12K</span></div><div class="progress-bar-thin"><div class="fill" style="width:25%;background:#DC2626;"></div></div></div>
-                    <div style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Torre Catalinas</span><span style="color:#059669;font-weight:600;">+$310K</span></div><div class="progress-bar-thin"><div class="fill" style="width:100%;background:#059669;"></div></div></div>
-                    <div><div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Belgrano Park</span><span style="color:#059669;font-weight:600;">+$67K</span></div><div class="progress-bar-thin"><div class="fill" style="width:70%;background:#059669;"></div></div></div>
-                </div>
-            </div>
+        <div class="card">
+            <div class="card-h"><span class="card-t">Egresos (gastos)</span></div>
+            <table class="tbl">
+                <thead><tr><th>Consorcio</th><th>Descripción</th><th>Categoría</th><th>Monto</th></tr></thead>
+                <tbody id="tbody-bal-gastos"><tr><td colspan="4" class="tbl-empty">—</td></tr></tbody>
+            </table>
         </div>
-    </div>
-
-    <div class="card">
-        <div class="card-h">
-            <span class="card-t">Movimientos · Mayo 2026</span>
-            <div class="seg"><button class="active">Todos</button><button>Ingresos</button><button>Egresos</button></div>
-        </div>
-        <table class="tbl">
-            <thead><tr><th>Fecha</th><th>Consorcio</th><th>Concepto</th><th>Monto</th><th>Estado</th></tr></thead>
-            <tbody>
-                <tr><td>08/05</td><td><strong>Torres del Sol</strong></td><td>Cobro expensas (74 UFs)</td><td style="color:#059669;font-weight:600;">+$381,100</td><td><span class="b b-g">Conciliado</span></td></tr>
-                <tr><td>07/05</td><td><strong>Complejo Sur</strong></td><td>Cobro expensas (108 UFs)</td><td style="color:#059669;font-weight:600;">+$575,964</td><td><span class="b b-g">Conciliado</span></td></tr>
-                <tr><td>06/05</td><td><strong>Torres del Sol</strong></td><td>Pago Edesur</td><td style="color:#DC2626;font-weight:600;">-$45,200</td><td><span class="b b-g">Pagado</span></td></tr>
-                <tr><td>05/05</td><td><strong>Edificio Norte</strong></td><td>Sueldo encargado</td><td style="color:#DC2626;font-weight:600;">-$412,000</td><td><span class="b b-g">Pagado</span></td></tr>
-                <tr><td>04/05</td><td><strong>Belgrano Park</strong></td><td>Cobro expensas (82 UFs)</td><td style="color:#059669;font-weight:600;">+$344,400</td><td><span class="b b-g">Conciliado</span></td></tr>
-                <tr><td>03/05</td><td><strong>Torre Catalinas</strong></td><td>Mantenimiento ascensor</td><td style="color:#DC2626;font-weight:600;">-$244,000</td><td><span class="b b-g">Pagado</span></td></tr>
-            </tbody>
-        </table>
     </div>
 </div>
 
 <!-- ═══ MENSAJERÍA ═══ -->
 <div id="sec-mensajeria" class="section">
-    <div class="page-header">
-        <div><h1 class="page-title">Mensajería</h1><p class="page-sub">Consorcios y personas</p></div>
-        <button class="btn-p btn-sm"><i class="fas fa-edit me-1"></i>Nuevo</button>
-    </div>
-
-    <div class="row g-0">
-        <div class="col-lg-4">
-            <div class="card" style="border-radius:10px 0 0 10px;height:560px;display:flex;flex-direction:column;">
-                <div style="padding:12px 14px;border-bottom:1px solid #f0f0f0;">
-                    <input type="text" class="form-control form-control-sm" placeholder="Buscar...">
-                </div>
-                <div style="flex:1;overflow-y:auto;">
-                    <div class="chat-item active">
-                        <div class="avatar" style="background:#DBEAFE;color:#2563EB;">TS</div>
-                        <div style="flex:1;min-width:0;">
-                            <div style="display:flex;justify-content:space-between;"><span style="font-size:0.84rem;font-weight:700;">Torres del Sol</span><span style="font-size:0.66rem;color:#999;">10:32</span></div>
-                            <div style="font-size:0.76rem;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Hay un tema con el ascensor...</div>
-                        </div>
-                        <span style="width:16px;height:16px;background:#7C3AED;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.55rem;color:white;font-weight:700;">2</span>
-                    </div>
-                    <div class="chat-item">
-                        <div class="avatar" style="background:#D1FAE5;color:#059669;">ML</div>
-                        <div style="flex:1;min-width:0;">
-                            <div style="display:flex;justify-content:space-between;"><span style="font-size:0.84rem;font-weight:700;">María López · 4B</span><span style="font-size:0.66rem;color:#999;">09:15</span></div>
-                            <div style="font-size:0.76rem;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Subí el comprobante</div>
-                        </div>
-                    </div>
-                    <div class="chat-item">
-                        <div class="avatar" style="background:#FEF3C7;color:#D97706;">EN</div>
-                        <div style="flex:1;min-width:0;">
-                            <div style="display:flex;justify-content:space-between;"><span style="font-size:0.84rem;font-weight:700;">Edificio Norte</span><span style="font-size:0.66rem;color:#999;">Ayer</span></div>
-                            <div style="font-size:0.76rem;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Fumigación coordinada para viernes</div>
-                        </div>
-                    </div>
-                    <div class="chat-item">
-                        <div class="avatar" style="background:#EDE9FE;color:#7C3AED;">GP</div>
-                        <div style="flex:1;min-width:0;">
-                            <div style="display:flex;justify-content:space-between;"><span style="font-size:0.84rem;font-weight:700;">Gustavo Pérez · 5C</span><span style="font-size:0.66rem;color:#999;">Ayer</span></div>
-                            <div style="font-size:0.76rem;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Pago esta semana, disculpen</div>
-                        </div>
-                    </div>
-                    <div class="chat-item">
-                        <div class="avatar" style="background:#FEE2E2;color:#DC2626;">CS</div>
-                        <div style="flex:1;min-width:0;">
-                            <div style="display:flex;justify-content:space-between;"><span style="font-size:0.84rem;font-weight:700;">Complejo Sur</span><span style="font-size:0.66rem;color:#999;">Lun</span></div>
-                            <div style="font-size:0.76rem;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Corte de agua miércoles</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-8">
-            <div class="card" style="border-radius:0 10px 10px 0;height:560px;display:flex;flex-direction:column;">
-                <div style="padding:12px 18px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px;">
-                    <div class="avatar" style="background:#DBEAFE;color:#2563EB;">TS</div>
-                    <div style="flex:1;"><div style="font-size:0.88rem;font-weight:700;">Torres del Sol</div><div style="font-size:0.72rem;color:#999;">80 UFs · Canal grupal</div></div>
-                </div>
-                <div style="flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px;">
-                    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;">
-                        <span style="font-size:0.68rem;color:#999;">Héctor Ruiz (Encargado) · 09:45</span>
-                        <div class="bubble bubble-in">Buen día. El ascensor del edificio B está fuera de servicio. Ya contacté al técnico.</div>
-                    </div>
-                    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;">
-                        <span style="font-size:0.68rem;color:#999;">María López · 4B · 09:52</span>
-                        <div class="bubble bubble-in">Gracias Héctor. Cuánto tiempo estimado?</div>
-                    </div>
-                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
-                        <span style="font-size:0.68rem;color:#999;">Administración · 10:15</span>
-                        <div class="bubble bubble-out">Ya gestionamos la visita del técnico para esta tarde. Estimamos que queda resuelto hoy.</div>
-                    </div>
-                    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;">
-                        <span style="font-size:0.68rem;color:#999;">Carlos Méndez · 7A · 10:22</span>
-                        <div class="bubble bubble-in">Perfecto, gracias!</div>
-                    </div>
-                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
-                        <span style="font-size:0.68rem;color:#999;">Administración · 10:32</span>
-                        <div class="bubble bubble-out">El técnico llega entre 14 y 16hs. Avísennos por acá si notan otro desperfecto.</div>
-                    </div>
-                </div>
-                <div style="display:flex;gap:8px;padding:12px 14px;border-top:1px solid #f0f0f0;">
-                    <button class="btn-s btn-sm"><i class="fas fa-paperclip"></i></button>
-                    <input type="text" class="form-control form-control-sm" placeholder="Escribir mensaje..." style="flex:1;">
-                    <button class="btn-p btn-sm"><i class="fas fa-paper-plane"></i></button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <div class="page-header"><div><h1 class="page-title">Mensajería</h1><p class="page-sub">Comunicación con vecinos</p></div></div>
+    <div class="section-info">📬 La mensajería estará disponible en la próxima versión. Podrás enviar comunicados a vecinos por consorcio o por unidad.</div>
 </div>
 
-<!-- ═══ CONSORCIOS ═══ -->
-<div id="sec-consorcios" class="section">
-    <div class="page-header">
-        <div><h1 class="page-title">Consorcios</h1><p class="page-sub">12 activos · 960 unidades funcionales</p></div>
-        <button class="btn-p btn-sm"><i class="fas fa-plus me-1"></i>Agregar</button>
-    </div>
-
-    <div class="row g-4">
-        <div class="col-lg-3">
-            <div class="card" style="max-height:640px;display:flex;flex-direction:column;">
-                <div style="padding:10px 12px;border-bottom:1px solid #f5f5f5;">
-                    <input type="text" class="form-control form-control-sm" placeholder="Buscar...">
-                </div>
-                <div style="flex:1;overflow-y:auto;">
-                    <div class="chat-item active" style="border-left:3px solid #7C3AED;">
-                        <div class="avatar" style="background:#EDE9FE;color:#7C3AED;width:30px;height:30px;font-size:0.65rem;">TS</div>
-                        <div><div style="font-size:0.82rem;font-weight:700;">Torres del Sol</div><div style="font-size:0.7rem;color:#999;">80 UFs</div></div>
-                    </div>
-                    <div class="chat-item">
-                        <div class="avatar" style="background:#DBEAFE;color:#2563EB;width:30px;height:30px;font-size:0.65rem;">EN</div>
-                        <div><div style="font-size:0.82rem;font-weight:700;">Edificio Norte</div><div style="font-size:0.7rem;color:#999;">60 UFs</div></div>
-                    </div>
-                    <div class="chat-item">
-                        <div class="avatar" style="background:#D1FAE5;color:#059669;width:30px;height:30px;font-size:0.65rem;">CS</div>
-                        <div><div style="font-size:0.82rem;font-weight:700;">Complejo Sur</div><div style="font-size:0.7rem;color:#999;">120 UFs</div></div>
-                    </div>
-                    <div class="chat-item">
-                        <div class="avatar" style="background:#FEF3C7;color:#D97706;width:30px;height:30px;font-size:0.65rem;">PA</div>
-                        <div><div style="font-size:0.82rem;font-weight:700;">Palermo Alto</div><div style="font-size:0.7rem;color:#999;">45 UFs</div></div>
-                    </div>
-                    <div class="chat-item">
-                        <div class="avatar" style="background:#FEE2E2;color:#DC2626;width:30px;height:30px;font-size:0.65rem;">TC</div>
-                        <div><div style="font-size:0.82rem;font-weight:700;">Torre Catalinas</div><div style="font-size:0.7rem;color:#999;">200 UFs</div></div>
-                    </div>
-                    <div class="chat-item">
-                        <div class="avatar" style="background:#DBEAFE;color:#2563EB;width:30px;height:30px;font-size:0.65rem;">BP</div>
-                        <div><div style="font-size:0.82rem;font-weight:700;">Belgrano Park</div><div style="font-size:0.7rem;color:#999;">90 UFs</div></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-9">
-            <div class="card mb-3">
-                <div class="card-p" style="display:flex;justify-content:space-between;align-items:center;">
-                    <div>
-                        <div style="font-size:1.05rem;font-weight:800;">Torres del Sol</div>
-                        <div style="font-size:0.8rem;color:#888;">Av. Corrientes 2841, CABA</div>
-                    </div>
-                    <div style="display:flex;gap:16px;font-size:0.82rem;">
-                        <div><span style="color:#999;">Recaudación</span><div style="font-weight:700;">$412K/mes</div></div>
-                        <div><span style="color:#999;">Morosidad</span><div style="font-weight:700;color:#059669;">8%</div></div>
-                        <div><span style="color:#999;">Balance</span><div style="font-weight:700;color:#059669;">+$98K</div></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-h">
-                    <span class="card-t">Usuarios</span>
-                    <div style="display:flex;gap:8px;">
-                        <input type="text" class="form-control form-control-sm" placeholder="Buscar..." style="width:150px;">
-                        <div class="seg"><button class="active">Todos</button><button>Al día</button><button>Mora</button></div>
-                    </div>
-                </div>
-                <table class="tbl">
-                    <thead><tr><th>UF</th><th>Propietario</th><th>Contacto</th><th>Estado</th><th>Deuda</th><th></th></tr></thead>
-                    <tbody>
-                        <tr><td><strong>1A</strong></td><td>Juan Fernández</td><td style="font-size:0.76rem;color:#888;">j.fernandez@mail.com</td><td><span class="b b-g">Al día</span></td><td>—</td><td><button class="btn-s btn-sm"><i class="fas fa-eye"></i></button></td></tr>
-                        <tr><td><strong>2B</strong></td><td>Silvia Ramírez</td><td style="font-size:0.76rem;color:#888;">s.ramirez@mail.com</td><td><span class="b b-g">Al día</span></td><td>—</td><td><button class="btn-s btn-sm"><i class="fas fa-eye"></i></button></td></tr>
-                        <tr><td><strong>3C</strong></td><td>Ricardo Gómez</td><td style="font-size:0.76rem;color:#888;">r.gomez@mail.com</td><td><span class="b b-y">Sin comprobante</span></td><td>—</td><td><button class="btn-s btn-sm"><i class="fas fa-eye"></i></button></td></tr>
-                        <tr><td><strong>4B</strong></td><td>María López</td><td style="font-size:0.76rem;color:#888;">m.lopez@mail.com</td><td><span class="b b-b">En revisión</span></td><td>—</td><td><button class="btn-s btn-sm"><i class="fas fa-eye"></i></button></td></tr>
-                        <tr><td><strong>5A</strong></td><td>Eduardo Vega</td><td style="font-size:0.76rem;color:#888;">e.vega@mail.com</td><td><span class="b b-r">Mora (12d)</span></td><td style="color:#DC2626;font-weight:600;">$6,382</td><td><button class="btn-s btn-sm"><i class="fas fa-eye"></i></button></td></tr>
-                        <tr><td><strong>6C</strong></td><td>Patricia Sosa</td><td style="font-size:0.76rem;color:#888;">p.sosa@mail.com</td><td><span class="b b-g">Al día</span></td><td>—</td><td><button class="btn-s btn-sm"><i class="fas fa-eye"></i></button></td></tr>
-                        <tr><td><strong>7A</strong></td><td>Carlos Méndez</td><td style="font-size:0.76rem;color:#888;">c.mendez@mail.com</td><td><span class="b b-b">En revisión</span></td><td>—</td><td><button class="btn-s btn-sm"><i class="fas fa-eye"></i></button></td></tr>
-                        <tr><td><strong>8D</strong></td><td>Laura Gómez</td><td style="font-size:0.76rem;color:#888;">l.gomez@mail.com</td><td><span class="b b-g">Al día</span></td><td>—</td><td><button class="btn-s btn-sm"><i class="fas fa-eye"></i></button></td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ═══ CONFIGURACIÓN ═══ -->
+<!-- ═══ CONFIG ═══ -->
 <div id="sec-config" class="section">
-    <div class="page-header">
-        <div><h1 class="page-title">Configuración</h1><p class="page-sub">Parámetros, equipo y notificaciones</p></div>
-    </div>
-    <div class="row g-4">
-        <div class="col-lg-6">
-            <div class="card">
-                <div class="card-h"><span class="card-t">Administración</span></div>
-                <div class="card-p">
-                    <div class="cfg-label">Nombre</div>
-                    <input type="text" class="form-control form-control-sm mb-3" value="García & Asociados Administraciones">
-                    <div class="cfg-label">CUIT</div>
-                    <input type="text" class="form-control form-control-sm mb-3" value="20-12345678-9">
-                    <div class="cfg-label">Email</div>
-                    <input type="text" class="form-control form-control-sm mb-3" value="admin@garciaadmin.com.ar">
-                    <button class="btn-p btn-sm">Guardar</button>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-h"><span class="card-t">Cobranza y mora</span></div>
-                <div class="card-p">
-                    <div class="cfg-label">Vencimiento de expensas</div>
-                    <select class="form-select form-select-sm mb-3"><option selected>10 de cada mes</option><option>15 de cada mes</option></select>
-                    <div class="cfg-label">Interés por mora (% diario)</div>
-                    <input type="number" class="form-control form-control-sm mb-3" value="2">
-                    <div class="cfg-label">Días de gracia</div>
-                    <input type="number" class="form-control form-control-sm mb-3" value="0">
-                    <div class="cfg-label">Envío automático de expensas</div>
-                    <select class="form-select form-select-sm mb-3"><option selected>1° del mes (con aprobación)</option><option>Automático</option></select>
-                    <button class="btn-p btn-sm">Guardar</button>
-                </div>
-            </div>
+    <div class="page-header"><div><h1 class="page-title">Configuración</h1><p class="page-sub">Parámetros del sistema</p></div></div>
+    <div class="card card-p">
+        <div class="form-group">
+            <label class="form-label">Tasa de interés por mora (% diario)</label>
+            <input type="number" class="form-ctrl" value="2" id="cfg-tasa" style="width:100px">
         </div>
-        <div class="col-lg-6">
-            <div class="card">
-                <div class="card-h"><span class="card-t">Equipo</span><button class="btn-s btn-sm"><i class="fas fa-plus me-1"></i>Invitar</button></div>
-                <table class="tbl">
-                    <thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th></tr></thead>
-                    <tbody>
-                        <tr><td>carlos.garcia@admin.com</td><td>Administrador</td><td><span class="b b-g">Activo</span></td></tr>
-                        <tr><td>maria.fernandez@admin.com</td><td>Asistente</td><td><span class="b b-g">Activo</span></td></tr>
-                        <tr><td>juan.perez@admin.com</td><td>Solo lectura</td><td><span class="b b-gr">Invitado</span></td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="card">
-                <div class="card-h"><span class="card-t">Notificaciones</span></div>
-                <div class="card-p" style="font-size:0.84rem;">
-                    <label style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5;"><span>Recordatorio pre-vencimiento (5 días)</span><input type="checkbox" checked></label>
-                    <label style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5;"><span>Alerta día de vencimiento</span><input type="checkbox" checked></label>
-                    <label style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5;"><span>Aviso de mora cada 3 días</span><input type="checkbox" checked></label>
-                    <label style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5;"><span>Nuevo comprobante subido</span><input type="checkbox" checked></label>
-                    <label style="display:flex;justify-content:space-between;padding:7px 0;"><span>Facturas del scraper</span><input type="checkbox" checked></label>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-h"><span class="card-t">Scraper de servicios</span></div>
-                <div class="card-p">
-                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
-                        <span class="b b-g">Edesur</span><span class="b b-g">Metrogas</span><span class="b b-g">AySA</span><span class="b b-g">ABL CABA</span><span class="b b-gr" style="cursor:pointer;">+ Agregar</span>
-                    </div>
-                    <div class="cfg-label">Frecuencia</div>
-                    <select class="form-select form-select-sm"><option selected>Diaria (08:00)</option><option>Cada 12 horas</option><option>Manual</option></select>
-                </div>
-            </div>
+        <div class="form-group">
+            <label class="form-label">Días de gracia antes de mora</label>
+            <input type="number" class="form-ctrl" value="0" id="cfg-gracia" style="width:100px">
         </div>
+        <button class="btn-p btn-sm">Guardar</button>
     </div>
 </div>
 
 </div><!-- /main -->
 
-<!-- Toast container -->
-<div class="toast-container" id="toasts"></div>
+<!-- ════════════════ MODALES ════════════════ -->
 
-<!-- Modal overlay -->
-<div class="modal-overlay" id="modal">
+<!-- Modal Consorcio -->
+<div class="modal-overlay" id="modal-consorcio">
     <div class="modal-box">
-        <div class="modal-head"><h3 id="modal-title"></h3><button class="modal-close" onclick="closeModal()">&times;</button></div>
-        <div class="modal-body" id="modal-body"></div>
+        <div class="modal-head"><h3 id="m-cons-title">Nuevo consorcio</h3><button class="modal-close" onclick="closeModal('modal-consorcio')">✕</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="m-cons-id">
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Nombre *</label><input class="form-ctrl" id="m-cons-nombre" placeholder="Torres del Sol"></div>
+                <div class="form-group"><label class="form-label">CUIT</label><input class="form-ctrl" id="m-cons-cuit" placeholder="30-12345678-9"></div>
+            </div>
+            <div class="form-group"><label class="form-label">Dirección</label><input class="form-ctrl" id="m-cons-dir" placeholder="Av. Corrientes 1234, CABA"></div>
+            <div class="form-row3">
+                <div class="form-group"><label class="form-label">Pisos</label><input type="number" class="form-ctrl" id="m-cons-pisos"></div>
+                <div class="form-group"><label class="form-label">Unidades totales</label><input type="number" class="form-ctrl" id="m-cons-ufs"></div>
+                <div class="form-group"><label class="form-label">Encargado</label><input class="form-ctrl" id="m-cons-enc"></div>
+            </div>
+            <div class="form-group"><label class="form-label">Tel. encargado</label><input class="form-ctrl" id="m-cons-tel"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-consorcio')">Cancelar</button>
+            <button class="btn-p" onclick="saveConsorcio()">Guardar</button>
+        </div>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Modal UF -->
+<div class="modal-overlay" id="modal-uf">
+    <div class="modal-box">
+        <div class="modal-head"><h3 id="m-uf-title">Nueva unidad funcional</h3><button class="modal-close" onclick="closeModal('modal-uf')">✕</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="m-uf-id">
+            <div class="form-row3">
+                <div class="form-group"><label class="form-label">Número/Letra *</label><input class="form-ctrl" id="m-uf-numero" placeholder="3B"></div>
+                <div class="form-group"><label class="form-label">Piso</label><input class="form-ctrl" id="m-uf-piso" placeholder="3"></div>
+                <div class="form-group"><label class="form-label">Tipo</label>
+                    <select class="form-ctrl" id="m-uf-tipo">
+                        <option value="departamento">Departamento</option>
+                        <option value="local">Local comercial</option>
+                        <option value="cochera">Cochera</option>
+                        <option value="baulera">Baulera</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group"><label class="form-label">Superficie m²</label><input type="number" step="0.01" class="form-ctrl" id="m-uf-sup"></div>
+            <div class="sep"></div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Nombre del vecino</label><input class="form-ctrl" id="m-uf-vec-nombre"></div>
+                <div class="form-group"><label class="form-label">Email del vecino</label><input type="email" class="form-ctrl" id="m-uf-vec-email"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-uf')">Cancelar</button>
+            <button class="btn-p" onclick="saveUF()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Carga masiva -->
+<div class="modal-overlay" id="modal-bulk">
+    <div class="modal-box">
+        <div class="modal-head"><h3>Carga masiva de UFs</h3><button class="modal-close" onclick="closeModal('modal-bulk')">✕</button></div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Consorcio</label>
+                <select class="form-ctrl" id="m-bulk-consorcio"></select>
+            </div>
+            <div class="section-info" style="margin-bottom:12px;">
+                📋 El CSV debe tener estas columnas (primera fila = encabezados):<br>
+                <code style="font-size:.79rem;">numero, piso, tipo, superficie_m2, vecino_nombre, vecino_email</code>
+            </div>
+            <div class="upload-zone" onclick="document.getElementById('bulk-file').click()">
+                <div style="font-size:1.4rem;margin-bottom:6px;">📂</div>
+                <div style="font-size:.84rem;color:var(--muted)" id="bulk-file-label">Hacé clic para seleccionar el CSV</div>
+            </div>
+            <input type="file" id="bulk-file" accept=".csv" style="display:none" onchange="document.getElementById('bulk-file-label').textContent=this.files[0]?.name||'Seleccionar'">
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-bulk')">Cancelar</button>
+            <button class="btn-p" onclick="uploadBulk()">Cargar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Gasto -->
+<div class="modal-overlay" id="modal-gasto">
+    <div class="modal-box wide">
+        <div class="modal-head"><h3 id="m-gasto-title">Nuevo gasto</h3><button class="modal-close" onclick="closeModal('modal-gasto')">✕</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="m-gasto-id">
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Consorcio *</label><select class="form-ctrl" id="m-gasto-consorcio"></select></div>
+                <div class="form-group"><label class="form-label">Proveedor</label><select class="form-ctrl" id="m-gasto-proveedor"><option value="">Sin proveedor</option></select></div>
+            </div>
+            <div class="form-group"><label class="form-label">Descripción *</label><input class="form-ctrl" id="m-gasto-desc" placeholder="Factura Edesur mayo"></div>
+            <div class="form-row3">
+                <div class="form-group"><label class="form-label">Categoría</label>
+                    <select class="form-ctrl" id="m-gasto-cat">
+                        <option value="">Seleccionar</option>
+                        <option value="electricidad">Electricidad</option>
+                        <option value="gas">Gas</option>
+                        <option value="agua">Agua</option>
+                        <option value="limpieza">Limpieza</option>
+                        <option value="ascensor">Ascensor</option>
+                        <option value="seguro">Seguro</option>
+                        <option value="honorarios">Honorarios</option>
+                        <option value="impuesto">Impuesto</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                </div>
+                <div class="form-group"><label class="form-label">Monto *</label><input type="number" step="0.01" class="form-ctrl" id="m-gasto-monto" placeholder="0.00"></div>
+                <div class="form-group"><label class="form-label">Fecha</label><input type="date" class="form-ctrl" id="m-gasto-fecha"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Fecha de vencimiento</label><input type="date" class="form-ctrl" id="m-gasto-vto"></div>
+                <div class="form-group"><label class="form-label">Método de pago</label>
+                    <select class="form-ctrl" id="m-gasto-metodo">
+                        <option value="">—</option>
+                        <option value="transferencia">Transferencia</option>
+                        <option value="cheque">Cheque</option>
+                        <option value="efectivo">Efectivo</option>
+                        <option value="debito">Débito automático</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="checkbox-row"><input type="checkbox" id="m-gasto-pagado"> Marcado como pagado</label>
+                </div>
+                <div class="form-group"><label class="form-label">Fecha de pago</label><input type="date" class="form-ctrl" id="m-gasto-fecha-pago"></div>
+            </div>
+            <div class="sep"></div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="checkbox-row"><input type="checkbox" id="m-gasto-recurrente" onchange="toggleFrecuencia()"> Gasto recurrente</label>
+                </div>
+                <div class="form-group" id="frecuencia-group" style="display:none">
+                    <label class="form-label">Frecuencia</label>
+                    <select class="form-ctrl" id="m-gasto-frecuencia">
+                        <option value="mensual">Mensual</option>
+                        <option value="bimestral">Bimestral</option>
+                        <option value="trimestral">Trimestral</option>
+                        <option value="anual">Anual</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group"><label class="form-label">Notas</label><textarea class="form-ctrl" id="m-gasto-notas" rows="2"></textarea></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-gasto')">Cancelar</button>
+            <button class="btn-p" onclick="saveGasto()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Cobro (editar estado / mora) -->
+<div class="modal-overlay" id="modal-cobro">
+    <div class="modal-box">
+        <div class="modal-head"><h3>Actualizar cobro</h3><button class="modal-close" onclick="closeModal('modal-cobro')">✕</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="m-cobro-id">
+            <div class="form-group"><label class="form-label">Estado</label>
+                <select class="form-ctrl" id="m-cobro-estado">
+                    <option value="pendiente">Pendiente</option>
+                    <option value="pagado">Pagado</option>
+                    <option value="vencido">Vencido</option>
+                    <option value="en_mora">En mora</option>
+                </select>
+            </div>
+            <div class="form-group"><label class="form-label">Fecha de pago</label><input type="date" class="form-ctrl" id="m-cobro-fecha-pago"></div>
+            <div class="form-group"><label class="form-label">Interés por mora ($)</label><input type="number" step="0.01" class="form-ctrl" id="m-cobro-interes"></div>
+            <div class="form-group"><label class="form-label">Notas</label><textarea class="form-ctrl" id="m-cobro-notas" rows="2"></textarea></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-cobro')">Cancelar</button>
+            <button class="btn-p" onclick="saveCobro()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Generar cobros -->
+<div class="modal-overlay" id="modal-generar">
+    <div class="modal-box">
+        <div class="modal-head"><h3>Generar cobros del período</h3><button class="modal-close" onclick="closeModal('modal-generar')">✕</button></div>
+        <div class="modal-body">
+            <div class="form-group"><label class="form-label">Consorcio *</label><select class="form-ctrl" id="m-gen-consorcio"></select></div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Período (AAAA-MM) *</label><input type="month" class="form-ctrl" id="m-gen-periodo"></div>
+                <div class="form-group"><label class="form-label">Monto base por UF *</label><input type="number" step="0.01" class="form-ctrl" id="m-gen-monto"></div>
+            </div>
+            <div class="form-group"><label class="form-label">Fecha de vencimiento</label><input type="date" class="form-ctrl" id="m-gen-vto"></div>
+            <div class="section-info">Se generará un cobro pendiente para <strong>cada UF</strong> del consorcio seleccionado.</div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-generar')">Cancelar</button>
+            <button class="btn-teal" onclick="generarCobros()">⚡ Generar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Proveedor -->
+<div class="modal-overlay" id="modal-proveedor">
+    <div class="modal-box">
+        <div class="modal-head"><h3 id="m-prov-title">Nuevo proveedor</h3><button class="modal-close" onclick="closeModal('modal-proveedor')">✕</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="m-prov-id">
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Nombre *</label><input class="form-ctrl" id="m-prov-nombre"></div>
+                <div class="form-group"><label class="form-label">CUIT</label><input class="form-ctrl" id="m-prov-cuit"></div>
+            </div>
+            <div class="form-group"><label class="form-label">Rubro</label>
+                <select class="form-ctrl" id="m-prov-rubro">
+                    <option value="">Seleccionar</option>
+                    <option value="electricidad">Electricidad</option><option value="gas">Gas</option>
+                    <option value="agua">Agua</option><option value="limpieza">Limpieza</option>
+                    <option value="ascensor">Ascensor / Mantenimiento</option><option value="seguro">Seguro</option>
+                    <option value="impermeabilizacion">Impermeabilización</option>
+                    <option value="plomeria">Plomería</option><option value="electricista">Electricista</option>
+                    <option value="otro">Otro</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-ctrl" id="m-prov-email"></div>
+                <div class="form-group"><label class="form-label">Teléfono</label><input class="form-ctrl" id="m-prov-tel"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-proveedor')">Cancelar</button>
+            <button class="btn-p" onclick="saveProveedor()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toasts"></div>
+
+<!-- ════════════════ SCRIPTS ════════════════ -->
 <script>
-/* ── Navigation ── */
-function show(id,el){
-    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
-    document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
+// ── State ─────────────────────────────────────────────────────────────────────
+let consorcios = [];
+let proveedores = [];
+let currentConsorioId = null;
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function show(id, el) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.getElementById('sec-'+id).classList.add('active');
-    if(el)el.classList.add('active');
-    if(id==='balance')setTimeout(initChart,80);
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    if (el) el.classList.add('active');
+    // Lazy-load data
+    if (id === 'dashboard')    loadDashboard();
+    if (id === 'consorcios')   loadConsorcios();
+    if (id === 'gastos')       initGastos();
+    if (id === 'cobros')       initCobros();
+    if (id === 'proveedores')  loadProveedores();
+    if (id === 'balance')      initBalance();
 }
 
-/* ── Toast ── */
-function toast(msg, type='ok'){
-    const t=document.createElement('div');
-    t.className='toast-msg t-'+type;
-    const icons={ok:'fa-check-circle',err:'fa-times-circle',info:'fa-info-circle',warn:'fa-exclamation-circle'};
-    t.innerHTML='<i class="fas '+icons[type]+'"></i>'+msg;
-    document.getElementById('toasts').appendChild(t);
-    setTimeout(()=>t.remove(),3000);
+// ── Utils ─────────────────────────────────────────────────────────────────────
+const $= id => document.getElementById(id);
+const fmt = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',minimumFractionDigits:0}).format(n||0);
+const toast = (msg,type='ok') => {
+    const t = document.createElement('div');
+    t.className = `toast-msg ${type}`; t.textContent = msg;
+    $('toasts').appendChild(t);
+    setTimeout(() => t.remove(), 3200);
+};
+const api = async (url, opts={}) => {
+    const r = await fetch(url, {headers:{'Content-Type':'application/json'}, ...opts});
+    if (!r.ok) { const e = await r.json().catch(()=>({error:'Error'})); throw new Error(e.error||'Error'); }
+    return r.json();
+};
+function openModal(id) { $(id).classList.add('open'); }
+function closeModal(id) { $(id).classList.remove('open'); }
+function statusBadge(estado) {
+    const map = {pendiente:'b-y',pagado:'b-g',vencido:'b-r',en_mora:'b-r'};
+    const labels = {pendiente:'Pendiente',pagado:'Pagado',vencido:'Vencido',en_mora:'En mora'};
+    return `<span class="b ${map[estado]||'b-gr'}">${labels[estado]||estado}</span>`;
+}
+function categoriaBadge(cat) {
+    if (!cat) return '—';
+    const icons = {electricidad:'⚡',gas:'🔥',agua:'💧',limpieza:'🧹',ascensor:'🛗',seguro:'🛡️',honorarios:'👔',impuesto:'🏛️',otro:'📋'};
+    return `${icons[cat]||'📋'} ${cat}`;
+}
+function toggleFrecuencia() {
+    $('frecuencia-group').style.display = $('m-gasto-recurrente').checked ? 'block' : 'none';
 }
 
-/* ── Modal ── */
-function openModal(title,html){
-    document.getElementById('modal-title').textContent=title;
-    document.getElementById('modal-body').innerHTML=html;
-    document.getElementById('modal').classList.add('open');
-}
-function closeModal(){ document.getElementById('modal').classList.remove('open'); }
-document.getElementById('modal').addEventListener('click',e=>{ if(e.target.id==='modal') closeModal(); });
-
-/* ── Remove table row with animation ── */
-function removeRow(btn){
-    const tr=btn.closest('tr');
-    if(!tr) return;
-    tr.classList.add('row-removing');
-    setTimeout(()=>tr.remove(),450);
+// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+    $('dash-fecha').textContent = new Date().toLocaleDateString('es-AR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    try {
+        const d = await api('/api/dashboard/kpis');
+        $('kpi-consorcios').textContent = d.consorcios;
+        $('kpi-gastos').textContent = d.gastos_pendientes;
+        $('kpi-mora').textContent = d.en_mora;
+    } catch {}
 }
 
-/* ── Chart ── */
-let chartReady=false;
-function initChart(){
-    if(chartReady)return;
-    const ctx=document.getElementById('finChart');
-    if(!ctx)return;
-    new Chart(ctx,{
-        type:'bar',
-        data:{
-            labels:['Dic','Ene','Feb','Mar','Abr','May'],
-            datasets:[
-                {label:'Ingresos',data:[2.8,2.7,2.9,3.0,2.9,3.1],backgroundColor:'#7C3AED',borderRadius:4,borderSkipped:false},
-                {label:'Egresos',data:[2.1,2.0,2.3,2.2,2.3,2.4],backgroundColor:'#EDE9FE',borderRadius:4,borderSkipped:false}
-            ]
-        },
-        options:{
-            responsive:true,maintainAspectRatio:true,
-            plugins:{legend:{position:'top',labels:{font:{size:11,family:'Segoe UI'},usePointStyle:true,pointStyleWidth:8}}},
-            scales:{
-                x:{grid:{display:false},ticks:{font:{size:11}}},
-                y:{grid:{color:'#F5F5F5'},ticks:{font:{size:11},callback:v=>'$'+v+'M'},border:{display:false}}
-            }
-        }
-    });
-    chartReady=true;
+// ── CONSORCIOS ────────────────────────────────────────────────────────────────
+async function loadConsorcios() {
+    try {
+        consorcios = await api('/api/consorcios');
+        renderConsorcios();
+        populateConsorioSelects();
+    } catch(e) { toast(e.message,'err'); }
 }
 
-/* ── Seg control toggle ── */
-document.querySelectorAll('.seg').forEach(seg=>{
-    seg.addEventListener('click',e=>{
-        const btn=e.target.closest('button');
-        if(!btn) return;
-        seg.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
-        btn.classList.add('active');
-    });
-});
+function renderConsorcios() {
+    const tb = $('tbody-consorcios');
+    if (!consorcios.length) { tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">No hay consorcios. ¡Añadí el primero!</td></tr>'; return; }
+    tb.innerHTML = consorcios.map(c => `
+        <tr>
+            <td><strong>${c.nombre}</strong></td>
+            <td class="text-muted">${c.direccion||'—'}</td>
+            <td class="text-muted">${c.cuit||'—'}</td>
+            <td>${c.unidades_totales||'—'}</td>
+            <td class="text-muted">${c.encargado_nombre||'—'}</td>
+            <td><div class="inline-actions">
+                <button class="btn-s btn-sm" onclick="openDetail('${c.id}','${c.nombre}','${c.direccion||''}')">Ver UFs</button>
+                <button class="btn-s btn-sm" onclick="openConsorioModal('${c.id}')">✏️</button>
+                <button class="btn-danger btn-sm" onclick="deleteConsorcio('${c.id}','${c.nombre}')">🗑</button>
+            </div></td>
+        </tr>`).join('');
+}
 
-/* ── Upload zone click ── */
-document.querySelectorAll('.upload-zone').forEach(zone=>{
-    zone.addEventListener('click',()=>{
-        zone.innerHTML='<i class="fas fa-spinner fa-spin" style="font-size:1.3rem;color:#7C3AED;display:block;margin-bottom:6px;"></i><div style="font-size:0.84rem;color:#7C3AED;font-weight:600;">Procesando factura...</div>';
-        setTimeout(()=>{
-            zone.innerHTML='<i class="fas fa-check-circle" style="font-size:1.3rem;color:#059669;display:block;margin-bottom:6px;"></i><div style="font-size:0.84rem;color:#059669;font-weight:600;">Factura cargada con éxito</div><div style="font-size:0.72rem;color:#888;margin-top:4px;">Campos detectados automáticamente</div>';
-            toast('Factura procesada — 6 campos detectados');
-            setTimeout(()=>{
-                zone.innerHTML='<i class="fas fa-cloud-upload-alt" style="font-size:1.5rem;color:#C4B5FD;display:block;margin-bottom:6px;"></i><div style="font-size:0.84rem;color:#666;">Arrastrá una factura o hacé clic</div><div style="font-size:0.72rem;color:#bbb;margin-top:2px;">PDF, JPG, PNG · hasta 10 MB</div>';
-            },3000);
-        },1800);
-    });
-});
+function populateConsorioSelects() {
+    const opts = '<option value="">Todos</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    ['filter-gastos-consorcio','filter-cobros-consorcio','filter-mora-consorcio','filter-balance-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts; });
+    ['m-gasto-consorcio','m-gen-consorcio','m-bulk-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts2; });
+}
 
-/* ── Chat: send message ── */
-document.querySelectorAll('#sec-mensajeria .btn-p.btn-sm').forEach(btn=>{
-    if(!btn.querySelector('.fa-paper-plane')) return;
-    btn.addEventListener('click',()=>{
-        const input=btn.parentElement.querySelector('input');
-        const chatArea=btn.closest('.card').querySelector('[style*="flex-direction:column;gap:10px"]');
-        if(!input||!chatArea) return;
-        const text=input.value.trim();
-        if(!text){ toast('Escribí un mensaje primero','warn'); return; }
-        const now=new Date();
-        const time=now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
-        const div=document.createElement('div');
-        div.style.cssText='display:flex;flex-direction:column;align-items:flex-end;gap:3px;';
-        div.innerHTML='<span style="font-size:0.68rem;color:#999;">Administración · '+time+'</span><div class="bubble bubble-out">'+text+'</div>';
-        chatArea.appendChild(div);
-        input.value='';
-        chatArea.parentElement.scrollTop=chatArea.parentElement.scrollHeight;
-        toast('Mensaje enviado');
-    });
-});
-
-/* ── Chat: switch conversation ── */
-document.querySelectorAll('#sec-mensajeria .chat-item').forEach(item=>{
-    item.addEventListener('click',()=>{
-        item.closest('[style*="overflow-y:auto"]').querySelectorAll('.chat-item').forEach(c=>c.classList.remove('active'));
-        item.classList.add('active');
-        const name=item.querySelector('[style*="font-weight:700"]')?.textContent||'Chat';
-        const badge=item.querySelector('[style*="border-radius:50%"]');
-        if(badge) badge.remove();
-        const header=document.querySelector('#sec-mensajeria .col-lg-8 [style*="font-weight:700"]');
-        if(header) header.textContent=name;
-    });
-});
-
-/* ── Consorcios: switch sidebar item ── */
-document.querySelectorAll('#sec-consorcios .chat-item').forEach(item=>{
-    item.addEventListener('click',()=>{
-        const container=item.closest('[style*="overflow-y:auto"]');
-        container.querySelectorAll('.chat-item').forEach(c=>{c.classList.remove('active');c.style.borderLeft='';});
-        item.classList.add('active');
-        item.style.borderLeft='3px solid #7C3AED';
-        const name=item.querySelector('[style*="font-weight:700"]')?.textContent||'';
-        const headerName=document.querySelector('#sec-consorcios [style*="font-weight:800"]');
-        if(headerName) headerName.textContent=name;
-        toast('Cargando '+name+'...','info');
-    });
-});
-
-/* ── Global click delegation ── */
-document.addEventListener('click',function(e){
-    const btn=e.target.closest('button, .btn-p, .btn-s');
-    if(!btn) return;
-    const text=btn.textContent.trim();
-    const section=btn.closest('.section')?.id||'';
-    const icon=btn.querySelector('i');
-    const iconClass=icon?icon.className:'';
-
-    // Already handled
-    if(btn.classList.contains('btn-logout')) return;
-    if(btn.classList.contains('modal-close')) return;
-    if(btn.closest('.seg')) return;
-    if(btn.closest('.nav-link')) return;
-    if(btn.closest('.alert-row')) return;
-    if(btn.closest('.chat-input-bar') && iconClass.includes('fa-paper-plane')) return;
-
-    // ── Pagar buttons (facturas) ──
-    if(text==='Pagar'){
-        const proveedor=btn.closest('tr')?.querySelector('strong')?.textContent||'proveedor';
-        const monto=btn.closest('tr')?.querySelector('[style*="font-weight:600"]')?.textContent||'';
-        openModal('Confirmar pago',
-            '<div style="text-align:center;padding:10px 0;">'+
-            '<i class="fas fa-credit-card" style="font-size:2rem;color:#7C3AED;margin-bottom:12px;display:block;"></i>'+
-            '<p style="font-size:0.92rem;font-weight:600;">Pagar a '+proveedor+'</p>'+
-            '<p style="font-size:1.4rem;font-weight:800;color:#7C3AED;">'+monto+'</p>'+
-            '<p style="color:#888;">Se procesará el pago mediante la cuenta vinculada.</p>'+
-            '<button class="btn-p" style="width:100%;margin-top:8px;" onclick="closeModal();toast(\'Pago de '+monto+' a '+proveedor+' procesado\');removeRow(document.querySelector(\'#sec-facturas .tbl tbody tr:first-child td button\'))">Confirmar pago</button>'+
-            '</div>'
-        );
-        return;
+function openConsorioModal(id) {
+    $('m-cons-id').value = '';
+    ['m-cons-nombre','m-cons-cuit','m-cons-dir','m-cons-enc','m-cons-tel'].forEach(f=>$(f).value='');
+    ['m-cons-pisos','m-cons-ufs'].forEach(f=>$(f).value='');
+    $('m-cons-title').textContent = 'Nuevo consorcio';
+    if (id) {
+        const c = consorcios.find(x=>x.id===id);
+        if (!c) return;
+        $('m-cons-id').value = c.id;
+        $('m-cons-title').textContent = 'Editar consorcio';
+        $('m-cons-nombre').value = c.nombre||'';
+        $('m-cons-cuit').value = c.cuit||'';
+        $('m-cons-dir').value = c.direccion||'';
+        $('m-cons-pisos').value = c.pisos||'';
+        $('m-cons-ufs').value = c.unidades_totales||'';
+        $('m-cons-enc').value = c.encargado_nombre||'';
+        $('m-cons-tel').value = c.encargado_tel||'';
     }
+    openModal('modal-consorcio');
+}
 
-    // ── Confirmar factura ──
-    if(text.includes('Confirmar') && section==='sec-facturas'){
-        const card=btn.closest('[style*="border:1px solid #EDE9FE"]');
-        if(card){
-            card.style.transition='all 0.4s ease';
-            card.style.borderColor='#059669';
-            card.style.background='#ECFDF5';
-            card.innerHTML='<div style="text-align:center;padding:8px;"><i class="fas fa-check-circle" style="font-size:1.5rem;color:#059669;"></i><div style="font-size:0.85rem;font-weight:600;color:#065F46;margin-top:6px;">Factura confirmada y guardada</div></div>';
-            toast('Factura Edesur S.A. confirmada — $45,200');
-        }
-        return;
+async function saveConsorcio() {
+    const nombre = $('m-cons-nombre').value.trim();
+    if (!nombre) { toast('Nombre requerido','warn'); return; }
+    const payload = { nombre, cuit: $('m-cons-cuit').value, direccion: $('m-cons-dir').value,
+        pisos: +$('m-cons-pisos').value||null, unidades_totales: +$('m-cons-ufs').value||null,
+        encargado_nombre: $('m-cons-enc').value, encargado_tel: $('m-cons-tel').value };
+    const id = $('m-cons-id').value;
+    try {
+        if (id) await api(`/api/consorcios/${id}`,{method:'PUT',body:JSON.stringify(payload)});
+        else     await api('/api/consorcios',{method:'POST',body:JSON.stringify(payload)});
+        closeModal('modal-consorcio');
+        toast(id?'Consorcio actualizado':'Consorcio creado');
+        await loadConsorcios();
+    } catch(e) { toast(e.message,'err'); }
+}
+
+async function deleteConsorcio(id, nombre) {
+    if (!confirm(`¿Eliminar "${nombre}"? Se borrarán todas las UFs asociadas.`)) return;
+    try {
+        await api(`/api/consorcios/${id}`,{method:'DELETE'});
+        toast('Consorcio eliminado','warn');
+        await loadConsorcios();
+    } catch(e) { toast(e.message,'err'); }
+}
+
+// ── Detail (UFs) ──────────────────────────────────────────────────────────────
+async function openDetail(id, nombre, dir) {
+    currentConsorioId = id;
+    $('detail-nombre').textContent = nombre;
+    $('detail-dir').textContent = dir||'—';
+    document.querySelector('.card').style.display = 'none';
+    document.querySelector('.page-header').style.display = 'none';
+    $('consorcio-detail').style.display = 'block';
+    await loadUFs();
+}
+
+function closeDetail() {
+    currentConsorioId = null;
+    $('consorcio-detail').style.display = 'none';
+    document.querySelector('#sec-consorcios .card').style.display = '';
+    document.querySelector('#sec-consorcios .page-header').style.display = '';
+}
+
+async function loadUFs() {
+    if (!currentConsorioId) return;
+    try {
+        const ufs = await api(`/api/consorcios/${currentConsorioId}/unidades`);
+        const tb = $('tbody-ufs');
+        if (!ufs.length) { tb.innerHTML = '<tr><td colspan="7" class="tbl-empty">Sin unidades. Añadí la primera o usá carga masiva.</td></tr>'; return; }
+        tb.innerHTML = ufs.map(u => `
+            <tr>
+                <td><strong>${u.numero}</strong></td>
+                <td>${u.piso||'—'}</td>
+                <td><span class="b b-gr">${u.tipo||'departamento'}</span></td>
+                <td>${u.superficie_m2||'—'}</td>
+                <td>${u.vecino_nombre||'<span class="text-muted">Sin asignar</span>'}</td>
+                <td class="text-muted">${u.vecino_email||'—'}</td>
+                <td><div class="inline-actions">
+                    <button class="btn-s btn-sm" onclick="openUFModal('${u.id}')">✏️</button>
+                    <button class="btn-danger btn-sm" onclick="deleteUF('${u.id}')">🗑</button>
+                </div></td>
+            </tr>`).join('');
+    } catch(e) { toast(e.message,'err'); }
+}
+
+function openUFModal(id) {
+    $('m-uf-id').value = id||'';
+    $('m-uf-title').textContent = id ? 'Editar UF' : 'Nueva UF';
+    if (!id) { ['m-uf-numero','m-uf-piso','m-uf-sup','m-uf-vec-nombre','m-uf-vec-email'].forEach(f=>$(f).value=''); }
+    openModal('modal-uf');
+}
+
+async function saveUF() {
+    const numero = $('m-uf-numero').value.trim();
+    if (!numero || !currentConsorioId) { toast('Número de UF requerido','warn'); return; }
+    const payload = { numero, piso: $('m-uf-piso').value, tipo: $('m-uf-tipo').value,
+        superficie_m2: +$('m-uf-sup').value||null, vecino_nombre: $('m-uf-vec-nombre').value,
+        vecino_email: $('m-uf-vec-email').value };
+    const uid = $('m-uf-id').value;
+    try {
+        if (uid) await api(`/api/consorcios/${currentConsorioId}/unidades/${uid}`,{method:'PUT',body:JSON.stringify(payload)});
+        else      await api(`/api/consorcios/${currentConsorioId}/unidades`,{method:'POST',body:JSON.stringify(payload)});
+        closeModal('modal-uf'); toast(uid?'UF actualizada':'UF creada'); await loadUFs();
+    } catch(e) { toast(e.message,'err'); }
+}
+
+async function deleteUF(uid) {
+    if (!confirm('¿Eliminar esta unidad funcional?')) return;
+    try {
+        await api(`/api/consorcios/${currentConsorioId}/unidades/${uid}`,{method:'DELETE'});
+        toast('UF eliminada','warn'); await loadUFs();
+    } catch(e) { toast(e.message,'err'); }
+}
+
+function openBulkModal() {
+    populateConsorioSelects();
+    openModal('modal-bulk');
+}
+
+async function uploadBulk() {
+    const cid = $('m-bulk-consorcio').value;
+    const file = $('bulk-file').files[0];
+    if (!cid || !file) { toast('Seleccioná consorcio y archivo','warn'); return; }
+    const fd = new FormData(); fd.append('file', file);
+    try {
+        const r = await fetch(`/api/consorcios/${cid}/unidades/bulk`,{method:'POST',body:fd});
+        const d = await r.json();
+        closeModal('modal-bulk');
+        toast(`✅ ${d.inserted} unidades importadas`);
+        await loadConsorcios();
+    } catch(e) { toast('Error al importar','err'); }
+}
+
+function exportConsorcio(fmt) {
+    if (!currentConsorioId) return;
+    window.location.href = `/api/consorcios/${currentConsorioId}/export/${fmt}`;
+}
+
+// ── GASTOS ─────────────────────────────────────────────────────────────────────
+async function initGastos() {
+    if (!consorcios.length) await loadConsorcios();
+    await loadProveedoresOpts();
+    await loadGastos();
+}
+
+async function loadProveedoresOpts() {
+    try {
+        proveedores = await api('/api/proveedores');
+        const opts = '<option value="">Sin proveedor</option>' + proveedores.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
+        $('m-gasto-proveedor').innerHTML = opts;
+    } catch{}
+}
+
+async function loadGastos() {
+    const params = new URLSearchParams();
+    const cid = $('filter-gastos-consorcio')?.value; if (cid) params.set('consorcio_id',cid);
+    const desde = $('filter-gastos-desde')?.value; if (desde) params.set('desde',desde);
+    const hasta = $('filter-gastos-hasta')?.value; if (hasta) params.set('hasta',hasta);
+    try {
+        const data = await api('/api/gastos?'+params);
+        const tb = $('tbody-gastos');
+        if (!data.length) { tb.innerHTML = '<tr><td colspan="9" class="tbl-empty">Sin gastos en el período</td></tr>'; $('gastos-total-label').textContent=''; return; }
+        const total = data.reduce((s,g)=>s+(g.monto||0),0);
+        $('gastos-total-label').textContent = `Total: ${fmt(total)}`;
+        tb.innerHTML = data.map(g => `
+            <tr>
+                <td>${g.fecha_gasto||'—'}</td>
+                <td>${(g.consorcios||{}).nombre||'—'}</td>
+                <td><strong>${g.descripcion}</strong>${g.notas?`<div class="text-muted text-sm">${g.notas}</div>`:''}</td>
+                <td>${categoriaBadge(g.categoria)}</td>
+                <td>${(g.proveedores||{}).nombre||'—'}</td>
+                <td><strong>${fmt(g.monto)}</strong></td>
+                <td>${g.pagado ? '<span class="b b-g">Pagado</span>' : '<span class="b b-y">Pendiente</span>'}</td>
+                <td>${g.recurrente ? `<span class="b b-b">${g.frecuencia||'recurrente'}</span>` : '—'}</td>
+                <td><div class="inline-actions">
+                    <button class="btn-s btn-sm" onclick="openGastoModal('${g.id}')">✏️</button>
+                    <button class="btn-danger btn-sm" onclick="deleteGasto('${g.id}')">🗑</button>
+                </div></td>
+            </tr>`).join('');
+    } catch(e) { toast(e.message,'err'); }
+}
+
+function openGastoModal(id) {
+    $('m-gasto-id').value = id||'';
+    $('m-gasto-title').textContent = id ? 'Editar gasto' : 'Nuevo gasto';
+    if (!id) {
+        ['m-gasto-desc','m-gasto-monto','m-gasto-notas'].forEach(f=>$(f).value='');
+        $('m-gasto-fecha').value = new Date().toISOString().split('T')[0];
+        ['m-gasto-vto','m-gasto-fecha-pago'].forEach(f=>$(f).value='');
+        $('m-gasto-pagado').checked = false;
+        $('m-gasto-recurrente').checked = false;
+        $('frecuencia-group').style.display = 'none';
     }
+    openModal('modal-gasto');
+    // Populate consorcio select
+    const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    $('m-gasto-consorcio').innerHTML = opts2;
+}
 
-    // ── Edit factura ──
-    if(iconClass.includes('fa-edit') && section==='sec-facturas'){
-        openModal('Editar factura detectada',
-            '<div class="cfg-label" style="margin-top:4px;">Proveedor</div><input type="text" class="form-control form-control-sm mb-2" value="Edesur S.A.">'+
-            '<div class="cfg-label">Monto</div><input type="text" class="form-control form-control-sm mb-2" value="$45,200">'+
-            '<div class="cfg-label">Vencimiento</div><input type="date" class="form-control form-control-sm mb-2" value="2026-05-15">'+
-            '<div class="cfg-label">Servicio</div><input type="text" class="form-control form-control-sm mb-2" value="Electricidad">'+
-            '<div class="cfg-label">Consorcio</div><select class="form-select form-select-sm mb-3"><option selected>Complejo Sur</option><option>Torres del Sol</option><option>Edificio Norte</option></select>'+
-            '<button class="btn-p" style="width:100%;" onclick="closeModal();toast(\'Factura actualizada\')">Guardar cambios</button>'
-        );
-        return;
+async function saveGasto() {
+    const consorcio_id = $('m-gasto-consorcio').value;
+    const monto = +$('m-gasto-monto').value;
+    if (!consorcio_id || !monto) { toast('Consorcio y monto requeridos','warn'); return; }
+    const payload = {
+        consorcio_id, monto,
+        proveedor_id: $('m-gasto-proveedor').value||null,
+        descripcion: $('m-gasto-desc').value.trim(),
+        categoria: $('m-gasto-cat').value,
+        fecha_gasto: $('m-gasto-fecha').value,
+        fecha_vencimiento: $('m-gasto-vto').value||null,
+        pagado: $('m-gasto-pagado').checked,
+        fecha_pago: $('m-gasto-fecha-pago').value||null,
+        metodo_pago: $('m-gasto-metodo').value,
+        recurrente: $('m-gasto-recurrente').checked,
+        frecuencia: $('m-gasto-frecuencia').value,
+        notas: $('m-gasto-notas').value,
+    };
+    const gid = $('m-gasto-id').value;
+    try {
+        if (gid) await api(`/api/gastos/${gid}`,{method:'PUT',body:JSON.stringify(payload)});
+        else      await api('/api/gastos',{method:'POST',body:JSON.stringify(payload)});
+        closeModal('modal-gasto'); toast(gid?'Gasto actualizado':'Gasto registrado'); await loadGastos();
+    } catch(e) { toast(e.message,'err'); }
+}
+
+async function deleteGasto(id) {
+    if (!confirm('¿Eliminar este gasto?')) return;
+    try { await api(`/api/gastos/${id}`,{method:'DELETE'}); toast('Gasto eliminado','warn'); await loadGastos(); }
+    catch(e) { toast(e.message,'err'); }
+}
+
+function exportGastos(fmt) {
+    const params = new URLSearchParams({fmt});
+    const cid = $('filter-gastos-consorcio')?.value; if(cid) params.set('consorcio_id',cid);
+    const desde = $('filter-gastos-desde')?.value; if(desde) params.set('desde',desde);
+    const hasta = $('filter-gastos-hasta')?.value; if(hasta) params.set('hasta',hasta);
+    window.location.href = '/api/gastos/export?'+params;
+}
+
+// ── COBROS ─────────────────────────────────────────────────────────────────────
+async function initCobros() {
+    if (!consorcios.length) await loadConsorcios();
+    await loadCobros();
+}
+
+async function cobrosTab(tab, el) {
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    el.classList.add('active');
+    $('tab-resumen').style.display = tab==='resumen' ? '' : 'none';
+    $('tab-mora').style.display = tab==='mora' ? '' : 'none';
+    if (tab==='mora') await loadMora();
+    else await loadCobros();
+}
+
+async function loadCobros() {
+    const params = new URLSearchParams();
+    const cid = $('filter-cobros-consorcio')?.value; if(cid) params.set('consorcio_id',cid);
+    const periodo = $('filter-cobros-periodo')?.value; if(periodo) params.set('periodo',periodo);
+    try {
+        const data = await api('/api/cobros?'+params);
+        const tb = $('tbody-cobros');
+        if (!data.length) { tb.innerHTML = '<tr><td colspan="10" class="tbl-empty">Sin cobros en el período</td></tr>'; renderCobrosKpis([]); return; }
+        renderCobrosKpis(data);
+        tb.innerHTML = data.map(c => {
+            const uf = c.unidades_funcionales||{};
+            const con = c.consorcios||{};
+            return `<tr>
+                <td>${con.nombre||'—'}</td>
+                <td><strong>${uf.numero||'—'}</strong></td>
+                <td>${uf.vecino_nombre||'<span class="text-muted">—</span>'}</td>
+                <td>${c.periodo||'—'}</td>
+                <td>${fmt(c.monto_base)}</td>
+                <td>${c.interes_mora ? fmt(c.interes_mora) : '—'}</td>
+                <td><strong>${fmt(c.total)}</strong></td>
+                <td>${statusBadge(c.estado)}</td>
+                <td class="text-muted">${c.fecha_vencimiento||'—'}</td>
+                <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${c.interes_mora||0}','${c.notas||''}')">✏️</button></td>
+            </tr>`;}).join('');
+    } catch(e) { toast(e.message,'err'); }
+}
+
+function renderCobrosKpis(data) {
+    const pagados = data.filter(c=>c.estado==='pagado');
+    const pendientes = data.filter(c=>c.estado==='pendiente');
+    const mora = data.filter(c=>['vencido','en_mora'].includes(c.estado));
+    const ingresos = pagados.reduce((s,c)=>s+(c.total||0),0);
+    $('cobros-kpis').innerHTML = `
+        <div class="kpi"><div class="kpi-val" style="color:#34d399">${pagados.length}</div><div class="kpi-label">Pagados</div><div class="kpi-sub">${fmt(ingresos)}</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:#fbbf24">${pendientes.length}</div><div class="kpi-label">Pendientes</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:#f87171">${mora.length}</div><div class="kpi-label">En mora/vencidos</div></div>
+    `;
+}
+
+async function loadMora() {
+    const params = new URLSearchParams();
+    const cid = $('filter-mora-consorcio')?.value; if(cid) params.set('consorcio_id',cid);
+    try {
+        const data = await api('/api/cobros/mora?'+params);
+        $('mora-count-label').textContent = data.length ? `${data.length} vecino(s) en mora` : 'Sin morosos';
+        const tb = $('tbody-mora');
+        if (!data.length) { tb.innerHTML = '<tr><td colspan="10" class="tbl-empty">¡Sin morosos! 🎉</td></tr>'; return; }
+        const tasa = +($('cfg-tasa')?.value||2);
+        const today = new Date();
+        tb.innerHTML = data.map(c => {
+            const uf = c.unidades_funcionales||{}; const con = c.consorcios||{};
+            const vto = c.fecha_vencimiento ? new Date(c.fecha_vencimiento) : null;
+            const dias = vto ? Math.max(0,Math.ceil((today-vto)/(1000*60*60*24))) : '—';
+            const interes = typeof dias === 'number' ? (c.monto_base||0)*tasa/100*dias : 0;
+            return `<tr style="background:rgba(239,68,68,.04)">
+                <td>${con.nombre||'—'}</td>
+                <td><strong>${uf.numero||'—'}</strong></td>
+                <td>${uf.vecino_nombre||'—'}</td>
+                <td class="text-muted">${uf.vecino_email||'—'}</td>
+                <td>${c.periodo||'—'}</td>
+                <td>${fmt(c.monto_base)}</td>
+                <td style="color:#f87171">+${fmt(interes)}</td>
+                <td><strong>${fmt((c.monto_base||0)+interes)}</strong></td>
+                <td>${statusBadge(c.estado)}</td>
+                <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${interes.toFixed(2)}','')">✏️ Actualizar</button></td>
+            </tr>`;}).join('');
+    } catch(e) { toast(e.message,'err'); }
+}
+
+function openCobroModal(id,estado,fechaPago,interes,notas) {
+    $('m-cobro-id').value = id;
+    $('m-cobro-estado').value = estado;
+    $('m-cobro-fecha-pago').value = fechaPago;
+    $('m-cobro-interes').value = interes||0;
+    $('m-cobro-notas').value = notas||'';
+    openModal('modal-cobro');
+}
+
+async function saveCobro() {
+    const rid = $('m-cobro-id').value;
+    const interes = +$('m-cobro-interes').value||0;
+    const monto_base_el = document.querySelector(`[onclick*="${rid}"]`);
+    const payload = {
+        estado: $('m-cobro-estado').value,
+        fecha_pago: $('m-cobro-fecha-pago').value||null,
+        interes_mora: interes,
+        notas: $('m-cobro-notas').value,
+    };
+    try {
+        await api(`/api/cobros/${rid}`,{method:'PUT',body:JSON.stringify(payload)});
+        closeModal('modal-cobro'); toast('Cobro actualizado'); await loadCobros(); await loadMora();
+    } catch(e) { toast(e.message,'err'); }
+}
+
+function openGenerarModal() {
+    const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    $('m-gen-consorcio').innerHTML = opts2;
+    $('m-gen-periodo').value = new Date().toISOString().slice(0,7);
+    openModal('modal-generar');
+}
+
+async function generarCobros() {
+    const consorcio_id = $('m-gen-consorcio').value;
+    const periodo = $('m-gen-periodo').value;
+    const monto_base = +$('m-gen-monto').value;
+    if (!consorcio_id||!periodo||!monto_base) { toast('Completá todos los campos','warn'); return; }
+    const payload = { consorcio_id, periodo, monto_base, fecha_vencimiento: $('m-gen-vto').value||null };
+    try {
+        const r = await api('/api/cobros/generar',{method:'POST',body:JSON.stringify(payload)});
+        closeModal('modal-generar'); toast(`✅ ${r.generados} cobros generados`); await loadCobros();
+    } catch(e) { toast(e.message,'err'); }
+}
+
+function exportCobros() {
+    const params = new URLSearchParams({fmt:'excel'});
+    const cid = $('filter-cobros-consorcio')?.value; if(cid) params.set('consorcio_id',cid);
+    const periodo = $('filter-cobros-periodo')?.value; if(periodo) params.set('periodo',periodo);
+    window.location.href = '/api/cobros/export?'+params;
+}
+
+// ── PROVEEDORES ────────────────────────────────────────────────────────────────
+async function loadProveedores() {
+    try {
+        proveedores = await api('/api/proveedores');
+        const tb = $('tbody-proveedores');
+        if (!proveedores.length) { tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">Sin proveedores. Añadí el primero.</td></tr>'; return; }
+        tb.innerHTML = proveedores.map(p => `
+            <tr>
+                <td><strong>${p.nombre}</strong></td>
+                <td class="text-muted">${p.cuit||'—'}</td>
+                <td>${p.rubro||'—'}</td>
+                <td class="text-muted">${p.email||'—'}</td>
+                <td class="text-muted">${p.telefono||'—'}</td>
+                <td><div class="inline-actions">
+                    <button class="btn-s btn-sm" onclick="openProveedorModal('${p.id}')">✏️</button>
+                    <button class="btn-danger btn-sm" onclick="deleteProveedor('${p.id}','${p.nombre}')">🗑</button>
+                </div></td>
+            </tr>`).join('');
+    } catch(e) { toast(e.message,'err'); }
+}
+
+function openProveedorModal(id) {
+    $('m-prov-id').value = id||'';
+    $('m-prov-title').textContent = id ? 'Editar proveedor' : 'Nuevo proveedor';
+    if (!id) { ['m-prov-nombre','m-prov-cuit','m-prov-email','m-prov-tel'].forEach(f=>$(f).value=''); $('m-prov-rubro').value=''; }
+    else {
+        const p = proveedores.find(x=>x.id===id); if(!p) return;
+        $('m-prov-nombre').value = p.nombre||''; $('m-prov-cuit').value = p.cuit||'';
+        $('m-prov-rubro').value = p.rubro||''; $('m-prov-email').value = p.email||''; $('m-prov-tel').value = p.telefono||'';
     }
+    openModal('modal-proveedor');
+}
 
-    // ── Ejecutar scraper ──
-    if(text.includes('Ejecutar') && (text.includes('scraper')||text.includes('ahora'))){
-        btn.disabled=true;
-        const orig=btn.innerHTML;
-        btn.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i>Buscando...';
-        setTimeout(()=>{
-            btn.innerHTML=orig;
-            btn.disabled=false;
-            toast('Scraper completado — 2 facturas nuevas encontradas');
-        },2200);
-        return;
-    }
+async function saveProveedor() {
+    const nombre = $('m-prov-nombre').value.trim();
+    if (!nombre) { toast('Nombre requerido','warn'); return; }
+    const payload = { nombre, cuit: $('m-prov-cuit').value, rubro: $('m-prov-rubro').value,
+        email: $('m-prov-email').value, telefono: $('m-prov-tel').value };
+    const pid = $('m-prov-id').value;
+    try {
+        if (pid) await api(`/api/proveedores/${pid}`,{method:'PUT',body:JSON.stringify(payload)});
+        else      await api('/api/proveedores',{method:'POST',body:JSON.stringify(payload)});
+        closeModal('modal-proveedor'); toast(pid?'Proveedor actualizado':'Proveedor creado'); await loadProveedores();
+    } catch(e) { toast(e.message,'err'); }
+}
 
-    // ── Aprobar expensa ──
-    if(text.includes('Aprobar') && section==='sec-expensas'){
-        const tr=btn.closest('tr');
-        const statusTd=tr?.querySelectorAll('td');
-        if(statusTd && statusTd.length>=5){
-            statusTd[4].innerHTML='<span class="b b-g">Aprobada</span>';
-            const name=tr.querySelector('strong')?.textContent||'Consorcio';
-            btn.outerHTML='<button class="btn-p btn-sm" onclick="toast(\'Expensa de '+name+' enviada a vecinos\');this.closest(\'tr\').querySelectorAll(\'td\')[4].innerHTML=\'<span class=b\\ b-b>Enviada</span>\';this.outerHTML=\'<button class=btn-s\\ btn-sm><i class=fas\\ fa-eye></i></button>\'"><i class="fas fa-paper-plane"></i></button> <button class="btn-s btn-sm"><i class="fas fa-eye"></i></button>';
-            toast(name+' aprobada');
-        }
-        return;
-    }
+async function deleteProveedor(id,nombre) {
+    if (!confirm(`¿Eliminar "${nombre}"?`)) return;
+    try { await api(`/api/proveedores/${id}`,{method:'DELETE'}); toast('Proveedor eliminado','warn'); await loadProveedores(); }
+    catch(e) { toast(e.message,'err'); }
+}
 
-    // ── Enviar expensa (paper-plane in table) ──
-    if(iconClass.includes('fa-paper-plane') && section==='sec-expensas'){
-        const tr=btn.closest('tr');
-        const name=tr?.querySelector('strong')?.textContent||'Consorcio';
-        const statusTd=tr?.querySelectorAll('td');
-        if(statusTd && statusTd.length>=5){
-            statusTd[4].innerHTML='<span class="b b-b">Enviada</span>';
-            const lastTd=statusTd[statusTd.length-1];
-            lastTd.innerHTML='<button class="btn-s btn-sm"><i class="fas fa-eye"></i></button>';
-        }
-        toast('Expensas de '+name+' enviadas a todos los vecinos');
-        return;
-    }
+// ── BALANCE ────────────────────────────────────────────────────────────────────
+async function initBalance() {
+    if (!consorcios.length) await loadConsorcios();
+    await loadBalance();
+}
 
-    // ── Enviar todas aprobadas ──
-    if(text.includes('Enviar aprobadas')){
-        toast('Enviando expensas a todos los consorcios aprobados...','info');
-        setTimeout(()=>toast('Expensas enviadas exitosamente a 2 consorcios'),1500);
-        return;
-    }
+async function loadBalance() {
+    const params = new URLSearchParams();
+    const cid = $('filter-balance-consorcio')?.value; if(cid) params.set('consorcio_id',cid);
+    const desde = $('filter-balance-desde')?.value; if(desde) params.set('desde',desde);
+    const hasta = $('filter-balance-hasta')?.value; if(hasta) params.set('hasta',hasta);
+    try {
+        const d = await api('/api/balance?'+params);
+        $('bal-ingresos').textContent = fmt(d.ingresos);
+        $('bal-egresos').textContent = fmt(d.egresos);
+        const res = d.resultado;
+        const el = $('bal-resultado');
+        el.textContent = fmt(res);
+        el.style.color = res >= 0 ? '#34d399' : '#f87171';
 
-    // ── Aprobar pago (check in pagos) ──
-    if(iconClass.includes('fa-check') && section==='sec-pagos'){
-        const tr=btn.closest('tr');
-        const name=tr?.querySelector('strong')?.textContent||'vecino';
-        removeRow(btn);
-        toast('Pago de '+name+' aprobado');
-        return;
-    }
+        $('tbody-bal-cobros').innerHTML = d.cobros.length
+            ? d.cobros.map(c=>`<tr><td>${(c.consorcios||{}).nombre||'—'}</td><td>${c.periodo||'—'}</td><td>${fmt(c.total)}</td></tr>`).join('')
+            : '<tr><td colspan="3" class="tbl-empty">Sin ingresos</td></tr>';
 
-    // ── Rechazar pago (times in pagos) ──
-    if(iconClass.includes('fa-times') && section==='sec-pagos'){
-        const tr=btn.closest('tr');
-        const name=tr?.querySelector('strong')?.textContent||'vecino';
-        openModal('Rechazar comprobante',
-            '<div style="text-align:center;padding:10px 0;">'+
-            '<i class="fas fa-times-circle" style="font-size:2rem;color:#DC2626;margin-bottom:12px;display:block;"></i>'+
-            '<p style="font-size:0.92rem;font-weight:600;">Rechazar comprobante de '+name+'</p>'+
-            '<div class="cfg-label" style="text-align:left;margin-top:12px;">Motivo del rechazo</div>'+
-            '<textarea class="form-control form-control-sm" rows="2" placeholder="Ej: Comprobante ilegible, monto incorrecto..."></textarea>'+
-            '<button class="btn-p" style="width:100%;margin-top:12px;background:#DC2626;border-color:#DC2626;" onclick="closeModal();toast(\'Comprobante de '+name+' rechazado — se notificó al vecino\',\'err\')">Confirmar rechazo</button>'+
-            '</div>'
-        );
-        return;
-    }
+        $('tbody-bal-gastos').innerHTML = d.gastos.length
+            ? d.gastos.map(g=>`<tr><td>${(g.consorcios||{}).nombre||'—'}</td><td>${g.descripcion||'—'}</td><td>${g.categoria||'—'}</td><td>${fmt(g.monto)}</td></tr>`).join('')
+            : '<tr><td colspan="4" class="tbl-empty">Sin egresos</td></tr>';
+    } catch(e) { toast(e.message,'err'); }
+}
 
-    // ── Comment (pedir aclaración) ──
-    if(iconClass.includes('fa-comment') && (section==='sec-pagos'||section==='sec-morosidad')){
-        const tr=btn.closest('tr');
-        const name=tr?.querySelector('strong')?.textContent||'vecino';
-        openModal('Mensaje a '+name,
-            '<div class="cfg-label">Mensaje</div>'+
-            '<textarea class="form-control form-control-sm" rows="3" placeholder="Escribí tu mensaje..."></textarea>'+
-            '<button class="btn-p" style="width:100%;margin-top:12px;" onclick="closeModal();toast(\'Mensaje enviado a '+name+'\')">Enviar mensaje</button>'
-        );
-        return;
-    }
+function exportBalance(fmt_) {
+    const params = new URLSearchParams({fmt:fmt_});
+    const cid = $('filter-balance-consorcio')?.value; if(cid) params.set('consorcio_id',cid);
+    const desde = $('filter-balance-desde')?.value; if(desde) params.set('desde',desde);
+    const hasta = $('filter-balance-hasta')?.value; if(hasta) params.set('hasta',hasta);
+    window.location.href = '/api/balance/export?'+params;
+}
 
-    // ── Bell (enviar recordatorio) ──
-    if(iconClass.includes('fa-bell') && section==='sec-morosidad'){
-        const tr=btn.closest('tr');
-        const name=tr?.querySelector('strong')?.textContent||'vecino';
-        toast('Recordatorio enviado a '+name);
-        return;
-    }
-
-    // ── Enviar recordatorios (bulk) ──
-    if(text.includes('Enviar recordatorios')){
-        btn.disabled=true;
-        const orig=btn.innerHTML;
-        btn.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i>Enviando...';
-        setTimeout(()=>{
-            btn.innerHTML=orig;
-            btn.disabled=false;
-            toast('Recordatorios enviados a 4 usuarios en mora');
-        },1500);
-        return;
-    }
-
-    // ── Guardar buttons ──
-    if(text==='Guardar' || text.includes('Guardar')){
-        btn.disabled=true;
-        const orig=btn.innerHTML;
-        btn.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i>Guardando...';
-        setTimeout(()=>{
-            btn.innerHTML='<i class="fas fa-check me-1"></i>Guardado';
-            toast('Configuración guardada');
-            setTimeout(()=>{btn.innerHTML=orig;btn.disabled=false;},1500);
-        },800);
-        return;
-    }
-
-    // ── Export Excel / PDF ──
-    if(text.includes('Excel')||text.includes('PDF')){
-        const format=text.includes('Excel')?'Excel':'PDF';
-        toast('Generando archivo '+format+'...','info');
-        setTimeout(()=>toast('Archivo '+format+' descargado'),1500);
-        return;
-    }
-
-    // ── Eye (ver detalle) ──
-    if(iconClass.includes('fa-eye')){
-        // In consorcios: user detail
-        if(section==='sec-consorcios'){
-            const tr=btn.closest('tr');
-            const uf=tr?.querySelector('strong')?.textContent||'';
-            const name=tr?.querySelectorAll('td')[1]?.textContent||'Usuario';
-            const email=tr?.querySelectorAll('td')[2]?.textContent||'';
-            const status=tr?.querySelector('.b')?.textContent||'';
-            openModal('Detalle · '+name,
-                '<div style="display:flex;gap:14px;align-items:center;margin-bottom:16px;">'+
-                '<div class="avatar" style="background:#EDE9FE;color:#7C3AED;width:48px;height:48px;font-size:0.95rem;">'+name.charAt(0)+name.split(' ')[1]?.charAt(0)+'</div>'+
-                '<div><div style="font-size:1rem;font-weight:700;">'+name+'</div><div style="font-size:0.8rem;color:#888;">UF '+uf+' · Torres del Sol</div></div></div>'+
-                '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">'+
-                '<div class="detected-pill"><span class="lbl">Email</span><span class="val">'+email.trim()+'</span></div>'+
-                '<div class="detected-pill"><span class="lbl">Estado</span><span class="val">'+status+'</span></div>'+
-                '<div class="detected-pill"><span class="lbl">Desde</span><span class="val">Mar 2024</span></div></div>'+
-                '<div class="cfg-label">Historial de pagos</div>'+
-                '<div style="font-size:0.82rem;">'+
-                '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5;"><span>Mayo 2026</span><span class="b b-g">Al día</span></div>'+
-                '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5;"><span>Abril 2026</span><span class="b b-g">Al día</span></div>'+
-                '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5;"><span>Marzo 2026</span><span class="b b-g">Al día</span></div>'+
-                '<div style="display:flex;justify-content:space-between;padding:5px 0;"><span>Febrero 2026</span><span class="b b-y">Pagó tarde</span></div></div>'
-            );
-            return;
-        }
-        // In expensas: liquidación detail
-        if(section==='sec-expensas'){
-            const tr=btn.closest('tr');
-            const name=tr?.querySelector('strong')?.textContent||'Consorcio';
-            const total=tr?.querySelectorAll('td')[2]?.textContent||'';
-            openModal('Liquidación · '+name,
-                '<p style="font-size:0.92rem;font-weight:600;margin-bottom:12px;">'+name+' · Junio 2026</p>'+
-                '<div style="font-size:0.84rem;">'+
-                '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5;"><span>Electricidad</span><span style="font-weight:600;">$45,200</span></div>'+
-                '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5;"><span>Gas</span><span style="font-weight:600;">$31,800</span></div>'+
-                '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5;"><span>Agua</span><span style="font-weight:600;">$18,000</span></div>'+
-                '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5;"><span>Sueldo encargado</span><span style="font-weight:600;">$480,000</span></div>'+
-                '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5;"><span>Seguro</span><span style="font-weight:600;">$68,000</span></div>'+
-                '<div style="display:flex;justify-content:space-between;padding:7px 0;font-weight:700;"><span>Total</span><span style="color:#7C3AED;">'+total+'</span></div></div>'
-            );
-            return;
-        }
-        // Generic ver
-        const tr=btn.closest('tr');
-        const name=tr?.querySelector('strong')?.textContent||'Detalle';
-        openModal('Detalle · '+name,'<p>Información detallada de <strong>'+name+'</strong>.</p><p style="color:#888;">Esta funcionalidad mostrará el detalle completo en la versión final.</p>');
-        return;
-    }
-
-    // ── Agregar consorcio ──
-    if(text.includes('Agregar') && section==='sec-consorcios'){
-        openModal('Nuevo consorcio',
-            '<div class="cfg-label">Nombre del consorcio</div><input type="text" class="form-control form-control-sm mb-2" placeholder="Ej: Edificio Central">'+
-            '<div class="cfg-label">Dirección</div><input type="text" class="form-control form-control-sm mb-2" placeholder="Ej: Av. Santa Fe 1234, CABA">'+
-            '<div class="cfg-label">CUIT</div><input type="text" class="form-control form-control-sm mb-2" placeholder="30-12345678-9">'+
-            '<div class="cfg-label">Unidades funcionales</div><input type="number" class="form-control form-control-sm mb-3" placeholder="Ej: 48">'+
-            '<button class="btn-p" style="width:100%;" onclick="closeModal();toast(\'Consorcio creado exitosamente\')">Crear consorcio</button>'
-        );
-        return;
-    }
-
-    // ── Invitar ──
-    if(text.includes('Invitar')){
-        openModal('Invitar al equipo',
-            '<div class="cfg-label">Email</div><input type="email" class="form-control form-control-sm mb-2" placeholder="nombre@email.com">'+
-            '<div class="cfg-label">Rol</div><select class="form-select form-select-sm mb-3"><option>Asistente</option><option>Solo lectura</option><option>Administrador</option></select>'+
-            '<button class="btn-p" style="width:100%;" onclick="closeModal();toast(\'Invitación enviada\')">Enviar invitación</button>'
-        );
-        return;
-    }
-
-    // ── Nuevo mensaje ──
-    if(text.includes('Nuevo') && section==='sec-mensajeria'){
-        openModal('Nuevo mensaje',
-            '<div class="cfg-label">Destinatario</div><select class="form-select form-select-sm mb-2"><option>Torres del Sol (canal grupal)</option><option>Edificio Norte (canal grupal)</option><option>Complejo Sur (canal grupal)</option><option>María López · 4B</option><option>Gustavo Pérez · 5C</option></select>'+
-            '<div class="cfg-label">Mensaje</div><textarea class="form-control form-control-sm mb-3" rows="3" placeholder="Escribí tu mensaje..."></textarea>'+
-            '<button class="btn-p" style="width:100%;" onclick="closeModal();toast(\'Mensaje enviado\')">Enviar</button>'
-        );
-        return;
-    }
-
-    // ── Cargar factura button ──
-    if(text.includes('Cargar factura')){
-        document.querySelector('.upload-zone')?.click();
-        return;
-    }
-
-    // ── + Agregar servicio ──
-    if(text.includes('+ Agregar') || text.includes('Agregar') && btn.classList.contains('b-gr')){
-        openModal('Agregar servicio',
-            '<div class="cfg-label">Nombre del servicio</div><input type="text" class="form-control form-control-sm mb-2" placeholder="Ej: Telecom, Edenor...">'+
-            '<div class="cfg-label">URL del portal</div><input type="text" class="form-control form-control-sm mb-2" placeholder="https://...">'+
-            '<div class="cfg-label">Credenciales</div><input type="text" class="form-control form-control-sm mb-1" placeholder="Usuario"><input type="password" class="form-control form-control-sm mb-3" placeholder="Contraseña">'+
-            '<button class="btn-p" style="width:100%;" onclick="closeModal();toast(\'Servicio agregado al scraper\')">Agregar servicio</button>'
-        );
-        return;
-    }
-
-    // ── Paperclip (adjuntar) ──
-    if(iconClass.includes('fa-paperclip')){
-        toast('Seleccioná un archivo para adjuntar','info');
-        return;
-    }
-
-    // ── Enviar expensas from dashboard ──
-    if(text.includes('Enviar expensas') && section==='sec-dashboard'){
-        return; // handled by onclick show()
-    }
-
-    // ── Download/Export from dashboard ──
-    if(iconClass.includes('fa-download')){
-        toast('Generando reporte del dashboard...','info');
-        setTimeout(()=>toast('Reporte descargado'),1200);
-        return;
-    }
-});
-
-/* ── Badge click (+ Agregar service) ── */
-document.querySelectorAll('.b.b-gr').forEach(badge=>{
-    badge.style.cursor='pointer';
-    badge.addEventListener('click',()=>{
-        openModal('Agregar servicio',
-            '<div class="cfg-label">Nombre del servicio</div><input type="text" class="form-control form-control-sm mb-2" placeholder="Ej: Telecom, Edenor...">'+
-            '<div class="cfg-label">URL del portal</div><input type="text" class="form-control form-control-sm mb-3" placeholder="https://...">'+
-            '<button class="btn-p" style="width:100%;" onclick="closeModal();toast(\'Servicio agregado\')">Agregar</button>'
-        );
-    });
-});
-
-/* ── Keyboard: Escape to close modal ── */
-document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
-
-/* ── Theme toggle ── */
-(function() {
-    const toggle = document.getElementById('theme-toggle');
-    const root = document.documentElement;
-    function applyTheme(t) {
-        root.classList.toggle('light', t === 'light');
-        toggle.textContent = t === 'light' ? '\u2600\ufe0f Cambiar tema' : '\ud83c\udf19 Cambiar tema';
-    }
-    applyTheme(localStorage.getItem('theme') || 'dark');
-    toggle.addEventListener('click', () => {
-        const next = root.classList.contains('light') ? 'dark' : 'light';
-        localStorage.setItem('theme', next);
-        applyTheme(next);
-    });
+// ── Theme ─────────────────────────────────────────────────────────────────────
+(function(){
+    const btn = $('theme-toggle'), root = document.documentElement;
+    function apply(t){ root.classList.toggle('light',t==='light'); btn.textContent=t==='light'?'☀️ Cambiar tema':'🌙 Cambiar tema'; }
+    apply(localStorage.getItem('theme')||'dark');
+    btn.addEventListener('click',()=>{ const n=root.classList.contains('light')?'dark':'light'; localStorage.setItem('theme',n); apply(n); });
 })();
+
+// ── Keyboard ──────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+    if (e.key==='Escape') document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadDashboard();
+loadConsorcios();
 </script>
 </body>
 </html>
