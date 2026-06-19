@@ -40,6 +40,10 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
 
+# Fix for reverse proxy headers (Vercel) so url_for uses HTTPS
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 # ── Auth0 ──────────────────────────────────────────────────────────────────────
 AUTH0_DOMAIN = os.environ['AUTH0_DOMAIN']
 
