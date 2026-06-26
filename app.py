@@ -911,6 +911,102 @@ def api_vecino_comunicados():
     return jsonify(res.data)
 
 
+@app.route('/api/vecino/expensas', methods=['GET'])
+@require_auth(allowed_roles=['vecino'])
+def api_vecino_expensas():
+    vid = get_vecino_id()
+    if not vid:
+        return jsonify({'error': 'Vecino no encontrado'}), 404
+    
+    # Obtener perfil del vecino
+    vecino_res = supabase.table('vecinos').select('consorcio_id').eq('id', vid).single().execute()
+    vecino = vecino_res.data
+    if not vecino or not vecino.get('consorcio_id'):
+        return jsonify([])
+    
+    cid = vecino['consorcio_id']
+    
+    # Obtener id de la unidad funcional
+    uf_res = supabase.table('unidades_funcionales').select('id').eq('consorcio_id', cid).eq('vecino_id', vid).limit(1).execute()
+    uf_id = uf_res.data[0]['id'] if uf_res.data else None
+    
+    if not uf_id:
+        return jsonify([])
+    
+    res = supabase.table('cobros').select('*').eq('unidad_id', uf_id).order('periodo', desc=True).execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/vecino/expensas/<cobro_id>/pagar', methods=['POST'])
+@require_auth(allowed_roles=['vecino'])
+def api_vecino_expensas_pagar(cobro_id):
+    vid = get_vecino_id()
+    if not vid:
+        return jsonify({'error': 'Vecino no encontrado'}), 404
+        
+    # Obtener perfil del vecino
+    vecino_res = supabase.table('vecinos').select('consorcio_id').eq('id', vid).single().execute()
+    vecino = vecino_res.data
+    if not vecino or not vecino.get('consorcio_id'):
+        return jsonify({'error': 'Vecino sin consorcio vinculado'}), 400
+        
+    cid = vecino['consorcio_id']
+    
+    # Obtener id de la unidad funcional
+    uf_res = supabase.table('unidades_funcionales').select('id').eq('consorcio_id', cid).eq('vecino_id', vid).limit(1).execute()
+    uf_id = uf_res.data[0]['id'] if uf_res.data else None
+    
+    if not uf_id:
+        return jsonify({'error': 'Vecino sin unidad funcional vinculada'}), 400
+        
+    # Validar que el cobro pertenezca a la unidad del vecino
+    cobro_res = supabase.table('cobros').select('*').eq('id', cobro_id).single().execute()
+    cobro = cobro_res.data
+    if not cobro or cobro['unidad_id'] != uf_id:
+        return jsonify({'error': 'Cobro no encontrado o acceso denegado'}), 404
+        
+    d = request.json
+    monto = d.get('monto')
+    fecha_pago = d.get('fecha_pago') or str(date.today())
+    comprobante_nombre = d.get('comprobante_nombre') or 'comprobante.pdf'
+    
+    # Actualizar estado de cobro
+    payload = {
+        'fecha_pago': fecha_pago,
+        'comprobante_nombre': comprobante_nombre,
+        'notas': f"Comprobante cargado por vecino por ${monto}. Pago a verificar."
+    }
+    
+    res = supabase.table('cobros').update(payload).eq('id', cobro_id).execute()
+    return jsonify(res.data[0] if res.data else {})
+
+
+@app.route('/api/vecino/gastos', methods=['GET'])
+@require_auth(allowed_roles=['vecino'])
+def api_vecino_gastos():
+    vid = get_vecino_id()
+    if not vid:
+        return jsonify({'error': 'Vecino no encontrado'}), 404
+        
+    # Obtener perfil del vecino
+    vecino_res = supabase.table('vecinos').select('consorcio_id').eq('id', vid).single().execute()
+    vecino = vecino_res.data
+    if not vecino or not vecino.get('consorcio_id'):
+        return jsonify([])
+        
+    cid = vecino['consorcio_id']
+    
+    q = supabase.table('gastos').select('*, proveedores(nombre)').eq('consorcio_id', cid)
+    
+    if request.args.get('desde'):
+        q = q.gte('fecha_gasto', request.args['desde'])
+    if request.args.get('hasta'):
+        q = q.lte('fecha_gasto', request.args['hasta'])
+        
+    res = q.order('fecha_gasto', desc=True).execute()
+    return jsonify(res.data)
+
+
 # ── Run ────────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     print('🏢 Niddo server starting...')

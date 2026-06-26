@@ -465,7 +465,7 @@
             <ul class="sidebar-nav">
                 <li><button class="nav-btn active" onclick="showSection('dashboard', this)"><i class="fa-solid fa-chart-pie"></i> Inicio</button></li>
                 <li><button class="nav-btn" onclick="showSection('expensas', this)"><i class="fa-solid fa-receipt"></i> Mis Expensas</button></li>
-                <li><button class="nav-btn" onclick="showSection('pagos', this)"><i class="fa-solid fa-wallet"></i> Pagos</button></li>
+                <li><button class="nav-btn" id="nav-btn-gastos" onclick="showSection('gastos-consorcio', this)"><i class="fa-solid fa-building-columns"></i> Gastos de Consorcio</button></li>
                 <li><button class="nav-btn" onclick="showSection('reclamos', this)"><i class="fa-solid fa-circle-exclamation"></i> Reclamos</button></li>
                 <li><button class="nav-btn" onclick="showSection('reservas', this)"><i class="fa-solid fa-calendar-days"></i> Reservas</button></li>
                 <li><button class="nav-btn" onclick="showSection('votaciones', this)"><i class="fa-solid fa-check-to-slot"></i> Asambleas y Votaciones</button></li>
@@ -657,24 +657,18 @@
             </section>
 
             <!-- Mis Expensas Section -->
+            <!-- Mis Expensas Section -->
             <section id="expensas" class="section">
                 <h1 class="section-title">
                     <i class="fa-solid fa-receipt" style="color: var(--teal);"></i>
                     Mis Expensas
                 </h1>
-                <p class="section-subtitle">Gestiona tus expensas mensuales y descarga comprobantes</p>
+                <p class="section-subtitle">Gestiona tus expensas mensuales, descarga comprobantes y consulta los gastos consolidados</p>
 
-                <div class="qr-section">
-                    <h3 style="color: var(--text); margin-bottom: 20px;">Pago Rápido MercadoPago</h3>
-                    <div class="qr-box">
-                        <i class="fa-solid fa-qrcode"></i>
-                    </div>
-                    <p style="color: var(--muted); margin-top: 15px;">Escanea el código QR desde tu celular para pagar tus expensas del mes ($2,450.00)</p>
-                    <button class="btn-action" style="margin-top: 15px;" onclick="window.open('https://mercadopago.com.ar', '_blank')">Pagar con MercadoPago</button>
-                </div>
-
-                <div class="table-container">
-                    <table class="table">
+                <!-- Expensas Activas Card -->
+                <div class="table-container" style="margin-bottom: 28px;">
+                    <h3 style="padding: 20px 20px 0 20px; font-size: 1.05rem; font-weight: 700; color: var(--text);"><i class="fa-solid fa-file-invoice-dollar" style="color: var(--teal); margin-right: 6px;"></i> Liquidaciones y Estado</h3>
+                    <table class="table" style="margin-top: 12px;">
                         <thead>
                             <tr>
                                 <th>Período</th>
@@ -685,87 +679,86 @@
                             </tr>
                         </thead>
                         <tbody id="expensas-table-body">
-                            <!-- Se cargará dinámicamente -->
+                            <tr>
+                                <td colspan="5" style="text-align: center; color: var(--muted); padding: 20px;">Cargando liquidaciones...</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Evolution and History grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px;">
+                    
+                    <!-- Evolution Chart -->
+                    <div class="chart-container" style="margin: 0; padding: 22px;">
+                        <h3 style="color: var(--text); font-size: 0.95rem; font-weight: 700; margin-bottom: 16px;"><i class="fa-solid fa-chart-line" style="color: var(--teal); margin-right: 6px;"></i> Evolución de Expensas</h3>
+                        <div style="position: relative; height: 220px; width: 100%;">
+                            <canvas id="expensas-evolucion-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Payment History -->
+                    <div class="table-container" style="margin: 0; padding: 22px;">
+                        <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 16px;"><i class="fa-solid fa-clock-rotate-left" style="color: var(--teal); margin-right: 6px;"></i> Pagos Realizados Históricos</h3>
+                        <div style="max-height: 220px; overflow-y: auto;">
+                            <table class="table" style="font-size: 0.8rem;">
+                                <thead>
+                                    <tr>
+                                        <th>Mes</th>
+                                        <th>Fecha Pago</th>
+                                        <th>Monto</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="expensas-history-body">
+                                    <tr>
+                                        <td colspan="4" style="text-align: center; color: var(--muted); padding: 16px;">Cargando historial...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </section>
 
-            <!-- Pagos Section -->
-            <section id="pagos" class="section">
+            <!-- Gastos de Consorcio Section -->
+            <section id="gastos-consorcio" class="section">
                 <h1 class="section-title">
-                    <i class="fa-solid fa-wallet" style="color: var(--teal);"></i>
-                    Pagos
+                    <i class="fa-solid fa-building-columns" style="color: var(--teal);"></i>
+                    Gastos de Consorcio
                 </h1>
-                <p class="section-subtitle">Informa tus transferencias bancarias y revisa tu historial de pagos</p>
+                <p class="section-subtitle">Revisa el detalle de los gastos del consorcio mes a mes realizados por la administración</p>
 
-                <div class="card-grid">
-                    <div class="action-card" style="cursor: default;">
-                        <div class="card-icon">
-                            <i class="fa-solid fa-building-columns"></i>
+                <div class="table-container" style="padding: 24px; margin-bottom: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+                        <div>
+                            <label style="display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Filtrar Período (Mes/Año)</label>
+                            <input type="month" id="filter-gastos-periodo" onchange="loadGastosConsorcio()" class="form-control" style="width: 200px;">
                         </div>
-                        <div class="card-title">Datos de Transferencia Bancaria</div>
-                        <div class="card-description" style="line-height: 1.6;">
-                            <strong>Banco:</strong> Banco Galicia<br>
-                            <strong>CBU:</strong> 0070087020000003456789<br>
-                            <strong>Alias:</strong> niddo.consorcio.gal<br>
-                            <strong>CUIT:</strong> 30-71123456-9
-                        </div>
-                    </div>
-
-                    <div class="action-card" style="cursor: default;">
-                        <div class="card-icon" style="background: rgba(124,58,237,0.12); color: var(--purple-light);">
-                            <i class="fa-solid fa-circle-info"></i>
-                        </div>
-                        <div class="card-title">Monto Pendiente Actual</div>
-                        <div class="card-description" style="line-height: 1.6;">
-                            <strong>Mes correspondiente:</strong> <span id="pagos-pendiente-mes">Abril 2025</span><br>
-                            <strong>Monto total:</strong> $2,450.00<br>
-                            <strong>Vencimiento:</strong> <span id="pagos-pendiente-vencimiento">2025-04-20</span><br>
-                            <strong>Estado:</strong> <span class="badge-status pendiente">Pendiente</span>
+                        <div style="display: flex; gap: 16px; align-items: center; background: var(--surface2); padding: 12px 20px; border-radius: 8px; border: 1px solid var(--border);">
+                            <div>
+                                <span style="font-size: 0.72rem; color: var(--muted); text-transform: uppercase; font-weight: 600; display: block; letter-spacing: 0.05em;">Total Gastos del Mes</span>
+                                <span id="gastos-total-mes" style="font-size: 1.45rem; font-weight: 800; color: var(--teal);">$0.00</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Cargar Comprobante Form -->
-                <div class="table-container" style="padding: 24px;">
-                    <h3 style="margin-bottom: 8px; font-size: 1.05rem; font-weight: 700; color: var(--text);">Cargar Comprobante de Pago</h3>
-                    <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 22px;">Si hiciste una transferencia, adjunta la foto o el PDF del comprobante para confirmarlo.</p>
-                    
-                    <form onsubmit="submitPago(event)" style="display: grid; gap: 18px; max-width: 500px;">
-                        <div>
-                            <label style="display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Mes correspondiente</label>
-                            <select id="pagos-select-mes" required class="form-control">
-                                <!-- Cargado dinámicamente -->
-                            </select>
-                        </div>
-                        <div>
-                            <label style="display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Monto transferido ($)</label>
-                            <input type="number" required placeholder="2450" class="form-control">
-                        </div>
-                        <div>
-                            <label style="display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Seleccionar Archivo (Imagen o PDF)</label>
-                            <input type="file" required class="form-control" style="padding: 8px;">
-                        </div>
-                        <button type="submit" class="btn-action" style="justify-self: start; margin-top: 8px;"><i class="fa-solid fa-cloud-arrow-up"></i> Enviar Comprobante</button>
-                    </form>
-                </div>
-
-                <!-- Historial de Pagos -->
                 <div class="table-container">
-                    <h3 style="padding: 20px 20px 0 20px; font-size: 1.05rem; font-weight: 700; margin-bottom: 12px; color: var(--text);">Historial de Pagos</h3>
                     <table class="table">
                         <thead>
                             <tr>
-                                <th>Fecha de Pago</th>
-                                <th>Mes correspondiente</th>
+                                <th>Fecha</th>
+                                <th>Proveedor</th>
+                                <th>Categoría</th>
+                                <th>Descripción</th>
                                 <th>Monto</th>
-                                <th>Método</th>
-                                <th>Estado de Aprobación</th>
                             </tr>
                         </thead>
-                        <tbody id="historial-pagos-body">
-                            <!-- Cargado dinámicamente -->
+                        <tbody id="gastos-consorcio-body">
+                            <tr>
+                                <td colspan="5" style="text-align: center; color: var(--muted); padding: 20px;">Selecciona un período para ver los gastos.</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -1031,6 +1024,69 @@
         </div>
     </div>
 
+    <!-- Payment Modal (Vanilla CSS/JS overlay) -->
+    <div id="paymentModal" class="modal-overlay" onclick="closePaymentModal(event)">
+        <div class="modal-card" onclick="event.stopPropagation()" style="max-width: 480px; width: 95%;">
+            <div class="modal-header">
+                <h3>Registrar Pago de Expensas</h3>
+                <button class="modal-close" onclick="hidePaymentModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="display: grid; gap: 20px;">
+                <!-- Payment options tabs -->
+                <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                    <button class="tab-btn active" id="pay-tab-transfer" onclick="switchPaymentTab('transfer')" style="flex: 1; padding: 8px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.82rem;">Transferencia Bancaria</button>
+                    <button class="tab-btn" id="pay-tab-mp" onclick="switchPaymentTab('mp')" style="flex: 1; padding: 8px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.82rem;">Mercado Pago</button>
+                </div>
+
+                <!-- Transfer Tab Content -->
+                <div id="pay-content-transfer" style="display: grid; gap: 16px;">
+                    <div style="background: var(--surface2); padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem; line-height: 1.6;">
+                        <h4 style="color: var(--teal); font-weight: 700; margin-bottom: 6px;"><i class="fa-solid fa-building-columns"></i> Cuentas del Consorcio</h4>
+                        <strong>Banco:</strong> Banco Galicia<br>
+                        <strong>CBU:</strong> 0070087020000003456789<br>
+                        <strong>Alias:</strong> niddo.consorcio.gal<br>
+                        <strong>CUIT:</strong> 30-71123456-9
+                    </div>
+
+                    <form id="payment-form" onsubmit="submitTransferPayment(event)" style="display: grid; gap: 12px;">
+                        <input type="hidden" id="pay-cobro-id">
+                        <div>
+                            <label style="display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Período a Pagar</label>
+                            <input type="text" id="pay-periodo-text" class="form-control" readonly style="opacity: 0.7;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Monto transferido ($)</label>
+                            <input type="number" id="pay-monto-input" required placeholder="2450" class="form-control">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Fecha de Transferencia</label>
+                            <input type="date" id="pay-fecha-input" required class="form-control">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Comprobante de Pago (PDF o Imagen)</label>
+                            <input type="file" id="pay-file-input" required class="form-control" style="padding: 8px;">
+                        </div>
+                        <button type="submit" class="btn-action" style="width: 100%; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> Confirmar y Enviar Comprobante
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Mercado Pago Tab Content -->
+                <div id="pay-content-mp" style="display: none; text-align: center; padding: 10px 0;">
+                    <div style="background: #009ee3; color: white; padding: 12px; border-radius: 8px; font-weight: 600; margin-bottom: 16px; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i class="fa-solid fa-wallet"></i> Pagar de forma instantánea
+                    </div>
+                    <div style="width: 140px; height: 140px; background: white; border: 2px dashed #009ee3; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto; font-size: 2.5rem; color: #009ee3;">
+                        <i class="fa-solid fa-qrcode"></i>
+                    </div>
+                    <p style="color: var(--muted); font-size: 0.82rem; line-height: 1.5; margin-bottom: 18px;">Escanea el código QR desde la app de Mercado Pago en tu celular para abonar las expensas.</p>
+                    <button class="btn-action" onclick="simulateMPPayment()" style="background: #009ee3; border-color: #009ee3; width: 100%;">Pagar con link de Mercado Pago</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         function showSection(sectionId, button) {
             // Hide all sections
@@ -1197,147 +1253,428 @@
             alert("Canal de Chat: Próximamente disponible. Estamos trabajando en la mensajería interna con el administrador y vecinos.");
         }
 
-        // Setup dynamic dates & states helper
-        function setupDynamicDatesAndState() {
+        let userExpensas = [];
+        let expensasChartInstance = null;
+
+        function renderExpensasEvolucionChart(cobros) {
+            const chartCtx = document.getElementById('expensas-evolucion-chart');
+            if (!chartCtx) return;
+            
+            // Sort cobros chronologically (asc) for the chart
+            const sortedCobros = [...cobros].reverse();
+            const labels = sortedCobros.map(c => {
+                const parts = c.periodo.split('-');
+                const monthsList = [
+                    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+                ];
+                const mIdx = parseInt(parts[1], 10) - 1;
+                return `${monthsList[mIdx]} ${parts[0]}`;
+            });
+            const dataPoints = sortedCobros.map(c => parseFloat(c.total || 0));
+            
+            if (expensasChartInstance) {
+                expensasChartInstance.destroy();
+            }
+            
+            expensasChartInstance = new Chart(chartCtx, {
+                type: 'line',
+                data: {
+                    labels: labels.length ? labels : ['Sin datos'],
+                    datasets: [{
+                        label: 'Monto Total ($)',
+                        data: dataPoints.length ? dataPoints : [0],
+                        borderColor: '#10B981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                        tension: 0.35,
+                        fill: true,
+                        pointBackgroundColor: '#10B981',
+                        pointBorderColor: '#059669',
+                        pointRadius: 5,
+                        pointHoverRadius: 7
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { 
+                                color: '#8b8b9e',
+                                callback: (value) => '$' + value.toLocaleString() 
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#8b8b9e' }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function loadVecinoBillingData() {
+            try {
+                const res = await fetch('/api/vecino/expensas');
+                if (!res.ok) throw new Error("Error loading expensas");
+                const cobros = await res.json();
+                userExpensas = cobros;
+                
+                // Renders
+                renderExpensasTable(cobros);
+                renderExpensasHistoryTable(cobros);
+                renderExpensasEvolucionChart(cobros);
+                
+                // Update home tab "Estado de Expensas" card dynamically
+                const unpaid = cobros.filter(c => c.estado !== 'pagado' && !c.comprobante_nombre);
+                const statusTitle = document.getElementById('expensas-status-title');
+                const statusDesc = document.getElementById('expensas-status-desc');
+                const statusIconContainer = statusTitle ? statusTitle.closest('.stat-card').querySelector('.fa-solid') : null;
+                
+                if (unpaid.length > 0) {
+                    if (statusTitle) statusTitle.innerHTML = `Deuda Pendiente ⚠️`;
+                    if (statusDesc) statusDesc.innerHTML = `Posees <strong>${unpaid.length}</strong> liquidación(es) pendiente(s) de pago.`;
+                    if (statusIconContainer) {
+                        statusIconContainer.className = 'fa-solid fa-triangle-exclamation';
+                        statusIconContainer.parentElement.style.background = 'rgba(239, 68, 68, 0.12)';
+                        statusIconContainer.parentElement.style.color = '#EF4444';
+                    }
+                    if (statusTitle) statusTitle.closest('.stat-card').style.borderLeftColor = '#EF4444';
+                } else {
+                    const verificationPending = cobros.filter(c => c.estado !== 'pagado' && c.comprobante_nombre);
+                    if (verificationPending.length > 0) {
+                        if (statusTitle) statusTitle.innerHTML = `Verificando Pago ⏳`;
+                        if (statusDesc) statusDesc.innerHTML = `Tu comprobante de pago está en revisión por la administración.`;
+                        if (statusIconContainer) {
+                            statusIconContainer.className = 'fa-solid fa-hourglass-half';
+                            statusIconContainer.parentElement.style.background = 'rgba(245, 158, 11, 0.12)';
+                            statusIconContainer.parentElement.style.color = '#fbbf24';
+                        }
+                        if (statusTitle) statusTitle.closest('.stat-card').style.borderLeftColor = '#fbbf24';
+                    } else {
+                        if (statusTitle) statusTitle.innerHTML = `Al día 🧾`;
+                        if (statusDesc) statusDesc.innerHTML = `No posees deudas vigentes. Tu cuenta corriente se encuentra totalmente saneada.`;
+                        if (statusIconContainer) {
+                            statusIconContainer.className = 'fa-solid fa-circle-check';
+                            statusIconContainer.parentElement.style.background = 'rgba(16, 185, 129, 0.12)';
+                            statusIconContainer.parentElement.style.color = 'var(--teal)';
+                        }
+                        if (statusTitle) statusTitle.closest('.stat-card').style.borderLeftColor = 'var(--teal)';
+                    }
+                }
+
+                // Update home tab "Mis Pendientes" list dynamically
+                const pendingList = document.getElementById('tareas-pendientes-list');
+                if (pendingList) {
+                    let html = '';
+                    
+                    unpaid.forEach(c => {
+                        const parts = c.periodo.split('-');
+                        const monthsList = [
+                            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+                        ];
+                        const mIdx = parseInt(parts[1], 10) - 1;
+                        const periodoNombre = `${monthsList[mIdx]} ${parts[0]}`;
+                        
+                        html += `
+                            <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.1); border-radius: 8px;">
+                                <div style="color: #fbbf24; font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <i class="fa-solid fa-circle-exclamation"></i>
+                                </div>
+                                <div style="flex: 1;">
+                                    <span style="font-size: 0.8rem; font-weight: 600; color: var(--text); display: block;">Expensas de ${periodoNombre}</span>
+                                    <span style="font-size: 0.7rem; color: var(--muted);">Vencimiento: ${c.fecha_vencimiento || '—'}</span>
+                                </div>
+                                <button onclick="showSection('expensas', document.querySelector('[onclick*=\\'expensas\\']'))" class="btn-action" style="padding: 4px 8px; font-size: 0.72rem; border-radius: 6px;">Pagar</button>
+                            </div>
+                        `;
+                    });
+                    
+                    html += `
+                        <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(124,58,237,0.04); border: 1px solid rgba(124,58,237,0.1); border-radius: 8px;">
+                            <div style="color: var(--purple-light); font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <i class="fa-solid fa-check-to-slot"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <span style="font-size: 0.8rem; font-weight: 600; color: var(--text); display: block;">Votación de Presupuesto</span>
+                                <span style="font-size: 0.7rem; color: var(--muted);">Participación de la Unidad</span>
+                            </div>
+                            <button onclick="showSection('votaciones', document.querySelector('[onclick*=\\'votaciones\\']'))" class="btn-action" style="padding: 4px 8px; font-size: 0.72rem; border-radius: 6px;">Votar</button>
+                        </div>
+                    `;
+                    
+                    pendingList.innerHTML = html;
+                }
+
+            } catch (err) {
+                console.error("Error loading vecino billing data:", err);
+            }
+        }
+
+        function renderExpensasTable(cobros) {
+            const tbody = document.getElementById('expensas-table-body');
+            if (!tbody) return;
+            
+            if (cobros.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--muted); padding: 20px;">No hay liquidaciones de expensas emitidas.</td></tr>`;
+                return;
+            }
+            
             const monthsList = [
                 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
             ];
-            const now = new Date();
             
-            // Current month details
-            const currentMonthName = monthsList[now.getMonth()];
-            const currentYear = now.getFullYear();
-            const currentPeriodStr = `${currentMonthName} ${currentYear}`;
-            
-            // Previous month details
-            const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-            const prevMonthName = monthsList[prevMonthDate.getMonth()];
-            const prevYear = prevMonthDate.getFullYear();
-            const prevPeriodStr = `${prevMonthName} ${prevYear}`;
-            
-            // Month before previous details
-            const prev2MonthDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-            const prev2MonthName = monthsList[prev2MonthDate.getMonth()];
-            const prev2Year = prev2MonthDate.getFullYear();
-            const prev2PeriodStr = `${prev2MonthName} ${prev2Year}`;
-            
-            // Update Dashboard Expensas Status card
-            const statusTitle = document.getElementById('expensas-status-title');
-            const statusDesc = document.getElementById('expensas-status-desc');
-            if (statusTitle) statusTitle.innerHTML = `Al día 🧾`;
-            if (statusDesc) statusDesc.innerHTML = `No posees deudas vigentes para el período de <strong>${currentPeriodStr}</strong>. Tu cuenta corriente se encuentra totalmente saneada.`;
-            
-            // Update Tareas Pendientes List
-            const pendingList = document.getElementById('tareas-pendientes-list');
-            if (pendingList) {
-                pendingList.innerHTML = `
-                    <!-- Pending Item 1 -->
-                    <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.1); border-radius: 8px;">
-                        <div style="color: #fbbf24; font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                            <i class="fa-solid fa-circle-exclamation"></i>
-                        </div>
-                        <div style="flex: 1;">
-                            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text); display: block;">Expensas de ${currentPeriodStr}</span>
-                            <span style="font-size: 0.7rem; color: var(--muted);">Vencimiento: ${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}-20</span>
-                        </div>
-                        <button onclick="showSection('expensas', document.querySelector('[onclick*=\\expensas\\']'))" class="btn-action" style="padding: 4px 8px; font-size: 0.72rem; border-radius: 6px;">Pagar</button>
-                    </div>
+            tbody.innerHTML = cobros.map(c => {
+                const parts = c.periodo.split('-');
+                const mIdx = parseInt(parts[1], 10) - 1;
+                const periodoNombre = `${monthsList[mIdx]} ${parts[0]}`;
+                
+                let statusBadge = '';
+                if (c.estado === 'pagado') {
+                    statusBadge = '<span class="badge-status pagado">Pagado</span>';
+                } else if (c.estado === 'pendiente') {
+                    statusBadge = '<span class="badge-status pendiente">Pendiente</span>';
+                } else if (c.estado === 'vencido') {
+                    statusBadge = '<span class="badge-status vencido">Vencido</span>';
+                } else {
+                    statusBadge = `<span class="badge-status vencido">${c.estado}</span>`;
+                }
+                
+                if (c.estado !== 'pagado' && c.comprobante_nombre) {
+                    statusBadge = '<span class="badge-status pendiente" style="background: rgba(245,158,11,0.12); color: #fbbf24;">Verificando Pago</span>';
+                }
+                
+                let actionBtn = '';
+                if (c.estado === 'pagado') {
+                    actionBtn = `<button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.8rem; display: flex; align-items: center; gap: 4px;" onclick="viewConsorcioGastosForPeriod('${c.periodo}')"><i class="fa-solid fa-receipt"></i> Ver Detalle / Gastos</button>`;
+                } else {
+                    actionBtn = `<button class="btn-action" style="padding: 6px 12px; font-size: 0.8rem;" onclick="showPaymentModal('${c.id}', '${periodoNombre}', ${c.total})">Pagar</button>`;
+                }
+                
+                return `
+                    <tr>
+                        <td><strong>${periodoNombre}</strong></td>
+                        <td>$${parseFloat(c.total).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                        <td>${c.fecha_vencimiento || '—'}</td>
+                        <td>${statusBadge}</td>
+                        <td>${actionBtn}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
 
-                    <!-- Pending Item 2 -->
-                    <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(124,58,237,0.04); border: 1px solid rgba(124,58,237,0.1); border-radius: 8px;">
-                        <div style="color: var(--purple-light); font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                            <i class="fa-solid fa-check-to-slot"></i>
-                        </div>
-                        <div style="flex: 1;">
-                            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text); display: block;">Votación de Presupuesto</span>
-                            <span style="font-size: 0.7rem; color: var(--muted);">Finaliza el 10 de ${currentMonthName}</span>
-                        </div>
-                        <button onclick="showSection('votaciones', document.querySelector('[onclick*=\\votaciones\\']'))" class="btn-action" style="padding: 4px 8px; font-size: 0.72rem; border-radius: 6px;">Votar</button>
-                    </div>
+        function renderExpensasHistoryTable(cobros) {
+            const tbody = document.getElementById('expensas-history-body');
+            if (!tbody) return;
+            
+            const payments = cobros.filter(c => c.fecha_pago || c.comprobante_nombre);
+            
+            if (payments.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--muted); padding: 16px;">No posees pagos registrados históricamente.</td></tr>`;
+                return;
+            }
+            
+            const monthsList = [
+                'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+            ];
+            
+            tbody.innerHTML = payments.map(c => {
+                const parts = c.periodo.split('-');
+                const mIdx = parseInt(parts[1], 10) - 1;
+                const periodoNombre = `${monthsList[mIdx]} ${parts[0]}`;
+                
+                let stateText = '';
+                if (c.estado === 'pagado') {
+                    stateText = '<span style="color: var(--teal); font-weight: 600;">Aprobado</span>';
+                } else {
+                    stateText = '<span style="color: #fbbf24; font-weight: 600;">En Verificación</span>';
+                }
+                
+                return `
+                    <tr>
+                        <td>${periodoNombre}</td>
+                        <td>${c.fecha_pago || '—'}</td>
+                        <td>$${parseFloat(c.total).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                        <td>${stateText}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
 
-                    <!-- Pending Item 3 -->
-                    <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; opacity: 0.65;">
-                        <div style="color: var(--muted); font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                            <i class="fa-solid fa-circle-check"></i>
-                        </div>
-                        <div style="flex: 1;">
-                            <span style="font-size: 0.8rem; font-weight: 600; color: var(--muted); display: block; text-decoration: line-through;">Solicitud de Acceso</span>
-                            <span style="font-size: 0.7rem; color: var(--muted);">Aprobada por Administración</span>
-                        </div>
-                    </div>
-                `;
+        // Payment Modal functions
+        function showPaymentModal(id, periodoNombre, total) {
+            document.getElementById('pay-cobro-id').value = id;
+            document.getElementById('pay-periodo-text').value = periodoNombre;
+            document.getElementById('pay-monto-input').value = total;
+            document.getElementById('pay-fecha-input').value = new Date().toISOString().slice(0, 10);
+            document.getElementById('pay-file-input').value = '';
+            
+            switchPaymentTab('transfer');
+            document.getElementById('paymentModal').classList.add('show');
+        }
+
+        function hidePaymentModal() {
+            document.getElementById('paymentModal').classList.remove('show');
+        }
+
+        function closePaymentModal(event) {
+            if (event.target.id === 'paymentModal') {
+                hidePaymentModal();
+            }
+        }
+
+        function switchPaymentTab(tab) {
+            const tabTransfer = document.getElementById('pay-tab-transfer');
+            const tabMP = document.getElementById('pay-tab-mp');
+            const contentTransfer = document.getElementById('pay-content-transfer');
+            const contentMP = document.getElementById('pay-content-mp');
+            
+            if (tab === 'transfer') {
+                tabTransfer.classList.add('active');
+                tabMP.classList.remove('active');
+                contentTransfer.style.display = 'grid';
+                contentMP.style.display = 'none';
+            } else {
+                tabMP.classList.add('active');
+                tabTransfer.classList.remove('active');
+                contentMP.style.display = 'block';
+                contentTransfer.style.display = 'none';
+            }
+        }
+
+        async function submitTransferPayment(event) {
+            event.preventDefault();
+            const id = document.getElementById('pay-cobro-id').value;
+            const monto = document.getElementById('pay-monto-input').value;
+            const fecha = document.getElementById('pay-fecha-input').value;
+            const fileEl = document.getElementById('pay-file-input');
+            const filename = fileEl.files.length > 0 ? fileEl.files[0].name : 'comprobante.pdf';
+            
+            try {
+                const res = await fetch(`/api/vecino/expensas/${id}/pagar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        monto: monto,
+                        fecha_pago: fecha,
+                        comprobante_nombre: filename
+                    })
+                }).then(r => r.json());
+                
+                if (res.error) {
+                    alert(res.error);
+                } else {
+                    alert("¡Comprobante enviado con éxito! El administrador verificará la transferencia en las próximas 24-48 horas.");
+                    hidePaymentModal();
+                    loadVecinoBillingData();
+                }
+            } catch (err) {
+                alert("Error al cargar el pago.");
+            }
+        }
+
+        async function simulateMPPayment() {
+            const id = document.getElementById('pay-cobro-id').value;
+            const monto = document.getElementById('pay-monto-input').value;
+            const fecha = new Date().toISOString().slice(0, 10);
+            
+            try {
+                const res = await fetch(`/api/vecino/expensas/${id}/pagar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        monto: monto,
+                        fecha_pago: fecha,
+                        comprobante_nombre: 'MercadoPago_Direct_Checkout.pdf'
+                    })
+                }).then(r => r.json());
+                
+                if (res.error) {
+                    alert(res.error);
+                } else {
+                    alert("¡Pago realizado con éxito a través de Mercado Pago!");
+                    hidePaymentModal();
+                    loadVecinoBillingData();
+                }
+            } catch (err) {
+                alert("Error al simular pago.");
+            }
+        }
+
+        function viewConsorcioGastosForPeriod(periodStr) {
+            const periodInput = document.getElementById('filter-gastos-periodo');
+            if (periodInput) {
+                periodInput.value = periodStr;
             }
             
-            // Update Expensas Table Body
-            const expensasBody = document.getElementById('expensas-table-body');
-            if (expensasBody) {
-                expensasBody.innerHTML = `
-                    <tr>
-                        <td>${currentPeriodStr}</td>
-                        <td>$2,450.00</td>
-                        <td>${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}-20</td>
-                        <td><span class="badge-status pendiente">Pendiente</span></td>
-                        <td><button class="btn-action" style="padding: 6px 12px; font-size: 0.85rem;" onclick="showSection('pagos', document.querySelector('[onclick*=\\'pagos\\']'))">Pagar</button></td>
-                    </tr>
-                    <tr>
-                        <td>${prevPeriodStr}</td>
-                        <td>$2,450.00</td>
-                        <td>${prevYear}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-20</td>
-                        <td><span class="badge-status pagado">Pagado</span></td>
-                        <td><button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;" onclick="alert('Descargando comprobante de liquidación de ${prevPeriodStr} (PDF)...')"><i class="fa-solid fa-file-pdf"></i> PDF</button></td>
-                    </tr>
-                    <tr>
-                        <td>${prev2PeriodStr}</td>
-                        <td>$2,350.00</td>
-                        <td>${prev2Year}-${String(prev2MonthDate.getMonth() + 1).padStart(2, '0')}-20</td>
-                        <td><span class="badge-status pagado">Pagado</span></td>
-                        <td><button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;" onclick="alert('Descargando comprobante de liquidación de ${prev2PeriodStr} (PDF)...')"><i class="fa-solid fa-file-pdf"></i> PDF</button></td>
-                    </tr>
-                `;
+            const tabBtn = document.getElementById('nav-btn-gastos');
+            showSection('gastos-consorcio', tabBtn);
+            loadGastosConsorcio();
+        }
+
+        async function loadGastosConsorcio() {
+            const periodInput = document.getElementById('filter-gastos-periodo');
+            let period = periodInput ? periodInput.value : '';
+            
+            if (!period) {
+                const now = new Date();
+                period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                if (periodInput) periodInput.value = period;
             }
             
-            // Update Pagos Monto Pendiente Card
-            const pagosPendienteMes = document.getElementById('pagos-pendiente-mes');
-            const pagosPendienteVencimiento = document.getElementById('pagos-pendiente-vencimiento');
-            if (pagosPendienteMes) pagosPendienteMes.textContent = currentPeriodStr;
-            if (pagosPendienteVencimiento) pagosPendienteVencimiento.textContent = `${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}-20`;
+            const parts = period.split('-');
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10);
+            const lastDay = new Date(year, month, 0).getDate();
             
-            // Update Pagos Select Mes Options
-            const pagosSelectMes = document.getElementById('pagos-select-mes');
-            if (pagosSelectMes) {
-                pagosSelectMes.innerHTML = `
-                    <option value="${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}">${currentPeriodStr} ($2,450.00)</option>
-                    <option value="${prevYear}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}">${prevPeriodStr} ($2,450.00)</option>
-                `;
-            }
+            const desde = `${period}-01`;
+            const hasta = `${period}-${String(lastDay).padStart(2, '0')}`;
             
-            // Update Historial de Pagos Table Body
-            const historialPagosBody = document.getElementById('historial-pagos-body');
-            if (historialPagosBody) {
-                historialPagosBody.innerHTML = `
-                    <tr>
-                        <td>${prevYear}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-10</td>
-                        <td>${prevPeriodStr}</td>
-                        <td>$2,450.00</td>
-                        <td>Transferencia</td>
-                        <td><span class="badge-status pagado">Aprobado</span></td>
-                    </tr>
-                    <tr>
-                        <td>${prev2Year}-${String(prev2MonthDate.getMonth() + 1).padStart(2, '0')}-12</td>
-                        <td>${prev2PeriodStr}</td>
-                        <td>$2,350.00</td>
-                        <td>Transferencia</td>
-                        <td><span class="badge-status pagado">Aprobado</span></td>
-                    </tr>
-                    <tr>
-                        <td>${prev2Year}-${String(prev2MonthDate.getMonth() + 1).padStart(2, '0')}-15</td>
-                        <td>${prev2PeriodStr}</td>
-                        <td>$2,200.00</td>
-                        <td>MercadoPago</td>
-                        <td><span class="badge-status pagado">Aprobado</span></td>
-                    </tr>
-                `;
+            try {
+                const res = await fetch(`/api/vecino/gastos?desde=${desde}&hasta=${hasta}`);
+                if (!res.ok) throw new Error("Error fetching gastos");
+                const gastos = await res.json();
+                
+                const totalSum = gastos.reduce((sum, g) => sum + parseFloat(g.monto || 0), 0);
+                const totalKPI = document.getElementById('gastos-total-mes');
+                if (totalKPI) {
+                    totalKPI.textContent = `$${totalSum.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+                }
+                
+                const tbody = document.getElementById('gastos-consorcio-body');
+                if (tbody) {
+                    if (gastos.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--muted); padding: 20px;">No hay gastos registrados por la administración para este período.</td></tr>`;
+                    } else {
+                        tbody.innerHTML = gastos.map(g => {
+                            const dateStr = g.fecha_gasto || '—';
+                            const provName = g.proveedores ? g.proveedores.nombre : '—';
+                            const category = g.categoria || 'General';
+                            const desc = g.descripcion || '—';
+                            const amt = parseFloat(g.monto || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 });
+                            
+                            return `
+                                <tr>
+                                    <td>${dateStr}</td>
+                                    <td>${provName}</td>
+                                    <td><span class="role-badge" style="background: rgba(124,58,237,0.12); color: var(--purple-light);">${category}</span></td>
+                                    <td>${desc}</td>
+                                    <td><strong>$${amt}</strong></td>
+                                </tr>
+                            `;
+                        }).join('');
+                    }
+                }
+            } catch (err) {
+                console.error("Error loading gastos de consorcio:", err);
             }
         }
 
@@ -1556,8 +1893,11 @@
                         }
                     }
                     
-                    // Setup dynamic dates & placeholders
-                    setupDynamicDatesAndState();
+                    // Load dynamic vecino billing and historical payments
+                    await loadVecinoBillingData();
+                    
+                    // Load consorcio expenses for current month
+                    await loadGastosConsorcio();
                     
                     // Fetch and render announcements
                     await fetchAndRenderComunicados();
