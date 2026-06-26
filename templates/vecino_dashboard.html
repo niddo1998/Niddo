@@ -584,66 +584,125 @@
                     <i class="fa-solid fa-grip-vertical" style="color: var(--teal);"></i>
                     Inicio
                 </h1>
-                <p class="section-subtitle">Resumen general de tu actividad en el consorcio</p>
+                <p class="section-subtitle">Resumen general de tu actividad mensual en el consorcio</p>
 
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-label">Expensas a Pagar</div>
-                        <div class="stat-value">$2,450.00</div>
-                        <div class="stat-change positive">
-                            Vence el 2025-04-20
-                        </div>
+                <!-- Cartel de Aviso Importante Mensual (Algo importante este mes) -->
+                <div style="background: linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(16,185,129,0.08) 100%); border: 1px solid var(--purple-light); border-radius: 12px; padding: 20px; margin-bottom: 28px; display: flex; align-items: center; gap: 16px; position: relative; overflow: hidden;">
+                    <div style="position: absolute; top: -15px; right: -15px; font-size: 4.5rem; opacity: 0.04; color: var(--purple-light); pointer-events: none;">
+                        <i class="fa-solid fa-bullhorn"></i>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Deuda Total</div>
-                        <div class="stat-value">$0.00</div>
-                        <div class="stat-change positive">
-                            <i class="fa-regular fa-circle-check"></i> Cuenta al día
-                        </div>
+                    <div style="width: 46px; height: 46px; border-radius: 50%; background: rgba(124,58,237,0.12); color: var(--purple-light); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0;">
+                        <i class="fa-solid fa-circle-exclamation"></i>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Reservas Activas</div>
-                        <div class="stat-value">2</div>
-                        <div class="stat-change info">
-                            Próxima: 2025-04-15
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Reclamos Abiertos</div>
-                        <div class="stat-value">1</div>
-                        <div class="stat-change info">
-                            Actualizado hace 2 días
-                        </div>
+                    <div>
+                        <span style="font-size: 0.65rem; text-transform: uppercase; font-weight: 700; color: var(--purple-light); letter-spacing: 0.05em; display: block; margin-bottom: 4px;">Destacado del Mes — Abril 2025</span>
+                        <p style="font-size: 0.85rem; font-weight: 500; line-height: 1.45; color: var(--text); margin: 0;">📢 <strong>Corte de agua por mantenimiento:</strong> Este sábado 12 de Abril se realizará la limpieza de tanques principales del edificio de 08:00 a 14:00 hs. Se solicita moderar el consumo de agua al mínimo necesario.</p>
                     </div>
                 </div>
 
-                <div class="card-grid">
-                    <div class="action-card" onclick="showSection('expensas', document.querySelector('[onclick*=\'expensas\']'))">
-                        <div class="card-icon">
-                            <i class="fa-solid fa-file-invoice"></i>
+                <!-- Dashboard Grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-bottom: 28px;">
+                    
+                    <!-- Left Column -->
+                    <div style="display: flex; flex-direction: column; gap: 20px;">
+                        
+                        <!-- Estado de Expensas (Al día o no) -->
+                        <div class="stat-card" style="border-left: 4px solid var(--teal); background: var(--surface); padding: 22px; border-radius: 12px; position: relative;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                                <div>
+                                    <span class="stat-label" style="font-size: 0.72rem; color: var(--muted); text-transform: uppercase; font-weight: 600; display: block; letter-spacing: 0.05em;">Estado de Expensas</span>
+                                    <h3 style="font-size: 1.35rem; font-weight: 800; margin-top: 4px; color: var(--text);">Al día 🧾</h3>
+                                </div>
+                                <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(16,185,129,0.12); color: var(--teal); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                </div>
+                            </div>
+                            <p style="font-size: 0.82rem; color: var(--muted); line-height: 1.45; margin: 0;">No posees deudas vigentes para el período de **Abril 2025**. Tu cuenta corriente se encuentra totalmente saneada.</p>
                         </div>
-                        <div class="card-title">Ver Expensas Pendientes</div>
-                        <div class="card-description">Revisa tus expensas del mes y descarga tu liquidación en PDF.</div>
-                    </div>
-                    <div class="action-card" onclick="showSection('pagos', document.querySelector('[onclick*=\'pagos\']'))">
-                        <div class="card-icon">
-                            <i class="fa-solid fa-building-columns"></i>
-                        </div>
-                        <div class="card-title">Informar un Pago</div>
-                        <div class="card-description">Carga tu comprobante de transferencia bancaria al administrador.</div>
-                    </div>
-                    <div class="action-card" onclick="showSection('reservas', document.querySelector('[onclick*=\'reservas\']'))">
-                        <div class="card-icon">
-                            <i class="fa-solid fa-calendar-check"></i>
-                        </div>
-                        <div class="card-title">Reservar un Espacio</div>
-                        <div class="card-description">Reserva el SUM, Quincho o Cancha de tenis en línea.</div>
-                    </div>
-                </div>
 
-                <div class="chart-container">
-                    <h3 style="color: var(--text);">Historial de Pagos</h3>
-                    <canvas id="dashboard-chart"></canvas>
+                        <!-- Cuadrante de Comunicados -->
+                        <div class="table-container" style="padding: 22px; margin: 0;">
+                            <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-bullhorn" style="color: var(--teal);"></i> Comunicados de la Administración
+                            </h3>
+                            <div style="display: grid; gap: 12px;">
+                                <div style="padding: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                        <strong style="font-size: 0.8rem; color: var(--text);">Clausura de SUM por reformas</strong>
+                                        <span style="font-size: 0.65rem; color: var(--muted);">Hace 2 días</span>
+                                    </div>
+                                    <p style="font-size: 0.78rem; color: var(--muted); line-height: 1.4; margin: 0;">El SUM permanecerá inactivo del 1 al 30 de abril por remodelaciones y pintura general.</p>
+                                </div>
+                                <div style="padding: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                        <strong style="font-size: 0.8rem; color: var(--text);">Nueva empresa de limpieza</strong>
+                                        <span style="font-size: 0.65rem; color: var(--muted);">Hace 1 semana</span>
+                                    </div>
+                                    <p style="font-size: 0.78rem; color: var(--muted); line-height: 1.4; margin: 0;">A partir del 15 de abril, "Limpios & Brillantes" tomará el servicio de limpieza general.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Right Column -->
+                    <div style="display: flex; flex-direction: column; gap: 20px;">
+                        
+                        <!-- Mis Pendientes (Si tenés algún pendiente) -->
+                        <div class="table-container" style="padding: 22px; margin: 0;">
+                            <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-list-check" style="color: var(--teal);"></i> Mis Tareas Pendientes
+                            </h3>
+                            <div style="display: grid; gap: 10px;">
+                                
+                                <!-- Pending Item 1 -->
+                                <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.1); border-radius: 8px;">
+                                    <div style="color: #fbbf24; font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                        <i class="fa-solid fa-circle-exclamation"></i>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <span style="font-size: 0.8rem; font-weight: 600; color: var(--text); display: block;">Expensas de Abril 2025</span>
+                                        <span style="font-size: 0.7rem; color: var(--muted);">Vencimiento: 2025-04-20</span>
+                                    </div>
+                                    <button onclick="showSection('expensas', document.querySelector('[onclick*=\'expensas\']'))" class="btn-action" style="padding: 4px 8px; font-size: 0.72rem; border-radius: 6px;">Pagar</button>
+                                </div>
+
+                                <!-- Pending Item 2 -->
+                                <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(124,58,237,0.04); border: 1px solid rgba(124,58,237,0.1); border-radius: 8px;">
+                                    <div style="color: var(--purple-light); font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                        <i class="fa-solid fa-check-to-slot"></i>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <span style="font-size: 0.8rem; font-weight: 600; color: var(--text); display: block;">Votación de Presupuesto</span>
+                                        <span style="font-size: 0.7rem; color: var(--muted);">Finaliza el 10 de Abril</span>
+                                    </div>
+                                    <button onclick="showSection('votaciones', document.querySelector('[onclick*=\'votaciones\']'))" class="btn-action" style="padding: 4px 8px; font-size: 0.72rem; border-radius: 6px;">Votar</button>
+                                </div>
+
+                                <!-- Pending Item 3 -->
+                                <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; opacity: 0.65;">
+                                    <div style="color: var(--muted); font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                        <i class="fa-solid fa-circle-check"></i>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <span style="font-size: 0.8rem; font-weight: 600; color: var(--muted); display: block; text-decoration: line-through;">Solicitud de Acceso</span>
+                                        <span style="font-size: 0.7rem; color: var(--muted);">Aprobada por Administración</span>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <!-- Historial Chart -->
+                        <div class="chart-container" style="margin: 0; padding: 22px;">
+                            <h3 style="color: var(--text); font-size: 0.95rem; font-weight: 700; margin-bottom: 12px;"><i class="fa-solid fa-chart-line" style="color: var(--teal); margin-right: 6px;"></i> Historial de Expensas</h3>
+                            <div style="position: relative; height: 180px; width: 100%;">
+                                <canvas id="dashboard-chart"></canvas>
+                            </div>
+                        </div>
+
+                    </div>
+
                 </div>
             </section>
 
