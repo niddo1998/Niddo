@@ -183,6 +183,52 @@ def auth_login():
     return auth0.authorize_redirect(redirect_uri=callback_url)
 
 
+@app.route('/auth/dev-login')
+def auth_dev_login():
+    role = request.args.get('role', 'vecino')
+    if role not in ('admin', 'vecino'):
+        role = 'vecino'
+        
+    consorcio_id = "dce753c5-5125-42d4-9689-10b5c6efd80f"
+        
+    if role == 'admin':
+        res = supabase.table('administradores').select('*').limit(1).execute()
+        if res.data:
+            admin = res.data[0]
+            auth0_id = admin.get('auth0_id') or 'dev_admin_auth0'
+            email = admin.get('email', 'admin@niddo.com.ar')
+            nombre = admin.get('nombre', 'Admin Dev')
+            if not admin.get('auth0_id'):
+                supabase.table('administradores').update({'auth0_id': auth0_id}).eq('id', admin['id']).execute()
+            # Asignar consorcio al administrador
+            supabase.table('consorcios').update({'admin_id': admin['id']}).eq('id', consorcio_id).execute()
+        else:
+            auth0_id = 'dev_admin_auth0'
+            email = 'admin@niddo.com.ar'
+            nombre = 'Admin Dev'
+            ins_res = supabase.table('administradores').insert({'auth0_id': auth0_id, 'email': email, 'nombre': nombre}).execute()
+            if ins_res.data:
+                supabase.table('consorcios').update({'admin_id': ins_res.data[0]['id']}).eq('id', consorcio_id).execute()
+        session['user'] = {'sub': auth0_id, 'email': email, 'name': nombre, 'role': 'admin'}
+    else:
+        res = supabase.table('vecinos').select('*').limit(1).execute()
+        if res.data:
+            vecino = res.data[0]
+            auth0_id = vecino.get('auth0_id') or 'dev_vecino_auth0'
+            email = vecino.get('email', 'novick43@gmail.com')
+            nombre = vecino.get('nombre', 'Pedro Novick')
+            if not vecino.get('auth0_id'):
+                supabase.table('vecinos').update({'auth0_id': auth0_id}).eq('id', vecino['id']).execute()
+        else:
+            auth0_id = 'dev_vecino_auth0'
+            email = 'novick43@gmail.com'
+            nombre = 'Pedro Novick'
+            supabase.table('vecinos').insert({'auth0_id': auth0_id, 'email': email, 'nombre': nombre, 'consorcio_id': consorcio_id}).execute()
+        session['user'] = {'sub': auth0_id, 'email': email, 'name': nombre, 'role': 'vecino'}
+        
+    return redirect(url_for('dashboard', role=role))
+
+
 @app.route('/auth/callback')
 def auth_callback():
     token = auth0.authorize_access_token()
