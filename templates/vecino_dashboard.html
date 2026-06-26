@@ -589,10 +589,13 @@
                     <div style="width: 46px; height: 46px; border-radius: 50%; background: rgba(124,58,237,0.12); color: var(--purple-light); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0;">
                         <i class="fa-solid fa-circle-exclamation"></i>
                     </div>
-                    <div>
+                    <div style="flex: 1; padding-right: 24px;">
                         <span id="monthly-highlight-title" style="font-size: 0.65rem; text-transform: uppercase; font-weight: 700; color: var(--purple-light); letter-spacing: 0.05em; display: block; margin-bottom: 4px;">Destacado del Mes</span>
                         <p id="monthly-highlight-body" style="font-size: 0.85rem; font-weight: 500; line-height: 1.45; color: var(--text); margin: 0;"></p>
                     </div>
+                    <button id="monthly-highlight-dismiss-btn" style="position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.1rem; line-height: 1;" title="Ocultar destacado">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
                 </div>
 
                 <!-- Dashboard Grid -->
@@ -1344,31 +1347,49 @@
                 if (!res.ok) throw new Error("Error fetching announcements");
                 const announcements = await res.json();
                 
+                // Get dismissed IDs from localStorage
+                const dismissed = JSON.parse(localStorage.getItem('dismissed_announcements') || '[]');
+                
+                // Filter out dismissed announcements
+                const activeAnnouncements = announcements.filter(a => !dismissed.includes(a.id));
+                
                 // 1. Render in "Comunicados de la Administración" cuadrante
                 const listContainer = document.getElementById('comunicados-list');
                 if (listContainer) {
-                    if (announcements.length === 0) {
-                        listContainer.innerHTML = `<div style="color: var(--muted); font-size: 0.82rem; text-align: center; padding: 20px;">No hay comunicados para mostrar.</div>`;
+                    if (activeAnnouncements.length === 0) {
+                        let html = `<div style="color: var(--muted); font-size: 0.82rem; text-align: center; padding: 20px;">No hay comunicados para mostrar.</div>`;
+                        if (dismissed.length > 0) {
+                            html += `<button onclick="restoreDismissedAnnouncements()" class="btn-action secondary" style="font-size: 0.72rem; padding: 6px 12px; width: 100%; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 6px;"><i class="fa-solid fa-rotate-left"></i> Restaurar comunicados ocultos</button>`;
+                        }
+                        listContainer.innerHTML = html;
                     } else {
-                        listContainer.innerHTML = announcements.map(a => `
-                            <div style="padding: 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        let html = activeAnnouncements.map(a => `
+                            <div id="announcement-${a.id}" style="padding: 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; position: relative;">
+                                <button onclick="dismissAnnouncement('${a.id}')" style="position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.9rem;" title="Ocultar comunicado">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-right: 20px;">
                                     <strong style="font-size: 0.88rem; color: var(--text);">${a.asunto}</strong>
                                     <span style="font-size: 0.7rem; color: var(--muted);">${formatComunicadoDate(a.created_at)}</span>
                                 </div>
                                 <p style="font-size: 0.8rem; color: var(--muted); line-height: 1.5; margin: 0; white-space: pre-wrap;">${a.cuerpo}</p>
                             </div>
                         `).join('');
+                        
+                        if (dismissed.length > 0) {
+                            html += `<button onclick="restoreDismissedAnnouncements()" class="btn-action secondary" style="font-size: 0.72rem; padding: 6px 12px; width: 100%; border-radius: 6px; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 6px;"><i class="fa-solid fa-rotate-left"></i> Restaurar comunicados ocultos</button>`;
+                        }
+                        listContainer.innerHTML = html;
                     }
                 }
                 
                 // 2. Render in notifications dropdown
                 const notifList = document.getElementById('notifications-list');
                 if (notifList) {
-                    if (announcements.length === 0) {
+                    if (activeAnnouncements.length === 0) {
                         notifList.innerHTML = `<div style="color: var(--muted); font-size: 0.78rem; text-align: center; padding: 12px;">No tienes notificaciones.</div>`;
                     } else {
-                        notifList.innerHTML = announcements.map(a => `
+                        notifList.innerHTML = activeAnnouncements.map(a => `
                             <div class="notif-item">
                                 <span class="notif-time">${formatComunicadoDate(a.created_at)}</span>
                                 <p style="margin:0;"><strong>${a.asunto}:</strong> ${a.cuerpo.substring(0, 80)}${a.cuerpo.length > 80 ? '...' : ''}</p>
@@ -1379,7 +1400,7 @@
                 
                 // 3. Highlight/Monthly Banner check
                 const now = new Date();
-                const criticalNotices = announcements.filter(a => {
+                const criticalNotices = activeAnnouncements.filter(a => {
                     const createdDate = new Date(a.created_at);
                     const isCurrentMonth = createdDate.getMonth() === now.getMonth() && createdDate.getFullYear() === now.getFullYear();
                     if (!isCurrentMonth) return false;
@@ -1400,6 +1421,16 @@
                         
                         document.getElementById('monthly-highlight-title').textContent = `Destacado del Mes — ${monthLabel}`;
                         document.getElementById('monthly-highlight-body').innerHTML = `📢 <strong>${mostRecent.asunto}:</strong> ${mostRecent.cuerpo}`;
+                        
+                        // Setup click handler for highlight dismiss button
+                        const dismissBtn = document.getElementById('monthly-highlight-dismiss-btn');
+                        if (dismissBtn) {
+                            dismissBtn.onclick = (e) => {
+                                e.stopPropagation();
+                                dismissAnnouncement(mostRecent.id);
+                            };
+                        }
+                        
                         banner.style.display = 'flex';
                     } else {
                         banner.style.display = 'none';
@@ -1409,7 +1440,7 @@
                 // 4. Notifications Badge Logic
                 const notifBadge = document.getElementById('notifBadge');
                 if (notifBadge) {
-                    const latestId = announcements.length > 0 ? announcements[0].id : null;
+                    const latestId = activeAnnouncements.length > 0 ? activeAnnouncements[0].id : null;
                     if (latestId) {
                         const lastSeenId = localStorage.getItem('last_seen_announcement_id');
                         if (latestId !== lastSeenId) {
@@ -1427,6 +1458,20 @@
             } catch (e) {
                 console.error("Error fetching or rendering announcements:", e);
             }
+        }
+
+        function dismissAnnouncement(id) {
+            const dismissed = JSON.parse(localStorage.getItem('dismissed_announcements') || '[]');
+            if (!dismissed.includes(id)) {
+                dismissed.push(id);
+                localStorage.setItem('dismissed_announcements', JSON.stringify(dismissed));
+            }
+            fetchAndRenderComunicados();
+        }
+
+        function restoreDismissedAnnouncements() {
+            localStorage.removeItem('dismissed_announcements');
+            fetchAndRenderComunicados();
         }
 
         function formatComunicadoDate(dateStr) {
