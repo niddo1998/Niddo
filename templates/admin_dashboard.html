@@ -228,7 +228,7 @@
         <a class="nav-link" onclick="show('balance',this)">📊 Balance</a>
 
         <div class="nav-section-label">Comunicación</div>
-        <a class="nav-link" onclick="show('mensajeria',this)">💬 Mensajería</a>
+        <a class="nav-link" onclick="show('mensajeria',this)">📢 Comunicaciones</a>
 
         <div class="nav-section-label">Sistema</div>
         <a class="nav-link" onclick="show('config',this)">⚙️ Configuración</a>
@@ -418,10 +418,74 @@
     </div>
 </div>
 
-<!-- ═══ MENSAJERÍA ═══ -->
+<!-- ═══ COMUNICACIONES (MENSAJERÍA) ═══ -->
 <div id="sec-mensajeria" class="section">
-    <div class="page-header"><div><h1 class="page-title">Mensajería</h1><p class="page-sub">Comunicación con vecinos</p></div></div>
-    <div class="section-info">📬 La mensajería estará disponible en la próxima versión. Podrás enviar comunicados a vecinos por consorcio o por unidad.</div>
+    <div class="page-header">
+        <div><h1 class="page-title">Comunicaciones</h1><p class="page-sub">Publicá comunicados y anuncios para los consorcios</p></div>
+    </div>
+    
+    <div class="card card-p" style="margin-top:20px; max-width: 800px;">
+        <form id="form-comunicado" onsubmit="enviarComunicado(event)" style="display:grid; gap:16px;">
+            <div class="form-row">
+                <div class="form-group" style="flex:1;">
+                    <label class="form-label">Destinatarios *</label>
+                    <select id="com-destino" onchange="toggleDestinoFields()" class="form-ctrl" required>
+                        <option value="global">Todos los consorcios</option>
+                        <option value="consorcio">Un consorcio específico</option>
+                        <option value="unidad">Una unidad funcional específica</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row" id="row-destino-selects" style="display:none; gap:16px;">
+                <div class="form-group" id="group-consorcio" style="flex:1;">
+                    <label class="form-label">Consorcio *</label>
+                    <select id="com-consorcio" onchange="loadDestinoUnidades()" class="form-ctrl">
+                        <!-- Carga dinámica -->
+                    </select>
+                </div>
+                <div class="form-group" id="group-unidad" style="flex:1; display:none;">
+                    <label class="form-label">Unidad Funcional *</label>
+                    <select id="com-unidad" class="form-ctrl">
+                        <!-- Carga dinámica -->
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group" style="flex:1;">
+                    <label class="form-label">Plantilla de Comunicado</label>
+                    <select id="com-plantilla" onchange="aplicarPlantilla()" class="form-ctrl">
+                        <option value="libre">Libre (Redactar desde cero)</option>
+                        <option value="asamblea">📅 Convocatoria a Asamblea</option>
+                        <option value="corte">💧 Corte de Agua Programado</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Asunto *</label>
+                <input type="text" id="com-asunto" oninput="updateLivePreview()" class="form-ctrl" required placeholder="Ej: Convocatoria a Asamblea">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Cuerpo del Mensaje *</label>
+                <textarea id="com-cuerpo" oninput="updateLivePreview()" class="form-ctrl" required rows="6" placeholder="Escribí el cuerpo del mensaje..." style="resize:vertical; font-family:inherit;"></textarea>
+                <p class="text-muted" style="font-size:0.75rem; margin-top:5px;">💡 Reemplazá las variables marcadas entre corchetes `[...]` en la vista previa antes de publicar.</p>
+            </div>
+
+            <!-- Live Preview Box -->
+            <div style="border: 1px dashed #7C3AED; border-radius: 8px; padding: 18px; background: rgba(124,58,237,0.03);">
+                <span style="font-size: 0.68rem; text-transform: uppercase; font-weight: 700; color: #7C3AED; letter-spacing: 0.05em; display: block; margin-bottom: 8px;">Vista Previa en Vivo</span>
+                <div style="background:rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius:6px; padding:15px;">
+                    <h4 id="preview-asunto" style="margin-bottom:8px; font-weight:700; font-size:0.95rem; color:var(--text);">[Vista Previa de Asunto]</h4>
+                    <p id="preview-cuerpo" style="font-size:0.82rem; color:var(--muted); line-height:1.45; white-space:pre-wrap; margin:0;">[Vista Previa del Cuerpo]</p>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-p" style="justify-self:start;">Publicar Comunicado</button>
+        </form>
+    </div>
 </div>
 
 <!-- ═══ CONFIG ═══ -->
@@ -724,6 +788,7 @@ function show(id, el) {
     if (id === 'cobros')       initCobros();
     if (id === 'proveedores')  loadProveedores();
     if (id === 'balance')      initBalance();
+    if (id === 'mensajeria')   initComunicaciones();
 }
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
@@ -1319,6 +1384,129 @@ async function procesarSolicitud(sid, estado) {
         await loadSolicitudes();
         await loadDashboard(); // recargar KPIs
     } catch(e) { toast(e.message,'err'); }
+}
+
+// ── Comunicaciones ─────────────────────────────────────────────────────────────
+const PLANTILLAS = {
+    libre: { asunto: '', cuerpo: '' },
+    asamblea: {
+        asunto: '📅 Convocatoria a Asamblea General Ordinaria',
+        cuerpo: 'Estimados vecinos del consorcio,\n\nLos convocamos a participar de la Asamblea General Ordinaria que se llevará a cabo el próximo [FECHA Y HORA] en [LUGAR].\n\nTemario a tratar:\n1. [PUNTO 1 A TRATAR - EJ: APROBACIÓN DE BALANCE]\n2. [PUNTO 2 A TRATAR - EJ: PLAN DE REPARACIONES]\n3. Elección de nuevos consejeros.\n\nSu presencia y participación es fundamental para el consorcio. Agradecemos su puntualidad.\n\nAtentamente,\nLa Administración.'
+    },
+    corte: {
+        asunto: '💧 Corte de Agua Programado por Mantenimiento',
+        cuerpo: 'Estimados vecinos,\n\nLes informamos que se realizará un corte programado en el suministro de agua el próximo [FECHA Y HORA] debido a tareas de [DESCRIPCIÓN DE TAREAS - EJ: LIMPIEZA DE TANQUES].\n\nSe estima que el suministro se verá afectado entre las [HORA INICIO] y las [HORA FIN].\n\nLes recomendamos almacenar agua suficiente para el periodo y tomar los recaudos correspondientes.\n\nDisculpen las molestias,\nLa Administración.'
+    }
+};
+
+function initComunicaciones() {
+    // Rellenar consorcios
+    const select = $('com-consorcio');
+    if (select) {
+        select.innerHTML = '<option value="">Seleccionar consorcio...</option>' + 
+            consorcios.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
+    }
+    toggleDestinoFields();
+    aplicarPlantilla();
+}
+
+function toggleDestinoFields() {
+    const destino = $('com-destino').value;
+    const row = $('row-destino-selects');
+    const groupConsorcio = $('group-consorcio');
+    const groupUnidad = $('group-unidad');
+    
+    if (destino === 'global') {
+        row.style.display = 'none';
+        $('com-consorcio').required = false;
+        $('com-unidad').required = false;
+    } else if (destino === 'consorcio') {
+        row.style.display = 'flex';
+        groupConsorcio.style.display = 'block';
+        groupUnidad.style.display = 'none';
+        $('com-consorcio').required = true;
+        $('com-unidad').required = false;
+    } else if (destino === 'unidad') {
+        row.style.display = 'flex';
+        groupConsorcio.style.display = 'block';
+        groupUnidad.style.display = 'block';
+        $('com-consorcio').required = true;
+        $('com-unidad').required = true;
+    }
+}
+
+async function loadDestinoUnidades() {
+    const cid = $('com-consorcio').value;
+    const select = $('com-unidad');
+    if (!cid || $('com-destino').value !== 'unidad') return;
+    
+    try {
+        select.innerHTML = '<option value="">Cargando unidades...</option>';
+        const ufs = await api(`/api/consorcios/${cid}/unidades`);
+        select.innerHTML = '<option value="">Seleccionar unidad...</option>' + 
+            ufs.map(u => `<option value="${u.id}">UF ${u.numero} (Piso ${u.piso || '—'} - ${u.tipo})</option>`).join('');
+    } catch(e) { toast(e.message,'err'); }
+}
+
+function aplicarPlantilla() {
+    const plant = $('com-plantilla').value;
+    const t = PLANTILLAS[plant] || PLANTILLAS.libre;
+    $('com-asunto').value = t.asunto;
+    $('com-cuerpo').value = t.cuerpo;
+    updateLivePreview();
+}
+
+function updateLivePreview() {
+    const asunto = $('com-asunto').value || '[Vista Previa de Asunto]';
+    const cuerpo = $('com-cuerpo').value || '[Vista Previa del Cuerpo]';
+    
+    $('preview-asunto').innerHTML = highlightVariables(asunto);
+    $('preview-cuerpo').innerHTML = highlightVariables(cuerpo);
+}
+
+function highlightVariables(text) {
+    if (!text) return '';
+    // Escapar HTML para evitar XSS en la vista previa
+    const escaped = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+        
+    return escaped.replace(/\[([^\]]+)\]/g, '<span style="color:#f87171; font-weight:700; background:rgba(239,68,68,0.15); padding:2px 6px; border-radius:4px; border: 1px solid rgba(239,68,68,0.25);">[$1]</span>');
+}
+
+async function enviarComunicado(event) {
+    event.preventDefault();
+    const destino = $('com-destino').value;
+    const consorcio_id = (destino !== 'global') ? $('com-consorcio').value : null;
+    const unidad_id = (destino === 'unidad') ? $('com-unidad').value : null;
+    const asunto = $('com-asunto').value.trim();
+    const cuerpo = $('com-cuerpo').value.trim();
+    
+    if (!asunto || !cuerpo) {
+        toast('Asunto y cuerpo son requeridos', 'warn');
+        return;
+    }
+    
+    // Validar si quedan variables sin completar
+    if (asunto.includes('[') || cuerpo.includes('[')) {
+        if (!confirm('⚠️ Aún quedan campos entre corchetes [...] en rojo. ¿Deseas enviar el comunicado de todas formas?')) {
+            return;
+        }
+    }
+    
+    const payload = { consorcio_id, unidad_id, asunto, cuerpo };
+    try {
+        await api('/api/admin/comunicados', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        toast('📢 Comunicado publicado con éxito');
+        $('form-comunicado').reset();
+        initComunicaciones();
+    } catch(e) { toast(e.message, 'err'); }
 }
 
 // ── Theme ─────────────────────────────────────────────────────────────────────

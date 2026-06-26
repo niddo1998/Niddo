@@ -848,6 +848,69 @@ def api_admin_solicitudes_procesar(sid):
     return jsonify({'status': 'success', 'nuevo_estado': nuevo_estado})
 
 
+# ── API: Comunicados y Notificaciones ──────────────────────────────────────────
+@app.route('/api/admin/comunicados', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_comunicados_crear():
+    admin_id = get_admin_id()
+    if not admin_id:
+        return jsonify({'error': 'Admin no encontrado'}), 404
+    
+    d = request.json
+    consorcio_id = d.get('consorcio_id') or None
+    unidad_id = d.get('unidad_id') or None
+    asunto = d.get('asunto')
+    cuerpo = d.get('cuerpo')
+    
+    if not asunto or not cuerpo:
+        return jsonify({'error': 'Asunto y cuerpo son requeridos'}), 400
+    
+    payload = {
+        'admin_id': admin_id,
+        'consorcio_id': consorcio_id,
+        'unidad_id': unidad_id,
+        'asunto': asunto,
+        'cuerpo': cuerpo
+    }
+    res = supabase.table('comunicados').insert(payload).execute()
+    return jsonify(res.data[0] if res.data else {})
+
+
+@app.route('/api/vecino/comunicados')
+@require_auth(allowed_roles=['vecino'])
+def api_vecino_comunicados():
+    vid = get_vecino_id()
+    if not vid:
+        return jsonify({'error': 'Vecino no encontrado'}), 404
+    
+    # Obtener perfil del vecino
+    vecino_res = supabase.table('vecinos').select('consorcio_id').eq('id', vid).single().execute()
+    vecino = vecino_res.data
+    if not vecino or not vecino.get('consorcio_id'):
+        return jsonify([])
+    
+    cid = vecino['consorcio_id']
+    
+    # Obtener el admin_id del consorcio
+    consorcio_res = supabase.table('consorcios').select('admin_id').eq('id', cid).single().execute()
+    admin_id = consorcio_res.data['admin_id'] if consorcio_res.data else None
+    if not admin_id:
+        return jsonify([])
+    
+    # Obtener id de la unidad funcional
+    uf_res = supabase.table('unidades_funcionales').select('id').eq('consorcio_id', cid).eq('vecino_id', vid).limit(1).execute()
+    uf_id = uf_res.data[0]['id'] if uf_res.data else None
+    
+    # Construir consulta con filtros OR
+    filter_str = f'and(consorcio_id.is.null,admin_id.eq.{admin_id})'
+    filter_str += f',and(consorcio_id.eq.{cid},unidad_id.is.null)'
+    if uf_id:
+        filter_str += f',and(consorcio_id.eq.{cid},unidad_id.eq.{uf_id})'
+        
+    res = supabase.table('comunicados').select('*').or_(filter_str).order('created_at', desc=True).execute()
+    return jsonify(res.data)
+
+
 # ── Run ────────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     print('🏢 Niddo server starting...')

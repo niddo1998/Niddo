@@ -495,20 +495,15 @@
                     <div class="notifications-dropdown-container">
                         <button class="circle-btn" id="notifBtn" onclick="toggleNotificationsDropdown(event)" title="Notificaciones">
                             <i class="fa-regular fa-bell"></i>
-                            <div class="badge-dot"></div>
+                            <div class="badge-dot" id="notifBadge" style="display: none;"></div>
                         </button>
                         <div class="notifications-dropdown" id="notificationsDropdown">
                             <div class="dropdown-header">
                                 <h4>Notificaciones</h4>
                             </div>
                             <hr class="dropdown-divider">
-                            <div class="notif-item">
-                                <span class="notif-time">Hace 1 hora</span>
-                                <p>Se publicó la liquidación de Expensas de Abril 2025.</p>
-                            </div>
-                            <div class="notif-item">
-                                <span class="notif-time">Ayer</span>
-                                <p>Tu reclamo "Goteras en Balcón" pasó a estado: En Evaluación.</p>
+                            <div id="notifications-list" style="max-height: 250px; overflow-y: auto;">
+                                <div style="color: var(--muted); font-size: 0.78rem; text-align: center; padding: 12px;">Cargando...</div>
                             </div>
                         </div>
                     </div>
@@ -587,7 +582,7 @@
                 <p class="section-subtitle">Resumen general de tu actividad mensual en el consorcio</p>
 
                 <!-- Cartel de Aviso Importante Mensual (Algo importante este mes) -->
-                <div style="background: linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(16,185,129,0.08) 100%); border: 1px solid var(--purple-light); border-radius: 12px; padding: 20px; margin-bottom: 28px; display: flex; align-items: center; gap: 16px; position: relative; overflow: hidden;">
+                <div id="monthly-highlight-container" style="background: linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(16,185,129,0.08) 100%); border: 1px solid var(--purple-light); border-radius: 12px; padding: 20px; margin-bottom: 28px; display: none; align-items: center; gap: 16px; position: relative; overflow: hidden;">
                     <div style="position: absolute; top: -15px; right: -15px; font-size: 4.5rem; opacity: 0.04; color: var(--purple-light); pointer-events: none;">
                         <i class="fa-solid fa-bullhorn"></i>
                     </div>
@@ -595,8 +590,8 @@
                         <i class="fa-solid fa-circle-exclamation"></i>
                     </div>
                     <div>
-                        <span style="font-size: 0.65rem; text-transform: uppercase; font-weight: 700; color: var(--purple-light); letter-spacing: 0.05em; display: block; margin-bottom: 4px;">Destacado del Mes — Abril 2025</span>
-                        <p style="font-size: 0.85rem; font-weight: 500; line-height: 1.45; color: var(--text); margin: 0;">📢 <strong>Corte de agua por mantenimiento:</strong> Este sábado 12 de Abril se realizará la limpieza de tanques principales del edificio de 08:00 a 14:00 hs. Se solicita moderar el consumo de agua al mínimo necesario.</p>
+                        <span id="monthly-highlight-title" style="font-size: 0.65rem; text-transform: uppercase; font-weight: 700; color: var(--purple-light); letter-spacing: 0.05em; display: block; margin-bottom: 4px;">Destacado del Mes</span>
+                        <p id="monthly-highlight-body" style="font-size: 0.85rem; font-weight: 500; line-height: 1.45; color: var(--text); margin: 0;"></p>
                     </div>
                 </div>
 
@@ -611,13 +606,13 @@
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
                                 <div>
                                     <span class="stat-label" style="font-size: 0.72rem; color: var(--muted); text-transform: uppercase; font-weight: 600; display: block; letter-spacing: 0.05em;">Estado de Expensas</span>
-                                    <h3 style="font-size: 1.35rem; font-weight: 800; margin-top: 4px; color: var(--text);">Al día 🧾</h3>
+                                    <h3 id="expensas-status-title" style="font-size: 1.35rem; font-weight: 800; margin-top: 4px; color: var(--text);">Al día 🧾</h3>
                                 </div>
                                 <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(16,185,129,0.12); color: var(--teal); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
                                     <i class="fa-solid fa-circle-check"></i>
                                 </div>
                             </div>
-                            <p style="font-size: 0.82rem; color: var(--muted); line-height: 1.45; margin: 0;">No posees deudas vigentes para el período de **Abril 2025**. Tu cuenta corriente se encuentra totalmente saneada.</p>
+                            <p id="expensas-status-desc" style="font-size: 0.82rem; color: var(--muted); line-height: 1.45; margin: 0;">No posees deudas vigentes para el período actual.</p>
                         </div>
 
                         <!-- Cuadrante de Comunicados -->
@@ -625,21 +620,8 @@
                             <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
                                 <i class="fa-solid fa-bullhorn" style="color: var(--teal);"></i> Comunicados de la Administración
                             </h3>
-                            <div style="display: grid; gap: 12px;">
-                                <div style="padding: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                        <strong style="font-size: 0.8rem; color: var(--text);">Clausura de SUM por reformas</strong>
-                                        <span style="font-size: 0.65rem; color: var(--muted);">Hace 2 días</span>
-                                    </div>
-                                    <p style="font-size: 0.78rem; color: var(--muted); line-height: 1.4; margin: 0;">El SUM permanecerá inactivo del 1 al 30 de abril por remodelaciones y pintura general.</p>
-                                </div>
-                                <div style="padding: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                        <strong style="font-size: 0.8rem; color: var(--text);">Nueva empresa de limpieza</strong>
-                                        <span style="font-size: 0.65rem; color: var(--muted);">Hace 1 semana</span>
-                                    </div>
-                                    <p style="font-size: 0.78rem; color: var(--muted); line-height: 1.4; margin: 0;">A partir del 15 de abril, "Limpios & Brillantes" tomará el servicio de limpieza general.</p>
-                                </div>
+                            <div id="comunicados-list" style="display: grid; gap: 12px;">
+                                <div style="color: var(--muted); font-size: 0.82rem; text-align: center; padding: 20px;">Cargando comunicados...</div>
                             </div>
                         </div>
 
@@ -653,43 +635,8 @@
                             <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
                                 <i class="fa-solid fa-list-check" style="color: var(--teal);"></i> Mis Tareas Pendientes
                             </h3>
-                            <div style="display: grid; gap: 10px;">
-                                
-                                <!-- Pending Item 1 -->
-                                <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.1); border-radius: 8px;">
-                                    <div style="color: #fbbf24; font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                        <i class="fa-solid fa-circle-exclamation"></i>
-                                    </div>
-                                    <div style="flex: 1;">
-                                        <span style="font-size: 0.8rem; font-weight: 600; color: var(--text); display: block;">Expensas de Abril 2025</span>
-                                        <span style="font-size: 0.7rem; color: var(--muted);">Vencimiento: 2025-04-20</span>
-                                    </div>
-                                    <button onclick="showSection('expensas', document.querySelector('[onclick*=\'expensas\']'))" class="btn-action" style="padding: 4px 8px; font-size: 0.72rem; border-radius: 6px;">Pagar</button>
-                                </div>
-
-                                <!-- Pending Item 2 -->
-                                <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(124,58,237,0.04); border: 1px solid rgba(124,58,237,0.1); border-radius: 8px;">
-                                    <div style="color: var(--purple-light); font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                        <i class="fa-solid fa-check-to-slot"></i>
-                                    </div>
-                                    <div style="flex: 1;">
-                                        <span style="font-size: 0.8rem; font-weight: 600; color: var(--text); display: block;">Votación de Presupuesto</span>
-                                        <span style="font-size: 0.7rem; color: var(--muted);">Finaliza el 10 de Abril</span>
-                                    </div>
-                                    <button onclick="showSection('votaciones', document.querySelector('[onclick*=\'votaciones\']'))" class="btn-action" style="padding: 4px 8px; font-size: 0.72rem; border-radius: 6px;">Votar</button>
-                                </div>
-
-                                <!-- Pending Item 3 -->
-                                <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; opacity: 0.65;">
-                                    <div style="color: var(--muted); font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                        <i class="fa-solid fa-circle-check"></i>
-                                    </div>
-                                    <div style="flex: 1;">
-                                        <span style="font-size: 0.8rem; font-weight: 600; color: var(--muted); display: block; text-decoration: line-through;">Solicitud de Acceso</span>
-                                        <span style="font-size: 0.7rem; color: var(--muted);">Aprobada por Administración</span>
-                                    </div>
-                                </div>
-
+                            <div id="tareas-pendientes-list" style="display: grid; gap: 10px;">
+                                <!-- Se cargará dinámicamente -->
                             </div>
                         </div>
 
@@ -734,28 +681,8 @@
                                 <th>Acciones</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr>
-                                <td>Abril 2025</td>
-                                <td>$2,450.00</td>
-                                <td>2025-04-20</td>
-                                <td><span class="badge-status pendiente">Pendiente</span></td>
-                                <td><button class="btn-action" style="padding: 6px 12px; font-size: 0.85rem;" onclick="showSection('pagos', document.querySelector('[onclick*=\'pagos\']'))">Pagar</button></td>
-                            </tr>
-                            <tr>
-                                <td>Marzo 2025</td>
-                                <td>$2,450.00</td>
-                                <td>2025-03-20</td>
-                                <td><span class="badge-status pagado">Pagado</span></td>
-                                <td><button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;" onclick="alert('Descargando comprobante de liquidación de Marzo 2025 (PDF)...')"><i class="fa-solid fa-file-pdf"></i> PDF</button></td>
-                            </tr>
-                            <tr>
-                                <td>Febrero 2025</td>
-                                <td>$2,350.00</td>
-                                <td>2025-02-20</td>
-                                <td><span class="badge-status pagado">Pagado</span></td>
-                                <td><button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;" onclick="alert('Descargando comprobante de liquidación de Febrero 2025 (PDF)...')"><i class="fa-solid fa-file-pdf"></i> PDF</button></td>
-                            </tr>
+                        <tbody id="expensas-table-body">
+                            <!-- Se cargará dinámicamente -->
                         </tbody>
                     </table>
                 </div>
@@ -789,9 +716,9 @@
                         </div>
                         <div class="card-title">Monto Pendiente Actual</div>
                         <div class="card-description" style="line-height: 1.6;">
-                            <strong>Mes correspondiente:</strong> Abril 2025<br>
+                            <strong>Mes correspondiente:</strong> <span id="pagos-pendiente-mes">Abril 2025</span><br>
                             <strong>Monto total:</strong> $2,450.00<br>
-                            <strong>Vencimiento:</strong> 2025-04-20<br>
+                            <strong>Vencimiento:</strong> <span id="pagos-pendiente-vencimiento">2025-04-20</span><br>
                             <strong>Estado:</strong> <span class="badge-status pendiente">Pendiente</span>
                         </div>
                     </div>
@@ -805,9 +732,8 @@
                     <form onsubmit="submitPago(event)" style="display: grid; gap: 18px; max-width: 500px;">
                         <div>
                             <label style="display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Mes correspondiente</label>
-                            <select required class="form-control">
-                                <option value="2025-04">Abril 2025 ($2,450.00)</option>
-                                <option value="2025-03">Marzo 2025 ($2,450.00)</option>
+                            <select id="pagos-select-mes" required class="form-control">
+                                <!-- Cargado dinámicamente -->
                             </select>
                         </div>
                         <div>
@@ -835,28 +761,8 @@
                                 <th>Estado de Aprobación</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr>
-                                <td>2025-03-10</td>
-                                <td>Marzo 2025</td>
-                                <td>$2,450.00</td>
-                                <td>Transferencia</td>
-                                <td><span class="badge-status pagado">Aprobado</span></td>
-                            </tr>
-                            <tr>
-                                <td>2025-02-12</td>
-                                <td>Febrero 2025</td>
-                                <td>$2,350.00</td>
-                                <td>Transferencia</td>
-                                <td><span class="badge-status pagado">Aprobado</span></td>
-                            </tr>
-                            <tr>
-                                <td>2025-01-15</td>
-                                <td>Enero 2025</td>
-                                <td>$2,200.00</td>
-                                <td>MercadoPago</td>
-                                <td><span class="badge-status pagado">Aprobado</span></td>
-                            </tr>
+                        <tbody id="historial-pagos-body">
+                            <!-- Cargado dinámicamente -->
                         </tbody>
                     </table>
                 </div>
@@ -1104,11 +1010,11 @@
                 </div>
                 <div class="profile-field">
                     <span class="field-label">Nombre Completo</span>
-                    <span class="field-value">{{ user.name or 'Vecino' }}</span>
+                    <span class="field-value" id="profile-modal-name">{{ user.name or 'Vecino' }}</span>
                 </div>
                 <div class="profile-field">
                     <span class="field-label">Correo Electrónico</span>
-                    <span class="field-value">{{ user.email or '' }}</span>
+                    <span class="field-value" id="profile-modal-email">{{ user.email or '' }}</span>
                 </div>
                 <div class="profile-field">
                     <span class="field-label">Rol en el Consorcio</span>
@@ -1116,7 +1022,7 @@
                 </div>
                 <div class="profile-field">
                     <span class="field-label">Unidad Funcional asignada</span>
-                    <span class="field-value">Depto. 3B - Consorcio Niddo</span>
+                    <span class="field-value" id="profile-modal-unit">Depto. 3B - Consorcio Niddo</span>
                 </div>
             </div>
         </div>
@@ -1160,10 +1066,26 @@
             const dashboardCtx = document.getElementById('dashboard-chart');
             if (dashboardCtx && !dashboardCtx.dataset.initialized) {
                 dashboardCtx.dataset.initialized = 'true';
+                
+                // Generate dynamic months for labels
+                const monthsList = [
+                    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+                ];
+                const now = new Date();
+                const labels = [];
+                
+                for (let i = 3; i >= 0; i--) {
+                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                    let label = `${monthsList[d.getMonth()]} ${d.getFullYear()}`;
+                    if (i === 0) label += ' (Proyectado)';
+                    labels.push(label);
+                }
+                
                 new Chart(dashboardCtx, {
                     type: 'line',
                     data: {
-                        labels: ['Enero 2025', 'Febrero 2025', 'Marzo 2025', 'Abril 2025 (Proyectado)'],
+                        labels: labels,
                         datasets: [{
                             label: 'Expensas Pagadas ($)',
                             data: [2200, 2350, 2450, 2450],
@@ -1212,7 +1134,23 @@
         function toggleNotificationsDropdown(event) {
             event.stopPropagation();
             document.getElementById('profileDropdown').classList.remove('show');
-            document.getElementById('notificationsDropdown').classList.toggle('show');
+            
+            const nDropdown = document.getElementById('notificationsDropdown');
+            const isOpening = !nDropdown.classList.contains('show');
+            nDropdown.classList.toggle('show');
+            
+            if (isOpening) {
+                // Clear the badge
+                const btn = document.getElementById('notifBtn');
+                const latestId = btn ? btn.dataset.latestId : null;
+                if (latestId) {
+                    localStorage.setItem('last_seen_announcement_id', latestId);
+                }
+                const notifBadge = document.getElementById('notifBadge');
+                if (notifBadge) {
+                    notifBadge.style.display = 'none';
+                }
+            }
         }
 
         // Close dropdowns on click outside
@@ -1254,6 +1192,261 @@
 
         function openChat() {
             alert("Canal de Chat: Próximamente disponible. Estamos trabajando en la mensajería interna con el administrador y vecinos.");
+        }
+
+        // Setup dynamic dates & states helper
+        function setupDynamicDatesAndState() {
+            const monthsList = [
+                'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+            ];
+            const now = new Date();
+            
+            // Current month details
+            const currentMonthName = monthsList[now.getMonth()];
+            const currentYear = now.getFullYear();
+            const currentPeriodStr = `${currentMonthName} ${currentYear}`;
+            
+            // Previous month details
+            const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const prevMonthName = monthsList[prevMonthDate.getMonth()];
+            const prevYear = prevMonthDate.getFullYear();
+            const prevPeriodStr = `${prevMonthName} ${prevYear}`;
+            
+            // Month before previous details
+            const prev2MonthDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+            const prev2MonthName = monthsList[prev2MonthDate.getMonth()];
+            const prev2Year = prev2MonthDate.getFullYear();
+            const prev2PeriodStr = `${prev2MonthName} ${prev2Year}`;
+            
+            // Update Dashboard Expensas Status card
+            const statusTitle = document.getElementById('expensas-status-title');
+            const statusDesc = document.getElementById('expensas-status-desc');
+            if (statusTitle) statusTitle.innerHTML = `Al día 🧾`;
+            if (statusDesc) statusDesc.innerHTML = `No posees deudas vigentes para el período de <strong>${currentPeriodStr}</strong>. Tu cuenta corriente se encuentra totalmente saneada.`;
+            
+            // Update Tareas Pendientes List
+            const pendingList = document.getElementById('tareas-pendientes-list');
+            if (pendingList) {
+                pendingList.innerHTML = `
+                    <!-- Pending Item 1 -->
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.1); border-radius: 8px;">
+                        <div style="color: #fbbf24; font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text); display: block;">Expensas de ${currentPeriodStr}</span>
+                            <span style="font-size: 0.7rem; color: var(--muted);">Vencimiento: ${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}-20</span>
+                        </div>
+                        <button onclick="showSection('expensas', document.querySelector('[onclick*=\\expensas\\']'))" class="btn-action" style="padding: 4px 8px; font-size: 0.72rem; border-radius: 6px;">Pagar</button>
+                    </div>
+
+                    <!-- Pending Item 2 -->
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: rgba(124,58,237,0.04); border: 1px solid rgba(124,58,237,0.1); border-radius: 8px;">
+                        <div style="color: var(--purple-light); font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fa-solid fa-check-to-slot"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text); display: block;">Votación de Presupuesto</span>
+                            <span style="font-size: 0.7rem; color: var(--muted);">Finaliza el 10 de ${currentMonthName}</span>
+                        </div>
+                        <button onclick="showSection('votaciones', document.querySelector('[onclick*=\\votaciones\\']'))" class="btn-action" style="padding: 4px 8px; font-size: 0.72rem; border-radius: 6px;">Votar</button>
+                    </div>
+
+                    <!-- Pending Item 3 -->
+                    <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; opacity: 0.65;">
+                        <div style="color: var(--muted); font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fa-solid fa-circle-check"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <span style="font-size: 0.8rem; font-weight: 600; color: var(--muted); display: block; text-decoration: line-through;">Solicitud de Acceso</span>
+                            <span style="font-size: 0.7rem; color: var(--muted);">Aprobada por Administración</span>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Update Expensas Table Body
+            const expensasBody = document.getElementById('expensas-table-body');
+            if (expensasBody) {
+                expensasBody.innerHTML = `
+                    <tr>
+                        <td>${currentPeriodStr}</td>
+                        <td>$2,450.00</td>
+                        <td>${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}-20</td>
+                        <td><span class="badge-status pendiente">Pendiente</span></td>
+                        <td><button class="btn-action" style="padding: 6px 12px; font-size: 0.85rem;" onclick="showSection('pagos', document.querySelector('[onclick*=\\'pagos\\']'))">Pagar</button></td>
+                    </tr>
+                    <tr>
+                        <td>${prevPeriodStr}</td>
+                        <td>$2,450.00</td>
+                        <td>${prevYear}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-20</td>
+                        <td><span class="badge-status pagado">Pagado</span></td>
+                        <td><button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;" onclick="alert('Descargando comprobante de liquidación de ${prevPeriodStr} (PDF)...')"><i class="fa-solid fa-file-pdf"></i> PDF</button></td>
+                    </tr>
+                    <tr>
+                        <td>${prev2PeriodStr}</td>
+                        <td>$2,350.00</td>
+                        <td>${prev2Year}-${String(prev2MonthDate.getMonth() + 1).padStart(2, '0')}-20</td>
+                        <td><span class="badge-status pagado">Pagado</span></td>
+                        <td><button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;" onclick="alert('Descargando comprobante de liquidación de ${prev2PeriodStr} (PDF)...')"><i class="fa-solid fa-file-pdf"></i> PDF</button></td>
+                    </tr>
+                `;
+            }
+            
+            // Update Pagos Monto Pendiente Card
+            const pagosPendienteMes = document.getElementById('pagos-pendiente-mes');
+            const pagosPendienteVencimiento = document.getElementById('pagos-pendiente-vencimiento');
+            if (pagosPendienteMes) pagosPendienteMes.textContent = currentPeriodStr;
+            if (pagosPendienteVencimiento) pagosPendienteVencimiento.textContent = `${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}-20`;
+            
+            // Update Pagos Select Mes Options
+            const pagosSelectMes = document.getElementById('pagos-select-mes');
+            if (pagosSelectMes) {
+                pagosSelectMes.innerHTML = `
+                    <option value="${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}">${currentPeriodStr} ($2,450.00)</option>
+                    <option value="${prevYear}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}">${prevPeriodStr} ($2,450.00)</option>
+                `;
+            }
+            
+            // Update Historial de Pagos Table Body
+            const historialPagosBody = document.getElementById('historial-pagos-body');
+            if (historialPagosBody) {
+                historialPagosBody.innerHTML = `
+                    <tr>
+                        <td>${prevYear}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}-10</td>
+                        <td>${prevPeriodStr}</td>
+                        <td>$2,450.00</td>
+                        <td>Transferencia</td>
+                        <td><span class="badge-status pagado">Aprobado</span></td>
+                    </tr>
+                    <tr>
+                        <td>${prev2Year}-${String(prev2MonthDate.getMonth() + 1).padStart(2, '0')}-12</td>
+                        <td>${prev2PeriodStr}</td>
+                        <td>$2,350.00</td>
+                        <td>Transferencia</td>
+                        <td><span class="badge-status pagado">Aprobado</span></td>
+                    </tr>
+                    <tr>
+                        <td>${prev2Year}-${String(prev2MonthDate.getMonth() + 1).padStart(2, '0')}-15</td>
+                        <td>${prev2PeriodStr}</td>
+                        <td>$2,200.00</td>
+                        <td>MercadoPago</td>
+                        <td><span class="badge-status pagado">Aprobado</span></td>
+                    </tr>
+                `;
+            }
+        }
+
+        async function fetchAndRenderComunicados() {
+            try {
+                const res = await fetch('/api/vecino/comunicados');
+                if (!res.ok) throw new Error("Error fetching announcements");
+                const announcements = await res.json();
+                
+                // 1. Render in "Comunicados de la Administración" cuadrante
+                const listContainer = document.getElementById('comunicados-list');
+                if (listContainer) {
+                    if (announcements.length === 0) {
+                        listContainer.innerHTML = `<div style="color: var(--muted); font-size: 0.82rem; text-align: center; padding: 20px;">No hay comunicados para mostrar.</div>`;
+                    } else {
+                        listContainer.innerHTML = announcements.map(a => `
+                            <div style="padding: 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <strong style="font-size: 0.88rem; color: var(--text);">${a.asunto}</strong>
+                                    <span style="font-size: 0.7rem; color: var(--muted);">${formatComunicadoDate(a.created_at)}</span>
+                                </div>
+                                <p style="font-size: 0.8rem; color: var(--muted); line-height: 1.5; margin: 0; white-space: pre-wrap;">${a.cuerpo}</p>
+                            </div>
+                        `).join('');
+                    }
+                }
+                
+                // 2. Render in notifications dropdown
+                const notifList = document.getElementById('notifications-list');
+                if (notifList) {
+                    if (announcements.length === 0) {
+                        notifList.innerHTML = `<div style="color: var(--muted); font-size: 0.78rem; text-align: center; padding: 12px;">No tienes notificaciones.</div>`;
+                    } else {
+                        notifList.innerHTML = announcements.map(a => `
+                            <div class="notif-item">
+                                <span class="notif-time">${formatComunicadoDate(a.created_at)}</span>
+                                <p style="margin:0;"><strong>${a.asunto}:</strong> ${a.cuerpo.substring(0, 80)}${a.cuerpo.length > 80 ? '...' : ''}</p>
+                            </div>
+                        `).join('');
+                    }
+                }
+                
+                // 3. Highlight/Monthly Banner check
+                const now = new Date();
+                const criticalNotices = announcements.filter(a => {
+                    const createdDate = new Date(a.created_at);
+                    const isCurrentMonth = createdDate.getMonth() === now.getMonth() && createdDate.getFullYear() === now.getFullYear();
+                    if (!isCurrentMonth) return false;
+                    
+                    const text = (a.asunto + ' ' + a.cuerpo).toLowerCase();
+                    return text.includes('corte') || text.includes('asamblea');
+                });
+                
+                const banner = document.getElementById('monthly-highlight-container');
+                if (banner) {
+                    if (criticalNotices.length > 0) {
+                        const mostRecent = criticalNotices[0];
+                        const monthsList = [
+                            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+                        ];
+                        const monthLabel = `${monthsList[now.getMonth()]} ${now.getFullYear()}`;
+                        
+                        document.getElementById('monthly-highlight-title').textContent = `Destacado del Mes — ${monthLabel}`;
+                        document.getElementById('monthly-highlight-body').innerHTML = `📢 <strong>${mostRecent.asunto}:</strong> ${mostRecent.cuerpo}`;
+                        banner.style.display = 'flex';
+                    } else {
+                        banner.style.display = 'none';
+                    }
+                }
+                
+                // 4. Notifications Badge Logic
+                const notifBadge = document.getElementById('notifBadge');
+                if (notifBadge) {
+                    const latestId = announcements.length > 0 ? announcements[0].id : null;
+                    if (latestId) {
+                        const lastSeenId = localStorage.getItem('last_seen_announcement_id');
+                        if (latestId !== lastSeenId) {
+                            notifBadge.style.display = 'block';
+                        } else {
+                            notifBadge.style.display = 'none';
+                        }
+                    } else {
+                        notifBadge.style.display = 'none';
+                    }
+                    
+                    const btn = document.getElementById('notifBtn');
+                    if (btn) btn.dataset.latestId = latestId || '';
+                }
+            } catch (e) {
+                console.error("Error fetching or rendering announcements:", e);
+            }
+        }
+
+        function formatComunicadoDate(dateStr) {
+            const d = new Date(dateStr);
+            const now = new Date();
+            const diffMs = now - d;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+
+            if (diffMins < 1) return 'Hace unos instantes';
+            if (diffMins < 60) return `Hace ${diffMins} min`;
+            if (diffHours < 24) return `Hace ${diffHours} h`;
+            if (diffDays === 1) return 'Ayer';
+            if (diffDays < 7) return `Hace ${diffDays} días`;
+            
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            return `${day}/${month}/${year}`;
         }
 
         // Onboarding Check and Load functions
@@ -1299,6 +1492,30 @@
                     // Update header/profile info
                     document.querySelector('.header-welcome h2').innerHTML = `Hola, ${me.nombre || 'Vecino'} 👋`;
                     document.querySelector('.header-welcome p').innerHTML = `Portal de Inquilinos — Unidad: ${me.unidad || '—'}`;
+
+                    // Update profile modal fields
+                    const modalName = document.getElementById('profile-modal-name');
+                    const modalEmail = document.getElementById('profile-modal-email');
+                    const modalUnit = document.getElementById('profile-modal-unit');
+                    
+                    if (modalName) modalName.textContent = me.nombre || 'Vecino';
+                    if (modalEmail) modalEmail.textContent = me.email || '';
+                    if (modalUnit) {
+                        try {
+                            const consorcios = await fetch('/api/consorcios/buscar').then(r => r.json());
+                            const myConsorcio = consorcios.find(c => c.id === me.consorcio_id);
+                            const consorcioNombre = myConsorcio ? myConsorcio.nombre : 'Consorcio';
+                            modalUnit.textContent = `Unidad ${me.unidad || '—'} - ${consorcioNombre}`;
+                        } catch (err) {
+                            modalUnit.textContent = `Unidad ${me.unidad || '—'}`;
+                        }
+                    }
+                    
+                    // Setup dynamic dates & placeholders
+                    setupDynamicDatesAndState();
+                    
+                    // Fetch and render announcements
+                    await fetchAndRenderComunicados();
                 }
             } catch (e) {
                 console.error("Error al comprobar la vinculación:", e);
