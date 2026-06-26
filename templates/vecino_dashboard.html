@@ -532,6 +532,52 @@
                 </div>
             </header>
 
+            <!-- Onboarding / Vinculación Request Container -->
+            <div id="onboarding-container" style="display: none; width: 100%; max-width: 500px; margin: 60px auto; padding: 32px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <div style="width: 60px; height: 60px; border-radius: 50%; background: rgba(16,185,129,0.12); color: var(--teal); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin: 0 auto 16px auto;">
+                        <i class="fa-solid fa-house-laptop"></i>
+                    </div>
+                    <h2 style="font-size: 1.35rem; font-weight: 700; margin-bottom: 8px;">¡Bienvenido a Niddo!</h2>
+                    <p style="color: var(--muted); font-size: 0.88rem;">Para comenzar, necesitas vincularte a tu consorcio y unidad funcional.</p>
+                </div>
+
+                <!-- Buscar Consorcio Form -->
+                <div id="onboarding-step-search">
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">1. Selecciona tu Consorcio</label>
+                        <select id="onboarding-consorcio" onchange="loadOnboardingUnidades()" class="form-control" style="width: 100%;">
+                            <option value="">Cargando consorcios...</option>
+                        </select>
+                    </div>
+
+                    <div style="margin-bottom: 24px; display: none;" id="onboarding-unidades-group">
+                        <label style="display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">2. Selecciona tu Unidad Funcional</label>
+                        <select id="onboarding-unidad" class="form-control" style="width: 100%;">
+                            <option value="">Selecciona una unidad...</option>
+                        </select>
+                    </div>
+
+                    <button onclick="submitOnboardingRequest()" class="btn-action" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i class="fa-solid fa-paper-plane"></i> Solicitar Vinculación
+                    </button>
+                </div>
+
+                <!-- Solicitud Pendiente Message -->
+                <div id="onboarding-step-pending" style="display: none; text-align: center;">
+                    <div style="width: 60px; height: 60px; border-radius: 50%; background: rgba(245,158,11,0.12); color: #fbbf24; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin: 0 auto 16px auto;">
+                        <i class="fa-solid fa-hourglass-half"></i>
+                    </div>
+                    <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 12px; color: var(--text);">Solicitud en revisión</h3>
+                    <p style="color: var(--muted); font-size: 0.88rem; line-height: 1.5; margin-bottom: 24px;">
+                        Tu solicitud para el consorcio <strong id="pending-consorcio-name" style="color: var(--text);">—</strong>, unidad <strong id="pending-unidad-numero" style="color: var(--text);">—</strong> ha sido enviada y está pendiente de aprobación por el administrador.
+                    </p>
+                    <div style="padding: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem; color: var(--muted);">
+                        Te daremos acceso completo apenas el administrador apruebe tu solicitud.
+                    </div>
+                </div>
+            </div>
+
             <!-- Inicio Section -->
             <section id="dashboard" class="section active">
                 <h1 class="section-title">
@@ -1151,8 +1197,120 @@
             alert("Canal de Chat: Próximamente disponible. Estamos trabajando en la mensajería interna con el administrador y vecinos.");
         }
 
+        // Onboarding Check and Load functions
+        async function checkLinkage() {
+            try {
+                const me = await fetch('/api/me').then(r => r.json());
+                
+                if (!me.consorcio_id) {
+                    // Hide regular dashboard UI
+                    document.querySelector('.sidebar').style.display = 'none';
+                    document.querySelector('.main-header').style.display = 'none';
+                    document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+                    document.querySelector('.main-content').style.marginLeft = '0';
+                    
+                    // Show onboarding UI
+                    const container = document.getElementById('onboarding-container');
+                    container.style.display = 'block';
+                    
+                    // Check if there is an active request
+                    const req = await fetch('/api/solicitudes/mi-estado').then(r => r.json());
+                    if (req.id && req.estado === 'pendiente') {
+                        document.getElementById('onboarding-step-search').style.display = 'none';
+                        document.getElementById('onboarding-step-pending').style.display = 'block';
+                        document.getElementById('pending-consorcio-name').textContent = req.consorcios.nombre;
+                        document.getElementById('pending-unidad-numero').textContent = req.unidades_funcionales.numero;
+                    } else {
+                        document.getElementById('onboarding-step-search').style.display = 'block';
+                        document.getElementById('onboarding-step-pending').style.display = 'none';
+                        // Load consorcios list
+                        loadOnboardingConsorcios();
+                    }
+                } else {
+                    // User is linked, show normal dashboard
+                    document.querySelector('.sidebar').style.display = 'flex';
+                    document.querySelector('.main-header').style.display = 'flex';
+                    document.getElementById('onboarding-container').style.display = 'none';
+                    
+                    // Restore margins if responsive
+                    if (window.innerWidth > 768) {
+                        document.querySelector('.main-content').style.marginLeft = 'var(--sidebar-w)';
+                    }
+                    
+                    // Update header/profile info
+                    document.querySelector('.header-welcome h2').innerHTML = `Hola, ${me.nombre || 'Vecino'} 👋`;
+                    document.querySelector('.header-welcome p').innerHTML = `Portal de Inquilinos — Unidad: ${me.unidad || '—'}`;
+                }
+            } catch (e) {
+                console.error("Error al comprobar la vinculación:", e);
+            }
+        }
+
+        async function loadOnboardingConsorcios() {
+            try {
+                const consorcios = await fetch('/api/consorcios/buscar').then(r => r.json());
+                const select = document.getElementById('onboarding-consorcio');
+                select.innerHTML = '<option value="">Selecciona tu consorcio...</option>' + 
+                    consorcios.map(c => `<option value="${c.id}">${c.nombre} (${c.direccion || ''})</option>`).join('');
+            } catch (e) {
+                console.error("Error al cargar consorcios:", e);
+            }
+        }
+
+        async function loadOnboardingUnidades() {
+            const cid = document.getElementById('onboarding-consorcio').value;
+            const group = document.getElementById('onboarding-unidades-group');
+            const select = document.getElementById('onboarding-unidad');
+            
+            if (!cid) {
+                group.style.display = 'none';
+                return;
+            }
+            
+            try {
+                const unidades = await fetch(`/api/consorcios/${cid}/unidades-disponibles`).then(r => r.json());
+                if (!unidades.length) {
+                    select.innerHTML = '<option value="">No hay unidades libres en este consorcio</option>';
+                } else {
+                    select.innerHTML = '<option value="">Selecciona tu unidad...</option>' + 
+                        unidades.map(u => `<option value="${u.id}">${u.numero} (Piso ${u.piso || '—'} - ${u.tipo})</option>`).join('');
+                }
+                group.style.display = 'block';
+            } catch (e) {
+                console.error("Error al cargar unidades:", e);
+            }
+        }
+
+        async function submitOnboardingRequest() {
+            const cid = document.getElementById('onboarding-consorcio').value;
+            const uid = document.getElementById('onboarding-unidad').value;
+            
+            if (!cid || !uid) {
+                alert("Por favor, selecciona tanto el consorcio como tu unidad.");
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/solicitudes/crear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ consorcio_id: cid, unidad_id: uid })
+                }).then(r => r.json());
+                
+                if (res.error) {
+                    alert(res.error);
+                } else {
+                    alert("¡Solicitud enviada con éxito!");
+                    checkLinkage();
+                }
+            } catch (e) {
+                alert("Error al enviar la solicitud.");
+            }
+        }
+
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
+            checkLinkage();
             initCharts();
         });
 

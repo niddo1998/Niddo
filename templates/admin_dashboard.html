@@ -217,6 +217,7 @@
         <div class="nav-section-label">General</div>
         <a class="nav-link active" onclick="show('dashboard',this)">◈ Dashboard</a>
         <a class="nav-link" onclick="show('consorcios',this)">🏬 Consorcios</a>
+        <a class="nav-link" onclick="show('solicitudes',this)" style="display:flex;align-items:center;">📥 Solicitudes <span class="badge-notif" id="solicitudes-badge" style="display:none;background:#10b981;color:white;font-size:0.75rem;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:auto;box-shadow:0 2px 5px rgba(0,0,0,0.2);">0</span></a>
 
         <div class="nav-section-label">Operaciones</div>
         <a class="nav-link" onclick="show('gastos',this)">💸 Gastos</a>
@@ -436,6 +437,30 @@
             <input type="number" class="form-ctrl" value="0" id="cfg-gracia" style="width:100px">
         </div>
         <button class="btn-p btn-sm">Guardar</button>
+    </div>
+</div>
+
+<!-- ═══ SOLICITUDES ═══ -->
+<div id="sec-solicitudes" class="section">
+    <div class="page-header">
+        <div><h1 class="page-title">Solicitudes de Vinculación</h1><p class="page-sub">Autorizá a los vecinos a acceder al portal de su unidad</p></div>
+    </div>
+    <div class="card" style="margin-top:20px;overflow-x:auto;">
+        <table class="tbl" style="width:100%;">
+            <thead>
+                <tr>
+                    <th>Vecino</th>
+                    <th>Email</th>
+                    <th>Consorcio</th>
+                    <th>Unidad</th>
+                    <th>Fecha</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tbody-solicitudes">
+                <tr><td colspan="6" class="tbl-empty">Cargando solicitudes...</td></tr>
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -694,6 +719,7 @@ function show(id, el) {
     // Lazy-load data
     if (id === 'dashboard')    loadDashboard();
     if (id === 'consorcios')   loadConsorcios();
+    if (id === 'solicitudes')  loadSolicitudes();
     if (id === 'gastos')       initGastos();
     if (id === 'cobros')       initCobros();
     if (id === 'proveedores')  loadProveedores();
@@ -1240,6 +1266,61 @@ function exportBalance(fmt_) {
     window.location.href = '/api/balance/export?'+params;
 }
 
+// ── Solicitudes de Vinculación ─────────────────────────────────────────────────
+async function loadSolicitudes() {
+    try {
+        const reqs = await api('/api/admin/solicitudes');
+        const tb = $('tbody-solicitudes');
+        
+        // Actualizar contador de notificaciones en el sidebar
+        const badge = $('solicitudes-badge');
+        if (badge) {
+            badge.textContent = reqs.length;
+            badge.style.display = reqs.length > 0 ? 'inline-block' : 'none';
+        }
+        
+        if (!tb) return;
+        
+        if (!reqs.length) {
+            tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">No hay solicitudes de vinculación pendientes.</td></tr>';
+            return;
+        }
+        
+        tb.innerHTML = reqs.map(r => {
+            const fecha = new Date(r.created_at).toLocaleString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
+            return `
+                <tr>
+                    <td><strong>${r.vecinos?.nombre || 'Vecino'}</strong></td>
+                    <td class="text-muted">${r.vecinos?.email || '—'}</td>
+                    <td>${r.consorcios?.nombre || '—'}</td>
+                    <td><span class="b b-g">UF ${r.unidades_funcionales?.numero || '—'}</span></td>
+                    <td class="text-muted">${fecha}</td>
+                    <td>
+                        <div class="inline-actions" style="display:flex;gap:6px;">
+                            <button class="btn-s btn-sm" style="background:#10b981;color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-weight:600;font-size:0.75rem;" onclick="procesarSolicitud('${r.id}', 'aprobada')">Aprobar</button>
+                            <button class="btn-danger btn-sm" style="background:#ef4444;color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-weight:600;font-size:0.75rem;" onclick="procesarSolicitud('${r.id}', 'rechazada')">Rechazar</button>
+                        </div>
+                    </td>
+                </tr>`;
+        }).join('');
+    } catch(e) { toast(e.message,'err'); }
+}
+
+async function procesarSolicitud(sid, estado) {
+    const accion = estado === 'aprobada' ? 'aprobar' : 'rechazar';
+    if (!confirm(`¿Estás seguro de que deseas ${accion} esta solicitud de vinculación?`)) return;
+    
+    try {
+        await api(`/api/admin/solicitudes/${sid}/procesar`, {
+            method: 'POST',
+            body: JSON.stringify({ estado })
+        });
+        toast(estado === 'aprobada' ? '✓ Solicitud aprobada con éxito' : '✕ Solicitud rechazada');
+        await loadSolicitudes();
+        await loadDashboard(); // recargar KPIs
+    } catch(e) { toast(e.message,'err'); }
+}
+
 // ── Theme ─────────────────────────────────────────────────────────────────────
 (function(){
     const btn = $('theme-toggle'), root = document.documentElement;
@@ -1256,6 +1337,7 @@ document.addEventListener('keydown', e => {
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadDashboard();
 loadConsorcios();
+loadSolicitudes();
 </script>
 </body>
 </html>

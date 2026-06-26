@@ -715,6 +715,139 @@ def api_me():
     return jsonify(result.data)
 
 
+def get_vecino_id() -> Optional[str]:
+    """Devuelve el UUID de la fila en `vecinos` para el usuario en sesión."""
+    user = session.get('user')
+    if not user:
+        return None
+    result = supabase.table('vecinos').select('id').eq('auth0_id', user['sub']).single().execute()
+    return result.data['id'] if result.data else None
+
+
+# ── API: Vinculación Vecino-Unidad ─────────────────────────────────────────────
+@app.route('/api/consorcios/buscar')
+@require_auth()
+def api_consorcios_buscar():
+    res = supabase.table('consorcios').select('id, nombre, direccion').order('nombre').execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/consorcios/<cid>/unidades-disponibles')
+@require_auth()
+def api_consorcios_unidades_disponibles(cid):
+    # Traer UFs de este consorcio que no tengan vecino asignado
+    res = supabase.table('unidades_funcionales').select('id, numero, piso, tipo').eq('consorcio_id', cid).is_('vecino_id', 'null').order('numero').execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/solicitudes/crear', methods=['POST'])
+@require_auth(allowed_roles=['vecino'])
+def api_solicitudes_crear():
+    vid = get_vecino_id()
+    if not vid:
+        return jsonify({'error': 'Vecino no encontrado'}), 404
+    
+    d = request.json
+    consorcio_id = d.get('consorcio_id')
+    unidad_id = d.get('unidad_id')
+    if not consorcio_id or not unidad_id:
+        return jsonify({'error': 'Campos obligatorios faltantes'}), 400
+    
+    # Verificar si ya existe una solicitud pendiente para este vecino
+    existing = supabase.table('solicitudes_vinculacion').select('id').eq('vecino_id', vid).eq('estado', 'pendiente').execute().data
+    if existing:
+        return jsonify({'error': 'Ya tienes una solicitud de vinculación pendiente'}), 400
+    
+    payload = {
+        'vecino_id': vid,
+        'consorcio_id': consorcio_id,
+        'unidad_id': unidad_id,
+        'estado': 'pendiente'
+    }
+    res = supabase.table('solicitudes_vinculacion').insert(payload).execute()
+    return jsonify(res.data[0] if res.data else {})
+
+
+@app.route('/api/solicitudes/mi-estado')
+@require_auth(allowed_roles=['vecino'])
+def api_solicitudes_mi_estado():
+    vid = get_vecino_id()
+    if not vid:
+        return jsonify({'error': 'Vecino no encontrado'}), 404
+    
+    res = supabase.table('solicitudes_vinculacion').select(
+        'id, estado, created_at, consorcios(nombre), unidades_funcionales(numero)'
+    ).eq('vecino_id', vid).in_('estado', ['pendiente', 'rechazada']).order('created_at', desc=True).limit(1).execute()
+    
+    return jsonify(res.data[0] if res.data else {})
+
+
+@app.route('/api/admin/solicitudes')
+@require_auth(allowed_roles=['admin'])
+def api_admin_solicitudes():
+    admin_id = get_admin_id()
+    if not admin_id:
+        return jsonify({'error': 'Admin no encontrado'}), 404
+    
+    # Buscar consorcios administrados por este admin
+    consorcios_res = supabase.table('consorcios').select('id').eq('admin_id', admin_id).execute()
+    cids = [c['id'] for c in consorcios_res.data]
+    if not cids:
+        return jsonify([])
+    
+    # Buscar solicitudes pendientes para esos consorcios
+    res = supabase.table('solicitudes_vinculacion').select(
+        'id, estado, created_at, vecino_id, vecinos(nombre, email), consorcios(nombre), unidades_funcionales(id, numero)'
+    ).eq('estado', 'pendiente').in_('consorcio_id', cids).order('created_at', desc=True).execute()
+    
+    return jsonify(res.data)
+
+
+@app.route('/api/admin/solicitudes/<sid>/procesar', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_solicitudes_procesar(sid):
+    d = request.json
+    nuevo_estado = d.get('estado')
+    if nuevo_estado not in ('aprobada', 'rechazada'):
+        return jsonify({'error': 'Estado inválido'}), 400
+    
+    # Buscar la solicitud
+    req_res = supabase.table('solicitudes_vinculacion').select('*').eq('id', sid).single().execute()
+    req = req_res.data
+    if not req:
+        return jsonify({'error': 'Solicitud no encontrada'}), 404
+    if req['estado'] != 'pendiente':
+        return jsonify({'error': 'La solicitud ya fue procesada anteriormente'}), 400
+    
+    # Actualizar estado de la solicitud
+    supabase.table('solicitudes_vinculacion').update({'estado': nuevo_estado}).eq('id', sid).execute()
+    
+    if nuevo_estado == 'aprobada':
+        # Obtener información del vecino
+        vecino_res = supabase.table('vecinos').select('*').eq('id', req['vecino_id']).single().execute()
+        vecino = vecino_res.data
+        nombre_vecino = vecino.get('nombre') or vecino.get('email', '')
+        
+        # 1. Asignar vecino a la unidad funcional
+        supabase.table('unidades_funcionales').update({
+            'vecino_id': req['vecino_id'],
+            'vecino_nombre': nombre_vecino,
+            'vecino_email': vecino.get('email', '')
+        }).eq('id', req['unidad_id']).execute()
+        
+        # Obtener el número de la unidad funcional
+        uf_res = supabase.table('unidades_funcionales').select('numero').eq('id', req['unidad_id']).single().execute()
+        uf_numero = uf_res.data['numero'] if uf_res.data else ''
+        
+        # 2. Vincular el consorcio y unidad en el perfil del vecino
+        supabase.table('vecinos').update({
+            'consorcio_id': req['consorcio_id'],
+            'unidad': uf_numero
+        }).eq('id', req['vecino_id']).execute()
+        
+    return jsonify({'status': 'success', 'nuevo_estado': nuevo_estado})
+
+
 # ── Run ────────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     print('🏢 Niddo server starting...')
