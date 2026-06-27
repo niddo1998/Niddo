@@ -906,12 +906,20 @@ def api_vecinos_asociar():
     consorcio_id = d.get('consorcio_id')
     unidad_id = d.get('unidad_id')
 
-    if not consorcio_id or not unidad_id:
-        return jsonify({'error': 'Consorcio y Unidad son campos requeridos'}), 400
+    if not consorcio_id:
+        return jsonify({'error': 'El Consorcio es un campo requerido'}), 400
 
     vecino_id = get_vecino_id()
     if not vecino_id:
         return jsonify({'error': 'No se pudo identificar tu perfil de vecino'}), 404
+
+    if not unidad_id:
+        # Modo: No encuentro mi unidad -> Registrar 'Pendiente' de asignación por admin
+        supabase.table('vecinos').update({
+            'consorcio_id': consorcio_id,
+            'unidad': 'Pendiente'
+        }).eq('id', vecino_id).execute()
+        return jsonify({'ok': True})
 
     uf_res = supabase.table('unidades_funcionales')\
         .select('*')\
@@ -933,6 +941,52 @@ def api_vecinos_asociar():
 
     supabase.table('unidades_funcionales').update({
         'vecino_id': vecino_id
+    }).eq('id', unidad_id).execute()
+
+    return jsonify({'ok': True})
+
+
+@app.route('/api/consorcios/<cid>/vecinos/pendientes', methods=['GET'])
+@require_auth(allowed_roles=['admin'])
+def api_consorcio_vecinos_pendientes(cid):
+    res = supabase.table('vecinos')\
+        .select('*')\
+        .eq('consorcio_id', cid)\
+        .eq('unidad', 'Pendiente')\
+        .execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/consorcios/<cid>/vecinos/<vid>/asignar-unidad', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_consorcio_vecino_asignar(cid, vid):
+    d = request.json
+    unidad_id = d.get('unidad_id')
+
+    if not unidad_id:
+        return jsonify({'error': 'La unidad es requerida'}), 400
+
+    uf_res = supabase.table('unidades_funcionales')\
+        .select('*')\
+        .eq('id', unidad_id)\
+        .eq('consorcio_id', cid)\
+        .is_('vecino_id', 'null')\
+        .single()\
+        .execute()
+
+    if not uf_res.data:
+        return jsonify({'error': 'La unidad seleccionada no está disponible o no existe'}), 400
+
+    uf = uf_res.data
+
+    # Vincular al vecino con el número de unidad
+    supabase.table('vecinos').update({
+        'unidad': uf['numero']
+    }).eq('id', vid).eq('consorcio_id', cid).execute()
+
+    # Vincular la unidad funcional al vecino
+    supabase.table('unidades_funcionales').update({
+        'vecino_id': vid
     }).eq('id', unidad_id).execute()
 
     return jsonify({'ok': True})

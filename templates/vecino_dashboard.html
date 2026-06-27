@@ -277,10 +277,30 @@
                         <option value="">Selecciona un consorcio primero</option>
                     </select>
                 </div>
+                <div class="form-group" style="margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="onboarding-no-uf" onchange="toggleNoUF()" style="width: 16px; height: 16px; cursor: pointer;">
+                    <label for="onboarding-no-uf" style="font-size: 0.85rem; color: var(--text); cursor: pointer; user-select: none;">No encuentro mi unidad (solicitar asignación manual)</label>
+                </div>
+                <div id="onboarding-no-uf-msg" style="display: none; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); padding: 10px; border-radius: 8px; font-size: 0.8rem; color: #fbbf24; line-height: 1.4; margin-bottom: 15px;">
+                    ⚠️ Al solicitar unirte sin unidad, tu acceso al dashboard quedará suspendido en estado de espera. El administrador deberá asignarte tu departamento manualmente.
+                </div>
             </div>
 
             <button class="btn-action" style="width: 100%; padding: 12px; font-weight:600; font-size: 0.95rem;" onclick="guardarAsociacionOnboarding()">Asociar y Comenzar</button>
             <p style="font-size:0.75rem; color: var(--muted); margin-top: 15px;">¿No encuentras tu unidad? Contáctate con el administrador de tu edificio para que la registre.</p>
+        </div>
+    </div>
+
+    <!-- Bloqueo obligatorio: Pendiente de Aprobación/Asignación de UF -->
+    <div id="pending-overlay" style="display: none; position: fixed; inset: 0; background: var(--bg); z-index: 99998; align-items: center; justify-content: center; padding: 20px;">
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 35px; width: 480px; max-width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.5); text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 15px;">⏳</div>
+            <h2 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 10px; color: var(--text);">Solicitud en Espera</h2>
+            <p style="color: var(--muted); font-size: 0.9rem; margin-bottom: 25px; line-height: 1.5;">Has solicitado unirte al consorcio. Tu cuenta ya está registrada, pero el administrador del edificio debe asignarte tu Unidad Funcional antes de que puedas continuar.</p>
+            <div style="background: rgba(124, 58, 237, 0.08); border: 1px solid rgba(124, 58, 237, 0.15); padding: 12px; border-radius: 8px; font-size: 0.85rem; color: var(--muted); margin-bottom: 25px;">
+                Cualquier duda, comunícate con el encargado o la administración de tu edificio.
+            </div>
+            <button class="btn-action secondary" style="width: 100%; padding: 12px;" onclick="window.location.href='/auth/logout'">↩ Cerrar Sesión</button>
         </div>
     </div>
 
@@ -1503,10 +1523,16 @@
                 const me = await api('/api/me');
                 if (!me.consorcio_id) {
                     $('onboarding-overlay').style.display = 'flex';
+                    $('pending-overlay').style.display = 'none';
                     document.querySelector('.dashboard-container').style.display = 'none';
                     loadOnboardingConsorcios();
+                } else if (me.unidad === 'Pendiente') {
+                    $('onboarding-overlay').style.display = 'none';
+                    $('pending-overlay').style.display = 'flex';
+                    document.querySelector('.dashboard-container').style.display = 'none';
                 } else {
                     $('onboarding-overlay').style.display = 'none';
+                    $('pending-overlay').style.display = 'none';
                     document.querySelector('.dashboard-container').style.display = 'flex';
                 }
             } catch(e) {
@@ -1530,6 +1556,12 @@
         async function onOnboardingConsorcioChanged() {
             const cid = $('onboarding-consorcio').value;
             const selectUnit = $('onboarding-unidad');
+            const checkboxNoUf = $('onboarding-no-uf');
+            
+            if (checkboxNoUf.checked) {
+                return; // Si está tildado que no encuentra UF, no hacemos nada
+            }
+
             if (!cid) {
                 selectUnit.innerHTML = '<option value="">Selecciona un consorcio primero</option>';
                 selectUnit.disabled = true;
@@ -1548,19 +1580,41 @@
             } catch(e) { toast(e.message, 'err'); }
         }
 
+        function toggleNoUF() {
+            const isNoUf = $('onboarding-no-uf').checked;
+            const selectUnit = $('onboarding-unidad');
+            const msg = $('onboarding-no-uf-msg');
+
+            if (isNoUf) {
+                selectUnit.disabled = true;
+                selectUnit.value = '';
+                msg.style.display = 'block';
+            } else {
+                msg.style.display = 'none';
+                onOnboardingConsorcioChanged();
+            }
+        }
+
         async function guardarAsociacionOnboarding() {
             const cid = $('onboarding-consorcio').value;
-            const uid = $('onboarding-unidad').value;
-            if (!cid || !uid) {
-                toast('Debes seleccionar tanto tu consorcio como tu unidad', 'warn');
+            const isNoUf = $('onboarding-no-uf').checked;
+            const uid = isNoUf ? null : $('onboarding-unidad').value;
+
+            if (!cid) {
+                toast('Debes seleccionar tu consorcio', 'warn');
                 return;
             }
+            if (!isNoUf && !uid) {
+                toast('Debes seleccionar tu unidad funcional o marcar la casilla de asignación manual', 'warn');
+                return;
+            }
+
             try {
                 await api('/api/vecinos/asociar', {
                     method: 'POST',
                     body: JSON.stringify({ consorcio_id: cid, unidad_id: uid })
                 });
-                toast('¡Consorcio asociado con éxito! Iniciando...', 'ok');
+                toast('¡Solicitud procesada con éxito!', 'ok');
                 setTimeout(() => {
                     window.location.reload();
                 }, 1500);

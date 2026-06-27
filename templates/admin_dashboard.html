@@ -283,6 +283,16 @@
             </div>
         </div>
         <div class="kpi-row" id="detail-kpis"></div>
+        
+        <!-- Solicitudes de vecinos pendientes -->
+        <div class="card" id="consorcio-vecinos-pendientes-card" style="display:none; margin-bottom: 20px; border-left: 3px solid var(--red);">
+            <div class="card-h"><span class="card-t" style="color:var(--red);">⏳ Solicitudes de Vecinos Pendientes</span></div>
+            <table class="tbl">
+                <thead><tr><th>Nombre</th><th>Email</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-vecinos-pendientes"><tr><td colspan="4" class="tbl-empty">No hay solicitudes pendientes</td></tr></tbody>
+            </table>
+        </div>
+
         <div class="card">
             <div class="card-h"><span class="card-t">Unidades Funcionales</span></div>
             <table class="tbl">
@@ -525,6 +535,27 @@
         <div class="modal-footer">
             <button class="btn-s" onclick="closeModal('modal-amenity')">Cancelar</button>
             <button class="btn-p" onclick="saveAmenity()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Asignar UF a Vecino -->
+<div class="modal-overlay" id="modal-asignar-uf">
+    <div class="modal-box">
+        <div class="modal-head"><h3>Asignar Unidad Funcional</h3><button class="modal-close" onclick="closeModal('modal-asignar-uf')">✕</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="m-asignar-vecino-id">
+            <p style="margin-bottom:15px; font-size:.9rem; color:var(--muted);" id="m-asignar-vecino-info"></p>
+            <div class="form-group">
+                <label class="form-label">Selecciona la Unidad Funcional libre *</label>
+                <select class="form-ctrl" id="m-asignar-unidad-select">
+                    <option value="">Seleccionar unidad...</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-asignar-uf')">Cancelar</button>
+            <button class="btn-p" onclick="guardarAsignacionUF()">Asignar</button>
         </div>
     </div>
 </div>
@@ -892,11 +923,13 @@ async function openDetail(id, nombre, dir) {
     document.querySelector('.page-header').style.display = 'none';
     $('consorcio-detail').style.display = 'block';
     await loadUFs();
+    await loadPendingNeighbors();
 }
 
 function closeDetail() {
     currentConsorioId = null;
     $('consorcio-detail').style.display = 'none';
+    $('consorcio-vecinos-pendientes-card').style.display = 'none';
     document.querySelector('#sec-consorcios .card').style.display = '';
     document.querySelector('#sec-consorcios .page-header').style.display = '';
 }
@@ -950,6 +983,75 @@ async function deleteUF(uid) {
         await api(`/api/consorcios/${currentConsorioId}/unidades/${uid}`,{method:'DELETE'});
         toast('UF eliminada','warn'); await loadUFs();
     } catch(e) { toast(e.message,'err'); }
+}
+
+// ── Solicitudes Pendientes de Vecinos ─────────────────────────────────────────
+let pendingNeighborsList = [];
+
+async function loadPendingNeighbors() {
+    if (!currentConsorioId) return;
+    try {
+        const list = await api(`/api/consorcios/${currentConsorioId}/vecinos/pendientes`);
+        pendingNeighborsList = list;
+        const card = $('consorcio-vecinos-pendientes-card');
+        const tb = $('tbody-vecinos-pendientes');
+        
+        if (!list.length) {
+            card.style.display = 'none';
+            return;
+        }
+        
+        card.style.display = 'block';
+        tb.innerHTML = list.map(v => `
+            <tr>
+                <td><strong>${v.nombre || '—'}</strong></td>
+                <td>${v.email}</td>
+                <td><span class="b b-y">Pendiente de asignación</span></td>
+                <td>
+                    <button class="btn-teal btn-sm" onclick="openAsignarUFModal('${v.id}')">Asignar UF</button>
+                </td>
+            </tr>
+        `).join('');
+    } catch(e) { toast(e.message, 'err'); }
+}
+
+async function openAsignarUFModal(vid) {
+    const v = pendingNeighborsList.find(x => x.id === vid);
+    if (!v) return;
+
+    $('m-asignar-vecino-id').value = v.id;
+    $('m-asignar-vecino-info').textContent = `Vecino: ${v.nombre || '—'} (${v.email})`;
+    
+    try {
+        const list = await api(`/api/public/consorcios/${currentConsorioId}/unidades-libres`);
+        const select = $('m-asignar-unidad-select');
+        if (!list.length) {
+            select.innerHTML = '<option value="">No hay unidades libres. ¡Crea una unidad funcional primero!</option>';
+        } else {
+            select.innerHTML = '<option value="">Seleccionar unidad...</option>' + 
+                list.map(u => `<option value="${u.id}">UF ${u.numero} (Piso ${u.piso || '—'} - ${u.tipo})</option>`).join('');
+        }
+        openModal('modal-asignar-uf');
+    } catch(e) { toast(e.message, 'err'); }
+}
+
+async function guardarAsignacionUF() {
+    const vid = $('m-asignar-vecino-id').value;
+    const uid = $('m-asignar-unidad-select').value;
+    if (!uid) {
+        toast('Debes seleccionar una unidad funcional', 'warn');
+        return;
+    }
+    try {
+        await api(`/api/consorcios/${currentConsorioId}/vecinos/${vid}/asignar-unidad`, {
+            method: 'POST',
+            body: JSON.stringify({ unidad_id: uid })
+        });
+        toast('Vecino asignado con éxito');
+        closeModal('modal-asignar-uf');
+        await loadUFs();
+        await loadPendingNeighbors();
+    } catch(e) { toast(e.message, 'err'); }
 }
 
 function openBulkModal() {
