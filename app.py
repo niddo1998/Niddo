@@ -84,6 +84,15 @@ def get_admin_id() -> Optional[str]:
     return result.data['id'] if result.data else None
 
 
+def get_vecino_id() -> Optional[str]:
+    """Devuelve el UUID de la fila en `vecinos` para el vecino en sesión."""
+    user = session.get('user')
+    if not user:
+        return None
+    result = supabase.table('vecinos').select('id').eq('auth0_id', user['sub']).single().execute()
+    return result.data['id'] if result.data else None
+
+
 def excel_response(wb: openpyxl.Workbook, filename: str) -> Response:
     buf = io.BytesIO()
     wb.save(buf)
@@ -692,6 +701,162 @@ def api_balance_export():
         return pdf_response(buf, 'balance.pdf')
     wb = make_excel(headers, rows, 'Balance')
     return excel_response(wb, 'balance.xlsx')
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# API — AMENITIES & RESERVAS DE AMENITIES
+# ══════════════════════════════════════════════════════════════════════════════
+@app.route('/api/consorcios/<cid>/amenities', methods=['GET'])
+@require_auth()
+def api_amenities_list(cid):
+    res = supabase.table('amenities').select('*').eq('consorcio_id', cid).order('nombre').execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/consorcios/<cid>/amenities', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_amenities_create(cid):
+    d = request.json
+    payload = {
+        'consorcio_id': cid,
+        'nombre': d.get('nombre', '').strip(),
+        'descripcion': d.get('descripcion', ''),
+        'condiciones_uso': d.get('condiciones_uso', ''),
+        'capacidad_maxima': d.get('capacidad_maxima') or None,
+    }
+    res = supabase.table('amenities').insert(payload).execute()
+    return jsonify(res.data[0] if res.data else {}), 201
+
+
+@app.route('/api/consorcios/<cid>/amenities/<aid>', methods=['PUT'])
+@require_auth(allowed_roles=['admin'])
+def api_amenities_update(cid, aid):
+    d = request.json
+    payload = {k: v for k, v in {
+        'nombre': d.get('nombre'),
+        'descripcion': d.get('descripcion'),
+        'condiciones_uso': d.get('condiciones_uso'),
+        'capacidad_maxima': d.get('capacidad_maxima'),
+    }.items() if v is not None}
+    res = supabase.table('amenities').update(payload).eq('id', aid).eq('consorcio_id', cid).execute()
+    return jsonify(res.data[0] if res.data else {})
+
+
+@app.route('/api/consorcios/<cid>/amenities/<aid>', methods=['DELETE'])
+@require_auth(allowed_roles=['admin'])
+def api_amenities_delete(cid, aid):
+    supabase.table('amenities').delete().eq('id', aid).eq('consorcio_id', cid).execute()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/reservas_amenities', methods=['GET'])
+@require_auth()
+def api_reservas_list():
+    user = session['user']
+    consorcio_id = request.args.get('consorcio_id')
+    amenity_id = request.args.get('amenity_id')
+    fecha = request.args.get('fecha')
+
+    q = supabase.table('reservas_amenities').select('*, amenities(nombre), vecinos(nombre, unidad)')
+
+    if user['role'] == 'admin':
+        if amenity_id:
+            q = q.eq('amenity_id', amenity_id)
+        elif consorcio_id:
+            res_amenities = supabase.table('amenities').select('id').eq('consorcio_id', consorcio_id).execute()
+            ids = [a['id'] for a in res_amenities.data]
+            if ids:
+                q = q.in_('amenity_id', ids)
+            else:
+                return jsonify([])
+    else:
+        vecino_id = get_vecino_id()
+        if request.args.get('only_mine') == 'true':
+            q = q.eq('vecino_id', vecino_id)
+        elif amenity_id:
+            q = q.eq('amenity_id', amenity_id)
+        else:
+            q = q.eq('vecino_id', vecino_id)
+
+    if fecha:
+        q = q.eq('fecha', fecha)
+
+    res = q.order('fecha').order('hora_inicio').execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/reservas_amenities', methods=['POST'])
+@require_auth()
+def api_reservas_create():
+    user = session['user']
+    d = request.json
+    amenity_id = d['amenity_id']
+    fecha = d['fecha']
+    hora_inicio = d['hora_inicio']
+    hora_fin = d['hora_fin']
+
+    if user['role'] == 'admin':
+        vecino_id = d.get('vecino_id') or None
+    else:
+        vecino_id = get_vecino_id()
+
+    # Validar formato
+    if not amenity_id or not fecha or not hora_inicio or not hora_fin:
+        return jsonify({'error': 'Faltan datos obligatorios'}), 400
+
+    # Comprobar conflictos de horario
+    conflicts_res = supabase.table('reservas_amenities').select('*')\
+        .eq('amenity_id', amenity_id)\
+        .eq('fecha', fecha)\
+        .eq('estado', 'confirmada')\
+        .execute()
+
+    def to_minutes(t_str):
+        parts = list(map(int, t_str.split(':')[:2]))
+        return parts[0] * 60 + parts[1]
+
+    try:
+        new_start = to_minutes(hora_inicio)
+        new_end = to_minutes(hora_fin)
+    except Exception:
+        return jsonify({'error': 'Formato de hora inválido'}), 400
+
+    if new_start >= new_end:
+        return jsonify({'error': 'La hora de inicio debe ser anterior a la hora de fin'}), 400
+
+    for r in conflicts_res.data:
+        est_start = to_minutes(r['hora_inicio'])
+        est_end = to_minutes(r['hora_fin'])
+        if new_start < est_end and new_end > est_start:
+            return jsonify({'error': 'El horario seleccionado entra en conflicto con otra reserva'}), 400
+
+    payload = {
+        'amenity_id': amenity_id,
+        'vecino_id': vecino_id,
+        'fecha': fecha,
+        'hora_inicio': hora_inicio,
+        'hora_fin': hora_fin,
+        'estado': 'confirmada'
+    }
+    res = supabase.table('reservas_amenities').insert(payload).execute()
+    return jsonify(res.data[0] if res.data else {}), 201
+
+
+@app.route('/api/reservas_amenities/<rid>', methods=['DELETE'])
+@require_auth()
+def api_reservas_delete(rid):
+    user = session['user']
+    if user['role'] == 'admin':
+        supabase.table('reservas_amenities').delete().eq('id', rid).execute()
+    else:
+        vecino_id = get_vecino_id()
+        booking = supabase.table('reservas_amenities').select('vecino_id').eq('id', rid).single().execute()
+        if booking.data and booking.data['vecino_id'] == vecino_id:
+            supabase.table('reservas_amenities').delete().eq('id', rid).execute()
+        else:
+            return jsonify({'error': 'Sin permiso para cancelar esta reserva'}), 403
+
+    return jsonify({'ok': True})
 
 
 # ── API: datos del dashboard ───────────────────────────────────────────────────

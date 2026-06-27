@@ -222,6 +222,7 @@
         <a class="nav-link" onclick="show('gastos',this)">💸 Gastos</a>
         <a class="nav-link" onclick="show('cobros',this)">💳 Cobros</a>
         <a class="nav-link" onclick="show('proveedores',this)">🤝 Proveedores</a>
+        <a class="nav-link" onclick="show('amenities',this)">🏊 Amenities</a>
 
         <div class="nav-section-label">Finanzas</div>
         <a class="nav-link" onclick="show('balance',this)">📊 Balance</a>
@@ -439,6 +440,46 @@
     </div>
 </div>
 
+
+<!-- ═══ AMENITIES ═══ -->
+<div id="sec-amenities" class="section">
+    <div class="page-header">
+        <div><h1 class="page-title">Amenities</h1><p class="page-sub">Espacios comunes y reservas del consorcio</p></div>
+        <button class="btn-p btn-sm" onclick="openAmenityModal()">+ Nuevo amenity</button>
+    </div>
+    <div class="filters">
+        <select class="form-ctrl" id="filter-amenities-consorcio" onchange="loadAmenitiesAndReservations()">
+            <option value="">Seleccionar consorcio...</option>
+        </select>
+    </div>
+    <div class="tabs">
+        <button class="tab-btn active" id="btn-tab-amenities-list" onclick="amenitiesTab('list',this)">Listado de Amenities</button>
+        <button class="tab-btn" id="btn-tab-amenities-res" onclick="amenitiesTab('reservations',this)">Listado de Reservas</button>
+    </div>
+
+    <!-- Listado -->
+    <div id="tab-amenities-list">
+        <div class="card">
+            <div class="card-h"><span class="card-t">Amenities del Consorcio</span></div>
+            <table class="tbl">
+                <thead><tr><th>Nombre</th><th>Capacidad Max.</th><th>Descripción</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-amenities"><tr><td colspan="4" class="tbl-empty">Seleccioná un consorcio para ver sus amenities</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Reservas -->
+    <div id="tab-amenities-reservations" style="display:none;">
+        <div class="card">
+            <div class="card-h"><span class="card-t">Reservas Realizadas</span></div>
+            <table class="tbl">
+                <thead><tr><th>Amenity</th><th>Vecino</th><th>Unidad</th><th>Fecha</th><th>Horario</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-amenities-reservations"><tr><td colspan="7" class="tbl-empty">Seleccioná un consorcio para ver las reservas</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 </div><!-- /main -->
 
 <!-- ════════════════ MODALES ════════════════ -->
@@ -464,6 +505,26 @@
         <div class="modal-footer">
             <button class="btn-s" onclick="closeModal('modal-consorcio')">Cancelar</button>
             <button class="btn-p" onclick="saveConsorcio()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Amenity -->
+<div class="modal-overlay" id="modal-amenity">
+    <div class="modal-box">
+        <div class="modal-head"><h3 id="m-amenity-title">Nuevo amenity</h3><button class="modal-close" onclick="closeModal('modal-amenity')">✕</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="m-amenity-id">
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Nombre *</label><input class="form-ctrl" id="m-amenity-nombre" placeholder="SUM / Piscina / Parrilla"></div>
+                <div class="form-group"><label class="form-label">Capacidad Máxima</label><input type="number" class="form-ctrl" id="m-amenity-capacidad" placeholder="Ej: 30"></div>
+            </div>
+            <div class="form-group"><label class="form-label">Descripción</label><input class="form-ctrl" id="m-amenity-desc" placeholder="Breve descripción del espacio"></div>
+            <div class="form-group"><label class="form-label">Condiciones de Uso</label><textarea class="form-ctrl" id="m-amenity-condiciones" rows="4" placeholder="Normas de convivencia, limpieza, horarios..."></textarea></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-amenity')">Cancelar</button>
+            <button class="btn-p" onclick="saveAmenity()">Guardar</button>
         </div>
     </div>
 </div>
@@ -698,6 +759,7 @@ function show(id, el) {
     if (id === 'cobros')       initCobros();
     if (id === 'proveedores')  loadProveedores();
     if (id === 'balance')      initBalance();
+    if (id === 'amenities')    initAmenities();
 }
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
@@ -772,7 +834,7 @@ function populateConsorioSelects() {
     const opts = '<option value="">Todos</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
     const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
     ['filter-gastos-consorcio','filter-cobros-consorcio','filter-mora-consorcio','filter-balance-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts; });
-    ['m-gasto-consorcio','m-gen-consorcio','m-bulk-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts2; });
+    ['m-gasto-consorcio','m-gen-consorcio','m-bulk-consorcio','filter-amenities-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts2; });
 }
 
 function openConsorioModal(id) {
@@ -1237,7 +1299,167 @@ function exportBalance(fmt_) {
     const cid = $('filter-balance-consorcio')?.value; if(cid) params.set('consorcio_id',cid);
     const desde = $('filter-balance-desde')?.value; if(desde) params.set('desde',desde);
     const hasta = $('filter-balance-hasta')?.value; if(hasta) params.set('hasta',hasta);
-    window.location.href = '/api/balance/export?'+params;
+        window.location.href = '/api/balance/export?'+params;
+}
+
+// ── AMENITIES ─────────────────────────────────────────────────────────────────
+let loadedAmenities = [];
+let loadedReservations = [];
+
+async function initAmenities() {
+    if (!consorcios.length) {
+        await loadConsorcios();
+    }
+    if (consorcios.length && !$('filter-amenities-consorcio').value) {
+        $('filter-amenities-consorcio').value = consorcios[0].id;
+    }
+    loadAmenitiesAndReservations();
+}
+
+async function loadAmenitiesAndReservations() {
+    const cid = $('filter-amenities-consorcio').value;
+    if (!cid) {
+        $('tbody-amenities').innerHTML = '<tr><td colspan="4" class="tbl-empty">Seleccioná un consorcio para ver sus amenities</td></tr>';
+        $('tbody-amenities-reservations').innerHTML = '<tr><td colspan="7" class="tbl-empty">Seleccioná un consorcio para ver las reservas</td></tr>';
+        return;
+    }
+    try {
+        const [amenities, reservations] = await Promise.all([
+            api(`/api/consorcios/${cid}/amenities`),
+            api(`/api/reservas_amenities?consorcio_id=${cid}`)
+        ]);
+        loadedAmenities = amenities;
+        loadedReservations = reservations;
+        renderAmenities();
+        renderAmenitiesReservations();
+    } catch(e) { toast(e.message, 'err'); }
+}
+
+function renderAmenities() {
+    const tb = $('tbody-amenities');
+    if (!loadedAmenities.length) {
+        tb.innerHTML = '<tr><td colspan="4" class="tbl-empty">No hay amenities cargados. ¡Añadí el primero!</td></tr>';
+        return;
+    }
+    tb.innerHTML = loadedAmenities.map(a => `
+        <tr>
+            <td><strong>${a.nombre}</strong></td>
+            <td>${a.capacidad_maxima || 'Sin límite'}</td>
+            <td class="text-muted text-sm">${a.descripcion || '—'}</td>
+            <td>
+                <div class="inline-actions">
+                    <button class="btn-s btn-sm" onclick="openAmenityModal('${a.id}')">✏️ Editar</button>
+                    <button class="btn-danger btn-sm" onclick="deleteAmenity('${a.id}')">✕ Eliminar</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderAmenitiesReservations() {
+    const tb = $('tbody-amenities-reservations');
+    if (!loadedReservations.length) {
+        tb.innerHTML = '<tr><td colspan="7" class="tbl-empty">No hay reservas registradas.</td></tr>';
+        return;
+    }
+    tb.innerHTML = loadedReservations.map(r => `
+        <tr>
+            <td><strong>${(r.amenities||{}).nombre || '—'}</strong></td>
+            <td>${(r.vecinos||{}).nombre || 'Administración'}</td>
+            <td>${(r.vecinos||{}).unidad || '—'}</td>
+            <td>${r.fecha}</td>
+            <td>${r.hora_inicio.substring(0, 5)} - ${r.hora_fin.substring(0, 5)}</td>
+            <td>${statusBadge(r.estado)}</td>
+            <td>
+                ${r.estado === 'confirmada' ? `<button class="btn-danger btn-sm" onclick="cancelReservaAdmin('${r.id}')">✕ Cancelar</button>` : '—'}
+            </td>
+        </tr>
+    `).join('');
+}
+
+function openAmenityModal(id) {
+    const cid = $('filter-amenities-consorcio').value;
+    if (!cid) {
+        toast('Seleccioná un consorcio primero', 'warn');
+        return;
+    }
+    $('m-amenity-id').value = '';
+    $('m-amenity-nombre').value = '';
+    $('m-amenity-capacidad').value = '';
+    $('m-amenity-desc').value = '';
+    $('m-amenity-condiciones').value = '';
+    $('m-amenity-title').textContent = 'Nuevo amenity';
+
+    if (id) {
+        const a = loadedAmenities.find(x => x.id === id);
+        if (!a) return;
+        $('m-amenity-id').value = a.id;
+        $('m-amenity-title').textContent = 'Editar amenity';
+        $('m-amenity-nombre').value = a.nombre || '';
+        $('m-amenity-capacidad').value = a.capacidad_maxima || '';
+        $('m-amenity-desc').value = a.descripcion || '';
+        $('m-amenity-condiciones').value = a.condiciones_uso || '';
+    }
+    openModal('modal-amenity');
+}
+
+async function saveAmenity() {
+    const cid = $('filter-amenities-consorcio').value;
+    const id = $('m-amenity-id').value;
+    const nombre = $('m-amenity-nombre').value.trim();
+    const cap = parseInt($('m-amenity-capacidad').value) || null;
+    const desc = $('m-amenity-desc').value.trim();
+    const cond = $('m-amenity-condiciones').value.trim();
+
+    if (!nombre) {
+        toast('El nombre es obligatorio', 'warn');
+        return;
+    }
+
+    const payload = { nombre, capacidad_maxima: cap, descripcion: desc, condiciones_uso: cond };
+
+    try {
+        if (id) {
+            await api(`/api/consorcios/${cid}/amenities/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+            toast('Amenity actualizado');
+        } else {
+            await api(`/api/consorcios/${cid}/amenities`, { method: 'POST', body: JSON.stringify(payload) });
+            toast('Amenity creado');
+        }
+        closeModal('modal-amenity');
+        loadAmenitiesAndReservations();
+    } catch(e) { toast(e.message, 'err'); }
+}
+
+async function deleteAmenity(id) {
+    if (!confirm('¿Estás seguro de eliminar este amenity? Se cancelarán todas sus reservas.')) return;
+    const cid = $('filter-amenities-consorcio').value;
+    try {
+        await api(`/api/consorcios/${cid}/amenities/${id}`, { method: 'DELETE' });
+        toast('Amenity eliminado');
+        loadAmenitiesAndReservations();
+    } catch(e) { toast(e.message, 'err'); }
+}
+
+async function cancelReservaAdmin(rid) {
+    if (!confirm('¿Estás seguro de cancelar esta reserva?')) return;
+    try {
+        await api(`/api/reservas_amenities/${rid}`, { method: 'DELETE' });
+        toast('Reserva cancelada');
+        loadAmenitiesAndReservations();
+    } catch(e) { toast(e.message, 'err'); }
+}
+
+function amenitiesTab(tab, el) {
+    document.querySelectorAll('#sec-amenities .tab-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    if (tab === 'list') {
+        $('tab-amenities-list').style.display = 'block';
+        $('tab-amenities-reservations').style.display = 'none';
+    } else {
+        $('tab-amenities-list').style.display = 'none';
+        $('tab-amenities-reservations').style.display = 'block';
+    }
 }
 
 // ── Theme ─────────────────────────────────────────────────────────────────────

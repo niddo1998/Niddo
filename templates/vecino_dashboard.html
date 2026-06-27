@@ -207,7 +207,53 @@
             .stats-grid { grid-template-columns: 1fr; }
             .card-grid { grid-template-columns: 1fr; }
             .section-title { font-size: 1.2rem; }
+        /* Modal and general input/form styles */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 9000;
+            display: none; align-items: center; justify-content: center;
         }
+        .modal-overlay.open { display: flex; animation: fadeIn .15s ease; }
+        .modal-box {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+            width: 560px; max-width: 94vw; max-height: 88vh; overflow-y: auto;
+            box-shadow: 0 24px 60px rgba(0,0,0,.45); animation: modalIn .2s ease;
+            padding: 20px;
+        }
+        .modal-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px; }
+        .modal-head h3 { font-size: 1.05rem; font-weight: 700; margin: 0; }
+        .modal-close { background: none; border: none; font-size: 1.2rem; color: var(--muted); cursor: pointer; }
+        .modal-close:hover { color: var(--text); }
+        .modal-body { color: var(--text); line-height: 1.6; font-size: 0.95rem; }
+        .form-ctrl {
+            border-radius: 7px; border: 1px solid var(--border); font-size: .83rem;
+            background: rgba(255,255,255,0.03); color: var(--text); padding: 8px 11px;
+            font-family: 'Inter',sans-serif; width: 100%; outline: none;
+            transition: border-color .2s;
+        }
+        :root.light .form-ctrl {
+            background: #ffffff;
+            color: #111118;
+            border: 1px solid rgba(0,0,0,0.12);
+        }
+        .form-ctrl:focus { border-color: var(--teal); }
+        .btn-action.secondary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Toast style */
+        .toast-container { position: fixed; bottom: 22px; right: 22px; z-index: 9999;
+                           display: flex; flex-direction: column-reverse; gap: 8px; }
+        .toast-msg { padding: 10px 16px; border-radius: 8px; font-size: .83rem; font-weight: 500;
+                     color: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.25); max-width: 340px;
+                     animation: toastIn .25s ease, toastOut .3s ease 2.7s forwards; }
+        .toast-msg.ok { background: #10B981; } .toast-msg.err { background: #EF4444; }
+        .toast-msg.info { background: #3B82F6; } .toast-msg.warn { background: #F59E0B; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes modalIn { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+        @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-8px); } }
     </style>
 </head>
 <body>
@@ -578,107 +624,87 @@
             <section id="reservas" class="section">
                 <h1 class="section-title">
                     <i class="fas fa-calendar-check"></i>
-                    Reservas
+                    Reservas de Amenities
                 </h1>
-                <p class="section-subtitle">Gestiona tus reservas de espacios comunes</p>
+                <p class="section-subtitle">Consulta disponibilidad, lee las condiciones y reserva espacios comunes</p>
 
-                <div class="card-grid">
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-plus"></i>
+                <!-- Panel de Nueva Reserva -->
+                <div class="table-container" style="padding: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 25px;">
+                    <h3 style="margin-bottom: 15px; color: var(--text);">📅 Nueva Reserva</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label class="form-label" style="display:block; margin-bottom: 5px; font-weight:600; font-size:.8rem;">Espacio Común / Amenity</label>
+                            <select id="reserva-amenity-select" class="form-ctrl" style="width:100%;" onchange="onAmenitySelected()">
+                                <option value="">Cargando amenities...</option>
+                            </select>
                         </div>
-                        <div class="card-title">Nueva Reserva</div>
-                        <div class="card-description">Reserva un espacio disponible</div>
+                        <div>
+                            <label class="form-label" style="display:block; margin-bottom: 5px; font-weight:600; font-size:.8rem;">Fecha</label>
+                            <input type="date" id="reserva-fecha" class="form-ctrl" style="width:100%;" onchange="onReservaDateChanged()">
+                        </div>
+                        <div>
+                            <label class="form-label" style="display:block; margin-bottom: 5px; font-weight:600; font-size:.8rem;">Hora de Inicio</label>
+                            <input type="time" id="reserva-hora-inicio" class="form-ctrl" style="width:100%;">
+                        </div>
+                        <div>
+                            <label class="form-label" style="display:block; margin-bottom: 5px; font-weight:600; font-size:.8rem;">Hora de Fin</label>
+                            <input type="time" id="reserva-hora-fin" class="form-ctrl" style="width:100%;">
+                        </div>
                     </div>
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-list"></i>
-                        </div>
-                        <div class="card-title">Mis Reservas</div>
-                        <div class="card-description">Consulta tus reservas activas</div>
-                    </div>
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-calendar"></i>
-                        </div>
-                        <div class="card-title">Calendario</div>
-                        <div class="card-description">Ver disponibilidad de espacios</div>
+
+                    <!-- Botones de Acción y Detalles de Condiciones -->
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 15px;">
+                        <button class="btn-action" style="padding: 8px 20px;" onclick="realizarReserva()">Confirmar Reserva</button>
+                        <button class="btn-action secondary" style="padding: 8px 20px;" id="btn-condiciones" onclick="verCondiciones()" disabled>📖 Condiciones de Uso</button>
+                        <span id="amenity-desc-lbl" style="font-size:0.85rem; color:var(--muted); margin-left: 10px;">Selecciona un espacio para ver los detalles</span>
                     </div>
                 </div>
 
+                <!-- Calendario de disponibilidad del día seleccionado -->
+                <div class="table-container" style="margin-bottom: 25px;">
+                    <h3 id="disponibilidad-fecha-titulo" style="padding: 20px; margin: 0; border-bottom: 1px solid var(--border); background: var(--surface);">Disponibilidad y Horarios Reservados</h3>
+                    <div style="padding: 20px; background: var(--surface);">
+                        <div id="disponibilidad-lista" style="display: flex; flex-direction: column; gap: 10px;">
+                            <p style="color: var(--muted); font-size: 0.9rem;">Selecciona un amenity y fecha para ver qué horarios ya están tomados.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mis Reservas Table -->
                 <div class="table-container">
+                    <h3 style="padding: 20px; margin: 0; border-bottom: 1px solid var(--border); background: var(--surface);">Mis Reservas Registradas</h3>
                     <table class="table">
                         <thead>
                             <tr>
                                 <th>Espacio</th>
                                 <th>Fecha</th>
-                                <th>Hora</th>
+                                <th>Horario</th>
                                 <th>Estado</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="tbody-mis-reservas">
                             <tr>
-                                <td>Salón de Usos Múltiples</td>
-                                <td>2025-04-15</td>
-                                <td>19:00 - 23:00</td>
-                                <td><span class="badge-status activo">Confirmada</span></td>
-                                <td><button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;">Cancelar</button></td>
-                            </tr>
-                            <tr>
-                                <td>Cancha de Tenis</td>
-                                <td>2025-04-20</td>
-                                <td>16:00 - 18:00</td>
-                                <td><span class="badge-status activo">Confirmada</span></td>
-                                <td><button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;">Cancelar</button></td>
-                            </tr>
-                            <tr>
-                                <td>Quincho</td>
-                                <td>2025-05-10</td>
-                                <td>12:00 - 18:00</td>
-                                <td><span class="badge-status pendiente">Pendiente Confirmación</span></td>
-                                <td><button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;">Ver Detalles</button></td>
+                                <td colspan="5" class="text-center" style="padding: 20px; color: var(--muted);">Cargando tus reservas...</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
-                <div class="table-container" style="margin-top: 30px;">
-                    <h3 style="padding: 20px 0 0 0; margin-bottom: 0;">Espacios Disponibles</h3>
-                    <table class="table" style="margin-top: 15px;">
-                        <thead>
-                            <tr>
-                                <th>Espacio</th>
-                                <th>Capacidad</th>
-                                <th>Precio/Hora</th>
-                                <th>Próximas Disponibilidades</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Salón de Usos Múltiples</td>
-                                <td>80 personas</td>
-                                <td>$50.00</td>
-                                <td>Abr 18, 19, 21, 25</td>
-                                <td><button class="btn-action" style="padding: 6px 12px; font-size: 0.85rem;">Reservar</button></td>
-                            </tr>
-                            <tr>
-                                <td>Cancha de Tenis</td>
-                                <td>4 personas</td>
-                                <td>$30.00</td>
-                                <td>Abr 16, 17, 22, 23</td>
-                                <td><button class="btn-action" style="padding: 6px 12px; font-size: 0.85rem;">Reservar</button></td>
-                            </tr>
-                            <tr>
-                                <td>Quincho</td>
-                                <td>30 personas</td>
-                                <td>$40.00</td>
-                                <td>Abr 12, 14, 26, 28</td>
-                                <td><button class="btn-action" style="padding: 6px 12px; font-size: 0.85rem;">Reservar</button></td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <!-- Modal de Condiciones de Uso -->
+                <div class="modal-overlay" id="modal-condiciones">
+                    <div class="modal-box">
+                        <div class="modal-head">
+                            <h3 id="condiciones-titulo">Condiciones de Uso</h3>
+                            <button class="modal-close" onclick="closeModal('modal-condiciones')">✕</button>
+                        </div>
+                        <div class="modal-body" id="condiciones-cuerpo" style="white-space: pre-wrap;">
+                            No hay condiciones especificadas para este espacio.
+                        </div>
+                        <div style="margin-top: 20px; display:flex; justify-content:flex-end;">
+                            <button class="btn-action" onclick="closeModal('modal-condiciones')">Cerrar</button>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -1141,6 +1167,9 @@
         </div>
     </div>
 
+    <!-- Toast container -->
+    <div class="toast-container" id="toasts"></div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function showSection(sectionId, button) {
@@ -1162,6 +1191,11 @@
             setTimeout(() => {
                 initCharts();
             }, 100);
+
+            // Lazy load reservas
+            if (sectionId === 'reservas') {
+                initReservas();
+            }
         }
 
         function initCharts() {
@@ -1244,6 +1278,196 @@
         document.addEventListener('DOMContentLoaded', function() {
             initCharts();
         });
+
+        // ── RESERVAS DE AMENITIES ───────────────────────────────────────────────
+        let consorcioId = null;
+        let amenities = [];
+        let misReservas = [];
+        let reservasOcupadas = [];
+
+        const $ = id => document.getElementById(id);
+        const toast = (msg, type='ok') => {
+            const t = document.createElement('div');
+            t.className = `toast-msg ${type}`; t.textContent = msg;
+            $('toasts').appendChild(t);
+            setTimeout(() => t.remove(), 3200);
+        };
+        const api = async (url, opts={}) => {
+            const r = await fetch(url, {headers:{'Content-Type':'application/json'}, ...opts});
+            if (!r.ok) { const e = await r.json().catch(()=>({error:'Error'})); throw new Error(e.error||'Error'); }
+            return r.json();
+        };
+        function openModal(id) { $(id).classList.add('open'); }
+        function closeModal(id) { $(id).classList.remove('open'); }
+
+        async function initReservas() {
+            try {
+                const me = await api('/api/me');
+                consorcioId = me.consorcio_id;
+
+                if (!consorcioId) {
+                    $('reserva-amenity-select').innerHTML = '<option value="">No perteneces a ningún consorcio</option>';
+                    $('tbody-mis-reservas').innerHTML = '<tr><td colspan="5" class="text-center" style="padding: 20px; color: var(--muted);">No hay consorcio asociado a tu perfil.</td></tr>';
+                    return;
+                }
+
+                amenities = await api(`/api/consorcios/${consorcioId}/amenities`);
+                
+                const select = $('reserva-amenity-select');
+                if (!amenities.length) {
+                    select.innerHTML = '<option value="">Sin amenities disponibles</option>';
+                } else {
+                    select.innerHTML = amenities.map(a => `<option value="${a.id}">${a.nombre}</option>`).join('');
+                }
+
+                if (!$('reserva-fecha').value) {
+                    $('reserva-fecha').value = new Date().toISOString().split('T')[0];
+                }
+
+                onAmenitySelected();
+                loadMisReservas();
+
+            } catch (e) {
+                toast(e.message, 'err');
+            }
+        }
+
+        function onAmenitySelected() {
+            const aid = $('reserva-amenity-select').value;
+            const btnCond = $('btn-condiciones');
+            const descLbl = $('amenity-desc-lbl');
+
+            if (!aid) {
+                btnCond.disabled = true;
+                descLbl.textContent = 'Selecciona un espacio para ver los detalles';
+                return;
+            }
+
+            const amenity = amenities.find(a => a.id === aid);
+            if (amenity) {
+                btnCond.disabled = false;
+                descLbl.textContent = `Capacidad Máx: ${amenity.capacidad_maxima || 'Sin límite'} personas. ${amenity.descripcion || ''}`;
+            }
+
+            onReservaDateChanged();
+        }
+
+        async function onReservaDateChanged() {
+            const aid = $('reserva-amenity-select').value;
+            const fecha = $('reserva-fecha').value;
+            const lista = $('disponibilidad-lista');
+            const titulo = $('disponibilidad-fecha-titulo');
+
+            if (!aid || !fecha) {
+                lista.innerHTML = '<p style="color: var(--muted); font-size: 0.9rem;">Selecciona un amenity y fecha para ver la disponibilidad.</p>';
+                return;
+            }
+
+            const dateObj = new Date(fecha + 'T00:00:00');
+            const dateStr = dateObj.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            titulo.textContent = `Disponibilidad y Horarios Reservados — ${dateStr}`;
+
+            try {
+                reservasOcupadas = await api(`/api/reservas_amenities?amenity_id=${aid}&fecha=${fecha}`);
+                if (!reservasOcupadas.length) {
+                    lista.innerHTML = '<div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); padding: 15px; border-radius: 8px; color: #10B981; font-weight: 500;">✓ Todo el día disponible para reservar.</div>';
+                } else {
+                    lista.innerHTML = `
+                        <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 8px;">Los siguientes horarios ya están ocupados para este día:</p>
+                        <div style="display:flex; flex-direction:column; gap:6px;">
+                            ${reservasOcupadas.map(r => `
+                                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); padding: 10px 14px; border-radius: 6px; display:flex; justify-content:space-between; align-items:center;">
+                                    <span style="font-weight: 600; color: #f87171;">🚫 ${r.hora_inicio.substring(0, 5)} - ${r.hora_fin.substring(0, 5)}</span>
+                                    <span style="font-size:0.8rem; color:var(--muted);">Reservado por Unidad ${(r.vecinos||{}).unidad || '—'}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                toast(e.message, 'err');
+            }
+        }
+
+        function verCondiciones() {
+            const aid = $('reserva-amenity-select').value;
+            if (!aid) return;
+
+            const amenity = amenities.find(a => a.id === aid);
+            if (amenity) {
+                $('condiciones-titulo').textContent = `Condiciones de Uso — ${amenity.nombre}`;
+                $('condiciones-cuerpo').textContent = amenity.condiciones_uso || 'No hay condiciones específicas precargadas para este espacio.';
+                openModal('modal-condiciones');
+            }
+        }
+
+        async function realizarReserva() {
+            const aid = $('reserva-amenity-select').value;
+            const fecha = $('reserva-fecha').value;
+            const horaInicio = $('reserva-hora-inicio').value;
+            const horaFin = $('reserva-hora-fin').value;
+
+            if (!aid || !fecha || !horaInicio || !horaFin) {
+                toast('Por favor completa todos los campos de la reserva', 'warn');
+                return;
+            }
+
+            try {
+                await api('/api/reservas_amenities', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        amenity_id: aid,
+                        fecha: fecha,
+                        hora_inicio: horaInicio,
+                        hora_fin: horaFin
+                    })
+                });
+
+                toast('✓ Reserva realizada con éxito!', 'ok');
+                onReservaDateChanged();
+                loadMisReservas();
+            } catch (e) {
+                toast(e.message, 'err');
+            }
+        }
+
+        async function loadMisReservas() {
+            const tbody = $('tbody-mis-reservas');
+            try {
+                misReservas = await api('/api/reservas_amenities?only_mine=true');
+                if (!misReservas.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center" style="padding: 20px; color: var(--muted);">No tienes reservas registradas.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = misReservas.map(r => `
+                    <tr>
+                        <td><strong>${(r.amenities||{}).nombre || '—'}</strong></td>
+                        <td>${r.fecha}</td>
+                        <td>${r.hora_inicio.substring(0, 5)} - ${r.hora_fin.substring(0, 5)}</td>
+                        <td><span class="badge-status pagado" style="background: rgba(16,185,129,0.12); color: var(--teal); padding: 2px 8px; border-radius: 4px; font-size: 0.85rem;">Confirmada</span></td>
+                        <td>
+                            <button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;" onclick="cancelarReserva('${r.id}')">Cancelar</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center" style="padding: 20px; color: #EF4444;">Error al cargar reservas.</td></tr>';
+            }
+        }
+
+        async function cancelarReserva(rid) {
+            if (!confirm('¿Estás seguro de que deseas cancelar esta reserva?')) return;
+            try {
+                await api(`/api/reservas_amenities/${rid}`, { method: 'DELETE' });
+                toast('Reserva cancelada');
+                loadMisReservas();
+                onReservaDateChanged();
+            } catch (e) {
+                toast(e.message, 'err');
+            }
+        }
 
         // Theme toggle
         (function() {
