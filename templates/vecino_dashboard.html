@@ -257,6 +257,33 @@
     </style>
 </head>
 <body>
+    <!-- Bloqueo obligatorio: Asociación de Consorcio -->
+    <div id="onboarding-overlay" style="display: none; position: fixed; inset: 0; background: var(--bg); z-index: 99999; align-items: center; justify-content: center; padding: 20px;">
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 35px; width: 480px; max-width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.5); text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 15px;">🏢</div>
+            <h2 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 10px; color: var(--text);">¡Te damos la bienvenida a Niddo!</h2>
+            <p style="color: var(--muted); font-size: 0.9rem; margin-bottom: 25px; line-height: 1.5;">Para poder acceder a tus expensas, reservar amenities y comunicarte con la administración, necesitamos que asocies tu cuenta a tu consorcio y unidad funcional.</p>
+            
+            <div style="text-align: left; margin-bottom: 20px;">
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label class="form-label" style="display:block; margin-bottom: 5px; font-weight:600; font-size:.8rem; color:var(--muted);">1. Selecciona tu Consorcio / Edificio</label>
+                    <select id="onboarding-consorcio" class="form-ctrl" onchange="onOnboardingConsorcioChanged()">
+                        <option value="">Cargando consorcios...</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label class="form-label" style="display:block; margin-bottom: 5px; font-weight:600; font-size:.8rem; color:var(--muted);">2. Selecciona tu Unidad Funcional</label>
+                    <select id="onboarding-unidad" class="form-ctrl" disabled>
+                        <option value="">Selecciona un consorcio primero</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn-action" style="width: 100%; padding: 12px; font-weight:600; font-size: 0.95rem;" onclick="guardarAsociacionOnboarding()">Asociar y Comenzar</button>
+            <p style="font-size:0.75rem; color: var(--muted); margin-top: 15px;">¿No encuentras tu unidad? Contáctate con el administrador de tu edificio para que la registre.</p>
+        </div>
+    </div>
+
     <div class="dashboard-container">
         <!-- Sidebar -->
         <aside class="sidebar">
@@ -1277,6 +1304,7 @@
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
             initCharts();
+            checkVecinoProfile();
         });
 
         // ── RESERVAS DE AMENITIES ───────────────────────────────────────────────
@@ -1467,6 +1495,76 @@
             } catch (e) {
                 toast(e.message, 'err');
             }
+        }
+
+        // ── ONBOARDING VECINOS (ASOCIACIÓN OBLIGATORIA DE CONSORCIO) ────────────
+        async function checkVecinoProfile() {
+            try {
+                const me = await api('/api/me');
+                if (!me.consorcio_id) {
+                    $('onboarding-overlay').style.display = 'flex';
+                    document.querySelector('.dashboard-container').style.display = 'none';
+                    loadOnboardingConsorcios();
+                } else {
+                    $('onboarding-overlay').style.display = 'none';
+                    document.querySelector('.dashboard-container').style.display = 'flex';
+                }
+            } catch(e) {
+                toast('Error al verificar perfil de usuario', 'err');
+            }
+        }
+
+        async function loadOnboardingConsorcios() {
+            try {
+                const list = await api('/api/public/consorcios');
+                const select = $('onboarding-consorcio');
+                if (!list.length) {
+                    select.innerHTML = '<option value="">No hay consorcios registrados en el sistema</option>';
+                    return;
+                }
+                select.innerHTML = '<option value="">Selecciona tu consorcio...</option>' + 
+                    list.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
+            } catch(e) { toast(e.message, 'err'); }
+        }
+
+        async function onOnboardingConsorcioChanged() {
+            const cid = $('onboarding-consorcio').value;
+            const selectUnit = $('onboarding-unidad');
+            if (!cid) {
+                selectUnit.innerHTML = '<option value="">Selecciona un consorcio primero</option>';
+                selectUnit.disabled = true;
+                return;
+            }
+            try {
+                const list = await api(`/api/public/consorcios/${cid}/unidades-libres`);
+                if (!list.length) {
+                    selectUnit.innerHTML = '<option value="">No hay unidades disponibles libres en este consorcio</option>';
+                    selectUnit.disabled = true;
+                    return;
+                }
+                selectUnit.innerHTML = '<option value="">Selecciona tu unidad...</option>' +
+                    list.map(u => `<option value="${u.id}">UF ${u.numero} (Piso ${u.piso || '—'} - ${u.tipo})</option>`).join('');
+                selectUnit.disabled = false;
+            } catch(e) { toast(e.message, 'err'); }
+        }
+
+        async function guardarAsociacionOnboarding() {
+            const cid = $('onboarding-consorcio').value;
+            const uid = $('onboarding-unidad').value;
+            if (!cid || !uid) {
+                toast('Debes seleccionar tanto tu consorcio como tu unidad', 'warn');
+                return;
+            }
+            try {
+                await api('/api/vecinos/asociar', {
+                    method: 'POST',
+                    body: JSON.stringify({ consorcio_id: cid, unidad_id: uid })
+                });
+                toast('¡Consorcio asociado con éxito! Iniciando...', 'ok');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } catch(e) { toast(e.message, 'err'); }
         }
 
         // Theme toggle

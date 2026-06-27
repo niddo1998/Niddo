@@ -69,10 +69,28 @@ def now_iso() -> str:
 
 def upsert_user(role: str, auth0_id: str, email: str, nombre: str) -> None:
     table = 'administradores' if role == 'admin' else 'vecinos'
-    supabase.table(table).upsert(
+    res = supabase.table(table).upsert(
         {'auth0_id': auth0_id, 'email': email, 'nombre': nombre, 'last_login': now_iso()},
         on_conflict='auth0_id'
     ).execute()
+
+    if role == 'vecino' and res.data:
+        vecino_id = res.data[0]['id']
+        current_consorcio = res.data[0].get('consorcio_id')
+        # Si el vecino no tiene consorcio asignado aún, intentar auto-asociación por email
+        if not current_consorcio:
+            uf_res = supabase.table('unidades_funcionales').select('id, consorcio_id, numero').eq('vecino_email', email).is_('vecino_id', 'null').execute()
+            if uf_res.data:
+                uf = uf_res.data[0]
+                # Actualizar el consorcio y unidad del vecino
+                supabase.table('vecinos').update({
+                    'consorcio_id': uf['consorcio_id'],
+                    'unidad': uf['numero']
+                }).eq('id', vecino_id).execute()
+                # Vincular el vecino_id en la unidad funcional
+                supabase.table('unidades_funcionales').update({
+                    'vecino_id': vecino_id
+                }).eq('id', uf['id']).execute()
 
 
 def get_admin_id() -> Optional[str]:
@@ -855,6 +873,67 @@ def api_reservas_delete(rid):
             supabase.table('reservas_amenities').delete().eq('id', rid).execute()
         else:
             return jsonify({'error': 'Sin permiso para cancelar esta reserva'}), 403
+
+    return jsonify({'ok': True})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# API — ASOCIACIÓN DE VECINOS
+# ══════════════════════════════════════════════════════════════════════════════
+@app.route('/api/public/consorcios', methods=['GET'])
+@require_auth()
+def api_public_consorcios():
+    res = supabase.table('consorcios').select('id, nombre').order('nombre').execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/public/consorcios/<cid>/unidades-libres', methods=['GET'])
+@require_auth()
+def api_public_unidades_libres(cid):
+    res = supabase.table('unidades_funcionales')\
+        .select('id, numero, piso, tipo')\
+        .eq('consorcio_id', cid)\
+        .is_('vecino_id', 'null')\
+        .order('numero')\
+        .execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/vecinos/asociar', methods=['POST'])
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_asociar():
+    d = request.json
+    consorcio_id = d.get('consorcio_id')
+    unidad_id = d.get('unidad_id')
+
+    if not consorcio_id or not unidad_id:
+        return jsonify({'error': 'Consorcio y Unidad son campos requeridos'}), 400
+
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify({'error': 'No se pudo identificar tu perfil de vecino'}), 404
+
+    uf_res = supabase.table('unidades_funcionales')\
+        .select('*')\
+        .eq('id', unidad_id)\
+        .eq('consorcio_id', consorcio_id)\
+        .is_('vecino_id', 'null')\
+        .single()\
+        .execute()
+
+    if not uf_res.data:
+        return jsonify({'error': 'La unidad seleccionada no está disponible o no existe'}), 400
+
+    uf = uf_res.data
+
+    supabase.table('vecinos').update({
+        'consorcio_id': consorcio_id,
+        'unidad': uf['numero']
+    }).eq('id', vecino_id).execute()
+
+    supabase.table('unidades_funcionales').update({
+        'vecino_id': vecino_id
+    }).eq('id', unidad_id).execute()
 
     return jsonify({'ok': True})
 
