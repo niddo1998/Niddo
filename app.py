@@ -307,7 +307,31 @@ def api_consorcios_delete(cid):
 @require_auth(allowed_roles=['admin'])
 def api_ufs_list(cid):
     res = supabase.table('unidades_funcionales').select('*').eq('consorcio_id', cid).order('numero').execute()
-    return jsonify(res.data)
+    ufs = res.data or []
+
+    # Obtener todos los vecinos vinculados a este consorcio
+    vecinos_res = supabase.table('vecinos').select('id, nombre, email, rol, unidad, unidad_id').eq('consorcio_id', cid).execute()
+    vecinos = vecinos_res.data or []
+
+    # Agrupar vecinos por unidad_id o por número de unidad como fallback
+    vecinos_por_uf = {}
+    for v in vecinos:
+        key = v.get('unidad_id') or v.get('unidad')
+        if key:
+            if key not in vecinos_por_uf:
+                vecinos_por_uf[key] = []
+            vecinos_por_uf[key].append(v)
+
+    # Asociar los vecinos correspondientes a cada UF
+    for uf in ufs:
+        uf_key_id = uf['id']
+        uf_key_num = uf['numero']
+        associated = vecinos_por_uf.get(uf_key_id, [])
+        if not associated:
+            associated = vecinos_por_uf.get(uf_key_num, [])
+        uf['vecinos_vinculados'] = associated
+
+    return jsonify(ufs)
 
 
 @app.route('/api/consorcios/<cid>/unidades', methods=['POST'])
@@ -893,7 +917,6 @@ def api_public_unidades_libres(cid):
     res = supabase.table('unidades_funcionales')\
         .select('id, numero, piso, tipo')\
         .eq('consorcio_id', cid)\
-        .is_('vecino_id', 'null')\
         .order('numero')\
         .execute()
     return jsonify(res.data)
@@ -905,6 +928,7 @@ def api_vecinos_asociar():
     d = request.json
     consorcio_id = d.get('consorcio_id')
     unidad_id = d.get('unidad_id')
+    rol = d.get('rol', 'propietario')
 
     if not consorcio_id:
         return jsonify({'error': 'El Consorcio es un campo requerido'}), 400
@@ -917,7 +941,8 @@ def api_vecinos_asociar():
         # Modo: No encuentro mi unidad -> Registrar 'Pendiente' de asignación por admin
         supabase.table('vecinos').update({
             'consorcio_id': consorcio_id,
-            'unidad': 'Pendiente'
+            'unidad': 'Pendiente',
+            'rol': rol
         }).eq('id', vecino_id).execute()
         return jsonify({'ok': True})
 
@@ -925,23 +950,26 @@ def api_vecinos_asociar():
         .select('*')\
         .eq('id', unidad_id)\
         .eq('consorcio_id', consorcio_id)\
-        .is_('vecino_id', 'null')\
         .single()\
         .execute()
 
     if not uf_res.data:
-        return jsonify({'error': 'La unidad seleccionada no está disponible o no existe'}), 400
+        return jsonify({'error': 'La unidad seleccionada no existe'}), 400
 
     uf = uf_res.data
 
     supabase.table('vecinos').update({
         'consorcio_id': consorcio_id,
-        'unidad': uf['numero']
+        'unidad': uf['numero'],
+        'unidad_id': unidad_id,
+        'rol': rol
     }).eq('id', vecino_id).execute()
 
-    supabase.table('unidades_funcionales').update({
-        'vecino_id': vecino_id
-    }).eq('id', unidad_id).execute()
+    # Si la unidad no tiene vecino asignado, asignarle este (compatibilidad)
+    if not uf.get('vecino_id'):
+        supabase.table('unidades_funcionales').update({
+            'vecino_id': vecino_id
+        }).eq('id', unidad_id).execute()
 
     return jsonify({'ok': True})
 
@@ -970,24 +998,25 @@ def api_consorcio_vecino_asignar(cid, vid):
         .select('*')\
         .eq('id', unidad_id)\
         .eq('consorcio_id', cid)\
-        .is_('vecino_id', 'null')\
         .single()\
         .execute()
 
     if not uf_res.data:
-        return jsonify({'error': 'La unidad seleccionada no está disponible o no existe'}), 400
+        return jsonify({'error': 'La unidad seleccionada no existe'}), 400
 
     uf = uf_res.data
 
-    # Vincular al vecino con el número de unidad
+    # Vincular al vecino con el número de unidad y su ID de unidad
     supabase.table('vecinos').update({
-        'unidad': uf['numero']
+        'unidad': uf['numero'],
+        'unidad_id': unidad_id
     }).eq('id', vid).eq('consorcio_id', cid).execute()
 
-    # Vincular la unidad funcional al vecino
-    supabase.table('unidades_funcionales').update({
-        'vecino_id': vid
-    }).eq('id', unidad_id).execute()
+    # Si la unidad no tiene vecino_id principal asignado, ponle este (compatibilidad)
+    if not uf.get('vecino_id'):
+        supabase.table('unidades_funcionales').update({
+            'vecino_id': vid
+        }).eq('id', unidad_id).execute()
 
     return jsonify({'ok': True})
 

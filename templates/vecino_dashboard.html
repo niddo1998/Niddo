@@ -277,6 +277,13 @@
                         <option value="">Selecciona un consorcio primero</option>
                     </select>
                 </div>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label class="form-label" style="display:block; margin-bottom: 5px; font-weight:600; font-size:.8rem; color:var(--muted);">3. Selecciona tu Rol en la Unidad</label>
+                    <select id="onboarding-rol" class="form-ctrl">
+                        <option value="propietario">Propietario / Dueño</option>
+                        <option value="inquilino">Inquilino / Inquilina</option>
+                    </select>
+                </div>
                 <div class="form-group" style="margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" id="onboarding-no-uf" onchange="toggleNoUF()" style="width: 16px; height: 16px; cursor: pointer;">
                     <label for="onboarding-no-uf" style="font-size: 0.85rem; color: var(--text); cursor: pointer; user-select: none;">No encuentro mi unidad (solicitar asignación manual)</label>
@@ -1599,6 +1606,7 @@
             const cid = $('onboarding-consorcio').value;
             const isNoUf = $('onboarding-no-uf').checked;
             const uid = isNoUf ? null : $('onboarding-unidad').value;
+            const rol = $('onboarding-rol').value;
 
             if (!cid) {
                 toast('Debes seleccionar tu consorcio', 'warn');
@@ -1612,7 +1620,7 @@
             try {
                 await api('/api/vecinos/asociar', {
                     method: 'POST',
-                    body: JSON.stringify({ consorcio_id: cid, unidad_id: uid })
+                    body: JSON.stringify({ consorcio_id: cid, unidad_id: uid, rol: rol })
                 });
                 toast('¡Solicitud procesada con éxito!', 'ok');
                 setTimeout(() => {

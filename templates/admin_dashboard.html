@@ -940,19 +940,31 @@ async function loadUFs() {
         const ufs = await api(`/api/consorcios/${currentConsorioId}/unidades`);
         const tb = $('tbody-ufs');
         if (!ufs.length) { tb.innerHTML = '<tr><td colspan="7" class="tbl-empty">Sin unidades. Añadí la primera o usá carga masiva.</td></tr>'; return; }
-        tb.innerHTML = ufs.map(u => `
+        tb.innerHTML = ufs.map(u => {
+            const vecinosList = u.vecinos_vinculados || [];
+            let nombresHtml = '';
+            let emailsHtml = '';
+            if (vecinosList.length > 0) {
+                nombresHtml = vecinosList.map(v => `<div><strong>${v.nombre || '—'}</strong> <span style="font-size:0.75rem; padding: 2px 6px; border-radius: 4px; background: rgba(124,58,237,0.12); color: var(--purple); text-transform:capitalize;">${v.rol === 'propietario' ? 'Prop.' : 'Inq.'}</span></div>`).join('');
+                emailsHtml = vecinosList.map(v => `<div style="font-size:0.85rem;">${v.email}</div>`).join('');
+            } else {
+                nombresHtml = u.vecino_nombre ? `<div>${u.vecino_nombre} <span style="font-size:0.75rem; color:var(--muted);">(Pre-cargado)</span></div>` : '<span class="text-muted">Sin asignar</span>';
+                emailsHtml = u.vecino_email ? `<div style="font-size:0.85rem;">${u.vecino_email}</div>` : '—';
+            }
+            return `
             <tr>
                 <td><strong>${u.numero}</strong></td>
                 <td>${u.piso||'—'}</td>
                 <td><span class="b b-gr">${u.tipo||'departamento'}</span></td>
                 <td>${u.superficie_m2||'—'}</td>
-                <td>${u.vecino_nombre||'<span class="text-muted">Sin asignar</span>'}</td>
-                <td class="text-muted">${u.vecino_email||'—'}</td>
+                <td>${nombresHtml}</td>
+                <td class="text-muted">${emailsHtml}</td>
                 <td><div class="inline-actions">
                     <button class="btn-s btn-sm" onclick="openUFModal('${u.id}')">✏️</button>
                     <button class="btn-danger btn-sm" onclick="deleteUF('${u.id}')">🗑</button>
                 </div></td>
-            </tr>`).join('');
+            </tr>`;
+        }).join('');
     } catch(e) { toast(e.message,'err'); }
 }
 
