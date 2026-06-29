@@ -1,6 +1,7 @@
 import io
 import csv
 import os
+import base64
 from datetime import datetime, timezone, date
 from typing import Optional
 from functools import wraps
@@ -498,37 +499,84 @@ def api_gastos_list():
 @require_auth(allowed_roles=['admin'])
 def api_gastos_create():
     admin_id = get_admin_id()
-    d = request.json
+    # Soporte multipart/form-data para archivos adjuntos
+    d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
     payload = {
-        'consorcio_id': d['consorcio_id'],
+        'consorcio_id': d.get('consorcio_id') or d.get('consorcio_id', ''),
         'proveedor_id': d.get('proveedor_id') or None,
-        'descripcion': d.get('descripcion', '').strip(),
+        'descripcion': (d.get('descripcion') or '').strip(),
         'categoria': d.get('categoria', ''),
-        'monto': d.get('monto', 0),
+        'monto': float(d.get('monto', 0)),
         'fecha_gasto': d.get('fecha_gasto', str(date.today())),
         'fecha_vencimiento': d.get('fecha_vencimiento') or None,
-        'pagado': d.get('pagado', False),
+        'pagado': d.get('pagado') in (True, 'true', 'on', '1'),
         'fecha_pago': d.get('fecha_pago') or None,
         'metodo_pago': d.get('metodo_pago', ''),
-        'recurrente': d.get('recurrente', False),
+        'recurrente': d.get('recurrente') in (True, 'true', 'on', '1'),
         'frecuencia': d.get('frecuencia', ''),
         'notas': d.get('notas', ''),
         'admin_id': admin_id,
     }
     res = supabase.table('gastos').insert(payload).execute()
-    return jsonify(res.data[0] if res.data else {}), 201
+    gasto = res.data[0] if res.data else {}
+
+    # Guardar comprobante si se adjuntó
+    archivo = request.files.get('comprobante')
+    if archivo and archivo.filename and gasto.get('id'):
+        file_bytes = archivo.read()
+        b64 = base64.b64encode(file_bytes).decode('utf-8')
+        mime = archivo.content_type or 'application/pdf'
+        supabase.table('comprobantes_gastos').insert({
+            'gasto_id': gasto['id'],
+            'archivo_nombre': archivo.filename,
+            'archivo_base64': b64,
+            'mime_type': mime,
+        }).execute()
+        supabase.table('gastos').update({'archivo_nombre': archivo.filename}).eq('id', gasto['id']).execute()
+        gasto['archivo_nombre'] = archivo.filename
+
+    return jsonify(gasto), 201
 
 
 @app.route('/api/gastos/<gid>', methods=['PUT'])
 @require_auth(allowed_roles=['admin'])
 def api_gastos_update(gid):
     admin_id = get_admin_id()
-    d = request.json
+    d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
     allowed = ('consorcio_id','proveedor_id','descripcion','categoria','monto','fecha_gasto',
                 'fecha_vencimiento','pagado','fecha_pago','metodo_pago','recurrente','frecuencia','notas')
-    payload = {k: v for k, v in d.items() if k in allowed}
+    payload = {}
+    for k in allowed:
+        if k in d:
+            v = d[k]
+            if k == 'monto':
+                v = float(v)
+            elif k in ('pagado', 'recurrente'):
+                v = v in (True, 'true', 'on', '1')
+            elif k in ('proveedor_id', 'fecha_vencimiento', 'fecha_pago'):
+                v = v or None
+            payload[k] = v
     res = supabase.table('gastos').update(payload).eq('id', gid).eq('admin_id', admin_id).execute()
-    return jsonify(res.data[0] if res.data else {})
+    gasto = res.data[0] if res.data else {}
+
+    # Guardar/reemplazar comprobante si se adjuntó
+    archivo = request.files.get('comprobante')
+    if archivo and archivo.filename:
+        file_bytes = archivo.read()
+        b64 = base64.b64encode(file_bytes).decode('utf-8')
+        mime = archivo.content_type or 'application/pdf'
+        # Eliminar comprobante anterior si existe
+        supabase.table('comprobantes_gastos').delete().eq('gasto_id', gid).execute()
+        supabase.table('comprobantes_gastos').insert({
+            'gasto_id': gid,
+            'archivo_nombre': archivo.filename,
+            'archivo_base64': b64,
+            'mime_type': mime,
+        }).execute()
+        supabase.table('gastos').update({'archivo_nombre': archivo.filename}).eq('id', gid).execute()
+        gasto['archivo_nombre'] = archivo.filename
+
+    return jsonify(gasto)
 
 
 @app.route('/api/gastos/<gid>', methods=['DELETE'])
@@ -537,6 +585,23 @@ def api_gastos_delete(gid):
     admin_id = get_admin_id()
     supabase.table('gastos').delete().eq('id', gid).eq('admin_id', admin_id).execute()
     return jsonify({'ok': True})
+
+
+@app.route('/api/gastos/<gid>/comprobante')
+@require_auth()
+def api_gasto_comprobante(gid):
+    """Servir el comprobante adjunto de un gasto (PDF o imagen)."""
+    res = supabase.table('comprobantes_gastos').select('*').eq('gasto_id', gid).single().execute()
+    if not res.data:
+        return jsonify({'error': 'No hay comprobante adjunto para este gasto'}), 404
+    comp = res.data
+    file_bytes = base64.b64decode(comp['archivo_base64'])
+    return send_file(
+        io.BytesIO(file_bytes),
+        mimetype=comp.get('mime_type', 'application/pdf'),
+        download_name=comp.get('archivo_nombre', 'comprobante.pdf'),
+        as_attachment=False
+    )
 
 
 @app.route('/api/gastos/export')
@@ -1019,6 +1084,26 @@ def api_consorcio_vecino_asignar(cid, vid):
         }).eq('id', unidad_id).execute()
 
     return jsonify({'ok': True})
+
+
+# ── API: gastos para vecinos ───────────────────────────────────────────────────
+@app.route('/api/vecinos/gastos')
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_gastos():
+    """Lista gastos del consorcio del vecino logueado (datos seguros, sin datos de admin)."""
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify([])
+    vecino = supabase.table('vecinos').select('consorcio_id').eq('id', vecino_id).single().execute()
+    if not vecino.data or not vecino.data.get('consorcio_id'):
+        return jsonify([])
+    cid = vecino.data['consorcio_id']
+    res = supabase.table('gastos')\
+        .select('id, descripcion, categoria, monto, fecha_gasto, pagado, archivo_nombre')\
+        .eq('consorcio_id', cid)\
+        .order('fecha_gasto', desc=True)\
+        .execute()
+    return jsonify(res.data)
 
 
 # ── API: datos del dashboard ───────────────────────────────────────────────────

@@ -640,35 +640,20 @@
                 </div>
 
                 <div class="table-container" style="margin-top: 30px;">
+                    <h3 style="margin-bottom: 15px; color: var(--text); font-weight: 700;">📋 Detalle de Gastos del Consorcio</h3>
                     <table class="table">
                         <thead>
                             <tr>
-                                <th>Concepto</th>
+                                <th>Fecha</th>
+                                <th>Descripción</th>
+                                <th>Categoría</th>
                                 <th>Monto</th>
-                                <th>Responsable</th>
+                                <th>Estado</th>
+                                <th style="width:60px;">📎</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr>
-                                <td>Mantenimiento Ascensor</td>
-                                <td>$1,200.00</td>
-                                <td>Consejero Administrativo</td>
-                            </tr>
-                            <tr>
-                                <td>Limpieza Áreas Comunes</td>
-                                <td>$3,600.00</td>
-                                <td>Administrador</td>
-                            </tr>
-                            <tr>
-                                <td>Seguridad 24/7</td>
-                                <td>$4,800.00</td>
-                                <td>Consejero de Seguridad</td>
-                            </tr>
-                            <tr>
-                                <td>Reparaciones Varias</td>
-                                <td>$2,100.00</td>
-                                <td>Consejero de Obras</td>
-                            </tr>
+                        <tbody id="tbody-vecino-gastos">
+                            <tr><td colspan="6" class="tbl-empty">Cargando gastos...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1250,6 +1235,11 @@
             if (sectionId === 'reservas') {
                 initReservas();
             }
+
+            // Lazy load gastos del consorcio
+            if (sectionId === 'estado') {
+                loadVecinoGastos();
+            }
         }
 
         function initCharts() {
@@ -1354,6 +1344,37 @@
         };
         function openModal(id) { $(id).classList.add('open'); }
         function closeModal(id) { $(id).classList.remove('open'); }
+
+        // ── Gastos del consorcio (vecino) ───────────────────────────────
+        let vecinoGastosLoaded = false;
+        async function loadVecinoGastos() {
+            if (vecinoGastosLoaded) return;
+            const tb = $('tbody-vecino-gastos');
+            try {
+                const data = await api('/api/vecinos/gastos');
+                vecinoGastosLoaded = true;
+                if (!data.length) {
+                    tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">Sin gastos registrados en tu consorcio.</td></tr>';
+                    return;
+                }
+                const fmtMoney = n => '$' + Number(n||0).toLocaleString('es-AR', {minimumFractionDigits: 2});
+                tb.innerHTML = data.map(g => `
+                    <tr>
+                        <td>${g.fecha_gasto || '—'}</td>
+                        <td><strong>${g.descripcion || '—'}</strong></td>
+                        <td>${g.categoria || '—'}</td>
+                        <td><strong>${fmtMoney(g.monto)}</strong></td>
+                        <td>${g.pagado ? '<span class="badge-status pagado">Pagado</span>' : '<span class="badge-status pendiente">Pendiente</span>'}</td>
+                        <td style="text-align:center;">
+                            ${g.archivo_nombre
+                                ? `<a href="/api/gastos/${g.id}/comprobante" target="_blank" title="Ver comprobante: ${g.archivo_nombre}" style="font-size:1.2rem; text-decoration:none;">📎</a>`
+                                : '<span style="color:var(--muted); font-size:.8rem;">—</span>'}
+                        </td>
+                    </tr>`).join('');
+            } catch(e) {
+                tb.innerHTML = `<tr><td colspan="6" class="tbl-empty" style="color:red;">Error al cargar gastos: ${e.message}</td></tr>`;
+            }
+        }
 
         async function initReservas() {
             try {
