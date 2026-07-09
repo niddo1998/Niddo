@@ -3,1668 +3,731 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Vecino | Niddo</title>
+    <title>Mi Consorcio | Niddo</title>
+    <meta name="description" content="Dashboard de vecino Niddo — gestioná tus expensas, reservas, reclamos y comunicados del consorcio.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-        :root {
-            --purple: #7C3AED;
-            --purple-light: #8B5CF6;
-            --teal: #10B981;
-            --teal-dark: #059669;
-            --bg: #0d0d12;
-            --surface: #16161f;
-            --surface2: #1e1e2a;
-            --border: rgba(255,255,255,0.07);
-            --text: #f0f0f5;
-            --muted: #8b8b9e;
-            --sidebar-w: 220px;
-        }
-        :root.light {
-            --bg: #f5f5fa;
-            --surface: #ffffff;
-            --surface2: #f0f0f8;
-            --border: rgba(0,0,0,0.08);
-            --text: #111118;
-            --muted: #6b6b80;
-        }
-
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; transition: background 0.3s, color 0.3s; }
-
-        .dashboard-container { display: flex; min-height: 100vh; }
-
-        /* Sidebar */
-        .sidebar {
-            width: var(--sidebar-w);
-            background: var(--surface);
-            border-right: 1px solid var(--border);
-            color: var(--text);
-            position: fixed; height: 100vh; overflow-y: auto;
-            display: flex; flex-direction: column;
-            transition: background 0.3s, border-color 0.3s;
-        }
-        .sidebar-brand {
-            font-size: 1.1rem; font-weight: 800; padding: 18px 16px;
-            border-bottom: 1px solid var(--border);
-            background: linear-gradient(135deg, var(--teal), var(--purple-light));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-        }
-        .sidebar-brand p { font-size: 0.75rem; color: var(--muted); margin-top: 2px; -webkit-text-fill-color: var(--muted); }
-        .sidebar-nav { list-style: none; padding: 8px; flex: 1; }
-        .sidebar-nav li { margin: 1px 0; }
-        .nav-btn {
-            width: 100%; background: none; border: none; color: var(--muted);
-            text-align: left; padding: 7px 10px; border-radius: 8px;
-            cursor: pointer; font-size: 0.83rem; font-weight: 500;
-            font-family: 'Inter', sans-serif;
-            transition: all 0.15s; display: flex; align-items: center; gap: 9px;
-        }
-        .nav-btn:hover { background: rgba(16,185,129,0.08); color: var(--text); }
-        .nav-btn.active { background: rgba(16,185,129,0.12); color: var(--teal); font-weight: 600; }
-        .badge-exclusive {
-            display: inline-block; background: rgba(16,185,129,0.12);
-            color: var(--teal); font-size: 0.6rem; padding: 1px 6px;
-            border-radius: 3px; margin-left: auto; font-weight: 700;
-        }
-        .sidebar-footer { padding: 10px 8px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
-        .btn-logout, .btn-theme {
-            background: transparent; color: var(--muted); border: none;
-            padding: 7px 10px; border-radius: 8px; cursor: pointer; width: 100%;
-            display: flex; align-items: center; gap: 9px; font-size: 0.83rem;
-            font-family: 'Inter', sans-serif; transition: all 0.15s; text-align: left;
-        }
-        .btn-logout:hover { background: rgba(239,68,68,0.08); color: #f87171; }
-        .btn-theme:hover { background: rgba(16,185,129,0.08); color: var(--text); }
-
-        /* Main */
-        .main-content { margin-left: var(--sidebar-w); flex: 1; padding: 32px; }
-
-        .section { display: none; }
-        .section.active { display: block; animation: fadeUp 0.2s ease; }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-
-        .section-title {
-            font-size: 1.4rem; font-weight: 800; margin-bottom: 6px;
-            display: flex; align-items: center; gap: 10px; letter-spacing: -0.02em;
-        }
-        .section-subtitle { color: var(--muted); margin-bottom: 24px; font-size: 0.9rem; }
-
-        /* Stats */
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 28px; }
-        .stat-card {
-            background: var(--surface); border: 1px solid var(--border);
-            padding: 16px 18px; border-radius: 10px;
-            border-left: 3px solid var(--teal);
-            transition: all 0.2s; cursor: default;
-        }
-        .stat-card:hover { border-color: var(--teal); transform: translateY(-2px); }
-        .stat-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; font-weight: 600; }
-        .stat-value { font-size: 1.6rem; font-weight: 800; }
-        .stat-change { font-size: 0.73rem; margin-top: 6px; padding: 3px 7px; border-radius: 4px; display: inline-block; }
-        .stat-change.positive { color: var(--teal); background: rgba(16,185,129,0.1); }
-        .stat-change.negative { color: #f87171; background: rgba(239,68,68,0.1); }
-
-        /* Cards */
-        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 28px; }
-        .action-card {
-            background: var(--surface); padding: 20px; border-radius: 10px;
-            border: 1px solid var(--border); cursor: pointer;
-            transition: all 0.2s; text-decoration: none; color: var(--text);
-            display: flex; flex-direction: column; gap: 12px;
-        }
-        .action-card:hover { border-color: var(--teal); transform: translateY(-3px); box-shadow: 0 8px 20px rgba(16,185,129,0.1); }
-        .card-icon {
-            width: 42px; height: 42px;
-            background: rgba(16,185,129,0.12);
-            border-radius: 9px; display: flex; align-items: center;
-            justify-content: center; font-size: 1.2rem;
-        }
-        .card-title { font-size: 0.95rem; font-weight: 700; }
-        .card-description { font-size: 0.83rem; color: var(--muted); line-height: 1.5; }
-
-        /* Tables */
-        .table-container {
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: 10px; overflow: hidden; margin-bottom: 22px;
-            transition: background 0.3s;
-        }
-        .table { margin: 0; width: 100%; border-collapse: collapse; font-size: 0.83rem; }
-        .table thead { background: var(--surface2); border-bottom: 1px solid var(--border); }
-        .table thead th { color: var(--muted); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 10px 14px; border: none; text-align: left; }
-        .table tbody td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-        .table tbody tr:last-child td { border-bottom: none; }
-        .table tbody tr:hover { background: rgba(16,185,129,0.04); }
-
-        /* Badges */
-        .badge-status { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-        .badge-status.pendiente { background: rgba(245,158,11,0.12); color: #fbbf24; }
-        .badge-status.pagado { background: rgba(16,185,129,0.12); color: var(--teal); }
-        .badge-status.vencido { background: rgba(239,68,68,0.12); color: #f87171; }
-        .badge-status.activo { background: rgba(16,185,129,0.12); color: var(--teal); }
-        :root.light .badge-status.pendiente { background: rgba(249,115,22,0.1); color: #D97706; }
-        :root.light .badge-status.pagado { background: rgba(34,197,94,0.1); color: #16A34A; }
-        :root.light .badge-status.vencido { background: rgba(239,68,68,0.1); color: #DC2626; }
-
-        .badge-diferenciador {
-            display: inline-block; background: rgba(16,185,129,0.12);
-            color: var(--teal); font-size: 0.65rem; padding: 3px 8px;
-            border-radius: 4px; font-weight: 700; text-transform: uppercase;
-            letter-spacing: 0.03em; margin-left: 8px;
-        }
-
-        /* Buttons */
-        .btn-action {
-            background: var(--teal); color: white; border: none;
-            padding: 8px 18px; border-radius: 7px; font-weight: 600;
-            cursor: pointer; transition: all 0.2s; font-size: 0.85rem;
-            font-family: 'Inter', sans-serif;
-        }
-        .btn-action:hover { background: var(--teal-dark); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(16,185,129,0.3); }
-        .btn-action.secondary { background: var(--surface2); color: var(--muted); }
-        .btn-action.secondary:hover { color: var(--text); background: var(--border); transform: none; box-shadow: none; }
-
-        /* Section-specific */
-        .qr-section {
-            text-align: center; padding: 28px;
-            background: rgba(16,185,129,0.05);
-            border: 1px solid rgba(16,185,129,0.12);
-            border-radius: 10px; margin-bottom: 24px;
-        }
-        .qr-box {
-            width: 180px; height: 180px; background: var(--surface2);
-            border: 2px dashed rgba(16,185,129,0.4);
-            border-radius: 10px; display: flex; align-items: center;
-            justify-content: center; margin: 16px auto; font-size: 3rem;
-        }
-        .directory-card {
-            background: var(--surface); border: 1px solid var(--border);
-            border-left: 3px solid var(--teal);
-            padding: 18px; border-radius: 10px; margin-bottom: 12px;
-        }
-        .directory-card h4 { margin: 0 0 6px 0; font-weight: 700; font-size: 0.95rem; }
-        .directory-card p { margin: 3px 0; color: var(--muted); font-size: 0.85rem; }
-        .directory-card .contact-info { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
-        .contact-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--teal); margin: 5px 0; }
-
-        .chart-container {
-            background: var(--surface); border: 1px solid var(--border);
-            padding: 24px; border-radius: 10px; margin-bottom: 24px;
-            transition: background 0.3s;
-        }
-        .chart-container canvas { max-height: 280px; }
-        .chart-container h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 16px; }
-
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-        @media (max-width: 768px) {
-            .sidebar { width: 0; position: absolute; }
-            .sidebar.active { width: var(--sidebar-w); z-index: 1000; }
-            .main-content { margin-left: 0; padding: 20px; }
-            .stats-grid { grid-template-columns: 1fr; }
-            .card-grid { grid-template-columns: 1fr; }
-            .section-title { font-size: 1.2rem; }
-        /* Modal and general input/form styles */
-        .modal-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 9000;
-            display: none; align-items: center; justify-content: center;
-        }
-        .modal-overlay.open { display: flex; animation: fadeIn .15s ease; }
-        .modal-box {
-            background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-            width: 560px; max-width: 94vw; max-height: 88vh; overflow-y: auto;
-            box-shadow: 0 24px 60px rgba(0,0,0,.45); animation: modalIn .2s ease;
-            padding: 20px;
-        }
-        .modal-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 15px; }
-        .modal-head h3 { font-size: 1.05rem; font-weight: 700; margin: 0; }
-        .modal-close { background: none; border: none; font-size: 1.2rem; color: var(--muted); cursor: pointer; }
-        .modal-close:hover { color: var(--text); }
-        .modal-body { color: var(--text); line-height: 1.6; font-size: 0.95rem; }
-        .form-ctrl {
-            border-radius: 7px; border: 1px solid var(--border); font-size: .83rem;
-            background: rgba(255,255,255,0.03); color: var(--text); padding: 8px 11px;
-            font-family: 'Inter',sans-serif; width: 100%; outline: none;
-            transition: border-color .2s;
-        }
-        :root.light .form-ctrl {
-            background: #ffffff;
-            color: #111118;
-            border: 1px solid rgba(0,0,0,0.12);
-        }
-        .form-ctrl:focus { border-color: var(--teal); }
-        .btn-action.secondary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        /* Toast style */
-        .toast-container { position: fixed; bottom: 22px; right: 22px; z-index: 9999;
-                           display: flex; flex-direction: column-reverse; gap: 8px; }
-        .toast-msg { padding: 10px 16px; border-radius: 8px; font-size: .83rem; font-weight: 500;
-                     color: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.25); max-width: 340px;
-                     animation: toastIn .25s ease, toastOut .3s ease 2.7s forwards; }
-        .toast-msg.ok { background: #10B981; } .toast-msg.err { background: #EF4444; }
-        .toast-msg.info { background: #3B82F6; } .toast-msg.warn { background: #F59E0B; }
-        
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes modalIn { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
-        @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-8px); } }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+        --purple:#7C3AED; --purple-light:#8B5CF6; --purple-dim:rgba(124,58,237,0.12);
+        --teal:#10B981; --teal-dark:#059669; --teal-dim:rgba(16,185,129,0.12);
+        --amber:#F59E0B; --red:#EF4444; --blue:#3B82F6;
+        --bg:#0c0c14; --surface:#13131e; --surface2:#1a1a28; --surface3:#222234;
+        --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.04);
+        --text:#ededf5; --text2:#b0b0c4; --muted:#6b6b80;
+        --sidebar-w:230px; --header-h:58px; --radius:10px; --radius-lg:14px;
+    }
+    :root.light { --bg:#f0f0f8; --surface:#ffffff; --surface2:#f4f4fb; --surface3:#eaeaf6; --border:rgba(0,0,0,0.08); --border2:rgba(0,0,0,0.04); --text:#111120; --text2:#444458; --muted:#7878a0; }
+    body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
+    ::-webkit-scrollbar { width:4px; height:4px; } ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+    .app-header { position:fixed; top:0; left:0; right:0; height:var(--header-h); z-index:200; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 20px 0 0; }
+    .header-brand { width:var(--sidebar-w); display:flex; align-items:center; gap:10px; padding:0 16px; flex-shrink:0; }
+    .header-logo { width:32px; height:32px; border-radius:8px; background:linear-gradient(135deg,var(--teal),var(--purple)); display:flex; align-items:center; justify-content:center; font-size:1rem; }
+    .header-brand-text { font-size:1rem; font-weight:800; letter-spacing:-0.02em; }
+    .header-brand-text span { background:linear-gradient(135deg,var(--teal),var(--purple-light)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .header-center { flex:1; display:flex; align-items:center; gap:8px; font-size:0.82rem; color:var(--muted); padding-left:8px; }
+    .hbadge-con { background:var(--teal-dim); color:var(--teal); border-radius:6px; padding:3px 10px; font-size:0.78rem; font-weight:700; }
+    .hbadge-uf  { background:var(--purple-dim); color:var(--purple-light); border-radius:6px; padding:3px 10px; font-size:0.78rem; font-weight:600; }
+    .header-actions { display:flex; align-items:center; gap:8px; }
+    .hbtn { background:none; border:none; cursor:pointer; color:var(--muted); padding:6px 8px; border-radius:7px; transition:all 0.15s; font-size:0.85rem; display:flex; align-items:center; gap:6px; }
+    .hbtn:hover { background:var(--surface2); color:var(--text); }
+    .user-drop { position:relative; }
+    .user-av { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,var(--purple),var(--teal)); display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700; cursor:pointer; border:none; color:white; transition:all 0.2s; }
+    .user-av:hover { transform:scale(1.08); box-shadow:0 0 0 3px var(--purple-dim); }
+    .dd-menu { position:absolute; right:0; top:calc(100% + 8px); background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); min-width:180px; padding:6px; box-shadow:0 8px 32px rgba(0,0,0,0.35); z-index:500; display:none; }
+    .dd-menu.open { display:block; animation:fadeIn 0.1s ease; }
+    .dd-item { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:7px; cursor:pointer; font-size:0.83rem; color:var(--text2); transition:all 0.12s; border:none; background:none; width:100%; text-align:left; text-decoration:none; }
+    .dd-item:hover { background:var(--surface2); color:var(--text); }
+    .dd-item.danger:hover { background:rgba(239,68,68,0.08); color:#f87171; }
+    .dd-sep { border:none; border-top:1px solid var(--border); margin:4px 0; }
+    .app-sidebar { position:fixed; top:var(--header-h); left:0; bottom:0; width:var(--sidebar-w); background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow-y:auto; z-index:100; }
+    .sidebar-nav { flex:1; padding:12px 8px; }
+    .nav-group { font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--muted); padding:14px 10px 5px; }
+    .nav-btn { width:100%; background:none; border:none; color:var(--text2); text-align:left; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:0.83rem; font-weight:500; font-family:'Inter',sans-serif; transition:all 0.15s; display:flex; align-items:center; gap:9px; position:relative; }
+    .nav-btn:hover { background:var(--surface2); color:var(--text); }
+    .nav-btn.active { background:var(--teal-dim); color:var(--teal); font-weight:600; }
+    .nav-btn.active::before { content:''; position:absolute; left:0; top:20%; bottom:20%; width:3px; background:var(--teal); border-radius:0 3px 3px 0; }
+    .nbadge { margin-left:auto; background:var(--red); color:white; font-size:0.6rem; font-weight:700; padding:1px 5px; border-radius:10px; min-width:16px; text-align:center; }
+    .nbadge.new { background:var(--teal); }
+    .sidebar-footer { padding:10px 8px; border-top:1px solid var(--border); }
+    .btn-logout { background:transparent; color:var(--muted); border:none; padding:8px 10px; border-radius:8px; cursor:pointer; width:100%; display:flex; align-items:center; gap:9px; font-size:0.83rem; font-family:'Inter',sans-serif; transition:all 0.15s; text-align:left; }
+    .btn-logout:hover { background:rgba(239,68,68,0.08); color:#f87171; }
+    .app-main { margin-left:var(--sidebar-w); padding-top:var(--header-h); min-height:100vh; }
+    .sw { padding:28px 32px; }
+    .section { display:none; } .section.active { display:block; animation:fadeUp 0.2s ease; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    @keyframes modalIn { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
+    @keyframes toastIn  { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes toastOut { from{opacity:1} to{opacity:0;transform:translateY(-8px)} }
+    .pg-head { margin-bottom:24px; }
+    .pg-title { font-size:1.5rem; font-weight:800; letter-spacing:-0.02em; display:flex; align-items:center; gap:10px; }
+    .pg-sub { color:var(--muted); font-size:0.88rem; margin-top:4px; }
+    .badge-new { font-size:0.6rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; padding:2px 7px; border-radius:4px; background:var(--teal-dim); color:var(--teal); }
+    .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; margin-bottom:24px; }
+    .stat-card { background:var(--surface); border:1px solid var(--border); padding:16px 18px; border-radius:var(--radius); border-left:3px solid var(--teal); transition:all 0.2s; }
+    .stat-card:hover { transform:translateY(-2px); box-shadow:0 4px 16px rgba(0,0,0,0.2); }
+    .stat-card.purple{border-left-color:var(--purple)} .stat-card.amber{border-left-color:var(--amber)} .stat-card.red{border-left-color:var(--red)}
+    .stat-label { font-size:0.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px; font-weight:600; }
+    .stat-value { font-size:1.65rem; font-weight:800; letter-spacing:-0.02em; }
+    .stat-chip { font-size:0.7rem; margin-top:5px; padding:2px 7px; border-radius:4px; display:inline-block; font-weight:600; }
+    .stat-chip.ok{background:var(--teal-dim);color:var(--teal)} .stat-chip.bad{background:rgba(239,68,68,0.1);color:#f87171} .stat-chip.warn{background:rgba(245,158,11,0.1);color:var(--amber)}
+    .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:20px; }
+    .twh { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--surface2); }
+    .twh h3 { font-size:0.88rem; font-weight:700; }
+    .table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+    .table thead { background:var(--surface2); border-bottom:1px solid var(--border); }
+    .table thead th { color:var(--muted); font-weight:600; font-size:0.68rem; text-transform:uppercase; letter-spacing:0.05em; padding:10px 14px; border:none; text-align:left; white-space:nowrap; }
+    .table tbody td { padding:11px 14px; border-bottom:1px solid var(--border2); vertical-align:middle; }
+    .table tbody tr:last-child td { border-bottom:none; }
+    .table tbody tr:hover { background:rgba(16,185,129,0.03); }
+    .tbl-empty { text-align:center; color:var(--muted); padding:32px 14px !important; font-size:0.85rem; }
+    .badge { display:inline-block; padding:3px 9px; border-radius:20px; font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; }
+    .badge.ok{background:var(--teal-dim);color:var(--teal)} .badge.pending{background:rgba(245,158,11,0.12);color:var(--amber)} .badge.danger{background:rgba(239,68,68,0.12);color:#f87171} .badge.info{background:rgba(59,130,246,0.12);color:var(--blue)} .badge.muted{background:var(--surface3);color:var(--muted)}
+    .btn { display:inline-flex; align-items:center; gap:6px; border:none; border-radius:8px; font-family:'Inter',sans-serif; font-weight:600; cursor:pointer; transition:all 0.2s; }
+    .btn-primary{background:var(--teal);color:white;padding:8px 18px;font-size:0.85rem} .btn-primary:hover{background:var(--teal-dark);transform:translateY(-1px);box-shadow:0 4px 14px rgba(16,185,129,0.3)}
+    .btn-secondary{background:var(--surface2);color:var(--text2);padding:8px 16px;font-size:0.83rem;border:1px solid var(--border)} .btn-secondary:hover{background:var(--surface3);color:var(--text)}
+    .btn-danger{background:rgba(239,68,68,0.1);color:#f87171;padding:6px 14px;font-size:0.8rem} .btn-danger:hover{background:rgba(239,68,68,0.2)}
+    .btn-sm{padding:5px 12px;font-size:0.78rem} .btn-xs{padding:3px 9px;font-size:0.72rem}
+    .fg { margin-bottom:14px; }
+    .fl { display:block; margin-bottom:5px; font-weight:600; font-size:0.78rem; color:var(--text2); }
+    .fc { border-radius:8px; border:1px solid var(--border); font-size:0.83rem; background:var(--surface2); color:var(--text); padding:8px 12px; font-family:'Inter',sans-serif; width:100%; outline:none; transition:border-color 0.2s; }
+    .fc:focus{border-color:var(--teal);background:var(--surface)}
+    :root.light .fc{background:#fafafa;color:#111120;border-color:rgba(0,0,0,0.12)} :root.light .fc:focus{border-color:var(--teal);background:#fff}
+    .f-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+    .chart-box { background:var(--surface); border:1px solid var(--border); padding:20px; border-radius:var(--radius); margin-bottom:20px; }
+    .chart-box h3 { font-size:0.88rem; font-weight:700; margin-bottom:14px; }
+    .chart-box canvas { max-height:260px; }
+    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:9000; display:none; align-items:center; justify-content:center; padding:20px; }
+    .modal-overlay.open{display:flex;animation:fadeIn .15s ease}
+    .modal-box { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); width:540px; max-width:96vw; max-height:90vh; overflow-y:auto; box-shadow:0 24px 60px rgba(0,0,0,.5); animation:modalIn .2s ease; }
+    .mh{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--border)}
+    .mh h3{font-size:1rem;font-weight:700;margin:0}
+    .mc{background:none;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer;padding:2px 6px;border-radius:5px}
+    .mc:hover{background:var(--surface2);color:var(--text)}
+    .mb{padding:20px}
+    .mf{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end}
+    .toast-container{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column-reverse;gap:8px}
+    .toast{padding:10px 16px;border-radius:9px;font-size:0.82rem;font-weight:500;color:white;box-shadow:0 4px 20px rgba(0,0,0,.3);max-width:320px;animation:toastIn .25s ease,toastOut .3s ease 2.8s forwards}
+    .toast.ok{background:var(--teal)} .toast.err{background:var(--red)} .toast.info{background:var(--blue)} .toast.warn{background:var(--amber)}
+    .md-layout{display:grid;grid-template-columns:290px 1fr;gap:16px;height:calc(100vh - var(--header-h) - 120px)}
+    .md-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow-y:auto}
+    .md-item{padding:14px 16px;border-bottom:1px solid var(--border2);cursor:pointer;transition:all 0.15s}
+    .md-item:last-child{border-bottom:none}
+    .md-item:hover{background:var(--surface2)}
+    .md-item.active{background:var(--teal-dim);border-left:3px solid var(--teal)}
+    .md-it{font-size:0.85rem;font-weight:600;margin-bottom:3px}
+    .md-im{font-size:0.75rem;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .md-detail{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;overflow-y:auto}
+    .md-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--muted);gap:12px}
+    .md-empty-icon{font-size:3rem;opacity:0.3}
+    .acc-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden}
+    .acc-btn{width:100%;background:none;border:none;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:0.9rem;font-weight:600;color:var(--text);font-family:'Inter',sans-serif;text-align:left;transition:background 0.15s}
+    .acc-btn:hover{background:var(--surface2)}
+    .acc-arr{transition:transform 0.25s;font-size:0.7rem;color:var(--muted)}
+    .acc-btn.open .acc-arr{transform:rotate(180deg)}
+    .acc-body{display:none;padding:0 18px 14px}
+    .acc-body.open{display:block}
+    .full-overlay{position:fixed;inset:0;background:var(--bg);z-index:99999;display:none;align-items:center;justify-content:center;padding:20px}
+    .full-overlay.visible{display:flex}
+    .ov-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:36px;width:500px;max-width:96vw;box-shadow:0 20px 60px rgba(0,0,0,.5);text-align:center}
+    .ov-icon{font-size:3rem;margin-bottom:16px}
+    .ov-title{font-size:1.5rem;font-weight:800;margin-bottom:10px}
+    .ov-sub{color:var(--muted);font-size:0.9rem;margin-bottom:24px;line-height:1.6}
+    .vot-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:14px}
+    .vot-title{font-size:0.95rem;font-weight:700;margin-bottom:6px}
+    .vot-desc{font-size:0.83rem;color:var(--muted);margin-bottom:14px;line-height:1.5}
+    .vot-bar-w{margin-bottom:8px}
+    .vot-bar-l{font-size:0.73rem;color:var(--muted);margin-bottom:3px;display:flex;justify-content:space-between}
+    .vot-bar{height:6px;border-radius:3px;background:var(--surface3);overflow:hidden}
+    .vot-bar-f{height:100%;border-radius:3px;transition:width 0.6s ease}
+    .vot-bar-f.yes{background:var(--teal)} .vot-bar-f.no{background:var(--red)} .vot-bar-f.abs{background:var(--muted)}
+    .vot-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+    .vot-btn{flex:1;min-width:80px;padding:7px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-size:0.82rem;font-family:'Inter',sans-serif;font-weight:600;transition:all 0.15s}
+    .vot-btn:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-dim)}
+    .vot-btn.voted{background:var(--teal-dim);color:var(--teal);border-color:var(--teal);cursor:default}
+    .slot-taken{background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;padding:6px 12px;border-radius:6px;font-size:0.8rem;display:flex;align-items:center;gap:8px;margin-bottom:6px}
+    .slot-free{background:var(--teal-dim);border:1px solid rgba(16,185,129,0.2);color:var(--teal);padding:6px 12px;border-radius:6px;font-size:0.8rem}
+    .medio-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+    .medio-nom{font-weight:700;font-size:0.86rem;margin-bottom:2px}
+    .medio-desc{font-size:0.78rem;color:var(--muted);line-height:1.5}
+    @media(max-width:900px){
+        .app-sidebar{transform:translateX(-100%)} .app-sidebar.open{transform:translateX(0)} .app-main{margin-left:0} .header-brand{width:auto}
+        .md-layout{grid-template-columns:1fr;height:auto} .sw{padding:18px}
+    }
     </style>
 </head>
 <body>
-    <!-- Bloqueo obligatorio: Asociación de Consorcio -->
-    <div id="onboarding-overlay" style="display: none; position: fixed; inset: 0; background: var(--bg); z-index: 99999; align-items: center; justify-content: center; padding: 20px;">
-        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 35px; width: 480px; max-width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.5); text-align: center;">
-            <div style="font-size: 3rem; margin-bottom: 15px;">🏢</div>
-            <h2 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 10px; color: var(--text);">¡Te damos la bienvenida a Niddo!</h2>
-            <p style="color: var(--muted); font-size: 0.9rem; margin-bottom: 25px; line-height: 1.5;">Para poder acceder a tus expensas, reservar amenities y comunicarte con la administración, necesitamos que asocies tu cuenta a tu consorcio y unidad funcional.</p>
-            
-            <div style="text-align: left; margin-bottom: 20px;">
-                <div class="form-group" style="margin-bottom: 15px;">
-                    <label class="form-label" style="display:block; margin-bottom: 5px; font-weight:600; font-size:.8rem; color:var(--muted);">1. Selecciona tu Consorcio / Edificio</label>
-                    <select id="onboarding-consorcio" class="form-ctrl" onchange="onOnboardingConsorcioChanged()">
-                        <option value="">Cargando consorcios...</option>
-                    </select>
-                </div>
-                <div class="form-group" style="margin-bottom: 15px;">
-                    <label class="form-label" style="display:block; margin-bottom: 5px; font-weight:600; font-size:.8rem; color:var(--muted);">2. Selecciona tu Unidad Funcional</label>
-                    <select id="onboarding-unidad" class="form-ctrl" disabled>
-                        <option value="">Selecciona un consorcio primero</option>
-                    </select>
-                </div>
-                <div class="form-group" style="margin-bottom: 15px;">
-                    <label class="form-label" style="display:block; margin-bottom: 5px; font-weight:600; font-size:.8rem; color:var(--muted);">3. Selecciona tu Rol en la Unidad</label>
-                    <select id="onboarding-rol" class="form-ctrl">
-                        <option value="propietario">Propietario / Dueño</option>
-                        <option value="inquilino">Inquilino / Inquilina</option>
-                    </select>
-                </div>
-                <div class="form-group" style="margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" id="onboarding-no-uf" onchange="toggleNoUF()" style="width: 16px; height: 16px; cursor: pointer;">
-                    <label for="onboarding-no-uf" style="font-size: 0.85rem; color: var(--text); cursor: pointer; user-select: none;">No encuentro mi unidad (solicitar asignación manual)</label>
-                </div>
-                <div id="onboarding-no-uf-msg" style="display: none; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); padding: 10px; border-radius: 8px; font-size: 0.8rem; color: #fbbf24; line-height: 1.4; margin-bottom: 15px;">
-                    ⚠️ Al solicitar unirte sin unidad, tu acceso al dashboard quedará suspendido en estado de espera. El administrador deberá asignarte tu departamento manualmente.
-                </div>
-            </div>
+<div class="full-overlay" id="onboarding-overlay">
+    <div class="ov-card">
+        <div class="ov-icon">🏢</div>
+        <div class="ov-title">¡Bienvenido a Niddo!</div>
+        <div class="ov-sub">Para acceder al dashboard, asociá tu cuenta a tu consorcio y unidad funcional.</div>
+        <div style="text-align:left;margin-bottom:18px">
+            <div class="fg"><label class="fl">1. Consorcio / Edificio</label><select id="ob-con" class="fc" onchange="onObConChanged()"><option value="">Cargando...</option></select></div>
+            <div class="fg"><label class="fl">2. Unidad Funcional</label><select id="ob-uf" class="fc" disabled><option value="">Seleccioná un consorcio primero</option></select></div>
+            <div class="fg"><label class="fl">3. Tu rol</label><select id="ob-rol" class="fc"><option value="propietario">Propietario / Dueño</option><option value="inquilino">Inquilino</option></select></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><input type="checkbox" id="ob-nouf" onchange="toggleNoUF()" style="width:16px;height:16px;cursor:pointer"><label for="ob-nouf" style="font-size:0.83rem;cursor:pointer">No encuentro mi unidad (asignación manual)</label></div>
+            <div id="ob-nouf-msg" style="display:none;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);padding:10px;border-radius:8px;font-size:0.8rem;color:var(--amber);line-height:1.4;margin-bottom:8px">⚠️ Tu acceso quedará pendiente hasta que el administrador te asigne una unidad.</div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px" onclick="guardarAsociacion()">Asociar y Comenzar →</button>
+    </div>
+</div>
+<div class="full-overlay" id="pending-overlay">
+    <div class="ov-card">
+        <div class="ov-icon">⏳</div>
+        <div class="ov-title">Solicitud en Espera</div>
+        <div class="ov-sub">Tu solicitud fue enviada. El administrador del edificio debe asignarte una unidad antes de continuar.</div>
+        <button class="btn btn-secondary" style="width:100%;justify-content:center" onclick="window.location.href='/auth/logout'">↩ Cerrar Sesión</button>
+    </div>
+</div>
 
-            <button class="btn-action" style="width: 100%; padding: 12px; font-weight:600; font-size: 0.95rem;" onclick="guardarAsociacionOnboarding()">Asociar y Comenzar</button>
-            <p style="font-size:0.75rem; color: var(--muted); margin-top: 15px;">¿No encuentras tu unidad? Contáctate con el administrador de tu edificio para que la registre.</p>
+<header class="app-header">
+    <div class="header-brand">
+        <div class="header-logo">🏠</div>
+        <div class="header-brand-text"><span>Niddo</span></div>
+    </div>
+    <div class="header-center">
+        <span id="hbadge-con" class="hbadge-con" style="display:none"></span>
+        <span id="hbadge-uf"  class="hbadge-uf"  style="display:none"></span>
+    </div>
+    <div class="header-actions">
+        <button class="hbtn" id="btn-theme">🌙</button>
+        <div class="user-drop">
+            <button class="user-av" id="btn-av" onclick="toggleDd()">?</button>
+            <div class="dd-menu" id="dd-menu">
+                <div style="padding:8px 10px 6px;border-bottom:1px solid var(--border);margin-bottom:4px">
+                    <div style="font-weight:700;font-size:0.85rem" id="dd-name">–</div>
+                    <div style="color:var(--muted);font-size:0.75rem" id="dd-email">–</div>
+                </div>
+                <button class="dd-item" onclick="showSection('perfil')">👤 Mi Perfil</button>
+                <hr class="dd-sep">
+                <a class="dd-item danger" href="/auth/logout">↩ Cerrar Sesión</a>
+            </div>
         </div>
     </div>
+</header>
 
-    <!-- Bloqueo obligatorio: Pendiente de Aprobación/Asignación de UF -->
-    <div id="pending-overlay" style="display: none; position: fixed; inset: 0; background: var(--bg); z-index: 99998; align-items: center; justify-content: center; padding: 20px;">
-        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 35px; width: 480px; max-width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.5); text-align: center;">
-            <div style="font-size: 3rem; margin-bottom: 15px;">⏳</div>
-            <h2 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 10px; color: var(--text);">Solicitud en Espera</h2>
-            <p style="color: var(--muted); font-size: 0.9rem; margin-bottom: 25px; line-height: 1.5;">Has solicitado unirte al consorcio. Tu cuenta ya está registrada, pero el administrador del edificio debe asignarte tu Unidad Funcional antes de que puedas continuar.</p>
-            <div style="background: rgba(124, 58, 237, 0.08); border: 1px solid rgba(124, 58, 237, 0.15); padding: 12px; border-radius: 8px; font-size: 0.85rem; color: var(--muted); margin-bottom: 25px;">
-                Cualquier duda, comunícate con el encargado o la administración de tu edificio.
-            </div>
-            <button class="btn-action secondary" style="width: 100%; padding: 12px;" onclick="window.location.href='/auth/logout'">↩ Cerrar Sesión</button>
+<aside class="app-sidebar" id="sidebar">
+    <nav class="sidebar-nav">
+        <span class="nav-group">Principal</span>
+        <button class="nav-btn active" id="nav-inicio"      onclick="showSection('inicio')">🏠 Inicio</button>
+        <button class="nav-btn"        id="nav-comunicados" onclick="showSection('comunicados')">📢 Comunicados <span class="nbadge" id="nbadge-com" style="display:none">0</span></button>
+        <span class="nav-group">Finanzas</span>
+        <button class="nav-btn"        id="nav-expensas"    onclick="showSection('expensas')">🧾 Expensas</button>
+        <button class="nav-btn"        id="nav-gastos"      onclick="showSection('gastos')">📊 Reporte de Gastos</button>
+        <span class="nav-group">Comunidad</span>
+        <button class="nav-btn"        id="nav-reclamos"    onclick="showSection('reclamos')">⚠️ Reclamos <span class="nbadge" id="nbadge-rec" style="display:none">0</span></button>
+        <button class="nav-btn"        id="nav-votaciones"  onclick="showSection('votaciones')">🗳️ Votaciones <span class="nbadge new" id="nbadge-vot" style="display:none">0</span></button>
+        <button class="nav-btn"        id="nav-reservas"    onclick="showSection('reservas')">📅 Reservas</button>
+        <button class="nav-btn"        id="nav-archivos"    onclick="showSection('archivos')">📁 Archivos</button>
+    </nav>
+    <div class="sidebar-footer">
+        <button class="btn-logout" onclick="window.location.href='/auth/logout'">↩ Cerrar Sesión</button>
+    </div>
+</aside>
+
+<main class="app-main">
+
+<!-- INICIO -->
+<div id="section-inicio" class="section active sw">
+    <div class="pg-head"><div class="pg-title">🏠 Mi Dashboard</div><div class="pg-sub" id="ini-sub">Resumen de tu actividad en el consorcio</div></div>
+    <div class="stats-grid">
+        <div class="stat-card amber"><div class="stat-label">Próximo Vencimiento</div><div class="stat-value" id="kpi-venc">–</div><div class="stat-chip warn" id="kpi-venc-chip">–</div></div>
+        <div class="stat-card red"><div class="stat-label">Monto Adeudado</div><div class="stat-value" id="kpi-deuda">–</div><div class="stat-chip" id="kpi-deuda-chip">–</div></div>
+        <div class="stat-card"><div class="stat-label">Comunicados No Leídos</div><div class="stat-value" id="kpi-coms">–</div><div class="stat-chip ok">Actualizado</div></div>
+        <div class="stat-card purple"><div class="stat-label">Reclamos Activos</div><div class="stat-value" id="kpi-recs">–</div><div class="stat-chip" id="kpi-recs-chip">–</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+        <div class="table-wrap" style="margin:0;padding:20px"><h3 style="font-size:0.9rem;font-weight:700;margin-bottom:14px">💳 Expensa Actual</h3><div id="wgt-cobro" style="color:var(--muted);font-size:0.85rem">Cargando...</div></div>
+        <div class="table-wrap" style="margin:0;padding:20px"><h3 style="font-size:0.9rem;font-weight:700;margin-bottom:12px">💰 Medios de Pago</h3><div id="wgt-medios" style="color:var(--muted);font-size:0.85rem">Cargando...</div></div>
+    </div>
+    <div class="table-wrap">
+        <div class="twh"><h3>📢 Comunicados Recientes</h3><button class="btn btn-secondary btn-sm" onclick="showSection('comunicados')">Ver todos</button></div>
+        <div id="ini-coms" style="padding:0 16px 16px"><div style="color:var(--muted);font-size:0.85rem;padding:20px 0;text-align:center">Cargando...</div></div>
+    </div>
+</div>
+
+<!-- COMUNICADOS -->
+<div id="section-comunicados" class="section sw">
+    <div class="pg-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div><div class="pg-title">📢 Comunicados</div><div class="pg-sub">Novedades y avisos de la administración</div></div>
+        <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary btn-sm" onclick="filterComs('all')">Todos</button>
+            <button class="btn btn-secondary btn-sm" onclick="filterComs('importantes')">⭐ Importantes</button>
+            <button class="btn btn-secondary btn-sm" onclick="filterComs('no_leidos')">🔵 No Leídos</button>
         </div>
     </div>
+    <div class="md-layout">
+        <div class="md-list" id="com-list"><div style="padding:20px;color:var(--muted);text-align:center;font-size:0.85rem">Cargando...</div></div>
+        <div class="md-detail" id="com-detail"><div class="md-empty"><div class="md-empty-icon">📢</div><div>Seleccioná un comunicado para leerlo</div></div></div>
+    </div>
+</div>
 
-    <div class="dashboard-container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="sidebar-brand">
-                🏠 Niddo
-                <p>Tu consorcio en línea</p>
-            </div>
-
-            <ul class="sidebar-nav">
-                <li><button class="nav-btn active" onclick="showSection('dashboard', this)">📊 Mi Dashboard</button></li>
-                <li><button class="nav-btn" onclick="showSection('expensas', this)">🧾 Mis Expensas</button></li>
-                <li><button class="nav-btn" onclick="showSection('estado', this)">🏬 Estado del Consorcio<span class="badge-exclusive">Nuevo</span></button></li>
-                <li><button class="nav-btn" onclick="showSection('reservas', this)">📅 Reservas</button></li>
-                <li><button class="nav-btn" onclick="showSection('reclamos', this)">⚠️ Reclamos</button></li>
-                <li><button class="nav-btn" onclick="showSection('votaciones', this)">🗳️ Votaciones<span class="badge-exclusive">Nuevo</span></button></li>
-                <li><button class="nav-btn" onclick="showSection('directorio', this)">📒 Directorio</button></li>
-                <li><button class="nav-btn" onclick="showSection('comunicados', this)">📢 Comunicados</button></li>
-                <li><button class="nav-btn" onclick="showSection('presupuestos', this)">💰 Presupuestos<span class="badge-exclusive">Nuevo</span></button></li>
-            </ul>
-
-            <div class="sidebar-footer">
-                <button class="btn-theme" id="theme-toggle">🌙 Cambiar tema</button>
-                <button class="btn-logout" onclick="window.location.href='/auth/logout'">↩ Cerrar sesión</button>
-            </div>
-        </aside>
-
-        <!-- Main Content -->
-        <div class="main-content">
-            <!-- Mi Dashboard Section -->
-            <section id="dashboard" class="section active">
-                <h1 class="section-title">
-                    <i class="fas fa-chart-line"></i>
-                    Mi Dashboard
-                </h1>
-                <p class="section-subtitle">Resumen general de tu actividad en el consorcio</p>
-
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-label">Expensas a Pagar</div>
-                        <div class="stat-value">$2,450.00</div>
-                        <div class="stat-change positive">
-                            <i class="fas fa-arrow-down"></i> 5% menos que mes anterior
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Deuda Total</div>
-                        <div class="stat-value">$0.00</div>
-                        <div class="stat-change positive">
-                            <i class="fas fa-check-circle"></i> Cuenta al día
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Reservas Pendientes</div>
-                        <div class="stat-value">2</div>
-                        <div class="stat-change">
-                            Disponibles para tu unidad
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Reclamos Abiertos</div>
-                        <div class="stat-value">1</div>
-                        <div class="stat-change positive">
-                            Actualizado 2 días atrás
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card-grid">
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-receipt"></i>
-                        </div>
-                        <div class="card-title">Ver Expensas Pendientes</div>
-                        <div class="card-description">Revisa tus expensas del mes y realiza el pago</div>
-                    </div>
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-building"></i>
-                        </div>
-                        <div class="card-title">Estado del Consorcio</div>
-                        <div class="card-description">Transparencia total sobre la situación financiera</div>
-                    </div>
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-calendar-check"></i>
-                        </div>
-                        <div class="card-title">Mis Reservas</div>
-                        <div class="card-description">Administra tus reservas de espacios comunes</div>
-                    </div>
-                </div>
-
-                <div class="chart-container">
-                    <h3 style="margin-bottom: 20px; color: #333; font-weight: 700;">Tu Historial de Pagos</h3>
-                    <canvas id="dashboard-chart"></canvas>
-                </div>
-
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Mes</th>
-                                <th>Monto</th>
-                                <th>Estado</th>
-                                <th>Fecha Pago</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Marzo 2025</td>
-                                <td>$2,450.00</td>
-                                <td><span class="badge-status pagado">Pagado</span></td>
-                                <td>2025-03-10</td>
-                            </tr>
-                            <tr>
-                                <td>Febrero 2025</td>
-                                <td>$2,350.00</td>
-                                <td><span class="badge-status pagado">Pagado</span></td>
-                                <td>2025-02-12</td>
-                            </tr>
-                            <tr>
-                                <td>Enero 2025</td>
-                                <td>$2,200.00</td>
-                                <td><span class="badge-status pagado">Pagado</span></td>
-                                <td>2025-01-15</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- Mis Expensas Section -->
-            <section id="expensas" class="section">
-                <h1 class="section-title">
-                    <i class="fas fa-receipt"></i>
-                    Mis Expensas
-                </h1>
-                <p class="section-subtitle">Gestiona tus expensas mensuales y realiza pagos</p>
-
-                <div class="qr-section">
-                    <h3 style="color: #333; margin-bottom: 20px;">Pagar Expensa Actual</h3>
-                    <div class="qr-box">
-                        <i class="fas fa-qrcode"></i>
-                    </div>
-                    <p style="color: #666; margin-top: 15px;">Escanea el código QR o usa el botón "Pagar Ahora"</p>
-                    <button class="btn-action" style="margin-top: 15px;">Pagar Ahora</button>
-                </div>
-
-                <div class="card-grid">
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-history"></i>
-                        </div>
-                        <div class="card-title">Historial Completo</div>
-                        <div class="card-description">Consulta todas tus expensas históricas</div>
-                    </div>
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-file-pdf"></i>
-                        </div>
-                        <div class="card-title">Descargar Comprobantes</div>
-                        <div class="card-description">Recibe tus comprobantes de pago por email</div>
-                    </div>
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-envelope"></i>
-                        </div>
-                        <div class="card-title">Envío Digital</div>
-                        <div class="card-description">Recibe expensas digitales sin papel</div>
-                    </div>
-                </div>
-
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Período</th>
-                                <th>Monto</th>
-                                <th>Vencimiento</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Abril 2025</td>
-                                <td>$2,450.00</td>
-                                <td>2025-04-20</td>
-                                <td><span class="badge-status pendiente">Pendiente</span></td>
-                                <td><button class="btn-action" style="padding: 6px 12px; font-size: 0.85rem;">Pagar</button></td>
-                            </tr>
-                            <tr>
-                                <td>Marzo 2025</td>
-                                <td>$2,450.00</td>
-                                <td>2025-03-20</td>
-                                <td><span class="badge-status pagado">Pagado</span></td>
-                                <td><button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;">Comprobante</button></td>
-                            </tr>
-                            <tr>
-                                <td>Febrero 2025</td>
-                                <td>$2,350.00</td>
-                                <td>2025-02-20</td>
-                                <td><span class="badge-status pagado">Pagado</span></td>
-                                <td><button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;">Comprobante</button></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="table-container" style="margin-top: 40px;">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th style="width: 40%;">Gastos Recurrentes</th>
-                                <th>Monto Mensual</th>
-                                <th>Próximo Pago</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Mantenimiento de Ascensor</td>
-                                <td>$450.00</td>
-                                <td>2025-04-01</td>
-                            </tr>
-                            <tr>
-                                <td>Limpieza de Áreas Comunes</td>
-                                <td>$800.00</td>
-                                <td>2025-04-01</td>
-                            </tr>
-                            <tr>
-                                <td>Seguridad 24/7</td>
-                                <td>$1,200.00</td>
-                                <td>2025-04-01</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- Estado del Consorcio Section (DIFFERENTIATOR) -->
-            <section id="estado" class="section">
-                <h1 class="section-title">
-                    <i class="fas fa-building"></i>
-                    Estado del Consorcio
-                    <span class="badge-diferenciador">Diferenciador</span>
-                </h1>
-                <p class="section-subtitle">Transparencia total sobre la situación financiera del consorcio</p>
-
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-label">Ingresos Totales</div>
-                        <div class="stat-value">$98,500</div>
-                        <div class="stat-change positive">
-                            <i class="fas fa-arrow-up"></i> 8% vs mes anterior
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Egresos Totales</div>
-                        <div class="stat-value">$87,200</div>
-                        <div class="stat-change positive">
-                            <i class="fas fa-arrow-down"></i> Controlado
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Tasa de Cobranza</div>
-                        <div class="stat-value">96.5%</div>
-                        <div class="stat-change positive">
-                            Excelente desempeño
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Reserva Fondo Especial</div>
-                        <div class="stat-value">$45,000</div>
-                        <div class="stat-change">
-                            Para reparaciones mayores
-                        </div>
-                    </div>
-                </div>
-
-                <div class="chart-container">
-                    <h3 style="margin-bottom: 20px; color: #333; font-weight: 700;">Ingresos vs Egresos (Últimos 6 Meses)</h3>
-                    <canvas id="estado-chart"></canvas>
-                </div>
-
-                <div class="table-container" style="margin-top: 30px;">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th style="width: 35%;">Unidad</th>
-                                <th>Estado de Pago</th>
-                                <th>Monto Adeudado</th>
-                                <th>Última Actualización</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>Dep. 1A</strong><br><small style="color: #666;">Juan López</small></td>
-                                <td><span class="badge-status pagado">Al día</span></td>
-                                <td>$0.00</td>
-                                <td>2025-03-25</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Dep. 1B</strong><br><small style="color: #666;">María García</small></td>
-                                <td><span class="badge-status pagado">Al día</span></td>
-                                <td>$0.00</td>
-                                <td>2025-03-24</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Dep. 2A</strong><br><small style="color: #666;">Carlos Martínez</small></td>
-                                <td><span class="badge-status vencido">Vencido</span></td>
-                                <td>$2,450.00</td>
-                                <td>2025-02-28</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Dep. 2B</strong><br><small style="color: #666;">Ana Rodríguez</small></td>
-                                <td><span class="badge-status pendiente">Pendiente</span></td>
-                                <td>$2,450.00</td>
-                                <td>2025-03-20</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Dep. 3A</strong><br><small style="color: #666;">Roberto Fernández</small></td>
-                                <td><span class="badge-status pagado">Al día</span></td>
-                                <td>$0.00</td>
-                                <td>2025-03-18</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="table-container" style="margin-top: 30px;">
-                    <h3 style="margin-bottom: 15px; color: var(--text); font-weight: 700;">📋 Detalle de Gastos del Consorcio</h3>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Descripción</th>
-                                <th>Categoría</th>
-                                <th>Monto</th>
-                                <th>Estado</th>
-                                <th style="width:60px;">📎</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-vecino-gastos">
-                            <tr><td colspan="6" class="tbl-empty">Cargando gastos...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- Reservas Section -->
-            <section id="reservas" class="section">
-                <h1 class="section-title">
-                    <i class="fas fa-calendar-check"></i>
-                    Reservas de Amenities
-                </h1>
-                <p class="section-subtitle">Consulta disponibilidad, lee las condiciones y reserva espacios comunes</p>
-
-                <!-- Panel de Nueva Reserva -->
-                <div class="table-container" style="padding: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 25px;">
-                    <h3 style="margin-bottom: 15px; color: var(--text);">📅 Nueva Reserva</h3>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
-                        <div>
-                            <label class="form-label" style="display:block; margin-bottom: 5px; font-weight:600; font-size:.8rem;">Espacio Común / Amenity</label>
-                            <select id="reserva-amenity-select" class="form-ctrl" style="width:100%;" onchange="onAmenitySelected()">
-                                <option value="">Cargando amenities...</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="form-label" style="display:block; margin-bottom: 5px; font-weight:600; font-size:.8rem;">Fecha</label>
-                            <input type="date" id="reserva-fecha" class="form-ctrl" style="width:100%;" onchange="onReservaDateChanged()">
-                        </div>
-                        <div>
-                            <label class="form-label" style="display:block; margin-bottom: 5px; font-weight:600; font-size:.8rem;">Hora de Inicio</label>
-                            <input type="time" id="reserva-hora-inicio" class="form-ctrl" style="width:100%;">
-                        </div>
-                        <div>
-                            <label class="form-label" style="display:block; margin-bottom: 5px; font-weight:600; font-size:.8rem;">Hora de Fin</label>
-                            <input type="time" id="reserva-hora-fin" class="form-ctrl" style="width:100%;">
-                        </div>
-                    </div>
-
-                    <!-- Botones de Acción y Detalles de Condiciones -->
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 15px;">
-                        <button class="btn-action" style="padding: 8px 20px;" onclick="realizarReserva()">Confirmar Reserva</button>
-                        <button class="btn-action secondary" style="padding: 8px 20px;" id="btn-condiciones" onclick="verCondiciones()" disabled>📖 Condiciones de Uso</button>
-                        <span id="amenity-desc-lbl" style="font-size:0.85rem; color:var(--muted); margin-left: 10px;">Selecciona un espacio para ver los detalles</span>
-                    </div>
-                </div>
-
-                <!-- Calendario de disponibilidad del día seleccionado -->
-                <div class="table-container" style="margin-bottom: 25px;">
-                    <h3 id="disponibilidad-fecha-titulo" style="padding: 20px; margin: 0; border-bottom: 1px solid var(--border); background: var(--surface);">Disponibilidad y Horarios Reservados</h3>
-                    <div style="padding: 20px; background: var(--surface);">
-                        <div id="disponibilidad-lista" style="display: flex; flex-direction: column; gap: 10px;">
-                            <p style="color: var(--muted); font-size: 0.9rem;">Selecciona un amenity y fecha para ver qué horarios ya están tomados.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Mis Reservas Table -->
-                <div class="table-container">
-                    <h3 style="padding: 20px; margin: 0; border-bottom: 1px solid var(--border); background: var(--surface);">Mis Reservas Registradas</h3>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Espacio</th>
-                                <th>Fecha</th>
-                                <th>Horario</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-mis-reservas">
-                            <tr>
-                                <td colspan="5" class="text-center" style="padding: 20px; color: var(--muted);">Cargando tus reservas...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Modal de Condiciones de Uso -->
-                <div class="modal-overlay" id="modal-condiciones">
-                    <div class="modal-box">
-                        <div class="modal-head">
-                            <h3 id="condiciones-titulo">Condiciones de Uso</h3>
-                            <button class="modal-close" onclick="closeModal('modal-condiciones')">✕</button>
-                        </div>
-                        <div class="modal-body" id="condiciones-cuerpo" style="white-space: pre-wrap;">
-                            No hay condiciones especificadas para este espacio.
-                        </div>
-                        <div style="margin-top: 20px; display:flex; justify-content:flex-end;">
-                            <button class="btn-action" onclick="closeModal('modal-condiciones')">Cerrar</button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Reclamos Section -->
-            <section id="reclamos" class="section">
-                <h1 class="section-title">
-                    <i class="fas fa-exclamation-circle"></i>
-                    Reclamos
-                </h1>
-                <p class="section-subtitle">Presenta y gestiona tus reclamos ante la administración</p>
-
-                <div class="card-grid">
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-plus"></i>
-                        </div>
-                        <div class="card-title">Nuevo Reclamo</div>
-                        <div class="card-description">Crea un nuevo reclamo ante la administración</div>
-                    </div>
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-filter"></i>
-                        </div>
-                        <div class="card-title">Filtrar Reclamos</div>
-                        <div class="card-description">Busca reclamos por estado o categoría</div>
-                    </div>
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-file-alt"></i>
-                        </div>
-                        <div class="card-title">Reportes</div>
-                        <div class="card-description">Descarga reportes de tus reclamos</div>
-                    </div>
-                </div>
-
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Reclamo</th>
-                                <th>Categoría</th>
-                                <th>Fecha</th>
-                                <th>Estado</th>
-                                <th>Respuesta</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>Ruido en Área Común</strong><br><small style="color: #666;">Problema con horarios de limpieza</small></td>
-                                <td>Ruido/Convivencia</td>
-                                <td>2025-03-20</td>
-                                <td><span class="badge-status activo">En Proceso</span></td>
-                                <td><button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;">Ver</button></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Goteras en Balcón</strong><br><small style="color: #666;">Reparación urgente requerida</small></td>
-                                <td>Reparaciones</td>
-                                <td>2025-03-15</td>
-                                <td><span class="badge-status pendiente">Evaluación</span></td>
-                                <td><button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;">Ver</button></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Parqueo Unauthorized</strong><br><small style="color: #666;">Resuelto satisfactoriamente</small></td>
-                                <td>Estacionamiento</td>
-                                <td>2025-03-10</td>
-                                <td><span class="badge-status pagado">Resuelto</span></td>
-                                <td><button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;">Ver</button></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- Votaciones Section (DIFFERENTIATOR) -->
-            <section id="votaciones" class="section">
-                <h1 class="section-title">
-                    <i class="fas fa-vote-yea"></i>
-                    Votaciones
-                    <span class="badge-diferenciador">Diferenciador</span>
-                </h1>
-                <p class="section-subtitle">Participa en las decisiones importantes del consorcio</p>
-
-                <div class="card-grid">
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="card-title">Activas</div>
-                        <div class="card-description">2 votaciones en curso</div>
-                    </div>
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-archive"></i>
-                        </div>
-                        <div class="card-title">Finalizadas</div>
-                        <div class="card-description">Resultados de votaciones previas</div>
-                    </div>
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-bell"></i>
-                        </div>
-                        <div class="card-title">Notificaciones</div>
-                        <div class="card-description">Recibe alertas de nuevas votaciones</div>
-                    </div>
-                </div>
-
-                <div class="table-container">
-                    <h3 style="padding: 20px; margin: 0; border-bottom: 1px solid #e5e7eb; background: #f8f9fa;">Votaciones Activas</h3>
-                    <div style="padding: 20px;">
-                        <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #10B981;">
-                            <h4 style="color: #333; margin-bottom: 10px;">Aprobación de Presupuesto 2025</h4>
-                            <p style="color: #666; margin-bottom: 15px;">Votación sobre el presupuesto anual de gastos comunes y mantenimiento</p>
-                            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                                <div style="flex: 1;">
-                                    <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Sí: 28 votos (70%)</div>
-                                    <div style="width: 100%; background: #f0f0f0; height: 8px; border-radius: 4px; overflow: hidden;">
-                                        <div style="width: 70%; background: #10B981; height: 100%;"></div>
-                                    </div>
-                                </div>
-                                <div style="flex: 1;">
-                                    <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">No: 12 votos (30%)</div>
-                                    <div style="width: 100%; background: #f0f0f0; height: 8px; border-radius: 4px; overflow: hidden;">
-                                        <div style="width: 30%; background: #EF4444; height: 100%;"></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">Vencimiento: 2025-04-05 | Votos necesarios: 20</div>
-                            <div style="display: flex; gap: 10px;">
-                                <button class="btn-action" style="padding: 8px 16px; font-size: 0.85rem;">Votar Sí</button>
-                                <button class="btn-action secondary" style="padding: 8px 16px; font-size: 0.85rem;">Votar No</button>
-                                <button class="btn-action secondary" style="padding: 8px 16px; font-size: 0.85rem;">Abstenerme</button>
-                            </div>
-                        </div>
-
-                        <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #10B981;">
-                            <h4 style="color: #333; margin-bottom: 10px;">Reforma de Áreas Comunes</h4>
-                            <p style="color: #666; margin-bottom: 15px;">Aprobación para renovar el salón de usos múltiples y reparar la cancha de tenis</p>
-                            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                                <div style="flex: 1;">
-                                    <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">Sí: 25 votos (62.5%)</div>
-                                    <div style="width: 100%; background: #f0f0f0; height: 8px; border-radius: 4px; overflow: hidden;">
-                                        <div style="width: 62.5%; background: #10B981; height: 100%;"></div>
-                                    </div>
-                                </div>
-                                <div style="flex: 1;">
-                                    <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">No: 15 votos (37.5%)</div>
-                                    <div style="width: 100%; background: #f0f0f0; height: 8px; border-radius: 4px; overflow: hidden;">
-                                        <div style="width: 37.5%; background: #EF4444; height: 100%;"></div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">Vencimiento: 2025-04-10 | Votos necesarios: 20</div>
-                            <div style="display: flex; gap: 10px;">
-                                <button class="btn-action" style="padding: 8px 16px; font-size: 0.85rem;">Votar Sí</button>
-                                <button class="btn-action secondary" style="padding: 8px 16px; font-size: 0.85rem;">Votar No</button>
-                                <button class="btn-action secondary" style="padding: 8px 16px; font-size: 0.85rem;">Abstenerme</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="table-container" style="margin-top: 30px;">
-                    <h3 style="padding: 20px; margin: 0; border-bottom: 1px solid #e5e7eb; background: #f8f9fa;">Votaciones Finalizadas</h3>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Tema</th>
-                                <th>Resultado</th>
-                                <th>Fecha Cierre</th>
-                                <th>Tu Voto</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Cambio de Empresa de Limpieza</td>
-                                <td><span class="badge-status pagado">Aprobado 75%</span></td>
-                                <td>2025-03-15</td>
-                                <td>Sí</td>
-                            </tr>
-                            <tr>
-                                <td>Aumento en Cuota de Mantenimiento</td>
-                                <td><span class="badge-status vencido">Rechazado 45%</span></td>
-                                <td>2025-02-28</td>
-                                <td>No</td>
-                            </tr>
-                            <tr>
-                                <td>Instalación de Cámaras de Seguridad</td>
-                                <td><span class="badge-status pagado">Aprobado 82%</span></td>
-                                <td>2025-02-10</td>
-                                <td>Sí</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- Directorio Section -->
-            <section id="directorio" class="section">
-                <h1 class="section-title">
-                    <i class="fas fa-address-book"></i>
-                    Directorio
-                </h1>
-                <p class="section-subtitle">Contactos de vecinos, administración y consejeros</p>
-
-                <h3 style="color: #333; margin-top: 30px; margin-bottom: 20px; font-weight: 700;">Administración</h3>
-                <div class="directory-card">
-                    <h4>
-                        <i class="fas fa-user-tie" style="color: #10B981; margin-right: 8px;"></i>
-                        Administrador
-                    </h4>
-                    <p><strong>Nombre:</strong> Roberto García Pérez</p>
-                    <div class="contact-info">
-                        <div class="contact-item">
-                            <i class="fas fa-phone"></i>
-                            (54-11) 4123-4567
-                        </div>
-                        <div class="contact-item">
-                            <i class="fas fa-envelope"></i>
-                            roberto@niddo.com
-                        </div>
-                        <div class="contact-item">
-                            <i class="fas fa-clock"></i>
-                            L-V 9:00 AM - 6:00 PM
-                        </div>
-                    </div>
-                </div>
-
-                <h3 style="color: #333; margin-top: 40px; margin-bottom: 20px; font-weight: 700;">Consejeros</h3>
-                <div class="directory-card">
-                    <h4>
-                        <i class="fas fa-hammer" style="color: #10B981; margin-right: 8px;"></i>
-                        Consejero de Obras
-                    </h4>
-                    <p><strong>Nombre:</strong> Juan Carlos Martínez</p>
-                    <div class="contact-info">
-                        <div class="contact-item">
-                            <i class="fas fa-phone"></i>
-                            (54-11) 5678-1234
-                        </div>
-                        <div class="contact-item">
-                            <i class="fas fa-envelope"></i>
-                            juan@niddo.com
-                        </div>
-                    </div>
-                </div>
-
-                <div class="directory-card">
-                    <h4>
-                        <i class="fas fa-shield-alt" style="color: #10B981; margin-right: 8px;"></i>
-                        Consejero de Seguridad
-                    </h4>
-                    <p><strong>Nombre:</strong> María López Rodríguez</p>
-                    <div class="contact-info">
-                        <div class="contact-item">
-                            <i class="fas fa-phone"></i>
-                            (54-11) 9876-5432
-                        </div>
-                        <div class="contact-item">
-                            <i class="fas fa-envelope"></i>
-                            maria@niddo.com
-                        </div>
-                    </div>
-                </div>
-
-                <h3 style="color: #333; margin-top: 40px; margin-bottom: 20px; font-weight: 700;">Vecinos de mi Edificio</h3>
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Unidad</th>
-                                <th>Vecino</th>
-                                <th>Teléfono</th>
-                                <th>Email</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Dep. 1A</td>
-                                <td>Ana Martínez Gómez</td>
-                                <td>(54-11) 1234-5678</td>
-                                <td>ana@email.com</td>
-                            </tr>
-                            <tr>
-                                <td>Dep. 1B</td>
-                                <td>Carlos Fernández López</td>
-                                <td>(54-11) 2345-6789</td>
-                                <td>carlos@email.com</td>
-                            </tr>
-                            <tr>
-                                <td>Dep. 2A</td>
-                                <td>Patricia González Ruiz</td>
-                                <td>(54-11) 3456-7890</td>
-                                <td>patricia@email.com</td>
-                            </tr>
-                            <tr>
-                                <td>Dep. 2B</td>
-                                <td>Roberto Díaz Pérez</td>
-                                <td>(54-11) 4567-8901</td>
-                                <td>roberto@email.com</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- Comunicados Section -->
-            <section id="comunicados" class="section">
-                <h1 class="section-title">
-                    <i class="fas fa-bullhorn"></i>
-                    Comunicados
-                </h1>
-                <p class="section-subtitle">Últimos comunicados de la administración</p>
-
-                <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #10B981; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);">
-                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
-                        <h4 style="color: #333; margin: 0;">Clausura de Salón para Reformas</h4>
-                        <span style="font-size: 0.75rem; color: #666;">26 de Marzo, 2025</span>
-                    </div>
-                    <p style="color: #666; margin: 0; line-height: 1.6;">Se comunica que el Salón de Usos Múltiples estará clausurado desde el 1 al 30 de abril para realizar reformas según lo votado. Se pide a los vecinos reprogramar sus reservas.</p>
-                </div>
-
-                <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #10B981; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);">
-                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
-                        <h4 style="color: #333; margin: 0;">Cambio de Empresa de Limpieza</h4>
-                        <span style="font-size: 0.75rem; color: #666;">20 de Marzo, 2025</span>
-                    </div>
-                    <p style="color: #666; margin: 0; line-height: 1.6;">A partir del 15 de abril, "Limpios & Brillantes" será la nueva empresa de limpieza del consorcio. Nos complace informar que ofrecerán un servicio mejorado con horarios extendidos.</p>
-                </div>
-
-                <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #10B981; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);">
-                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
-                        <h4 style="color: #333; margin: 0;">Corte de Agua Programado</h4>
-                        <span style="font-size: 0.75rem; color: #666;">15 de Marzo, 2025</span>
-                    </div>
-                    <p style="color: #666; margin: 0; line-height: 1.6;">Se realizará mantenimiento de cañerías el sábado 22 de marzo de 8:00 AM a 2:00 PM. Se solicita que no utilicen agua durante este período.</p>
-                </div>
-
-                <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #10B981; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);">
-                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
-                        <h4 style="color: #333; margin: 0;">Instalación de Cámaras de Seguridad</h4>
-                        <span style="font-size: 0.75rem; color: #666;">10 de Marzo, 2025</span>
-                    </div>
-                    <p style="color: #666; margin: 0; line-height: 1.6;">Se han aprobado presupuestos para instalar cámaras de seguridad HD en áreas comunes. La instalación comenzará el 1 de abril y durará 2 semanas.</p>
-                </div>
-            </section>
-
-            <!-- Presupuestos Section (DIFFERENTIATOR) -->
-            <section id="presupuestos" class="section">
-                <h1 class="section-title">
-                    <i class="fas fa-file-invoice-dollar"></i>
-                    Presupuestos
-                    <span class="badge-diferenciador">Diferenciador</span>
-                </h1>
-                <p class="section-subtitle">Solicita presupuestos a proveedores certificados del consorcio</p>
-
-                <div class="card-grid">
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-plus"></i>
-                        </div>
-                        <div class="card-title">Solicitar Presupuesto</div>
-                        <div class="card-description">Nuevo pedido de presupuesto</div>
-                    </div>
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-list"></i>
-                        </div>
-                        <div class="card-title">Mis Solicitudes</div>
-                        <div class="card-description">Presupuestos que he solicitado</div>
-                    </div>
-                    <div class="action-card">
-                        <div class="card-icon">
-                            <i class="fas fa-star"></i>
-                        </div>
-                        <div class="card-title">Proveedores Favoritos</div>
-                        <div class="card-description">Mis proveedores recomendados</div>
-                    </div>
-                </div>
-
-                <div class="table-container">
-                    <h3 style="padding: 20px; margin: 0; border-bottom: 1px solid #e5e7eb; background: #f8f9fa;">Solicitudes Activas</h3>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Servicio</th>
-                                <th>Descripción</th>
-                                <th>Fecha Solicitud</th>
-                                <th>Respuestas</th>
-                                <th>Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Reparación de Plomería</td>
-                                <td>Arreglo de cañería en baño principal</td>
-                                <td>2025-03-24</td>
-                                <td>3 presupuestos</td>
-                                <td><button class="btn-action" style="padding: 6px 12px; font-size: 0.85rem;">Ver</button></td>
-                            </tr>
-                            <tr>
-                                <td>Pintura de Departamento</td>
-                                <td>Pintura completa de 2 ambientes</td>
-                                <td>2025-03-22</td>
-                                <td>2 presupuestos</td>
-                                <td><button class="btn-action" style="padding: 6px 12px; font-size: 0.85rem;">Ver</button></td>
-                            </tr>
-                            <tr>
-                                <td>Limpieza de Alfombra</td>
-                                <td>Limpieza profesional de alfombra tipo persa</td>
-                                <td>2025-03-20</td>
-                                <td>5 presupuestos</td>
-                                <td><button class="btn-action" style="padding: 6px 12px; font-size: 0.85rem;">Ver</button></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="table-container" style="margin-top: 30px;">
-                    <h3 style="padding: 20px; margin: 0; border-bottom: 1px solid #e5e7eb; background: #f8f9fa;">Categorías de Servicios</h3>
-                    <div style="padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
-                        <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                            <div style="font-size: 1.5rem; margin-bottom: 10px;">
-                                <i class="fas fa-faucet"></i>
-                            </div>
-                            <div style="font-weight: 600; font-size: 0.9rem;">Plomería</div>
-                        </div>
-                        <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                            <div style="font-size: 1.5rem; margin-bottom: 10px;">
-                                <i class="fas fa-hammer"></i>
-                            </div>
-                            <div style="font-weight: 600; font-size: 0.9rem;">Albañilería</div>
-                        </div>
-                        <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                            <div style="font-size: 1.5rem; margin-bottom: 10px;">
-                                <i class="fas fa-paint-roller"></i>
-                            </div>
-                            <div style="font-weight: 600; font-size: 0.9rem;">Pintura</div>
-                        </div>
-                        <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                            <div style="font-size: 1.5rem; margin-bottom: 10px;">
-                                <i class="fas fa-broom"></i>
-                            </div>
-                            <div style="font-weight: 600; font-size: 0.9rem;">Limpieza</div>
-                        </div>
-                        <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                            <div style="font-size: 1.5rem; margin-bottom: 10px;">
-                                <i class="fas fa-lightbulb"></i>
-                            </div>
-                            <div style="font-weight: 600; font-size: 0.9rem;">Electricidad</div>
-                        </div>
-                        <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                            <div style="font-size: 1.5rem; margin-bottom: 10px;">
-                                <i class="fas fa-trees"></i>
-                            </div>
-                            <div style="font-weight: 600; font-size: 0.9rem;">Jardinería</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+<!-- EXPENSAS -->
+<div id="section-expensas" class="section sw">
+    <div class="pg-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div><div class="pg-title">🧾 Mis Expensas</div><div class="pg-sub">Cuenta corriente, historial y pagos</div></div>
+        <div style="display:flex;gap:8px;align-items:center">
+            <div><label class="fl" style="margin:0 6px 0 0;font-size:0.75rem">Desde</label><input type="date" id="exp-desde" class="fc" style="width:140px" onchange="loadCobros()"></div>
+            <button class="btn btn-primary" onclick="openModal('modal-pago')">💳 Informar Pago</button>
         </div>
     </div>
+    <div class="stats-grid">
+        <div class="stat-card amber"><div class="stat-label">Saldo Pendiente</div><div class="stat-value" id="exp-pend">–</div><div class="stat-chip" id="exp-pend-chip">–</div></div>
+        <div class="stat-card"><div class="stat-label">Último Período Pagado</div><div class="stat-value" id="exp-ult">–</div><div class="stat-chip ok">Pagado</div></div>
+        <div class="stat-card purple"><div class="stat-label">Total Pagado (Año)</div><div class="stat-value" id="exp-anio">–</div><div class="stat-chip ok">Acumulado</div></div>
+    </div>
+    <div class="chart-box"><h3>Evolución de mi Expensa</h3><canvas id="chart-exp"></canvas></div>
+    <div class="table-wrap">
+        <div class="twh"><h3>Cuenta Corriente</h3><div style="display:flex;gap:8px"><button class="btn btn-secondary btn-xs" onclick="dlCobros('excel')">⬇ Excel</button></div></div>
+        <table class="table"><thead><tr><th>Período</th><th>Monto Base</th><th>Interés</th><th>Total</th><th>Vencimiento</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <tbody id="tb-cobros"><tr><td colspan="7" class="tbl-empty">Cargando...</td></tr></tbody></table>
+    </div>
+</div>
 
-    <!-- Toast container -->
-    <div class="toast-container" id="toasts"></div>
+<!-- REPORTE GASTOS -->
+<div id="section-gastos" class="section sw">
+    <div class="pg-head"><div class="pg-title">📊 Reporte de Gastos</div><div class="pg-sub">Gastos del consorcio — transparencia total</div></div>
+    <div class="table-wrap" style="padding:16px;margin-bottom:16px">
+        <div class="f-row" style="align-items:flex-end">
+            <div class="fg" style="margin-bottom:0"><label class="fl">Desde</label><input type="date" id="gas-desde" class="fc" onchange="loadGastos()"></div>
+            <div class="fg" style="margin-bottom:0"><label class="fl">Hasta</label><input type="date" id="gas-hasta" class="fc" onchange="loadGastos()"></div>
+            <div class="fg" style="margin-bottom:0"><label class="fl">Categoría</label><select id="gas-cat" class="fc" onchange="loadGastos()"><option value="">Todas</option><option value="electricidad">Electricidad</option><option value="gas">Gas</option><option value="agua">Agua</option><option value="limpieza">Limpieza</option><option value="ascensor">Ascensor</option><option value="seguro">Seguro</option><option value="honorarios">Honorarios</option><option value="otro">Otro</option></select></div>
+            <button class="btn btn-secondary" onclick="loadGastos()">🔍 Filtrar</button>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table class="table"><thead><tr><th>Fecha</th><th>Descripción</th><th>Proveedor</th><th>Categoría</th><th>Monto</th><th>Venc.</th><th>Pagado</th><th>📎</th></tr></thead>
+        <tbody id="tb-gastos"><tr><td colspan="8" class="tbl-empty">Cargando...</td></tr></tbody></table>
+    </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        function showSection(sectionId, button) {
-            // Hide all sections
-            document.querySelectorAll('.section').forEach(section => {
-                section.classList.remove('active');
-            });
+<!-- RECLAMOS -->
+<div id="section-reclamos" class="section sw">
+    <div class="pg-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div><div class="pg-title">⚠️ Reclamos</div><div class="pg-sub">Presentá y gestioná tus reclamos ante la administración</div></div>
+        <div style="display:flex;gap:8px;align-items:center">
+            <select id="rec-filter" class="fc" style="width:140px" onchange="loadReclamos()"><option value="">Todos</option><option value="activo">Activos</option><option value="en_proceso">En proceso</option><option value="resuelto">Resueltos</option><option value="cerrado">Cerrados</option></select>
+            <button class="btn btn-primary" onclick="openModal('modal-reclamo')">+ Nuevo Reclamo</button>
+        </div>
+    </div>
+    <div class="md-layout">
+        <div class="md-list" id="rec-list"><div style="padding:20px;color:var(--muted);text-align:center;font-size:0.85rem">Cargando...</div></div>
+        <div class="md-detail" id="rec-detail"><div class="md-empty"><div class="md-empty-icon">⚠️</div><div>Seleccioná un reclamo para ver el detalle</div></div></div>
+    </div>
+</div>
 
-            // Remove active class from all nav buttons
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
+<!-- VOTACIONES -->
+<div id="section-votaciones" class="section sw">
+    <div class="pg-head"><div class="pg-title">🗳️ Votaciones <span class="badge-new">Participá</span></div><div class="pg-sub">Decidí junto a tus vecinos en asambleas digitales</div></div>
+    <div style="display:flex;gap:8px;margin-bottom:18px">
+        <button class="btn btn-secondary btn-sm" onclick="filterVots('activa')">✅ Activas</button>
+        <button class="btn btn-secondary btn-sm" onclick="filterVots('cerrada')">📦 Finalizadas</button>
+        <button class="btn btn-secondary btn-sm" onclick="filterVots('')">Todas</button>
+    </div>
+    <div id="vot-container"><div style="color:var(--muted);text-align:center;padding:40px;font-size:0.88rem">Cargando votaciones...</div></div>
+</div>
 
-            // Show selected section
-            document.getElementById(sectionId).classList.add('active');
-            button.classList.add('active');
+<!-- RESERVAS -->
+<div id="section-reservas" class="section sw">
+    <div class="pg-head"><div class="pg-title">📅 Reservas de Amenities</div><div class="pg-sub">Consultá disponibilidad y reservá espacios comunes</div></div>
+    <div class="table-wrap" style="padding:20px;margin-bottom:18px">
+        <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:16px">Nueva Reserva</h3>
+        <div class="f-row">
+            <div class="fg" style="margin-bottom:0"><label class="fl">Espacio / Amenity</label><select id="res-am" class="fc" onchange="onAmenitySelected()"><option value="">Cargando...</option></select></div>
+            <div class="fg" style="margin-bottom:0"><label class="fl">Fecha</label><input type="date" id="res-fecha" class="fc" onchange="onResDateChanged()"></div>
+            <div class="fg" style="margin-bottom:0"><label class="fl">Hora Inicio</label><input type="time" id="res-hi" class="fc"></div>
+            <div class="fg" style="margin-bottom:0"><label class="fl">Hora Fin</label><input type="time" id="res-hf" class="fc"></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="realizarReserva()">✔ Confirmar Reserva</button>
+            <button class="btn btn-secondary btn-sm" id="btn-cond" onclick="verCondiciones()" disabled>📖 Condiciones</button>
+            <span id="am-desc" style="font-size:0.82rem;color:var(--muted)">Seleccioná un espacio para ver los detalles</span>
+        </div>
+    </div>
+    <div class="table-wrap" style="margin-bottom:18px">
+        <div class="twh"><h3 id="disp-titulo">Disponibilidad del Día</h3></div>
+        <div style="padding:16px" id="disp-lista"><p style="color:var(--muted);font-size:0.85rem">Seleccioná un amenity y fecha.</p></div>
+    </div>
+    <div class="table-wrap">
+        <div class="twh"><h3>Mis Reservas</h3></div>
+        <table class="table"><thead><tr><th>Espacio</th><th>Fecha</th><th>Horario</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <tbody id="tb-reservas"><tr><td colspan="5" class="tbl-empty">Cargando...</td></tr></tbody></table>
+    </div>
+</div>
 
-            // Initialize charts if needed
-            setTimeout(() => {
-                initCharts();
-            }, 100);
+<!-- ARCHIVOS -->
+<div id="section-archivos" class="section sw">
+    <div class="pg-head"><div class="pg-title">📁 Archivos del Consorcio</div><div class="pg-sub">Documentos, reglamentos y comprobantes</div></div>
+    <div id="archivos-acc"></div>
+</div>
 
-            // Lazy load reservas
-            if (sectionId === 'reservas') {
-                initReservas();
-            }
+<!-- PERFIL -->
+<div id="section-perfil" class="section sw">
+    <div class="pg-head"><div class="pg-title">👤 Mi Perfil</div><div class="pg-sub">Tus datos y unidades registradas</div></div>
+    <div class="table-wrap" style="padding:20px;max-width:560px"><div id="perfil-content" style="color:var(--muted);font-size:0.85rem">Cargando...</div></div>
+</div>
 
-            // Lazy load gastos del consorcio
-            if (sectionId === 'estado') {
-                loadVecinoGastos();
-            }
-        }
+</main>
 
-        function initCharts() {
-            // Dashboard Chart
-            const dashboardCtx = document.getElementById('dashboard-chart');
-            if (dashboardCtx && !dashboardCtx.dataset.initialized) {
-                dashboardCtx.dataset.initialized = 'true';
-                new Chart(dashboardCtx, {
-                    type: 'line',
-                    data: {
-                        labels: ['Enero', 'Febrero', 'Marzo', 'Abril (Proyectado)'],
-                        datasets: [{
-                            label: 'Expensas Pagadas',
-                            data: [2200, 2350, 2450, 2450],
-                            borderColor: '#10B981',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                            tension: 0.4,
-                            fill: true,
-                            pointBackgroundColor: '#10B981',
-                            pointBorderColor: '#059669',
-                            pointRadius: 5,
-                            pointHoverRadius: 7
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false }
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: { callback: (value) => '$' + value.toFixed(0) }
-                            }
-                        }
-                    }
-                });
-            }
+<!-- MODALES -->
+<div class="modal-overlay" id="modal-pago">
+    <div class="modal-box">
+        <div class="mh"><h3>💳 Informar Pago</h3><button class="mc" onclick="closeModal('modal-pago')">✕</button></div>
+        <div class="mb">
+            <div class="fg"><label class="fl">Período de Expensa</label><select id="pg-cobro" class="fc"><option value="">Sin especificar</option></select></div>
+            <div class="f-row">
+                <div class="fg"><label class="fl">Monto Abonado</label><input type="number" id="pg-monto" class="fc" placeholder="0.00" step="0.01"></div>
+                <div class="fg"><label class="fl">Fecha de Pago</label><input type="date" id="pg-fecha" class="fc"></div>
+            </div>
+            <div class="fg"><label class="fl">Medio de Pago</label><input type="text" id="pg-medio" class="fc" placeholder="Transferencia, Mercado Pago, efectivo..."></div>
+            <div class="fg"><label class="fl">Observaciones</label><textarea id="pg-obs" class="fc" rows="2" placeholder="Número de transacción, referencia..."></textarea></div>
+            <div class="fg"><label class="fl">Comprobante (PDF o imagen)</label><input type="file" id="pg-comp" class="fc" accept=".pdf,image/*"></div>
+        </div>
+        <div class="mf"><button class="btn btn-secondary" onclick="closeModal('modal-pago')">Cancelar</button><button class="btn btn-primary" onclick="submitPago()">Enviar Aviso</button></div>
+    </div>
+</div>
 
-            // Estado Chart
-            const estadoCtx = document.getElementById('estado-chart');
-            if (estadoCtx && !estadoCtx.dataset.initialized) {
-                estadoCtx.dataset.initialized = 'true';
-                new Chart(estadoCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: ['Octubre', 'Noviembre', 'Diciembre', 'Enero', 'Febrero', 'Marzo'],
-                        datasets: [
-                            {
-                                label: 'Ingresos',
-                                data: [92000, 95000, 98500, 94000, 96500, 98500],
-                                backgroundColor: '#10B981'
-                            },
-                            {
-                                label: 'Egresos',
-                                data: [82000, 85000, 87200, 83000, 85000, 87200],
-                                backgroundColor: '#DDD6FE'
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { position: 'top' }
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: { callback: (value) => '$' + (value / 1000).toFixed(0) + 'k' }
-                            }
-                        }
-                    }
-                });
-            }
-        }
+<div class="modal-overlay" id="modal-reclamo">
+    <div class="modal-box">
+        <div class="mh"><h3>⚠️ Nuevo Reclamo</h3><button class="mc" onclick="closeModal('modal-reclamo')">✕</button></div>
+        <div class="mb">
+            <div class="fg"><label class="fl">Título *</label><input type="text" id="rc-titulo" class="fc" placeholder="Ej: Ruido excesivo, gotera..."></div>
+            <div class="fg"><label class="fl">Categoría</label><select id="rc-cat" class="fc"><option value="otro">Otro</option><option value="plomeria">Plomería</option><option value="electricidad">Electricidad</option><option value="limpieza">Limpieza</option><option value="ascensor">Ascensor</option><option value="ruidos">Ruidos</option><option value="seguridad">Seguridad</option></select></div>
+            <div class="fg"><label class="fl">Descripción detallada *</label><textarea id="rc-desc" class="fc" rows="4" placeholder="Describí el problema con todos los detalles posibles..."></textarea></div>
+            <div class="fg"><label class="fl">Adjunto (foto o documento, opcional)</label><input type="file" id="rc-adj" class="fc" accept="image/*,.pdf"></div>
+        </div>
+        <div class="mf"><button class="btn btn-secondary" onclick="closeModal('modal-reclamo')">Cancelar</button><button class="btn btn-primary" onclick="submitReclamo()">Enviar Reclamo</button></div>
+    </div>
+</div>
 
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            initCharts();
-            checkVecinoProfile();
-        });
+<div class="modal-overlay" id="modal-cond">
+    <div class="modal-box">
+        <div class="mh"><h3 id="cond-titulo">Condiciones de Uso</h3><button class="mc" onclick="closeModal('modal-cond')">✕</button></div>
+        <div class="mb"><div id="cond-body" style="white-space:pre-wrap;font-size:0.88rem;line-height:1.7;color:var(--text2)">Sin condiciones.</div></div>
+        <div class="mf"><button class="btn btn-primary" onclick="closeModal('modal-cond')">Cerrar</button></div>
+    </div>
+</div>
 
-        // ── RESERVAS DE AMENITIES ───────────────────────────────────────────────
-        let consorcioId = null;
-        let amenities = [];
-        let misReservas = [];
-        let reservasOcupadas = [];
+<div class="toast-container" id="tc"></div>
 
-        const $ = id => document.getElementById(id);
-        const toast = (msg, type='ok') => {
-            const t = document.createElement('div');
-            t.className = `toast-msg ${type}`; t.textContent = msg;
-            $('toasts').appendChild(t);
-            setTimeout(() => t.remove(), 3200);
-        };
-        const api = async (url, opts={}) => {
-            const r = await fetch(url, {headers:{'Content-Type':'application/json'}, ...opts});
-            if (!r.ok) { const e = await r.json().catch(()=>({error:'Error'})); throw new Error(e.error||'Error'); }
-            return r.json();
-        };
-        function openModal(id) { $(id).classList.add('open'); }
-        function closeModal(id) { $(id).classList.remove('open'); }
+<script>
+const S = { vecino:null, unidades:[], activeU:null, coms:[], comFilter:'all', recs:[], vots:[], votFilter:'', cobros:[], amenities:[], selAm:null, charts:{} };
 
-        // ── Gastos del consorcio (vecino) ───────────────────────────────
-        let vecinoGastosLoaded = false;
-        async function loadVecinoGastos() {
-            if (vecinoGastosLoaded) return;
-            const tb = $('tbody-vecino-gastos');
-            try {
-                const data = await api('/api/vecinos/gastos');
-                vecinoGastosLoaded = true;
-                if (!data.length) {
-                    tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">Sin gastos registrados en tu consorcio.</td></tr>';
-                    return;
-                }
-                const fmtMoney = n => '$' + Number(n||0).toLocaleString('es-AR', {minimumFractionDigits: 2});
-                tb.innerHTML = data.map(g => `
-                    <tr>
-                        <td>${g.fecha_gasto || '—'}</td>
-                        <td><strong>${g.descripcion || '—'}</strong></td>
-                        <td>${g.categoria || '—'}</td>
-                        <td><strong>${fmtMoney(g.monto)}</strong></td>
-                        <td>${g.pagado ? '<span class="badge-status pagado">Pagado</span>' : '<span class="badge-status pendiente">Pendiente</span>'}</td>
-                        <td style="text-align:center;">
-                            ${g.archivo_nombre
-                                ? `<a href="/api/gastos/${g.id}/comprobante" target="_blank" title="Ver comprobante: ${g.archivo_nombre}" style="font-size:1.2rem; text-decoration:none;">📎</a>`
-                                : '<span style="color:var(--muted); font-size:.8rem;">—</span>'}
-                        </td>
-                    </tr>`).join('');
-            } catch(e) {
-                tb.innerHTML = `<tr><td colspan="6" class="tbl-empty" style="color:red;">Error al cargar gastos: ${e.message}</td></tr>`;
-            }
-        }
+function toast(msg, t='ok'){const el=document.createElement('div');el.className='toast '+t;el.textContent=msg;document.getElementById('tc').appendChild(el);setTimeout(()=>el.remove(),3200)}
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.addEventListener('click',e=>{if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open')});
+function toggleDd(){document.getElementById('dd-menu').classList.toggle('open')}
+document.addEventListener('click',e=>{const dd=document.getElementById('dd-menu');if(!document.getElementById('btn-av').contains(e.target)&&dd.classList.contains('open'))dd.classList.remove('open')});
+document.getElementById('btn-theme').addEventListener('click',()=>{document.documentElement.classList.toggle('light');const l=document.documentElement.classList.contains('light');document.getElementById('btn-theme').textContent=l?'🌙':'☀️';localStorage.setItem('niddo-theme',l?'light':'dark')});
+if(localStorage.getItem('niddo-theme')==='light'){document.documentElement.classList.add('light');document.getElementById('btn-theme').textContent='🌙'}
 
-        async function initReservas() {
-            try {
-                const me = await api('/api/me');
-                consorcioId = me.consorcio_id;
+function showSection(name){
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+    const sec=document.getElementById('section-'+name);if(sec)sec.classList.add('active');
+    const nb=document.getElementById('nav-'+name);if(nb)nb.classList.add('active');
+    document.getElementById('dd-menu').classList.remove('open');
+    const ldr={comunicados:loadComs,expensas:loadExpensas,gastos:loadGastos,reclamos:loadReclamos,votaciones:loadVots,reservas:loadReservas,archivos:loadArchivos,perfil:loadPerfil};
+    if(ldr[name])ldr[name]();
+}
 
-                if (!consorcioId) {
-                    $('reserva-amenity-select').innerHTML = '<option value="">No perteneces a ningún consorcio</option>';
-                    $('tbody-mis-reservas').innerHTML = '<tr><td colspan="5" class="text-center" style="padding: 20px; color: var(--muted);">No hay consorcio asociado a tu perfil.</td></tr>';
-                    return;
-                }
+const fmt$=n=>n!=null?'$'+Number(n).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}):'–';
+const fmtD=d=>d?new Date(d+'T00:00:00').toLocaleDateString('es-AR'):'–';
+const badgeMap={pagado:'ok',pendiente:'pending',vencido:'danger',en_mora:'danger',activo:'ok',en_proceso:'pending',resuelto:'ok',cerrado:'muted',activa:'ok',cerrada:'muted',confirmada:'ok',cancelada:'danger'};
+const ebadge=e=>`<span class="badge ${badgeMap[e]||'muted'}">${e||'–'}</span>`;
 
-                amenities = await api(`/api/consorcios/${consorcioId}/amenities`);
-                
-                const select = $('reserva-amenity-select');
-                if (!amenities.length) {
-                    select.innerHTML = '<option value="">Sin amenities disponibles</option>';
-                } else {
-                    select.innerHTML = amenities.map(a => `<option value="${a.id}">${a.nombre}</option>`).join('');
-                }
+async function api(url,opts={}){
+    const res=await fetch(url,{headers:{'Content-Type':'application/json'},...opts});
+    if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error||'Error '+res.status)}
+    return res.json();
+}
 
-                if (!$('reserva-fecha').value) {
-                    $('reserva-fecha').value = new Date().toISOString().split('T')[0];
-                }
+async function init(){
+    try{S.vecino=await api('/api/me')}catch(e){window.location.href='/login';return}
+    const v=S.vecino;
+    const ini=(v.nombre||v.email||'?').charAt(0).toUpperCase();
+    document.getElementById('btn-av').textContent=ini;
+    document.getElementById('dd-name').textContent=v.nombre||v.email;
+    document.getElementById('dd-email').textContent=v.email||'';
+    if(!v.consorcio_id){showOnboarding();return}
+    if(v.unidad==='Pendiente'){document.getElementById('pending-overlay').classList.add('visible');return}
+    await loadMisUnidades();
+    if(S.unidades.length===1)S.activeU=S.unidades[0];
+    updateHeader();
+    loadInicio();
+    loadBadges();
+}
 
-                onAmenitySelected();
-                loadMisReservas();
+async function loadMisUnidades(){
+    try{const d=await api('/api/vecinos/mis-unidades');S.unidades=d||[];if(S.unidades.length===1)S.activeU=S.unidades[0]}catch(e){S.unidades=[]}
+}
+function updateHeader(){
+    const au=S.activeU;if(!au)return;
+    const con=au.consorcios||{};const uf=au.unidades_funcionales||{};
+    const ce=document.getElementById('hbadge-con');const ue=document.getElementById('hbadge-uf');
+    ce.textContent=con.nombre||'–';ce.style.display='inline-block';
+    ue.textContent='UF '+(uf.numero||'–');ue.style.display='inline-block';
+    document.getElementById('ini-sub').textContent=(con.nombre||'')+' · Unidad '+(uf.numero||'')+' · '+(au.rol||'propietario');
+}
 
-            } catch (e) {
-                toast(e.message, 'err');
-            }
-        }
+async function loadInicio(){
+    try{
+        const uid=(S.activeU?.unidades_funcionales?.id)||S.vecino?.unidad_id;
+        const cobro=await api('/api/vecinos/cobro-actual'+(uid?'?unidad_id='+uid:''));
+        renderCobroWgt(cobro);updateKpisCobro([cobro].filter(Boolean));
+    }catch(e){document.getElementById('wgt-cobro').innerHTML='<span style="color:var(--muted)">Sin datos de expensa</span>'}
+    try{const m=await api('/api/vecinos/medios-pago');renderMediosWgt(m)}catch(e){}
+    try{
+        const c=await api('/api/comunicados?no_leidos=true');
+        renderComsRecientes(c.slice(0,4));
+        document.getElementById('kpi-coms').textContent=c.length;
+        if(c.length){const b=document.getElementById('nbadge-com');b.textContent=c.length;b.style.display='inline-block'}
+    }catch(e){document.getElementById('kpi-coms').textContent='–'}
+    try{
+        const r=await api('/api/reclamos?estado=activo');
+        document.getElementById('kpi-recs').textContent=r.length;
+        const chip=document.getElementById('kpi-recs-chip');chip.textContent=r.length?'Pendientes':'Sin reclamos';chip.className='stat-chip '+(r.length?'warn':'ok');
+        if(r.length){const b=document.getElementById('nbadge-rec');b.textContent=r.length;b.style.display='inline-block'}
+    }catch(e){}
+}
 
-        function onAmenitySelected() {
-            const aid = $('reserva-amenity-select').value;
-            const btnCond = $('btn-condiciones');
-            const descLbl = $('amenity-desc-lbl');
+function renderCobroWgt(cobro){
+    const el=document.getElementById('wgt-cobro');
+    if(!cobro){el.innerHTML='<div class="badge ok">Sin deuda pendiente</div>';document.getElementById('kpi-venc').textContent='–';document.getElementById('kpi-deuda').textContent='$0';const c=document.getElementById('kpi-deuda-chip');c.textContent='Al día';c.className='stat-chip ok';return}
+    const venc=fmtD(cobro.fecha_vencimiento);
+    document.getElementById('kpi-venc').textContent=venc;
+    document.getElementById('kpi-venc-chip').textContent=cobro.periodo||'–';
+    document.getElementById('kpi-deuda').textContent=fmt$(cobro.total);
+    const chip=document.getElementById('kpi-deuda-chip');chip.textContent=cobro.estado;chip.className='stat-chip '+(cobro.estado==='pagado'?'ok':cobro.estado==='vencido'?'bad':'warn');
+    el.innerHTML=`<div style="margin-bottom:10px"><div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;font-weight:700">Período ${cobro.periodo||'–'}</div><div style="font-size:1.5rem;font-weight:800">${fmt$(cobro.total)}</div><div style="margin-top:4px">${ebadge(cobro.estado)}</div></div><div style="font-size:0.8rem;color:var(--muted);margin-bottom:12px">Vencimiento: ${venc}</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="openModal('modal-pago')">💳 Informar Pago</button><a class="btn btn-secondary btn-sm" href="/api/vecinos/cobros/${cobro.id}/cupon" target="_blank">⬇ Cupón PDF</a></div>`
+}
+function renderMediosWgt(medios){
+    const el=document.getElementById('wgt-medios');
+    if(!medios||!medios.length){el.innerHTML='<span style="color:var(--muted);font-size:0.83rem">Sin medios configurados</span>';return}
+    el.innerHTML=medios.map(m=>`<div class="medio-card"><div style="font-size:1.4rem">💳</div><div><div class="medio-nom">${m.nombre}</div><div class="medio-desc">${m.descripcion||''}</div></div></div>`).join('')
+}
+function renderComsRecientes(coms){
+    const el=document.getElementById('ini-coms');
+    if(!coms.length){el.innerHTML='<div style="color:var(--muted);font-size:0.83rem;padding:12px 0">No hay comunicados nuevos</div>';return}
+    el.innerHTML=coms.map(c=>`<div style="padding:12px 0;border-bottom:1px solid var(--border2);cursor:pointer" onclick="showSection('comunicados');setTimeout(()=>openCom('${c.id}'),300)"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">${c.importante?'<span style="color:var(--amber)">⭐</span>':''}<span style="font-weight:700;font-size:0.85rem">${c.titulo}</span>${!c.leido?'<span class="badge info" style="font-size:0.6rem">Nuevo</span>':''}</div><div style="font-size:0.78rem;color:var(--muted)">${new Date(c.created_at).toLocaleDateString('es-AR')} · ${c.cuerpo.substring(0,80)}...</div></div>`).join('')
+}
+async function loadBadges(){try{const v=await api('/api/votaciones?estado=activa');const sv=v.filter(x=>!x.ya_vote);if(sv.length){const b=document.getElementById('nbadge-vot');b.textContent=sv.length;b.style.display='inline-block'}}catch(e){}}
 
-            if (!aid) {
-                btnCond.disabled = true;
-                descLbl.textContent = 'Selecciona un espacio para ver los detalles';
-                return;
-            }
+async function loadComs(){
+    document.getElementById('com-list').innerHTML='<div style="padding:20px;color:var(--muted);text-align:center;font-size:0.85rem">Cargando...</div>';
+    try{let url='/api/comunicados';if(S.comFilter==='importantes')url+='?importante=true';else if(S.comFilter==='no_leidos')url+='?no_leidos=true';S.coms=await api(url);renderComsList()}catch(e){document.getElementById('com-list').innerHTML='<div style="padding:20px;color:#f87171;text-align:center">Error al cargar</div>'}
+}
+function filterComs(f){S.comFilter=f;document.getElementById('com-detail').innerHTML='<div class="md-empty"><div class="md-empty-icon">📢</div><div>Seleccioná un comunicado</div></div>';loadComs()}
+function renderComsList(){
+    const el=document.getElementById('com-list');
+    if(!S.coms.length){el.innerHTML='<div style="padding:24px;color:var(--muted);text-align:center;font-size:0.85rem">Sin comunicados</div>';return}
+    el.innerHTML=S.coms.map(c=>`<div class="md-item" id="ci-${c.id}" onclick="openCom('${c.id}')"><div class="md-it">${c.importante?'⭐ ':''}${c.titulo}${!c.leido?'<span class="badge info" style="margin-left:6px;font-size:0.58rem">Nuevo</span>':''}</div><div class="md-im"><span>${new Date(c.created_at).toLocaleDateString('es-AR')}</span>${c.importante?'<span class="badge pending" style="font-size:0.58rem">Importante</span>':''}</div></div>`).join('')
+}
+async function openCom(id){
+    document.querySelectorAll('.md-item').forEach(i=>i.classList.remove('active'));
+    const it=document.getElementById('ci-'+id);if(it)it.classList.add('active');
+    const c=S.coms.find(x=>x.id===id);if(!c)return;
+    if(!c.leido){try{await api('/api/comunicados/'+id+'/leer',{method:'POST'});c.leido=true;renderComsList()}catch(e){}}
+    document.getElementById('com-detail').innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">${c.importante?'<span style="color:var(--amber);font-size:1.1rem">⭐</span>':''}<h2 style="font-size:1.1rem;font-weight:800">${c.titulo}</h2></div><div style="color:var(--muted);font-size:0.78rem;margin-bottom:18px">${new Date(c.created_at).toLocaleDateString('es-AR',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div><div style="font-size:0.88rem;line-height:1.8;color:var(--text2);white-space:pre-wrap">${c.cuerpo}</div>`
+}
 
-            const amenity = amenities.find(a => a.id === aid);
-            if (amenity) {
-                btnCond.disabled = false;
-                descLbl.textContent = `Capacidad Máx: ${amenity.capacidad_maxima || 'Sin límite'} personas. ${amenity.descripcion || ''}`;
-            }
+async function loadExpensas(){await loadCobros();populatePagoCobros()}
+async function loadCobros(){
+    const tb=document.getElementById('tb-cobros');tb.innerHTML='<tr><td colspan="7" class="tbl-empty">Cargando...</td></tr>';
+    try{
+        const uid=(S.activeU?.unidades_funcionales?.id)||S.vecino?.unidad_id;
+        let url='/api/vecinos/cobros';const p=[];if(uid)p.push('unidad_id='+uid);const d=document.getElementById('exp-desde').value;if(d)p.push('desde='+d);if(p.length)url+='?'+p.join('&');
+        S.cobros=await api(url);renderCobrosTable();renderExpChart();updateExpKpis(S.cobros);
+    }catch(e){tb.innerHTML='<tr><td colspan="7" class="tbl-empty">Error al cargar cobros</td></tr>'}
+}
+function renderCobrosTable(){
+    const tb=document.getElementById('tb-cobros');
+    if(!S.cobros.length){tb.innerHTML='<tr><td colspan="7" class="tbl-empty">Sin movimientos registrados</td></tr>';return}
+    tb.innerHTML=S.cobros.map(c=>`<tr><td><strong>${c.periodo||'–'}</strong></td><td>${fmt$(c.monto_base)}</td><td>${fmt$(c.interes_mora)}</td><td><strong>${fmt$(c.total)}</strong></td><td>${fmtD(c.fecha_vencimiento)}</td><td>${ebadge(c.estado)}</td><td style="display:flex;gap:6px"><a class="btn btn-secondary btn-xs" href="/api/vecinos/cobros/${c.id}/cupon" target="_blank">Cupón</a>${c.estado!=='pagado'?`<button class="btn btn-primary btn-xs" onclick="openPagoForCobro('${c.id}')">Pagar</button>`:''}</td></tr>`).join('')
+}
+function updateExpKpis(cobros){
+    const pend=cobros.filter(c=>['pendiente','vencido','en_mora'].includes(c.estado));
+    const td=pend.reduce((s,c)=>s+(c.total||0),0);
+    document.getElementById('exp-pend').textContent=fmt$(td);
+    const chip=document.getElementById('exp-pend-chip');chip.textContent=td>0?'Deuda pendiente':'Al día';chip.className='stat-chip '+(td>0?'bad':'ok');
+    const pagados=cobros.filter(c=>c.estado==='pagado');
+    document.getElementById('exp-anio').textContent=fmt$(pagados.reduce((s,c)=>s+(c.total||0),0));
+    const ult=pagados.sort((a,b)=>(b.periodo||'')>(a.periodo||'')?1:-1)[0];
+    document.getElementById('exp-ult').textContent=ult?ult.periodo:'–';
+}
+function updateKpisCobro(cobros){
+    const pend=cobros.filter(c=>c&&['pendiente','vencido','en_mora'].includes(c.estado));
+    const td=pend.reduce((s,c)=>s+(c.total||0),0);
+    document.getElementById('kpi-deuda').textContent=fmt$(td);
+    const chip=document.getElementById('kpi-deuda-chip');chip.textContent=td>0?'Deuda pendiente':'Al día';chip.className='stat-chip '+(td>0?'bad':'ok');
+}
+function renderExpChart(){
+    const ctx=document.getElementById('chart-exp');if(!ctx)return;
+    const data=S.cobros.slice().reverse().slice(-12);
+    const colors=data.map(c=>c.estado==='pagado'?'rgba(16,185,129,0.7)':c.estado==='vencido'?'rgba(239,68,68,0.7)':'rgba(245,158,11,0.7)');
+    if(S.charts.exp)S.charts.exp.destroy();
+    S.charts.exp=new Chart(ctx,{type:'bar',data:{labels:data.map(c=>c.periodo||''),datasets:[{label:'Expensa',data:data.map(c=>c.total||0),backgroundColor:colors,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString('es-AR'),color:'#8b8b9e'},grid:{color:'rgba(255,255,255,0.04)'}},x:{ticks:{color:'#8b8b9e'},grid:{display:false}}}}})
+}
+function populatePagoCobros(){
+    const sel=document.getElementById('pg-cobro');sel.innerHTML='<option value="">Sin especificar</option>';
+    S.cobros.filter(c=>c.estado!=='pagado').forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.periodo+' — '+fmt$(c.total);sel.appendChild(o)})
+}
+function openPagoForCobro(id){document.getElementById('pg-cobro').value=id;openModal('modal-pago')}
+async function submitPago(){
+    const fd=new FormData();
+    fd.append('cobro_id',document.getElementById('pg-cobro').value||'');
+    fd.append('monto',document.getElementById('pg-monto').value||'');
+    fd.append('fecha_pago',document.getElementById('pg-fecha').value||'');
+    fd.append('medio_pago',document.getElementById('pg-medio').value||'');
+    fd.append('observaciones',document.getElementById('pg-obs').value||'');
+    const f=document.getElementById('pg-comp').files[0];if(f)fd.append('comprobante',f);
+    try{await fetch('/api/avisos_pago',{method:'POST',body:fd});closeModal('modal-pago');toast('Aviso de pago enviado','ok');document.getElementById('pg-monto').value='';document.getElementById('pg-obs').value='';document.getElementById('pg-comp').value=''}
+    catch(e){toast('Error: '+e.message,'err')}
+}
+function dlCobros(fmt){toast('Función de descarga disponible próximamente','info')}
 
-            onReservaDateChanged();
-        }
+async function loadGastos(){
+    const tb=document.getElementById('tb-gastos');tb.innerHTML='<tr><td colspan="8" class="tbl-empty">Cargando...</td></tr>';
+    const p=new URLSearchParams();const d=document.getElementById('gas-desde').value;const h=document.getElementById('gas-hasta').value;const c=document.getElementById('gas-cat').value;
+    if(d)p.set('desde',d);if(h)p.set('hasta',h);if(c)p.set('categoria',c);
+    try{
+        const data=await api('/api/vecinos/gastos-reporte?'+p);
+        if(!data.length){tb.innerHTML='<tr><td colspan="8" class="tbl-empty">Sin gastos para el período</td></tr>';return}
+        tb.innerHTML=data.map(g=>`<tr><td>${fmtD(g.fecha_gasto)}</td><td>${g.descripcion||'–'}</td><td>${g.proveedores?.nombre||'–'}</td><td>${g.categoria||'–'}</td><td><strong>${fmt$(g.monto)}</strong></td><td>${fmtD(g.fecha_vencimiento)}</td><td>${g.pagado?'<span class="badge ok">Sí</span>':'<span class="badge pending">No</span>'}</td><td>${g.archivo_nombre?`<a href="/api/gastos/${g.id}/comprobante" target="_blank" style="color:var(--teal);font-size:0.8rem">📎</a>`:'–'}</td></tr>`).join('')
+    }catch(e){tb.innerHTML='<tr><td colspan="8" class="tbl-empty">Error al cargar gastos</td></tr>'}
+}
 
-        async function onReservaDateChanged() {
-            const aid = $('reserva-amenity-select').value;
-            const fecha = $('reserva-fecha').value;
-            const lista = $('disponibilidad-lista');
-            const titulo = $('disponibilidad-fecha-titulo');
+async function loadReclamos(){
+    document.getElementById('rec-list').innerHTML='<div style="padding:20px;color:var(--muted);text-align:center;font-size:0.85rem">Cargando...</div>';
+    const est=document.getElementById('rec-filter').value;
+    try{S.recs=await api('/api/reclamos'+(est?'?estado='+est:''));renderRecList()}
+    catch(e){document.getElementById('rec-list').innerHTML='<div style="padding:20px;color:#f87171;text-align:center">Error al cargar</div>'}
+}
+function renderRecList(){
+    const el=document.getElementById('rec-list');
+    if(!S.recs.length){el.innerHTML='<div style="padding:32px;text-align:center;color:var(--muted)"><div style="font-size:2.5rem;margin-bottom:8px">✅</div><div style="font-size:0.85rem">Sin reclamos registrados</div></div>';return}
+    el.innerHTML=S.recs.map(r=>`<div class="md-item" id="ri-${r.id}" onclick="openRec('${r.id}')"><div class="md-it">${r.titulo}</div><div class="md-im">${ebadge(r.estado)}<span>${new Date(r.created_at).toLocaleDateString('es-AR')}</span></div></div>`).join('')
+}
+function openRec(id){
+    document.querySelectorAll('.md-item').forEach(i=>i.classList.remove('active'));const it=document.getElementById('ri-'+id);if(it)it.classList.add('active');
+    const r=S.recs.find(x=>x.id===id);if(!r)return;
+    document.getElementById('rec-detail').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px"><h2 style="font-size:1rem;font-weight:800">${r.titulo}</h2>${ebadge(r.estado)}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;font-size:0.78rem;color:var(--muted)"><span>📂 ${r.categoria}</span><span>📅 ${new Date(r.created_at).toLocaleDateString('es-AR')}</span><span>🔄 ${new Date(r.updated_at).toLocaleDateString('es-AR')}</span></div><div style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:16px;font-size:0.85rem;line-height:1.7;color:var(--text2)">${r.descripcion}</div>${r.respuesta_admin?`<div style="background:var(--teal-dim);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:14px;margin-bottom:16px"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--teal);margin-bottom:6px">Respuesta Admin</div><div style="font-size:0.85rem;color:var(--text2);line-height:1.7">${r.respuesta_admin}</div></div>`:''} ${r.adjunto_nombre?`<a href="/api/reclamos/${r.id}/adjunto" target="_blank" class="btn btn-secondary btn-sm" style="margin-bottom:14px">📎 ${r.adjunto_nombre}</a>`:''}<div style="display:flex;gap:8px">${r.estado==='activo'?`<button class="btn btn-danger btn-sm" onclick="cancelarRec('${r.id}')">Cancelar Reclamo</button>`:''}</div>`
+}
+async function cancelarRec(id){
+    if(!confirm('¿Cancelar este reclamo?'))return;
+    try{await api('/api/reclamos/'+id,{method:'DELETE'});toast('Reclamo cancelado','ok');await loadReclamos();document.getElementById('rec-detail').innerHTML='<div class="md-empty"><div class="md-empty-icon">⚠️</div><div>Seleccioná un reclamo</div></div>'}
+    catch(e){toast(e.message,'err')}
+}
+async function submitReclamo(){
+    const titulo=document.getElementById('rc-titulo').value.trim();const desc=document.getElementById('rc-desc').value.trim();
+    if(!titulo||!desc){toast('Título y descripción son obligatorios','warn');return}
+    const fd=new FormData();fd.append('titulo',titulo);fd.append('descripcion',desc);fd.append('categoria',document.getElementById('rc-cat').value);
+    const adj=document.getElementById('rc-adj').files[0];if(adj)fd.append('adjunto',adj);
+    try{await fetch('/api/reclamos',{method:'POST',body:fd});closeModal('modal-reclamo');toast('Reclamo enviado','ok');document.getElementById('rc-titulo').value='';document.getElementById('rc-desc').value='';await loadReclamos()}
+    catch(e){toast('Error: '+e.message,'err')}
+}
 
-            if (!aid || !fecha) {
-                lista.innerHTML = '<p style="color: var(--muted); font-size: 0.9rem;">Selecciona un amenity y fecha para ver la disponibilidad.</p>';
-                return;
-            }
+async function loadVots(){
+    document.getElementById('vot-container').innerHTML='<div style="color:var(--muted);text-align:center;padding:40px">Cargando...</div>';
+    try{const url='/api/votaciones'+(S.votFilter?'?estado='+S.votFilter:'');S.vots=await api(url);renderVots()}
+    catch(e){document.getElementById('vot-container').innerHTML='<div style="color:#f87171;text-align:center;padding:40px">Error al cargar votaciones</div>'}
+}
+function filterVots(f){S.votFilter=f;loadVots()}
+function renderVots(){
+    const c=document.getElementById('vot-container');
+    if(!S.vots.length){c.innerHTML='<div style="text-align:center;padding:48px;color:var(--muted)"><div style="font-size:3rem;margin-bottom:10px;opacity:0.3">🗳️</div><div>No hay votaciones en este momento</div></div>';return}
+    c.innerHTML=S.vots.map(v=>{
+        const tot=v.total_votos||0;const opc=v.opciones||['Si','No','Abstención'];
+        const barras=opc.map(op=>{const cnt=(v.conteo_votos||{})[op]||0;const pct=tot>0?Math.round(cnt/tot*100):0;const clm={'Si':'yes','No':'no','Abstención':'abs'};return`<div class="vot-bar-w"><div class="vot-bar-l"><span>${op}</span><span>${cnt} votos (${pct}%)</span></div><div class="vot-bar"><div class="vot-bar-f ${clm[op]||'abs'}" style="width:${pct}%"></div></div></div>`}).join('');
+        const bloq=v.ya_vote||v.estado!=='activa';
+        const btns=bloq?'':opc.map(op=>`<button class="vot-btn" onclick="votar('${v.id}','${op}')">${op}</button>`).join('');
+        const yaVote=v.ya_vote?`<div style="color:var(--teal);font-size:0.8rem;margin-top:8px">✅ Ya votaste: <strong>${v.mi_opcion||'–'}</strong></div>`:'';
+        return`<div class="vot-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div class="vot-title">${v.titulo}</div>${ebadge(v.estado)}</div><div class="vot-desc">${v.descripcion||''}</div>${v.fecha_limite?`<div style="font-size:0.75rem;color:var(--muted);margin-bottom:10px">📅 Vence: ${fmtD(v.fecha_limite)} · ${tot} votos emitidos</div>`:''} ${barras}${yaVote}${!bloq?`<div class="vot-btns">${btns}</div>`:''}</div>`
+    }).join('')
+}
+async function votar(vid,opcion){
+    if(!confirm('¿Confirmar voto: "'+opcion+'"? No se puede cambiar.'))return;
+    try{await api('/api/votaciones/'+vid+'/votar',{method:'POST',body:JSON.stringify({opcion})});toast('Voto "'+opcion+'" emitido','ok');await loadVots()}
+    catch(e){toast(e.message,'err')}
+}
 
-            const dateObj = new Date(fecha + 'T00:00:00');
-            const dateStr = dateObj.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-            titulo.textContent = `Disponibilidad y Horarios Reservados — ${dateStr}`;
+async function loadReservas(){
+    const cid=(S.activeU?.consorcios?.id)||S.vecino?.consorcio_id;if(!cid)return;
+    try{S.amenities=await api('/api/consorcios/'+cid+'/amenities');const sel=document.getElementById('res-am');sel.innerHTML='<option value="">Seleccioná un espacio...</option>';S.amenities.forEach(a=>{const o=document.createElement('option');o.value=a.id;o.textContent=a.nombre;sel.appendChild(o)})}catch(e){}
+    await loadMisReservas();
+}
+async function loadMisReservas(){
+    const tb=document.getElementById('tb-reservas');tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Cargando...</td></tr>';
+    try{const d=await api('/api/reservas_amenities?only_mine=true');if(!d.length){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Sin reservas registradas</td></tr>';return}tb.innerHTML=d.map(r=>`<tr><td>${r.amenities?.nombre||'–'}</td><td>${fmtD(r.fecha)}</td><td>${r.hora_inicio?.substring(0,5)} – ${r.hora_fin?.substring(0,5)}</td><td>${ebadge(r.estado)}</td><td>${r.estado==='confirmada'?`<button class="btn btn-danger btn-xs" onclick="cancelarReserva('${r.id}')">Cancelar</button>`:'–'}</td></tr>`).join('')}catch(e){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Error al cargar</td></tr>'}
+}
+function onAmenitySelected(){
+    const aid=document.getElementById('res-am').value;S.selAm=S.amenities.find(a=>a.id===aid);
+    const bc=document.getElementById('btn-cond');const lbl=document.getElementById('am-desc');
+    if(S.selAm){bc.disabled=false;lbl.textContent=S.selAm.descripcion||''}else{bc.disabled=true;lbl.textContent='Seleccioná un espacio para ver los detalles'}
+    onResDateChanged();
+}
+async function onResDateChanged(){
+    const aid=document.getElementById('res-am').value;const fecha=document.getElementById('res-fecha').value;
+    const el=document.getElementById('disp-lista');document.getElementById('disp-titulo').textContent='Disponibilidad'+(fecha?' — '+fmtD(fecha):'');
+    if(!aid||!fecha){el.innerHTML='<p style="color:var(--muted);font-size:0.85rem">Seleccioná un amenity y fecha.</p>';return}
+    el.innerHTML='<p style="color:var(--muted);font-size:0.85rem">Cargando...</p>';
+    try{const d=await api('/api/reservas_amenities?amenity_id='+aid+'&fecha='+fecha);if(!d.length){el.innerHTML='<div class="slot-free">✅ Sin reservas — todo el día disponible</div>';return}el.innerHTML=d.map(r=>`<div class="slot-taken">🔴 ${r.hora_inicio?.substring(0,5)} – ${r.hora_fin?.substring(0,5)} <span style="margin-left:auto;opacity:0.7">Reservado</span></div>`).join('')}
+    catch(e){el.innerHTML='<p style="color:#f87171;font-size:0.85rem">Error al cargar disponibilidad</p>'}
+}
+function verCondiciones(){if(!S.selAm)return;document.getElementById('cond-titulo').textContent='Condiciones — '+S.selAm.nombre;document.getElementById('cond-body').textContent=S.selAm.condiciones_uso||'Sin condiciones especificadas.';openModal('modal-cond')}
+async function realizarReserva(){
+    const aid=document.getElementById('res-am').value;const fecha=document.getElementById('res-fecha').value;const hi=document.getElementById('res-hi').value;const hf=document.getElementById('res-hf').value;
+    if(!aid||!fecha||!hi||!hf){toast('Completá todos los campos','warn');return}
+    try{await api('/api/reservas_amenities',{method:'POST',body:JSON.stringify({amenity_id:aid,fecha,hora_inicio:hi,hora_fin:hf})});toast('Reserva confirmada','ok');await loadMisReservas();onResDateChanged()}
+    catch(e){toast(e.message,'err')}
+}
+async function cancelarReserva(rid){
+    if(!confirm('¿Cancelar esta reserva?'))return;
+    try{await api('/api/reservas_amenities/'+rid,{method:'DELETE'});toast('Reserva cancelada','ok');await loadMisReservas()}
+    catch(e){toast(e.message,'err')}
+}
 
-            try {
-                reservasOcupadas = await api(`/api/reservas_amenities?amenity_id=${aid}&fecha=${fecha}`);
-                if (!reservasOcupadas.length) {
-                    lista.innerHTML = '<div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); padding: 15px; border-radius: 8px; color: #10B981; font-weight: 500;">✓ Todo el día disponible para reservar.</div>';
-                } else {
-                    lista.innerHTML = `
-                        <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 8px;">Los siguientes horarios ya están ocupados para este día:</p>
-                        <div style="display:flex; flex-direction:column; gap:6px;">
-                            ${reservasOcupadas.map(r => `
-                                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); padding: 10px 14px; border-radius: 6px; display:flex; justify-content:space-between; align-items:center;">
-                                    <span style="font-weight: 600; color: #f87171;">🚫 ${r.hora_inicio.substring(0, 5)} - ${r.hora_fin.substring(0, 5)}</span>
-                                    <span style="font-size:0.8rem; color:var(--muted);">Reservado por Unidad ${(r.vecinos||{}).unidad || '—'}</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    `;
-                }
-            } catch (e) {
-                toast(e.message, 'err');
-            }
-        }
+const CATS=[{k:'reglamento_copropiedad',l:'📋 Reglamento de Copropiedad'},{k:'reglamento_espacios',l:'🏊 Reglamento de Espacios Comunes'},{k:'actas',l:'📝 Actas de Asamblea'},{k:'comprobantes',l:'🧾 Comprobantes'},{k:'bancarios',l:'🏦 Documentos Bancarios'},{k:'estructura',l:'🏗️ Estructura del Consorcio'},{k:'otros',l:'📂 Otros Documentos'}];
+async function loadArchivos(){
+    const c=document.getElementById('archivos-acc');c.innerHTML='<div style="color:var(--muted);font-size:0.85rem;padding:12px">Cargando archivos...</div>';
+    try{
+        const data=await api('/api/archivos');const byc={};data.forEach(a=>{if(!byc[a.categoria])byc[a.categoria]=[];byc[a.categoria].push(a)});
+        c.innerHTML=CATS.map(cat=>{const files=byc[cat.k]||[];return`<div class="acc-item"><button class="acc-btn" onclick="toggleAcc(this)"><span>${cat.l} <span style="color:var(--muted);font-weight:400;font-size:0.78rem">(${files.length})</span></span><span class="acc-arr">▼</span></button><div class="acc-body">${files.length===0?'<p style="color:var(--muted);font-size:0.83rem;padding:4px 0">Sin archivos en esta categoría</p>':files.map(f=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2)"><div><div style="font-size:0.85rem;font-weight:600">📄 ${f.nombre}</div><div style="font-size:0.72rem;color:var(--muted)">${new Date(f.created_at).toLocaleDateString('es-AR')} · ${f.mime_type}</div></div><a class="btn btn-secondary btn-xs" href="/api/archivos/${f.id}/descargar" download="${f.nombre}">⬇ Descargar</a></div>`).join('')}</div></div>`}).join('')
+    }catch(e){c.innerHTML='<div style="color:#f87171;font-size:0.85rem;padding:12px">Error al cargar archivos</div>'}
+}
+function toggleAcc(btn){btn.classList.toggle('open');btn.nextElementSibling.classList.toggle('open')}
 
-        function verCondiciones() {
-            const aid = $('reserva-amenity-select').value;
-            if (!aid) return;
+async function loadPerfil(){
+    const el=document.getElementById('perfil-content');const v=S.vecino;if(!v)return;
+    el.innerHTML=`<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px"><div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--teal));display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:800;color:white">${(v.nombre||v.email||'?').charAt(0).toUpperCase()}</div><div><div style="font-size:1rem;font-weight:800">${v.nombre||'–'}</div><div style="color:var(--muted);font-size:0.83rem">${v.email}</div><div style="margin-top:4px">${ebadge('activo')}</div></div></div><div style="border-top:1px solid var(--border);padding-top:16px"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:12px">Mis Unidades</div>${S.unidades.map(u=>{const con=u.consorcios||{};const uf=u.unidades_funcionales||{};return`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px"><div style="font-weight:700;margin-bottom:4px">🏢 ${con.nombre||'–'}</div><div style="font-size:0.8rem;color:var(--muted)">Unidad ${uf.numero||'–'} · Piso ${uf.piso||'–'} · ${u.rol||'propietario'}</div>${con.encargado_nombre?`<div style="font-size:0.78rem;color:var(--text2);margin-top:4px">📞 ${con.encargado_nombre} ${con.encargado_tel?'· '+con.encargado_tel:''}</div>`:''}</div>`}).join('')}</div>`
+}
 
-            const amenity = amenities.find(a => a.id === aid);
-            if (amenity) {
-                $('condiciones-titulo').textContent = `Condiciones de Uso — ${amenity.nombre}`;
-                $('condiciones-cuerpo').textContent = amenity.condiciones_uso || 'No hay condiciones específicas precargadas para este espacio.';
-                openModal('modal-condiciones');
-            }
-        }
+async function showOnboarding(){
+    document.getElementById('onboarding-overlay').classList.add('visible');
+    try{const d=await api('/api/public/consorcios');const sel=document.getElementById('ob-con');sel.innerHTML='<option value="">Seleccioná un consorcio...</option>';d.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.nombre;sel.appendChild(o)})}catch(e){}
+}
+async function onObConChanged(){
+    const cid=document.getElementById('ob-con').value;const sel=document.getElementById('ob-uf');
+    if(!cid){sel.innerHTML='<option value="">Seleccioná un consorcio primero</option>';sel.disabled=true;return}
+    sel.innerHTML='<option value="">Cargando unidades...</option>';sel.disabled=true;
+    try{const d=await api('/api/public/consorcios/'+cid+'/unidades-libres');sel.innerHTML='<option value="">Seleccioná tu unidad...</option>';d.forEach(u=>{const o=document.createElement('option');o.value=u.id;o.textContent='Unidad '+u.numero+(u.piso?' · Piso '+u.piso:'');sel.appendChild(o)});sel.disabled=false}
+    catch(e){sel.innerHTML='<option value="">Error al cargar</option>'}
+}
+function toggleNoUF(){const ck=document.getElementById('ob-nouf').checked;document.getElementById('ob-nouf-msg').style.display=ck?'block':'none';document.getElementById('ob-uf').disabled=ck}
+async function guardarAsociacion(){
+    const cid=document.getElementById('ob-con').value;const uid=document.getElementById('ob-uf').value;const rol=document.getElementById('ob-rol').value;const nouf=document.getElementById('ob-nouf').checked;
+    if(!cid){toast('Seleccioná un consorcio','warn');return}
+    if(!uid&&!nouf){toast('Seleccioná tu unidad o marcá la opción de asignación manual','warn');return}
+    try{await api('/api/vecinos/asociar',{method:'POST',body:JSON.stringify({consorcio_id:cid,unidad_id:uid||null,rol})});toast('Asociación guardada','ok');setTimeout(()=>location.reload(),800)}
+    catch(e){toast(e.message,'err')}
+}
 
-        async function realizarReserva() {
-            const aid = $('reserva-amenity-select').value;
-            const fecha = $('reserva-fecha').value;
-            const horaInicio = $('reserva-hora-inicio').value;
-            const horaFin = $('reserva-hora-fin').value;
-
-            if (!aid || !fecha || !horaInicio || !horaFin) {
-                toast('Por favor completa todos los campos de la reserva', 'warn');
-                return;
-            }
-
-            try {
-                await api('/api/reservas_amenities', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        amenity_id: aid,
-                        fecha: fecha,
-                        hora_inicio: horaInicio,
-                        hora_fin: horaFin
-                    })
-                });
-
-                toast('✓ Reserva realizada con éxito!', 'ok');
-                onReservaDateChanged();
-                loadMisReservas();
-            } catch (e) {
-                toast(e.message, 'err');
-            }
-        }
-
-        async function loadMisReservas() {
-            const tbody = $('tbody-mis-reservas');
-            try {
-                misReservas = await api('/api/reservas_amenities?only_mine=true');
-                if (!misReservas.length) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center" style="padding: 20px; color: var(--muted);">No tienes reservas registradas.</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = misReservas.map(r => `
-                    <tr>
-                        <td><strong>${(r.amenities||{}).nombre || '—'}</strong></td>
-                        <td>${r.fecha}</td>
-                        <td>${r.hora_inicio.substring(0, 5)} - ${r.hora_fin.substring(0, 5)}</td>
-                        <td><span class="badge-status pagado" style="background: rgba(16,185,129,0.12); color: var(--teal); padding: 2px 8px; border-radius: 4px; font-size: 0.85rem;">Confirmada</span></td>
-                        <td>
-                            <button class="btn-action secondary" style="padding: 6px 12px; font-size: 0.85rem;" onclick="cancelarReserva('${r.id}')">Cancelar</button>
-                        </td>
-                    </tr>
-                `).join('');
-
-            } catch (e) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center" style="padding: 20px; color: #EF4444;">Error al cargar reservas.</td></tr>';
-            }
-        }
-
-        async function cancelarReserva(rid) {
-            if (!confirm('¿Estás seguro de que deseas cancelar esta reserva?')) return;
-            try {
-                await api(`/api/reservas_amenities/${rid}`, { method: 'DELETE' });
-                toast('Reserva cancelada');
-                loadMisReservas();
-                onReservaDateChanged();
-            } catch (e) {
-                toast(e.message, 'err');
-            }
-        }
-
-        // ── ONBOARDING VECINOS (ASOCIACIÓN OBLIGATORIA DE CONSORCIO) ────────────
-        async function checkVecinoProfile() {
-            try {
-                const me = await api('/api/me');
-                if (!me.consorcio_id) {
-                    $('onboarding-overlay').style.display = 'flex';
-                    $('pending-overlay').style.display = 'none';
-                    document.querySelector('.dashboard-container').style.display = 'none';
-                    loadOnboardingConsorcios();
-                } else if (me.unidad === 'Pendiente') {
-                    $('onboarding-overlay').style.display = 'none';
-                    $('pending-overlay').style.display = 'flex';
-                    document.querySelector('.dashboard-container').style.display = 'none';
-                } else {
-                    $('onboarding-overlay').style.display = 'none';
-                    $('pending-overlay').style.display = 'none';
-                    document.querySelector('.dashboard-container').style.display = 'flex';
-                }
-            } catch(e) {
-                toast('Error al verificar perfil de usuario', 'err');
-            }
-        }
-
-        async function loadOnboardingConsorcios() {
-            try {
-                const list = await api('/api/public/consorcios');
-                const select = $('onboarding-consorcio');
-                if (!list.length) {
-                    select.innerHTML = '<option value="">No hay consorcios registrados en el sistema</option>';
-                    return;
-                }
-                select.innerHTML = '<option value="">Selecciona tu consorcio...</option>' + 
-                    list.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
-            } catch(e) { toast(e.message, 'err'); }
-        }
-
-        async function onOnboardingConsorcioChanged() {
-            const cid = $('onboarding-consorcio').value;
-            const selectUnit = $('onboarding-unidad');
-            const checkboxNoUf = $('onboarding-no-uf');
-            
-            if (checkboxNoUf.checked) {
-                return; // Si está tildado que no encuentra UF, no hacemos nada
-            }
-
-            if (!cid) {
-                selectUnit.innerHTML = '<option value="">Selecciona un consorcio primero</option>';
-                selectUnit.disabled = true;
-                return;
-            }
-            try {
-                const list = await api(`/api/public/consorcios/${cid}/unidades-libres`);
-                if (!list.length) {
-                    selectUnit.innerHTML = '<option value="">No hay unidades disponibles libres en este consorcio</option>';
-                    selectUnit.disabled = true;
-                    return;
-                }
-                selectUnit.innerHTML = '<option value="">Selecciona tu unidad...</option>' +
-                    list.map(u => `<option value="${u.id}">UF ${u.numero} (Piso ${u.piso || '—'} - ${u.tipo})</option>`).join('');
-                selectUnit.disabled = false;
-            } catch(e) { toast(e.message, 'err'); }
-        }
-
-        function toggleNoUF() {
-            const isNoUf = $('onboarding-no-uf').checked;
-            const selectUnit = $('onboarding-unidad');
-            const msg = $('onboarding-no-uf-msg');
-
-            if (isNoUf) {
-                selectUnit.disabled = true;
-                selectUnit.value = '';
-                msg.style.display = 'block';
-            } else {
-                msg.style.display = 'none';
-                onOnboardingConsorcioChanged();
-            }
-        }
-
-        async function guardarAsociacionOnboarding() {
-            const cid = $('onboarding-consorcio').value;
-            const isNoUf = $('onboarding-no-uf').checked;
-            const uid = isNoUf ? null : $('onboarding-unidad').value;
-            const rol = $('onboarding-rol').value;
-
-            if (!cid) {
-                toast('Debes seleccionar tu consorcio', 'warn');
-                return;
-            }
-            if (!isNoUf && !uid) {
-                toast('Debes seleccionar tu unidad funcional o marcar la casilla de asignación manual', 'warn');
-                return;
-            }
-
-            try {
-                await api('/api/vecinos/asociar', {
-                    method: 'POST',
-                    body: JSON.stringify({ consorcio_id: cid, unidad_id: uid, rol: rol })
-                });
-                toast('¡Solicitud procesada con éxito!', 'ok');
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
-            } catch(e) { toast(e.message, 'err'); }
-        }
-
-        // Theme toggle
-        (function() {
-            const toggle = document.getElementById('theme-toggle');
-            const root = document.documentElement;
-            function applyTheme(t) {
-                root.classList.toggle('light', t === 'light');
-                toggle.textContent = t === 'light' ? '☀️ Cambiar tema' : '🌙 Cambiar tema';
-            }
-            applyTheme(localStorage.getItem('theme') || 'dark');
-            toggle.addEventListener('click', () => {
-                const next = root.classList.contains('light') ? 'dark' : 'light';
-                localStorage.setItem('theme', next);
-                applyTheme(next);
-            });
-        })();
-    </script>
+window.addEventListener('DOMContentLoaded',init);
+</script>
 </body>
 </html>

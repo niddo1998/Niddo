@@ -1127,6 +1127,560 @@ def api_me():
     return jsonify(result.data)
 
 
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# API — VECINOS DASHBOARD COMPLETO
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/vecinos/mis-unidades')
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_mis_unidades():
+    """Devuelve todas las unidades del vecino (multi-unidad vía vecinos_unidades o fallback vecinos)."""
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify([])
+    try:
+        res = supabase.table('vecinos_unidades')            .select('*, unidades_funcionales(id, numero, piso, tipo, superficie_m2), consorcios(id, nombre, direccion, encargado_nombre, encargado_tel)')            .eq('vecino_id', vecino_id).eq('activo', True).execute()
+        if res.data:
+            return jsonify(res.data)
+    except Exception:
+        pass
+    vecino = supabase.table('vecinos').select('consorcio_id, unidad, unidad_id, rol').eq('id', vecino_id).single().execute()
+    if not vecino.data or not vecino.data.get('consorcio_id'):
+        return jsonify([])
+    v = vecino.data
+    uf_data = {}
+    if v.get('unidad_id'):
+        uf_res = supabase.table('unidades_funcionales').select('*').eq('id', v['unidad_id']).single().execute()
+        uf_data = uf_res.data or {}
+    con_res = supabase.table('consorcios').select('id, nombre, direccion, encargado_nombre, encargado_tel').eq('id', v['consorcio_id']).single().execute()
+    return jsonify([{'vecino_id': vecino_id, 'unidad_id': v.get('unidad_id'), 'consorcio_id': v.get('consorcio_id'), 'rol': v.get('rol', 'propietario'), 'activo': True, 'unidades_funcionales': uf_data, 'consorcios': con_res.data or {}}])
+
+
+@app.route('/api/vecinos/cobros')
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_cobros():
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify([])
+    unidad_id = request.args.get('unidad_id')
+    if not unidad_id:
+        v = supabase.table('vecinos').select('unidad_id').eq('id', vecino_id).single().execute()
+        unidad_id = (v.data or {}).get('unidad_id')
+    if not unidad_id:
+        return jsonify([])
+    q = supabase.table('cobros').select('*').eq('unidad_id', unidad_id)
+    if request.args.get('desde'):
+        q = q.gte('created_at', request.args['desde'])
+    if request.args.get('hasta'):
+        q = q.lte('created_at', request.args['hasta'])
+    res = q.order('periodo', desc=True).execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/vecinos/cobro-actual')
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_cobro_actual():
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify(None)
+    unidad_id = request.args.get('unidad_id')
+    if not unidad_id:
+        v = supabase.table('vecinos').select('unidad_id').eq('id', vecino_id).single().execute()
+        unidad_id = (v.data or {}).get('unidad_id')
+    if not unidad_id:
+        return jsonify(None)
+    res = supabase.table('cobros').select('*').eq('unidad_id', unidad_id).in_('estado', ['pendiente', 'vencido', 'en_mora']).order('periodo', desc=True).limit(1).execute()
+    return jsonify(res.data[0] if res.data else None)
+
+
+@app.route('/api/vecinos/cobros/<rid>/cupon')
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_cupon_pago(rid):
+    vecino_id = get_vecino_id()
+    cobro_res = supabase.table('cobros').select('*').eq('id', rid).single().execute()
+    if not cobro_res.data:
+        return jsonify({'error': 'Cobro no encontrado'}), 404
+    cobro = cobro_res.data
+    uf_data = {}
+    if cobro.get('unidad_id'):
+        uf_res = supabase.table('unidades_funcionales').select('*, consorcios(nombre, direccion, cuit)').eq('id', cobro['unidad_id']).single().execute()
+        uf_data = uf_res.data or {}
+    con = (uf_data.get('consorcios') or {})
+    vecino = supabase.table('vecinos').select('nombre').eq('id', vecino_id).single().execute()
+    v_data = vecino.data or {}
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=2*cm, rightMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm)
+    styles = getSampleStyleSheet()
+    elements = []
+    elements.append(Paragraph('<b>CUPÓN DE PAGO DE EXPENSAS</b>', styles['Title']))
+    elements.append(Spacer(1, 0.5*cm))
+    elements.append(Paragraph(f"<b>Consorcio:</b> {con.get('nombre', '')} — {con.get('direccion', '')}", styles['Normal']))
+    elements.append(Paragraph(f"<b>CUIT:</b> {con.get('cuit', 'N/A')}", styles['Normal']))
+    elements.append(Spacer(1, 0.4*cm))
+    elements.append(Paragraph(f"<b>Unidad:</b> {uf_data.get('numero', '')} (Piso {uf_data.get('piso', '')})", styles['Normal']))
+    elements.append(Paragraph(f"<b>Vecino:</b> {v_data.get('nombre', '')}", styles['Normal']))
+    elements.append(Spacer(1, 0.6*cm))
+    data = [['Campo', 'Detalle'], ['Período', cobro.get('periodo', '')], ['Monto Base', f"$ {cobro.get('monto_base', 0):,.2f}"], ['Interés/Mora', f"$ {cobro.get('interes_mora', 0):,.2f}"], ['TOTAL A PAGAR', f"$ {cobro.get('total', 0):,.2f}"], ['Estado', str(cobro.get('estado', '')).upper()], ['Vencimiento', cobro.get('fecha_vencimiento', 'N/A')]]
+    t = Table(data, colWidths=[8*cm, 9*cm])
+    t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#7C3AED')), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('FONTNAME', (0,4), (-1,4), 'Helvetica-Bold'), ('FONTSIZE', (0,0), (-1,-1), 10), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')), ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f5f0ff')]), ('ALIGN', (1,0), (1,-1), 'RIGHT')]))
+    elements.append(t)
+    elements.append(Spacer(1, 0.8*cm))
+    elements.append(Paragraph('<i>Para informar su pago, ingrese al panel y use "Informar Pago".</i>', styles['Normal']))
+    doc.build(elements)
+    return pdf_response(buf, f"cupon_{cobro.get('periodo', '')}_UF{uf_data.get('numero', '')}.pdf")
+
+
+@app.route('/api/vecinos/medios-pago')
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_medios_pago():
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify([])
+    v = supabase.table('vecinos').select('consorcio_id').eq('id', vecino_id).single().execute()
+    cid = (v.data or {}).get('consorcio_id')
+    if not cid:
+        return jsonify([])
+    res = supabase.table('medios_pago').select('*').eq('consorcio_id', cid).eq('activo', True).execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/vecinos/gastos-reporte')
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_gastos_reporte():
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify([])
+    v = supabase.table('vecinos').select('consorcio_id').eq('id', vecino_id).single().execute()
+    cid = (v.data or {}).get('consorcio_id')
+    if not cid:
+        return jsonify([])
+    q = supabase.table('gastos').select('id, descripcion, categoria, monto, fecha_gasto, fecha_vencimiento, pagado, metodo_pago, recurrente, frecuencia, notas, archivo_nombre, proveedores(nombre, rubro)').eq('consorcio_id', cid)
+    if request.args.get('desde'):
+        q = q.gte('fecha_gasto', request.args['desde'])
+    if request.args.get('hasta'):
+        q = q.lte('fecha_gasto', request.args['hasta'])
+    if request.args.get('categoria'):
+        q = q.eq('categoria', request.args['categoria'])
+    res = q.order('fecha_gasto', desc=True).execute()
+    return jsonify(res.data)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# API — COMUNICADOS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/comunicados')
+@require_auth(allowed_roles=['vecino'])
+def api_comunicados_list():
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify([])
+    v = supabase.table('vecinos').select('consorcio_id').eq('id', vecino_id).single().execute()
+    cid = (v.data or {}).get('consorcio_id')
+    if not cid:
+        return jsonify([])
+    q = supabase.table('comunicados').select('*').eq('consorcio_id', cid)
+    if request.args.get('importante') == 'true':
+        q = q.eq('importante', True)
+    comunicados = q.order('created_at', desc=True).execute().data or []
+    leidos_res = supabase.table('comunicados_leidos').select('comunicado_id').eq('vecino_id', vecino_id).execute()
+    leidos_set = {r['comunicado_id'] for r in (leidos_res.data or [])}
+    for c in comunicados:
+        c['leido'] = c['id'] in leidos_set
+    if request.args.get('no_leidos') == 'true':
+        comunicados = [c for c in comunicados if not c['leido']]
+    return jsonify(comunicados)
+
+
+@app.route('/api/comunicados/<cid_com>/leer', methods=['POST'])
+@require_auth(allowed_roles=['vecino'])
+def api_comunicados_leer(cid_com):
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify({'error': 'No autenticado'}), 401
+    try:
+        supabase.table('comunicados_leidos').upsert({'comunicado_id': cid_com, 'vecino_id': vecino_id}, on_conflict='comunicado_id,vecino_id').execute()
+    except Exception:
+        pass
+    return jsonify({'ok': True})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# API — AVISOS DE PAGO
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/avisos_pago', methods=['GET'])
+@require_auth(allowed_roles=['vecino'])
+def api_avisos_pago_list():
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify([])
+    res = supabase.table('avisos_pago').select('id, monto, fecha_pago, medio_pago, estado, created_at, cobro_id').eq('vecino_id', vecino_id).order('created_at', desc=True).execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/avisos_pago', methods=['POST'])
+@require_auth(allowed_roles=['vecino'])
+def api_avisos_pago_create():
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify({'error': 'No autenticado'}), 401
+    d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
+    v = supabase.table('vecinos').select('consorcio_id, unidad_id').eq('id', vecino_id).single().execute()
+    v_data = v.data or {}
+    payload = {'vecino_id': vecino_id, 'consorcio_id': v_data.get('consorcio_id'), 'unidad_id': v_data.get('unidad_id'), 'cobro_id': d.get('cobro_id') or None, 'monto': float(d.get('monto', 0)) if d.get('monto') else None, 'fecha_pago': d.get('fecha_pago') or None, 'medio_pago': d.get('medio_pago', ''), 'observaciones': d.get('observaciones', ''), 'estado': 'pendiente'}
+    archivo = request.files.get('comprobante') if hasattr(request, 'files') and request.files else None
+    if archivo and archivo.filename:
+        file_bytes = archivo.read()
+        payload['adjunto_base64'] = base64.b64encode(file_bytes).decode('utf-8')
+        payload['adjunto_nombre'] = archivo.filename
+        payload['adjunto_mime'] = archivo.content_type or 'application/pdf'
+    res = supabase.table('avisos_pago').insert(payload).execute()
+    return jsonify(res.data[0] if res.data else {}), 201
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# API — RECLAMOS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/reclamos', methods=['GET'])
+@require_auth(allowed_roles=['vecino'])
+def api_reclamos_list():
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify([])
+    q = supabase.table('reclamos').select('id, titulo, descripcion, categoria, estado, respuesta_admin, adjunto_nombre, created_at, updated_at').eq('vecino_id', vecino_id)
+    if request.args.get('estado'):
+        q = q.eq('estado', request.args['estado'])
+    res = q.order('created_at', desc=True).execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/reclamos', methods=['POST'])
+@require_auth(allowed_roles=['vecino'])
+def api_reclamos_create():
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify({'error': 'No autenticado'}), 401
+    d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
+    titulo = (d.get('titulo') or '').strip()
+    descripcion = (d.get('descripcion') or '').strip()
+    if not titulo or not descripcion:
+        return jsonify({'error': 'Título y descripción son obligatorios'}), 400
+    v = supabase.table('vecinos').select('consorcio_id, unidad_id').eq('id', vecino_id).single().execute()
+    v_data = v.data or {}
+    payload = {'vecino_id': vecino_id, 'consorcio_id': v_data.get('consorcio_id'), 'unidad_id': v_data.get('unidad_id'), 'titulo': titulo, 'descripcion': descripcion, 'categoria': d.get('categoria', 'otro'), 'estado': 'activo'}
+    archivo = request.files.get('adjunto') if hasattr(request, 'files') and request.files else None
+    if archivo and archivo.filename:
+        file_bytes = archivo.read()
+        payload['adjunto_base64'] = base64.b64encode(file_bytes).decode('utf-8')
+        payload['adjunto_nombre'] = archivo.filename
+        payload['adjunto_mime'] = archivo.content_type or 'application/pdf'
+    res = supabase.table('reclamos').insert(payload).execute()
+    return jsonify(res.data[0] if res.data else {}), 201
+
+
+@app.route('/api/reclamos/<rid>', methods=['DELETE'])
+@require_auth(allowed_roles=['vecino'])
+def api_reclamos_delete(rid):
+    vecino_id = get_vecino_id()
+    reclamo = supabase.table('reclamos').select('vecino_id, estado').eq('id', rid).single().execute()
+    if not reclamo.data or reclamo.data['vecino_id'] != vecino_id:
+        return jsonify({'error': 'Sin permiso'}), 403
+    if reclamo.data['estado'] not in ('activo',):
+        return jsonify({'error': 'Solo se pueden cancelar reclamos activos'}), 400
+    supabase.table('reclamos').update({'estado': 'cerrado', 'updated_at': now_iso()}).eq('id', rid).execute()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/reclamos/<rid>/adjunto')
+@require_auth(allowed_roles=['vecino'])
+def api_reclamos_adjunto(rid):
+    vecino_id = get_vecino_id()
+    reclamo = supabase.table('reclamos').select('vecino_id, adjunto_base64, adjunto_nombre, adjunto_mime').eq('id', rid).single().execute()
+    if not reclamo.data or reclamo.data['vecino_id'] != vecino_id:
+        return jsonify({'error': 'No encontrado'}), 404
+    if not reclamo.data.get('adjunto_base64'):
+        return jsonify({'error': 'Sin adjunto'}), 404
+    file_bytes = base64.b64decode(reclamo.data['adjunto_base64'])
+    return send_file(io.BytesIO(file_bytes), mimetype=reclamo.data.get('adjunto_mime', 'application/pdf'), download_name=reclamo.data.get('adjunto_nombre', 'adjunto'), as_attachment=False)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# API — VOTACIONES & VOTOS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/votaciones')
+@require_auth(allowed_roles=['vecino'])
+def api_votaciones_list():
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify([])
+    v = supabase.table('vecinos').select('consorcio_id, unidad_id').eq('id', vecino_id).single().execute()
+    v_data = v.data or {}
+    cid = v_data.get('consorcio_id')
+    if not cid:
+        return jsonify([])
+    q = supabase.table('votaciones').select('*').eq('consorcio_id', cid)
+    if request.args.get('estado'):
+        q = q.eq('estado', request.args['estado'])
+    votaciones = q.order('created_at', desc=True).execute().data or []
+    unidad_id = v_data.get('unidad_id')
+    for vot in votaciones:
+        votos_res = supabase.table('votos').select('opcion').eq('votacion_id', vot['id']).execute()
+        votos = votos_res.data or []
+        conteo = {}
+        for voto in votos:
+            op = voto['opcion']
+            conteo[op] = conteo.get(op, 0) + 1
+        vot['conteo_votos'] = conteo
+        vot['total_votos'] = len(votos)
+        vot['ya_vote'] = False
+        if unidad_id:
+            mi_voto = supabase.table('votos').select('opcion').eq('votacion_id', vot['id']).eq('unidad_id', unidad_id).execute()
+            if mi_voto.data:
+                vot['ya_vote'] = True
+                vot['mi_opcion'] = mi_voto.data[0]['opcion']
+    return jsonify(votaciones)
+
+
+@app.route('/api/votaciones/<vid>/votar', methods=['POST'])
+@require_auth(allowed_roles=['vecino'])
+def api_votaciones_votar(vid):
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify({'error': 'No autenticado'}), 401
+    d = request.json or {}
+    opcion = (d.get('opcion') or '').strip()
+    if not opcion:
+        return jsonify({'error': 'La opción es obligatoria'}), 400
+    v = supabase.table('vecinos').select('unidad_id, consorcio_id').eq('id', vecino_id).single().execute()
+    v_data = v.data or {}
+    unidad_id = v_data.get('unidad_id')
+    votacion_res = supabase.table('votaciones').select('*').eq('id', vid).single().execute()
+    if not votacion_res.data:
+        return jsonify({'error': 'Votación no encontrada'}), 404
+    votacion = votacion_res.data
+    if votacion.get('estado') != 'activa':
+        return jsonify({'error': 'La votación ya no está activa'}), 400
+    opciones_validas = votacion.get('opciones') or ['Si', 'No', 'Abstención']
+    if opcion not in opciones_validas:
+        return jsonify({'error': f'Opción inválida. Opciones: {opciones_validas}'}), 400
+    if unidad_id:
+        ya_voto = supabase.table('votos').select('id').eq('votacion_id', vid).eq('unidad_id', unidad_id).execute()
+        if ya_voto.data:
+            return jsonify({'error': 'Tu unidad ya emitió un voto en esta votación'}), 409
+    try:
+        res = supabase.table('votos').insert({'votacion_id': vid, 'vecino_id': vecino_id, 'unidad_id': unidad_id, 'opcion': opcion}).execute()
+        return jsonify(res.data[0] if res.data else {}), 201
+    except Exception:
+        return jsonify({'error': 'Ya votaste en esta votación'}), 409
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# API — ARCHIVOS DEL CONSORCIO
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/archivos')
+@require_auth(allowed_roles=['vecino'])
+def api_archivos_list():
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify([])
+    v = supabase.table('vecinos').select('consorcio_id').eq('id', vecino_id).single().execute()
+    cid = (v.data or {}).get('consorcio_id')
+    if not cid:
+        return jsonify([])
+    q = supabase.table('archivos_consorcio').select('id, categoria, nombre, mime_type, created_at').eq('consorcio_id', cid)
+    if request.args.get('categoria'):
+        q = q.eq('categoria', request.args['categoria'])
+    res = q.order('created_at', desc=True).execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/archivos/<aid>/descargar')
+@require_auth(allowed_roles=['vecino'])
+def api_archivos_descargar(aid):
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify({'error': 'No autenticado'}), 401
+    archivo_res = supabase.table('archivos_consorcio').select('*').eq('id', aid).single().execute()
+    if not archivo_res.data:
+        return jsonify({'error': 'Archivo no encontrado'}), 404
+    archivo = archivo_res.data
+    v = supabase.table('vecinos').select('consorcio_id').eq('id', vecino_id).single().execute()
+    if (v.data or {}).get('consorcio_id') != archivo['consorcio_id']:
+        return jsonify({'error': 'Sin permiso'}), 403
+    file_bytes = base64.b64decode(archivo['archivo_base64'])
+    return send_file(io.BytesIO(file_bytes), mimetype=archivo.get('mime_type', 'application/pdf'), download_name=archivo.get('nombre', 'archivo'), as_attachment=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# API — ADMIN: COMUNICADOS, VOTACIONES, ARCHIVOS, MEDIOS DE PAGO, RECLAMOS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/admin/comunicados', methods=['GET'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_comunicados_list():
+    admin_id = get_admin_id()
+    q = supabase.table('comunicados').select('*').eq('admin_id', admin_id)
+    if request.args.get('consorcio_id'):
+        q = q.eq('consorcio_id', request.args['consorcio_id'])
+    return jsonify(q.order('created_at', desc=True).execute().data)
+
+
+@app.route('/api/admin/comunicados', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_comunicados_create():
+    admin_id = get_admin_id()
+    d = request.json or {}
+    payload = {'consorcio_id': d.get('consorcio_id'), 'admin_id': admin_id, 'titulo': (d.get('titulo') or '').strip(), 'cuerpo': (d.get('cuerpo') or '').strip(), 'importante': bool(d.get('importante', False))}
+    if not payload['titulo'] or not payload['cuerpo'] or not payload['consorcio_id']:
+        return jsonify({'error': 'Faltan campos obligatorios'}), 400
+    res = supabase.table('comunicados').insert(payload).execute()
+    return jsonify(res.data[0] if res.data else {}), 201
+
+
+@app.route('/api/admin/comunicados/<cid_com>', methods=['DELETE'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_comunicados_delete(cid_com):
+    admin_id = get_admin_id()
+    supabase.table('comunicados').delete().eq('id', cid_com).eq('admin_id', admin_id).execute()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/admin/votaciones', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_votaciones_create():
+    admin_id = get_admin_id()
+    d = request.json or {}
+    payload = {'consorcio_id': d.get('consorcio_id'), 'admin_id': admin_id, 'titulo': (d.get('titulo') or '').strip(), 'descripcion': d.get('descripcion', ''), 'opciones': d.get('opciones', ['Si', 'No', 'Abstención']), 'fecha_limite': d.get('fecha_limite') or None, 'votos_necesarios': d.get('votos_necesarios') or None, 'estado': 'activa'}
+    res = supabase.table('votaciones').insert(payload).execute()
+    return jsonify(res.data[0] if res.data else {}), 201
+
+
+@app.route('/api/admin/votaciones/<vid>', methods=['PUT'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_votaciones_update(vid):
+    admin_id = get_admin_id()
+    d = request.json or {}
+    allowed = ('titulo', 'descripcion', 'estado', 'fecha_limite', 'votos_necesarios')
+    payload = {k: v for k, v in d.items() if k in allowed}
+    res = supabase.table('votaciones').update(payload).eq('id', vid).eq('admin_id', admin_id).execute()
+    return jsonify(res.data[0] if res.data else {})
+
+
+@app.route('/api/admin/archivos', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_archivos_create():
+    admin_id = get_admin_id()
+    d = request.form
+    archivo = request.files.get('archivo')
+    if not archivo or not archivo.filename:
+        return jsonify({'error': 'Se requiere un archivo'}), 400
+    file_bytes = archivo.read()
+    payload = {'consorcio_id': d.get('consorcio_id'), 'admin_id': admin_id, 'categoria': d.get('categoria', 'otros'), 'nombre': d.get('nombre') or archivo.filename, 'archivo_base64': base64.b64encode(file_bytes).decode('utf-8'), 'mime_type': archivo.content_type or 'application/pdf'}
+    res = supabase.table('archivos_consorcio').insert(payload).execute()
+    return jsonify(res.data[0] if res.data else {}), 201
+
+
+@app.route('/api/admin/archivos/<aid>', methods=['DELETE'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_archivos_delete(aid):
+    admin_id = get_admin_id()
+    supabase.table('archivos_consorcio').delete().eq('id', aid).eq('admin_id', admin_id).execute()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/admin/medios-pago', methods=['GET'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_medios_pago_list():
+    admin_id = get_admin_id()
+    q = supabase.table('medios_pago').select('*').eq('admin_id', admin_id)
+    if request.args.get('consorcio_id'):
+        q = q.eq('consorcio_id', request.args['consorcio_id'])
+    return jsonify(q.order('nombre').execute().data)
+
+
+@app.route('/api/admin/medios-pago', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_medios_pago_create():
+    admin_id = get_admin_id()
+    d = request.json or {}
+    payload = {'consorcio_id': d.get('consorcio_id'), 'admin_id': admin_id, 'nombre': (d.get('nombre') or '').strip(), 'descripcion': d.get('descripcion', ''), 'activo': bool(d.get('activo', True))}
+    res = supabase.table('medios_pago').insert(payload).execute()
+    return jsonify(res.data[0] if res.data else {}), 201
+
+
+@app.route('/api/admin/medios-pago/<mid>', methods=['DELETE'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_medios_pago_delete(mid):
+    admin_id = get_admin_id()
+    supabase.table('medios_pago').delete().eq('id', mid).eq('admin_id', admin_id).execute()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/admin/reclamos')
+@require_auth(allowed_roles=['admin'])
+def api_admin_reclamos_list():
+    admin_id = get_admin_id()
+    cid = request.args.get('consorcio_id')
+    if cid:
+        con_check = supabase.table('consorcios').select('id').eq('id', cid).eq('admin_id', admin_id).execute()
+        if not con_check.data:
+            return jsonify({'error': 'Sin permiso'}), 403
+        q = supabase.table('reclamos').select('*, vecinos(nombre, email, unidad)').eq('consorcio_id', cid)
+    else:
+        cons = supabase.table('consorcios').select('id').eq('admin_id', admin_id).execute().data or []
+        cids = [c['id'] for c in cons]
+        if not cids:
+            return jsonify([])
+        q = supabase.table('reclamos').select('*, vecinos(nombre, email, unidad)').in_('consorcio_id', cids)
+    if request.args.get('estado'):
+        q = q.eq('estado', request.args['estado'])
+    res = q.order('created_at', desc=True).execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/admin/reclamos/<rid>', methods=['PUT'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_reclamos_update(rid):
+    d = request.json or {}
+    allowed = ('estado', 'respuesta_admin')
+    payload = {k: v for k, v in d.items() if k in allowed}
+    payload['updated_at'] = now_iso()
+    res = supabase.table('reclamos').update(payload).eq('id', rid).execute()
+    return jsonify(res.data[0] if res.data else {})
+
+
+@app.route('/api/admin/avisos-pago')
+@require_auth(allowed_roles=['admin'])
+def api_admin_avisos_pago_list():
+    admin_id = get_admin_id()
+    cid = request.args.get('consorcio_id')
+    if cid:
+        q = supabase.table('avisos_pago').select('*, vecinos(nombre, email, unidad)').eq('consorcio_id', cid)
+    else:
+        cons = supabase.table('consorcios').select('id').eq('admin_id', admin_id).execute().data or []
+        cids = [c['id'] for c in cons]
+        if not cids:
+            return jsonify([])
+        q = supabase.table('avisos_pago').select('*, vecinos(nombre, email, unidad)').in_('consorcio_id', cids)
+    res = q.order('created_at', desc=True).execute()
+    return jsonify(res.data)
+
+
+@app.route('/api/admin/avisos-pago/<aid>', methods=['PUT'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_avisos_pago_update(aid):
+    d = request.json or {}
+    payload = {k: v for k, v in d.items() if k in ('estado',)}
+    res = supabase.table('avisos_pago').update(payload).eq('id', aid).execute()
+    return jsonify(res.data[0] if res.data else {})
+
+
 # ── Run ────────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     print('🏢 Niddo server starting...')
