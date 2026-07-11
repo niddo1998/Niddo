@@ -1,5 +1,4 @@
 import io
-import csv
 import os
 import base64
 from datetime import datetime, timezone, date
@@ -17,6 +16,7 @@ from supabase import create_client, Client
 # ── Export libs ────────────────────────────────────────────────────────────────
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.worksheet.datavalidation import DataValidation
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib import colors
 from reportlab.lib.units import cm
@@ -140,6 +140,83 @@ def make_excel(headers: list, rows: list, sheet_name: str) -> openpyxl.Workbook:
     for r, row in enumerate(rows, 2):
         for c, val in enumerate(row, 1):
             ws.cell(row=r, column=c, value=val)
+    return wb
+
+
+TIPOS_UF_VALIDOS = ['departamento', 'local', 'cochera', 'baulera']
+MARCA_FILA_EJEMPLO = '(borrar fila)'
+
+
+def es_fila_ejemplo(texto: str) -> bool:
+    return MARCA_FILA_EJEMPLO in (texto or '').lower()
+
+
+def build_carga_masiva_template(consorcios_existentes: list) -> openpyxl.Workbook:
+    header_fill = PatternFill("solid", fgColor="7C3AED")
+    header_font = Font(color="FFFFFF", bold=True, size=11)
+    example_font = Font(italic=True, color="9CA3AF")
+
+    def style_header(ws, headers):
+        for col, h in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=h)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center')
+            ws.column_dimensions[cell.column_letter].width = max(len(h) + 4, 16)
+
+    wb = openpyxl.Workbook()
+
+    ws_info = wb.active
+    ws_info.title = 'Instrucciones'
+    ws_info.column_dimensions['A'].width = 100
+    info_lines = [
+        ('Carga masiva de Consorcios y Unidades Funcionales', True),
+        ('', False),
+        ('1. Completá la hoja "Consorcios" para crear edificios nuevos. Dejala vacía si solo vas a cargar', False),
+        ('   unidades de consorcios que ya existen.', False),
+        ('2. Completá la hoja "Unidades" con las UF a cargar. En la columna "consorcio" escribí el nombre', False),
+        ('   exacto del consorcio (nuevo, tal como lo escribiste en la hoja "Consorcios", o uno ya existente,', False),
+        ('   tal como figura en la hoja "Consorcios existentes").', False),
+        ('3. Guardá el archivo y subilo en el panel. No cambies los nombres de las hojas ni de las columnas.', False),
+        ('', False),
+        ('Campos obligatorios: nombre (Consorcios); consorcio y numero (Unidades). El resto es opcional.', False),
+        (f'Valores válidos para "tipo": {", ".join(TIPOS_UF_VALIDOS)}.', False),
+        ('Si un consorcio o una unidad ya existe, se reutiliza/omite automáticamente (no se duplica).', False),
+    ]
+    for i, (text, bold) in enumerate(info_lines, 1):
+        cell = ws_info.cell(row=i, column=1, value=text)
+        if bold:
+            cell.font = Font(bold=True, size=13)
+
+    ws_c = wb.create_sheet('Consorcios')
+    style_header(ws_c, ['nombre*', 'direccion', 'cuit', 'pisos', 'unidades_totales', 'encargado_nombre', 'encargado_tel'])
+    example_c = ['Edificio Ejemplo 123 (borrar fila)', 'Av. Siempreviva 742', '30-12345678-9', 8, 24, 'Juan Pérez', '+54 9 11 1234-5678']
+    for c, val in enumerate(example_c, 1):
+        ws_c.cell(row=2, column=c, value=val).font = example_font
+
+    ws_u = wb.create_sheet('Unidades')
+    style_header(ws_u, ['consorcio*', 'numero*', 'piso', 'tipo', 'superficie_m2', 'vecino_nombre', 'vecino_email'])
+    example_u = ['Edificio Ejemplo 123 (borrar fila)', '3B', '3', 'departamento', 65.5, 'Juan Pérez', 'juan@mail.com']
+    for c, val in enumerate(example_u, 1):
+        ws_u.cell(row=2, column=c, value=val).font = example_font
+    tipo_dv = DataValidation(type='list', formula1=f'"{",".join(TIPOS_UF_VALIDOS)}"', allow_blank=True, showErrorMessage=False)
+    ws_u.add_data_validation(tipo_dv)
+    tipo_dv.add('D2:D1000')
+    if consorcios_existentes:
+        nombres = [c['nombre'] for c in consorcios_existentes]
+        con_dv = DataValidation(type='list', formula1=f'"{",".join(nombres)[:255]}"', allow_blank=True, showErrorMessage=False)
+        ws_u.add_data_validation(con_dv)
+        con_dv.add('A2:A1000')
+
+    ws_ref = wb.create_sheet('Consorcios existentes')
+    style_header(ws_ref, ['nombre', 'direccion'])
+    for r, c in enumerate(consorcios_existentes, 2):
+        ws_ref.cell(row=r, column=1, value=c['nombre'])
+        ws_ref.cell(row=r, column=2, value=c.get('direccion', ''))
+    if not consorcios_existentes:
+        ws_ref.cell(row=2, column=1, value='(todavía no tenés consorcios cargados)').font = example_font
+
+    wb.active = 0
     return wb
 
 
@@ -375,29 +452,132 @@ def api_ufs_delete(cid, uid):
     return jsonify({'ok': True})
 
 
-@app.route('/api/consorcios/<cid>/unidades/bulk', methods=['POST'])
+@app.route('/api/consorcios/plantilla')
 @require_auth(allowed_roles=['admin'])
-def api_ufs_bulk(cid):
-    """Carga masiva desde CSV. Columnas: numero,piso,tipo,superficie_m2,vecino_nombre,vecino_email"""
+def descargar_plantilla_carga_masiva():
+    admin_id = get_admin_id()
+    existentes = supabase.table('consorcios').select('nombre,direccion').eq('admin_id', admin_id).order('nombre').execute().data or []
+    wb = build_carga_masiva_template(existentes)
+    return excel_response(wb, 'plantilla_carga_masiva.xlsx')
+
+
+@app.route('/api/consorcios/carga-masiva', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_carga_masiva():
+    admin_id = get_admin_id()
     file = request.files.get('file')
     if not file:
         return jsonify({'error': 'No se envió archivo'}), 400
-    stream = io.StringIO(file.stream.read().decode('utf-8'))
-    reader = csv.DictReader(stream)
-    rows = []
-    for row in reader:
-        rows.append({
-            'consorcio_id': cid,
-            'numero': row.get('numero', '').strip(),
-            'piso': row.get('piso', ''),
-            'tipo': row.get('tipo', 'departamento'),
-            'superficie_m2': row.get('superficie_m2') or None,
-            'vecino_nombre': row.get('vecino_nombre', ''),
-            'vecino_email': row.get('vecino_email', ''),
-        })
-    if rows:
-        supabase.table('unidades_funcionales').insert(rows).execute()
-    return jsonify({'inserted': len(rows)})
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(file.read()), data_only=True)
+    except Exception:
+        return jsonify({'error': 'No se pudo leer el archivo. Verificá que sea el .xlsx de la plantilla.'}), 400
+
+    errores = []
+
+    # ── Paso A: hoja "Consorcios" ────────────────────────────────────────────
+    existentes_res = supabase.table('consorcios').select('id,nombre').eq('admin_id', admin_id).execute().data or []
+    mapa_consorcios = {c['nombre'].strip().lower(): c['id'] for c in existentes_res}
+    ids_originales = {c['id'] for c in existentes_res}
+    ids_reutilizados = set()
+    nuevos_consorcios = []
+
+    if 'Consorcios' in wb.sheetnames:
+        ws_c = wb['Consorcios']
+        for i, row in enumerate(ws_c.iter_rows(min_row=2, values_only=True), 2):
+            if not row or all(v in (None, '') for v in row):
+                continue
+            nombre = str(row[0]).strip() if row[0] else ''
+            if es_fila_ejemplo(nombre):
+                continue
+            if not nombre:
+                errores.append({'hoja': 'Consorcios', 'fila': i, 'mensaje': 'Falta el nombre del consorcio'})
+                continue
+            key = nombre.lower()
+            if key in mapa_consorcios:
+                ids_reutilizados.add(mapa_consorcios[key])
+                continue
+            nuevos_consorcios.append({
+                'nombre': nombre,
+                'direccion': row[1] or '',
+                'cuit': row[2] or '',
+                'pisos': row[3] or None,
+                'unidades_totales': row[4] or None,
+                'encargado_nombre': row[5] or '',
+                'encargado_tel': row[6] or '',
+                'admin_id': admin_id,
+            })
+            mapa_consorcios[key] = None  # placeholder hasta insertar, evita duplicar dentro del mismo archivo
+
+    if nuevos_consorcios:
+        creados = supabase.table('consorcios').insert(nuevos_consorcios).execute().data or []
+        for c in creados:
+            mapa_consorcios[c['nombre'].strip().lower()] = c['id']
+
+    # ── Paso B: hoja "Unidades" ──────────────────────────────────────────────
+    nuevas_ufs = []
+    consorcio_ids_tocados = set()
+
+    if 'Unidades' in wb.sheetnames:
+        ws_u = wb['Unidades']
+        filas_unidades = [(i, row) for i, row in enumerate(ws_u.iter_rows(min_row=2, values_only=True), 2)
+                           if row and not all(v in (None, '') for v in row)]
+        for i, row in filas_unidades:
+            nombre_con = str(row[0]).strip() if row[0] else ''
+            if es_fila_ejemplo(nombre_con):
+                continue
+            con_id = mapa_consorcios.get(nombre_con.lower())
+            if not nombre_con or not con_id:
+                errores.append({'hoja': 'Unidades', 'fila': i, 'mensaje': f'Consorcio no encontrado: "{nombre_con}"'})
+                continue
+            if con_id in ids_originales:
+                ids_reutilizados.add(con_id)
+            numero = str(row[1]).strip() if row[1] else ''
+            if not numero:
+                errores.append({'hoja': 'Unidades', 'fila': i, 'mensaje': 'Falta el número de unidad'})
+                continue
+            tipo = str(row[3]).strip().lower() if row[3] else 'departamento'
+            if tipo not in TIPOS_UF_VALIDOS:
+                tipo = 'departamento'
+            consorcio_ids_tocados.add(con_id)
+            nuevas_ufs.append({
+                'consorcio_id': con_id,
+                'numero': numero,
+                'piso': str(row[2]) if row[2] not in (None, '') else '',
+                'tipo': tipo,
+                'superficie_m2': row[4] or None,
+                'vecino_nombre': row[5] or '',
+                'vecino_email': row[6] or '',
+            })
+
+    # Evitar duplicar UF ya existentes en el mismo consorcio
+    numeros_existentes = set()
+    if consorcio_ids_tocados:
+        existentes_uf = supabase.table('unidades_funcionales').select('consorcio_id,numero') \
+            .in_('consorcio_id', list(consorcio_ids_tocados)).execute().data or []
+        numeros_existentes = {(u['consorcio_id'], u['numero'].strip().lower()) for u in existentes_uf}
+
+    ufs_a_insertar = []
+    unidades_omitidas = 0
+    vistas_en_archivo = set()
+    for uf in nuevas_ufs:
+        key = (uf['consorcio_id'], uf['numero'].strip().lower())
+        if key in numeros_existentes or key in vistas_en_archivo:
+            unidades_omitidas += 1
+            continue
+        vistas_en_archivo.add(key)
+        ufs_a_insertar.append(uf)
+
+    if ufs_a_insertar:
+        supabase.table('unidades_funcionales').insert(ufs_a_insertar).execute()
+
+    return jsonify({
+        'consorcios_creados': len(nuevos_consorcios),
+        'consorcios_reutilizados': len(ids_reutilizados),
+        'unidades_creadas': len(ufs_a_insertar),
+        'unidades_omitidas': unidades_omitidas,
+        'errores': errores,
+    })
 
 
 @app.route('/api/consorcios/<cid>/export/excel')
