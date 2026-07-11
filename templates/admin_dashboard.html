@@ -223,6 +223,7 @@
         <a class="nav-link" onclick="show('cobros',this)">💳 Cobros</a>
         <a class="nav-link" onclick="show('proveedores',this)">🤝 Proveedores</a>
         <a class="nav-link" onclick="show('amenities',this)">🏊 Amenities</a>
+        <a class="nav-link" onclick="show('liquidaciones',this)">📋 Liquidaciones</a>
 
         <div class="nav-section-label">Finanzas</div>
         <a class="nav-link" onclick="show('balance',this)">📊 Balance</a>
@@ -486,6 +487,114 @@
                 <thead><tr><th>Amenity</th><th>Vecino</th><th>Unidad</th><th>Fecha</th><th>Horario</th><th>Estado</th><th>Acciones</th></tr></thead>
                 <tbody id="tbody-amenities-reservations"><tr><td colspan="7" class="tbl-empty">Seleccioná un consorcio para ver las reservas</td></tr></tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ LIQUIDACIONES ═══ -->
+<div id="sec-liquidaciones" class="section">
+    <div class="page-header">
+        <div><h1 class="page-title">Liquidaciones</h1><p class="page-sub">Generá y enviá resúmenes de expensas a los copropietarios</p></div>
+        <div style="display:flex;gap:8px;">
+            <button class="btn-p btn-sm" onclick="openNuevaLiquidacionModal()">+ Nueva liquidación</button>
+        </div>
+    </div>
+    <div class="filters">
+        <select class="form-ctrl" id="filter-liq-consorcio" onchange="loadLiquidaciones()">
+            <option value="">Todos los consorcios</option>
+        </select>
+    </div>
+    <div class="card" id="card-liq-list">
+        <div class="card-h"><span class="card-t">Liquidaciones</span></div>
+        <table class="tbl">
+            <thead><tr><th>Período</th><th>Consorcio</th><th>Total Egresos</th><th>Saldo Final</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="tbody-liquidaciones"><tr><td colspan="6" class="tbl-empty">Cargando...</td></tr></tbody>
+        </table>
+    </div>
+
+    <!-- Detalle de liquidación -->
+    <div id="liq-detail" style="display:none;">
+        <div class="page-header">
+            <div><h2 class="page-title" id="liq-detail-titulo">—</h2><p class="page-sub" id="liq-detail-sub">—</p></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn-p btn-sm" onclick="openEnviarModal()">📤 Enviar resúmenes</button>
+                <button class="btn-s btn-sm" onclick="openAgendarModal()">⏰ Agendar envío</button>
+                <button class="btn-s btn-sm" onclick="openPreviewModal()">👁 Previsualizar</button>
+                <button class="btn-s btn-sm" onclick="closeLiqDetail()">← Volver</button>
+            </div>
+        </div>
+
+        <!-- KPIs de la liquidación -->
+        <div class="kpi-row" id="liq-detail-kpis"></div>
+
+        <!-- Tabs -->
+        <div class="tabs" id="liq-tabs">
+            <button class="tab-btn active" onclick="liqTab('rubros',this)">Rubros</button>
+            <button class="tab-btn" onclick="liqTab('prorrateo',this)">Prorrateo por UF</button>
+            <button class="tab-btn" onclick="liqTab('envios',this)">Estado de envíos</button>
+            <button class="tab-btn" onclick="liqTab('config-liq',this)">Configuración</button>
+        </div>
+
+        <!-- Tab: Rubros -->
+        <div id="tab-liq-rubros">
+            <div class="card">
+                <div class="card-h"><span class="card-t">Rubros de gastos</span></div>
+                <table class="tbl">
+                    <thead><tr><th>#</th><th>Rubro</th><th>Items</th><th>Subtotal</th><th>% del Total</th></tr></thead>
+                    <tbody id="tbody-rubros"><tr><td colspan="5" class="tbl-empty">Cargando...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab: Prorrateo -->
+        <div id="tab-liq-prorrateo" style="display:none;">
+            <div class="card">
+                <div class="card-h"><span class="card-t">Tabla de prorrateo por unidad funcional</span></div>
+                <div style="overflow-x:auto;">
+                <table class="tbl">
+                    <thead><tr><th>UF</th><th>Piso</th><th>Copropietario</th><th>Sdo.Ant.</th><th>Pago</th><th>Sdo.Pend.</th><th>Int.</th><th>%A</th><th>Exp.A</th><th>%C</th><th>Adic.Ord.</th><th>Total</th><th>Acción</th></tr></thead>
+                    <tbody id="tbody-prorrateo"><tr><td colspan="13" class="tbl-empty">Cargando...</td></tr></tbody>
+                </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Envíos -->
+        <div id="tab-liq-envios" style="display:none;">
+            <div class="card">
+                <div class="card-h"><span class="card-t">Estado de envíos</span></div>
+                <table class="tbl">
+                    <thead><tr><th>UF</th><th>Copropietario</th><th>Canal</th><th>Estado</th><th>Email</th><th>Fecha envío</th><th>Error</th></tr></thead>
+                    <tbody id="tbody-envios"><tr><td colspan="7" class="tbl-empty">Sin envíos aún</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab: Config -->
+        <div id="tab-liq-config-liq" style="display:none;">
+            <div class="card card-p" style="max-width:600px;">
+                <h3 style="font-size:.9rem;font-weight:700;margin-bottom:14px;">Datos de la liquidación</h3>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">1er Vencimiento</label><input type="date" class="form-ctrl" id="liq-vto1"></div>
+                    <div class="form-group"><label class="form-label">2do Vencimiento</label><input type="date" class="form-ctrl" id="liq-vto2"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">% recargo 2do vto</label><input type="number" step="0.01" class="form-ctrl" id="liq-interes2" style="width:120px;"></div>
+                    <div class="form-group"><label class="form-label">Saldo inicial</label><input type="number" step="0.01" class="form-ctrl" id="liq-saldo-ini"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Total ingresos</label><input type="number" step="0.01" class="form-ctrl" id="liq-ingresos"></div>
+                    <div class="form-group"><label class="form-label">Estado</label>
+                        <select class="form-ctrl" id="liq-estado-sel">
+                            <option value="borrador">Borrador</option>
+                            <option value="publicada">Publicada</option>
+                            <option value="cerrada">Cerrada</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group"><label class="form-label">Notas</label><textarea class="form-ctrl" id="liq-notas" rows="3"></textarea></div>
+                <button class="btn-p btn-sm" onclick="guardarConfigLiq()">Guardar cambios</button>
+            </div>
         </div>
     </div>
 </div>
@@ -773,6 +882,97 @@
     </div>
 </div>
 
+<!-- Modal Nueva Liquidación -->
+<div class="modal-overlay" id="modal-nueva-liq">
+    <div class="modal-box">
+        <div class="modal-head"><h3>Nueva liquidación</h3><button class="modal-close" onclick="closeModal('modal-nueva-liq')">✕</button></div>
+        <div class="modal-body">
+            <div class="section-info">Se creará una liquidación automáticamente agrupando los gastos cargados para el consorcio y período seleccionados.</div>
+            <div class="form-group"><label class="form-label">Consorcio *</label><select class="form-ctrl" id="m-liq-consorcio"></select></div>
+            <div class="form-group"><label class="form-label">Período (AAAA-MM) *</label><input type="month" class="form-ctrl" id="m-liq-periodo"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-nueva-liq')">Cancelar</button>
+            <button class="btn-p" onclick="crearLiquidacion()">⚡ Generar liquidación</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Preview Resumen -->
+<div class="modal-overlay" id="modal-preview">
+    <div class="modal-box" style="width:680px;max-width:96vw;">
+        <div class="modal-head">
+            <h3>👁 Previsualización del resumen</h3>
+            <button class="modal-close" onclick="closeModal('modal-preview')">✕</button>
+        </div>
+        <div class="modal-body" style="padding:12px;">
+            <div class="form-group" style="margin-bottom:10px;">
+                <label class="form-label">Seleccioná una UF para previsualizar</label>
+                <select class="form-ctrl" id="m-preview-uf" onchange="loadPreview()"></select>
+            </div>
+            <div id="preview-frame" style="background:#f5f5fa;border-radius:8px;min-height:400px;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Enviar Resúmenes -->
+<div class="modal-overlay" id="modal-enviar">
+    <div class="modal-box">
+        <div class="modal-head"><h3>📤 Enviar resúmenes por email</h3><button class="modal-close" onclick="closeModal('modal-enviar')">✕</button></div>
+        <div class="modal-body">
+            <div style="text-align:center;padding:20px;">
+                <div style="font-size:3rem;margin-bottom:12px;">📧</div>
+                <p style="font-size:.9rem;font-weight:600;margin-bottom:8px;">¿Enviar resúmenes de liquidación?</p>
+                <p style="font-size:.82rem;color:var(--muted);">Se enviarán resúmenes personalizados a <strong id="enviar-count">0</strong> de <strong id="enviar-total">0</strong> copropietarios con email configurado.</p>
+                <div class="section-info" style="margin-top:14px;">💡 Podés previsualizar el resumen antes de enviar usando el botón "Previsualizar".</div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-enviar')">Cancelar</button>
+            <button class="btn-p" onclick="enviarResumenes()">📤 Enviar ahora</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Agendar Envío -->
+<div class="modal-overlay" id="modal-agendar">
+    <div class="modal-box">
+        <div class="modal-head"><h3>⏰ Agendar envío automático</h3><button class="modal-close" onclick="closeModal('modal-agendar')">✕</button></div>
+        <div class="modal-body">
+            <div class="section-info">Configurá el envío automático mensual de resúmenes para este consorcio.</div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Día del mes</label>
+                    <select class="form-ctrl" id="m-ag-dia">
+                        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+                        <option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option>
+                        <option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option>
+                        <option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option>
+                        <option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option>
+                        <option value="26">26</option><option value="27">27</option><option value="28">28</option>
+                    </select>
+                </div>
+                <div class="form-group"><label class="form-label">Hora de envío</label><input type="time" class="form-ctrl" id="m-ag-hora" value="09:00"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Canal</label>
+                    <select class="form-ctrl" id="m-ag-canal">
+                        <option value="email">📧 Email</option>
+                        <option value="whatsapp" disabled>💬 WhatsApp (próximamente)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Estado</label>
+                    <label class="checkbox-row" style="margin-top:8px;"><input type="checkbox" id="m-ag-activo" checked> Activo</label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-agendar')">Cancelar</button>
+            <button class="btn-p" onclick="guardarAgendado()">💾 Guardar</button>
+        </div>
+    </div>
+</div>
+
 <!-- Toast container -->
 <div class="toast-container" id="toasts"></div>
 
@@ -797,6 +997,7 @@ function show(id, el) {
     if (id === 'proveedores')  loadProveedores();
     if (id === 'balance')      initBalance();
     if (id === 'amenities')    initAmenities();
+    if (id === 'liquidaciones') initLiquidaciones();
 }
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
@@ -1622,6 +1823,316 @@ function amenitiesTab(tab, el) {
 document.addEventListener('keydown', e => {
     if (e.key==='Escape') document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LIQUIDACIONES
+// ══════════════════════════════════════════════════════════════════════════════
+let currentLiqId = null;
+let currentLiqData = null;
+
+async function initLiquidaciones() {
+    if (!consorcios.length) await loadConsorcios();
+    const opts = '<option value="">Todos los consorcios</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    if ($('filter-liq-consorcio')) $('filter-liq-consorcio').innerHTML = opts;
+    closeLiqDetail();
+    await loadLiquidaciones();
+}
+
+async function loadLiquidaciones() {
+    const params = new URLSearchParams();
+    const cid = $('filter-liq-consorcio')?.value; if(cid) params.set('consorcio_id',cid);
+    try {
+        const data = await api('/api/liquidaciones?'+params);
+        const tb = $('tbody-liquidaciones');
+        if (!data.length) { tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">Sin liquidaciones. Creá la primera seleccionando un consorcio y período.</td></tr>'; return; }
+        tb.innerHTML = data.map(l => {
+            const estadoBadge = l.estado === 'publicada' ? 'b-g' : l.estado === 'cerrada' ? 'b-gr' : 'b-y';
+            const estadoLabel = l.estado === 'publicada' ? 'Publicada' : l.estado === 'cerrada' ? 'Cerrada' : 'Borrador';
+            return `<tr>
+                <td><strong>${l.periodo}</strong></td>
+                <td>${(l.consorcios||{}).nombre||'—'}</td>
+                <td>${fmt(l.total_egresos)}</td>
+                <td style="font-weight:600;color:${(l.saldo_final||0)>=0?'#34d399':'#f87171'}">${fmt(l.saldo_final)}</td>
+                <td><span class="b ${estadoBadge}">${estadoLabel}</span></td>
+                <td><div class="inline-actions">
+                    <button class="btn-s btn-sm" onclick="openLiqDetail('${l.id}')">Ver detalle</button>
+                    ${l.estado==='borrador'?`<button class="btn-danger btn-sm" onclick="deleteLiquidacion('${l.id}')">🗑</button>`:''}
+                </div></td>
+            </tr>`;}).join('');
+    } catch(e) { toast(e.message,'err'); }
+}
+
+function openNuevaLiquidacionModal() {
+    const opts = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    $('m-liq-consorcio').innerHTML = opts;
+    $('m-liq-periodo').value = new Date().toISOString().slice(0,7);
+    openModal('modal-nueva-liq');
+}
+
+async function crearLiquidacion() {
+    const consorcio_id = $('m-liq-consorcio').value;
+    const periodo = $('m-liq-periodo').value;
+    if (!consorcio_id || !periodo) { toast('Seleccioná consorcio y período','warn'); return; }
+    try {
+        const liq = await api('/api/liquidaciones', {
+            method: 'POST',
+            body: JSON.stringify({ consorcio_id, periodo, auto_generar: true })
+        });
+        closeModal('modal-nueva-liq');
+        toast('✅ Liquidación creada desde los gastos del período');
+        await loadLiquidaciones();
+        await openLiqDetail(liq.id);
+    } catch(e) { toast(e.message,'err'); }
+}
+
+async function openLiqDetail(lid) {
+    currentLiqId = lid;
+    $('card-liq-list').style.display = 'none';
+    document.querySelector('#sec-liquidaciones > .filters').style.display = 'none';
+    document.querySelector('#sec-liquidaciones > .page-header').style.display = 'none';
+    $('liq-detail').style.display = 'block';
+
+    try {
+        // Fetch liq data
+        const allLiqs = await api(`/api/liquidaciones?consorcio_id=`);
+        currentLiqData = allLiqs.find(l => l.id === lid);
+        if (!currentLiqData) { toast('Liquidación no encontrada','err'); closeLiqDetail(); return; }
+
+        const l = currentLiqData;
+        $('liq-detail-titulo').textContent = `Liquidación ${l.periodo}`;
+        $('liq-detail-sub').textContent = `${(l.consorcios||{}).nombre||''} — ${(l.consorcios||{}).direccion||''}`;
+
+        // KPIs
+        $('liq-detail-kpis').innerHTML = `
+            <div class="kpi"><div class="kpi-val">${fmt(l.total_egresos)}</div><div class="kpi-label">Total egresos</div></div>
+            <div class="kpi"><div class="kpi-val" style="color:#34d399">${fmt(l.saldo_inicial)}</div><div class="kpi-label">Saldo inicial</div></div>
+            <div class="kpi"><div class="kpi-val" style="color:${(l.saldo_final||0)>=0?'#34d399':'#f87171'}">${fmt(l.saldo_final)}</div><div class="kpi-label">Saldo final</div></div>
+            <div class="kpi"><div class="kpi-val"><span class="b ${l.estado==='publicada'?'b-g':l.estado==='cerrada'?'b-gr':'b-y'}">${l.estado}</span></div><div class="kpi-label">Estado</div></div>
+        `;
+
+        // Fill config tab
+        $('liq-vto1').value = l.fecha_vencimiento_1 || '';
+        $('liq-vto2').value = l.fecha_vencimiento_2 || '';
+        $('liq-interes2').value = l.interes_2_vto || 0;
+        $('liq-saldo-ini').value = l.saldo_inicial || 0;
+        $('liq-ingresos').value = l.total_ingresos || 0;
+        $('liq-estado-sel').value = l.estado || 'borrador';
+        $('liq-notas').value = l.notas || '';
+
+        // Load rubros tab
+        liqTab('rubros', document.querySelector('#liq-tabs .tab-btn'));
+    } catch(e) { toast(e.message,'err'); }
+}
+
+function closeLiqDetail() {
+    currentLiqId = null;
+    currentLiqData = null;
+    $('liq-detail').style.display = 'none';
+    $('card-liq-list').style.display = '';
+    const filters = document.querySelector('#sec-liquidaciones > .filters');
+    const header = document.querySelector('#sec-liquidaciones > .page-header');
+    if (filters) filters.style.display = '';
+    if (header) header.style.display = '';
+}
+
+async function deleteLiquidacion(lid) {
+    if (!confirm('¿Eliminar esta liquidación borrador?')) return;
+    try {
+        await api(`/api/liquidaciones/${lid}`, {method:'DELETE'});
+        toast('Liquidación eliminada','warn');
+        await loadLiquidaciones();
+    } catch(e) { toast(e.message,'err'); }
+}
+
+function liqTab(tab, el) {
+    document.querySelectorAll('#liq-tabs .tab-btn').forEach(b=>b.classList.remove('active'));
+    if (el) el.classList.add('active');
+    ['rubros','prorrateo','envios','config-liq'].forEach(t => {
+        const el = $('tab-liq-'+t);
+        if (el) el.style.display = t===tab ? '' : 'none';
+    });
+    if (tab === 'rubros') loadRubros();
+    if (tab === 'prorrateo') loadProrrateo();
+    if (tab === 'envios') loadEnvios();
+}
+
+async function loadRubros() {
+    if (!currentLiqId) return;
+    try {
+        const rubros = await api(`/api/liquidaciones/${currentLiqId}/rubros`);
+        const tb = $('tbody-rubros');
+        if (!rubros.length) { tb.innerHTML = '<tr><td colspan="5" class="tbl-empty">Sin rubros. ¿Hay gastos cargados para este período?</td></tr>'; return; }
+        tb.innerHTML = rubros.map(r => {
+            const itemsList = (r.items||[]).map(it => it.descripcion + ': ' + fmt(it.monto)).join('<br>');
+            return `<tr>
+                <td><strong>${r.numero_rubro}</strong></td>
+                <td><strong>${r.nombre}</strong></td>
+                <td class="text-muted text-sm">${(r.items||[]).length} items<div style="max-height:80px;overflow:auto;margin-top:4px;font-size:.75rem;color:var(--muted);">${itemsList}</div></td>
+                <td><strong>${fmt(r.subtotal)}</strong></td>
+                <td><span class="b b-p">${r.porcentaje_sobre_total}%</span></td>
+            </tr>`;}).join('');
+    } catch(e) { toast(e.message,'err'); }
+}
+
+async function loadProrrateo() {
+    if (!currentLiqId) return;
+    try {
+        const data = await api(`/api/liquidaciones/${currentLiqId}/prorrateo`);
+        const tb = $('tbody-prorrateo');
+        if (!data.length) { tb.innerHTML = '<tr><td colspan="13" class="tbl-empty">Sin datos de prorrateo</td></tr>'; return; }
+        tb.innerHTML = data.map(p => {
+            const uf = p.unidades_funcionales || {};
+            return `<tr>
+                <td><strong>${uf.numero||'—'}</strong></td>
+                <td>${uf.piso||'—'}</td>
+                <td>${uf.vecino_nombre||'<span class="text-muted">—</span>'}</td>
+                <td class="text-muted">${fmt(p.saldo_anterior)}</td>
+                <td style="color:#10B981">${fmt(p.pago_realizado)}</td>
+                <td style="color:${p.saldo_pendiente>0?'#EF4444':'inherit'}">${fmt(p.saldo_pendiente)}</td>
+                <td>${fmt(p.interes_mora)}</td>
+                <td class="text-muted">${p.porcentaje_a}%</td>
+                <td>${fmt(p.expensa_a)}</td>
+                <td class="text-muted">${p.porcentaje_c}%</td>
+                <td>${fmt(p.adicional_ordinaria)}</td>
+                <td><strong>${fmt(p.total_unidad)}</strong></td>
+                <td><button class="btn-s btn-sm" onclick="openPreviewUF('${p.unidad_id}')">👁</button></td>
+            </tr>`;}).join('');
+    } catch(e) { toast(e.message,'err'); }
+}
+
+async function loadEnvios() {
+    if (!currentLiqId) return;
+    try {
+        const data = await api(`/api/liquidaciones/${currentLiqId}/envios`);
+        const tb = $('tbody-envios');
+        if (!data.length) { tb.innerHTML = '<tr><td colspan="7" class="tbl-empty">No se enviaron resúmenes aún. Usá el botón "Enviar resúmenes".</td></tr>'; return; }
+        tb.innerHTML = data.map(e => {
+            const uf = e.unidades_funcionales || {};
+            const estadoMap = {enviado:'b-g',leido:'b-b',fallido:'b-r',pendiente:'b-y'};
+            const fecha = e.fecha_envio ? new Date(e.fecha_envio).toLocaleString('es-AR') : '—';
+            return `<tr>
+                <td><strong>${uf.numero||'—'}</strong></td>
+                <td>${uf.vecino_nombre||'—'}</td>
+                <td><span class="b b-b">📧 Email</span></td>
+                <td><span class="b ${estadoMap[e.estado]||'b-gr'}">${e.estado}</span></td>
+                <td class="text-muted">${e.email_destino||'—'}</td>
+                <td class="text-muted">${fecha}</td>
+                <td class="text-muted text-sm">${e.error_detalle||'—'}</td>
+            </tr>`;}).join('');
+    } catch(e) { toast(e.message,'err'); }
+}
+
+async function guardarConfigLiq() {
+    if (!currentLiqId) return;
+    try {
+        await api(`/api/liquidaciones/${currentLiqId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                fecha_vencimiento_1: $('liq-vto1').value || null,
+                fecha_vencimiento_2: $('liq-vto2').value || null,
+                interes_2_vto: +$('liq-interes2').value || 0,
+                saldo_inicial: +$('liq-saldo-ini').value || 0,
+                total_ingresos: +$('liq-ingresos').value || 0,
+                estado: $('liq-estado-sel').value,
+                notas: $('liq-notas').value,
+            })
+        });
+        toast('✅ Liquidación actualizada');
+        await openLiqDetail(currentLiqId);
+    } catch(e) { toast(e.message,'err'); }
+}
+
+// ── Preview ───────────────────────────────────────────────────────────────────
+function openPreviewModal() {
+    if (!currentLiqId) return;
+    // Populate UF select from prorrateo
+    api(`/api/liquidaciones/${currentLiqId}/prorrateo`).then(data => {
+        const sel = $('m-preview-uf');
+        sel.innerHTML = data.map(p => {
+            const uf = p.unidades_funcionales || {};
+            return `<option value="${p.unidad_id}">UF ${uf.numero||'?'} — ${uf.vecino_nombre||'Sin nombre'}</option>`;
+        }).join('');
+        if (data.length) loadPreview(data[0].unidad_id);
+        openModal('modal-preview');
+    });
+}
+
+function openPreviewUF(uid) {
+    api(`/api/liquidaciones/${currentLiqId}/prorrateo`).then(data => {
+        const sel = $('m-preview-uf');
+        sel.innerHTML = data.map(p => {
+            const uf = p.unidades_funcionales || {};
+            return `<option value="${p.unidad_id}" ${p.unidad_id===uid?'selected':''}>UF ${uf.numero||'?'} — ${uf.vecino_nombre||'Sin nombre'}</option>`;
+        }).join('');
+        loadPreview(uid);
+        openModal('modal-preview');
+    });
+}
+
+async function loadPreview(uid) {
+    if (!uid) uid = $('m-preview-uf').value;
+    if (!uid || !currentLiqId) return;
+    $('preview-frame').innerHTML = '<p style="text-align:center;color:var(--muted);padding:40px;">Cargando resumen...</p>';
+    try {
+        const res = await api(`/api/liquidaciones/${currentLiqId}/resumen/${uid}`);
+        $('preview-frame').innerHTML = `<iframe srcdoc="${res.html.replace(/"/g,'&quot;')}" style="width:100%;height:700px;border:none;border-radius:8px;"></iframe>`;
+    } catch(e) { $('preview-frame').innerHTML = `<p style="color:#f87171;text-align:center;padding:40px;">Error: ${e.message}</p>`; }
+}
+
+// ── Enviar ─────────────────────────────────────────────────────────────────────
+function openEnviarModal() {
+    if (!currentLiqId) return;
+    api(`/api/liquidaciones/${currentLiqId}/prorrateo`).then(data => {
+        const count = data.filter(p => (p.unidades_funcionales||{}).vecino_email).length;
+        $('enviar-count').textContent = count;
+        $('enviar-total').textContent = data.length;
+        openModal('modal-enviar');
+    });
+}
+
+async function enviarResumenes() {
+    if (!currentLiqId) return;
+    try {
+        const res = await api(`/api/liquidaciones/${currentLiqId}/enviar`, {
+            method: 'POST', body: JSON.stringify({})
+        });
+        closeModal('modal-enviar');
+        toast(`📧 ${res.enviados} resúmenes enviados, ${res.fallidos} fallidos`);
+        liqTab('envios', document.querySelectorAll('#liq-tabs .tab-btn')[2]);
+    } catch(e) { toast(e.message,'err'); }
+}
+
+// ── Agendar ───────────────────────────────────────────────────────────────────
+async function openAgendarModal() {
+    if (!currentLiqData) return;
+    const cid = currentLiqData.consorcio_id;
+    try {
+        const cfg = await api(`/api/envio-programado/${cid}`);
+        $('m-ag-dia').value = cfg.dia_mes || 1;
+        $('m-ag-hora').value = cfg.hora_envio || '09:00';
+        $('m-ag-canal').value = cfg.canal || 'email';
+        $('m-ag-activo').checked = cfg.activo !== false;
+    } catch { }
+    openModal('modal-agendar');
+}
+
+async function guardarAgendado() {
+    if (!currentLiqData) return;
+    const cid = currentLiqData.consorcio_id;
+    try {
+        await api(`/api/envio-programado/${cid}`, {
+            method: 'POST',
+            body: JSON.stringify({
+                dia_mes: +$('m-ag-dia').value,
+                hora_envio: $('m-ag-hora').value,
+                canal: $('m-ag-canal').value,
+                activo: $('m-ag-activo').checked,
+            })
+        });
+        closeModal('modal-agendar');
+        toast('⏰ Envío programado guardado');
+    } catch(e) { toast(e.message,'err'); }
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadDashboard();

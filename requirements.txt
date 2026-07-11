@@ -8,3 +8,4 @@ supabase-functions==2.30.1
 Authlib==1.6.12
 Flask==2.3.3
 Werkzeug==2.3.7
+resend==2.7.0
