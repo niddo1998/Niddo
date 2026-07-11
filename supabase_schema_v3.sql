@@ -1,26 +1,34 @@
 -- ============================================================
---  Niddo — Supabase Schema v3
---  Tabla para solicitudes de vinculación entre vecinos y UFs
+--  Niddo — Supabase Schema v3 (Amenities & Reservas)
 --  Agregar al SQL Editor de Supabase (ejecutar después de v2)
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS solicitudes_vinculacion (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  vecino_id     UUID NOT NULL REFERENCES vecinos(id) ON DELETE CASCADE,
-  consorcio_id  UUID NOT NULL REFERENCES consorcios(id) ON DELETE CASCADE,
-  unidad_id     UUID NOT NULL REFERENCES unidades_funcionales(id) ON DELETE CASCADE,
-  estado        TEXT NOT NULL DEFAULT 'pendiente', -- 'pendiente', 'aprobada', 'rechazada'
-  created_at    TIMESTAMPTZ DEFAULT now()
+-- ── Tabla: amenities ──────────────────────────────────────
+CREATE TABLE IF NOT EXISTS amenities (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  consorcio_id    UUID NOT NULL REFERENCES consorcios(id) ON DELETE CASCADE,
+  nombre          TEXT NOT NULL,
+  descripcion     TEXT,
+  condiciones_uso TEXT,
+  capacidad_maxima INTEGER,
+  created_at      TIMESTAMPTZ DEFAULT now()
 );
 
--- Índices para optimizar búsquedas
-CREATE INDEX IF NOT EXISTS idx_solicitudes_consorcio ON solicitudes_vinculacion(consorcio_id);
-CREATE INDEX IF NOT EXISTS idx_solicitudes_vecino ON solicitudes_vinculacion(vecino_id);
-CREATE INDEX IF NOT EXISTS idx_solicitudes_estado ON solicitudes_vinculacion(estado);
+CREATE INDEX IF NOT EXISTS idx_amenities_consorcio ON amenities(consorcio_id);
 
--- Habilitar RLS
-ALTER TABLE solicitudes_vinculacion ENABLE ROW LEVEL SECURITY;
 
--- Políticas básicas de RLS (el backend al usar service_role las bypassea, pero es buena práctica)
-CREATE POLICY "Permitir todo a service_role" ON solicitudes_vinculacion
-  FOR ALL USING (true);
+-- ── Tabla: reservas_amenities ─────────────────────────────
+CREATE TABLE IF NOT EXISTS reservas_amenities (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  amenity_id        UUID NOT NULL REFERENCES amenities(id) ON DELETE CASCADE,
+  vecino_id         UUID REFERENCES vecinos(id) ON DELETE SET NULL,
+  fecha             DATE NOT NULL,
+  hora_inicio       TIME NOT NULL,
+  hora_fin          TIME NOT NULL,
+  estado            TEXT DEFAULT 'confirmada', -- confirmada/cancelada
+  created_at        TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reservas_amenities_amenity ON reservas_amenities(amenity_id);
+CREATE INDEX IF NOT EXISTS idx_reservas_amenities_vecino  ON reservas_amenities(vecino_id);
+CREATE INDEX IF NOT EXISTS idx_reservas_amenities_fecha   ON reservas_amenities(fecha);

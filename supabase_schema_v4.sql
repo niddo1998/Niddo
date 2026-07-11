@@ -1,27 +1,26 @@
 -- ============================================================
---  Niddo — Supabase Schema v4
---  Tabla para comunicados generales y notificaciones
+--  Niddo — Supabase Schema v4 (Múltiples Vecinos por Unidad & Roles)
 --  Agregar al SQL Editor de Supabase (ejecutar después de v3)
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS comunicados (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  admin_id      UUID NOT NULL REFERENCES administradores(id) ON DELETE CASCADE,
-  consorcio_id  UUID REFERENCES consorcios(id) ON DELETE CASCADE, -- NULL si es para todos los consorcios
-  unidad_id     UUID REFERENCES unidades_funcionales(id) ON DELETE CASCADE, -- NULL si es para todo el consorcio
-  asunto        TEXT NOT NULL,
-  cuerpo        TEXT NOT NULL,
-  created_at    TIMESTAMPTZ DEFAULT now()
-);
+-- ── Agregar columnas a la tabla vecinos ─────────────────────
+ALTER TABLE vecinos ADD COLUMN IF NOT EXISTS rol TEXT DEFAULT 'propietario';
+ALTER TABLE vecinos ADD COLUMN IF NOT EXISTS unidad_id UUID REFERENCES unidades_funcionales(id) ON DELETE SET NULL;
 
--- Índices para optimizar búsquedas
-CREATE INDEX IF NOT EXISTS idx_comunicados_admin ON comunicados(admin_id);
-CREATE INDEX IF NOT EXISTS idx_comunicados_consorcio ON comunicados(consorcio_id);
-CREATE INDEX IF NOT EXISTS idx_comunicados_unidad ON comunicados(unidad_id);
+CREATE INDEX IF NOT EXISTS idx_vecinos_unidad_id ON vecinos(unidad_id);
 
--- Habilitar RLS
-ALTER TABLE comunicados ENABLE ROW LEVEL SECURITY;
+-- ── Migrar relaciones existentes ───────────────────────────
+-- Vincular vecinos existentes a sus respectivas UFs (unidades_funcionales)
+UPDATE vecinos v
+SET unidad_id = uf.id
+FROM unidades_funcionales uf
+WHERE v.consorcio_id = uf.consorcio_id 
+  AND v.unidad = uf.numero
+  AND v.unidad_id IS NULL;
 
--- Políticas de RLS
-CREATE POLICY "Permitir todo a service_role" ON comunicados
-  FOR ALL USING (true);
+-- Sincronizar unidades_funcionales.vecino_id con el primer vecino para compatibilidad
+UPDATE unidades_funcionales uf
+SET vecino_id = v.id
+FROM vecinos v
+WHERE uf.id = v.unidad_id 
+  AND uf.vecino_id IS NULL;

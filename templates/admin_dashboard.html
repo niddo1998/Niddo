@@ -217,18 +217,18 @@
         <div class="nav-section-label">General</div>
         <a class="nav-link active" onclick="show('dashboard',this)">◈ Dashboard</a>
         <a class="nav-link" onclick="show('consorcios',this)">🏬 Consorcios</a>
-        <a class="nav-link" onclick="show('solicitudes',this)" style="display:flex;align-items:center;">📥 Solicitudes <span class="badge-notif" id="solicitudes-badge" style="display:none;background:#10b981;color:white;font-size:0.75rem;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:auto;box-shadow:0 2px 5px rgba(0,0,0,0.2);">0</span></a>
 
         <div class="nav-section-label">Operaciones</div>
         <a class="nav-link" onclick="show('gastos',this)">💸 Gastos</a>
         <a class="nav-link" onclick="show('cobros',this)">💳 Cobros</a>
         <a class="nav-link" onclick="show('proveedores',this)">🤝 Proveedores</a>
+        <a class="nav-link" onclick="show('amenities',this)">🏊 Amenities</a>
 
         <div class="nav-section-label">Finanzas</div>
         <a class="nav-link" onclick="show('balance',this)">📊 Balance</a>
 
         <div class="nav-section-label">Comunicación</div>
-        <a class="nav-link" onclick="show('mensajeria',this)">📢 Comunicaciones</a>
+        <a class="nav-link" onclick="show('mensajeria',this)">💬 Mensajería</a>
 
         <div class="nav-section-label">Sistema</div>
         <a class="nav-link" onclick="show('config',this)">⚙️ Configuración</a>
@@ -283,6 +283,16 @@
             </div>
         </div>
         <div class="kpi-row" id="detail-kpis"></div>
+        
+        <!-- Solicitudes de vecinos pendientes -->
+        <div class="card" id="consorcio-vecinos-pendientes-card" style="display:none; margin-bottom: 20px; border-left: 3px solid var(--red);">
+            <div class="card-h"><span class="card-t" style="color:var(--red);">⏳ Solicitudes de Vecinos Pendientes</span></div>
+            <table class="tbl">
+                <thead><tr><th>Nombre</th><th>Email</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-vecinos-pendientes"><tr><td colspan="4" class="tbl-empty">No hay solicitudes pendientes</td></tr></tbody>
+            </table>
+        </div>
+
         <div class="card">
             <div class="card-h"><span class="card-t">Unidades Funcionales</span></div>
             <table class="tbl">
@@ -418,74 +428,10 @@
     </div>
 </div>
 
-<!-- ═══ COMUNICACIONES (MENSAJERÍA) ═══ -->
+<!-- ═══ MENSAJERÍA ═══ -->
 <div id="sec-mensajeria" class="section">
-    <div class="page-header">
-        <div><h1 class="page-title">Comunicaciones</h1><p class="page-sub">Publicá comunicados y anuncios para los consorcios</p></div>
-    </div>
-    
-    <div class="card card-p" style="margin-top:20px; max-width: 800px;">
-        <form id="form-comunicado" onsubmit="enviarComunicado(event)" style="display:grid; gap:16px;">
-            <div class="form-row">
-                <div class="form-group" style="flex:1;">
-                    <label class="form-label">Destinatarios *</label>
-                    <select id="com-destino" onchange="toggleDestinoFields()" class="form-ctrl" required>
-                        <option value="global">Todos los consorcios</option>
-                        <option value="consorcio">Un consorcio específico</option>
-                        <option value="unidad">Una unidad funcional específica</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="form-row" id="row-destino-selects" style="display:none; gap:16px;">
-                <div class="form-group" id="group-consorcio" style="flex:1;">
-                    <label class="form-label">Consorcio *</label>
-                    <select id="com-consorcio" onchange="loadDestinoUnidades()" class="form-ctrl">
-                        <!-- Carga dinámica -->
-                    </select>
-                </div>
-                <div class="form-group" id="group-unidad" style="flex:1; display:none;">
-                    <label class="form-label">Unidad Funcional *</label>
-                    <select id="com-unidad" class="form-ctrl">
-                        <!-- Carga dinámica -->
-                    </select>
-                </div>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group" style="flex:1;">
-                    <label class="form-label">Plantilla de Comunicado</label>
-                    <select id="com-plantilla" onchange="aplicarPlantilla()" class="form-ctrl">
-                        <option value="libre">Libre (Redactar desde cero)</option>
-                        <option value="asamblea">📅 Convocatoria a Asamblea</option>
-                        <option value="corte">💧 Corte de Agua Programado</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Asunto *</label>
-                <input type="text" id="com-asunto" oninput="updateLivePreview()" class="form-ctrl" required placeholder="Ej: Convocatoria a Asamblea">
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Cuerpo del Mensaje *</label>
-                <textarea id="com-cuerpo" oninput="updateLivePreview()" class="form-ctrl" required rows="6" placeholder="Escribí el cuerpo del mensaje..." style="resize:vertical; font-family:inherit;"></textarea>
-                <p class="text-muted" style="font-size:0.75rem; margin-top:5px;">💡 Reemplazá las variables marcadas entre corchetes `[...]` en la vista previa antes de publicar.</p>
-            </div>
-
-            <!-- Live Preview Box -->
-            <div style="border: 1px dashed #7C3AED; border-radius: 8px; padding: 18px; background: rgba(124,58,237,0.03);">
-                <span style="font-size: 0.68rem; text-transform: uppercase; font-weight: 700; color: #7C3AED; letter-spacing: 0.05em; display: block; margin-bottom: 8px;">Vista Previa en Vivo</span>
-                <div style="background:rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius:6px; padding:15px;">
-                    <h4 id="preview-asunto" style="margin-bottom:8px; font-weight:700; font-size:0.95rem; color:var(--text);">[Vista Previa de Asunto]</h4>
-                    <p id="preview-cuerpo" style="font-size:0.82rem; color:var(--muted); line-height:1.45; white-space:pre-wrap; margin:0;">[Vista Previa del Cuerpo]</p>
-                </div>
-            </div>
-
-            <button type="submit" class="btn-p" style="justify-self:start;">Publicar Comunicado</button>
-        </form>
-    </div>
+    <div class="page-header"><div><h1 class="page-title">Mensajería</h1><p class="page-sub">Comunicación con vecinos</p></div></div>
+    <div class="section-info">📬 La mensajería estará disponible en la próxima versión. Podrás enviar comunicados a vecinos por consorcio o por unidad.</div>
 </div>
 
 <!-- ═══ CONFIG ═══ -->
@@ -504,27 +450,43 @@
     </div>
 </div>
 
-<!-- ═══ SOLICITUDES ═══ -->
-<div id="sec-solicitudes" class="section">
+
+<!-- ═══ AMENITIES ═══ -->
+<div id="sec-amenities" class="section">
     <div class="page-header">
-        <div><h1 class="page-title">Solicitudes de Vinculación</h1><p class="page-sub">Autorizá a los vecinos a acceder al portal de su unidad</p></div>
+        <div><h1 class="page-title">Amenities</h1><p class="page-sub">Espacios comunes y reservas del consorcio</p></div>
+        <button class="btn-p btn-sm" onclick="openAmenityModal()">+ Nuevo amenity</button>
     </div>
-    <div class="card" style="margin-top:20px;overflow-x:auto;">
-        <table class="tbl" style="width:100%;">
-            <thead>
-                <tr>
-                    <th>Vecino</th>
-                    <th>Email</th>
-                    <th>Consorcio</th>
-                    <th>Unidad</th>
-                    <th>Fecha</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="tbody-solicitudes">
-                <tr><td colspan="6" class="tbl-empty">Cargando solicitudes...</td></tr>
-            </tbody>
-        </table>
+    <div class="filters">
+        <select class="form-ctrl" id="filter-amenities-consorcio" onchange="loadAmenitiesAndReservations()">
+            <option value="">Seleccionar consorcio...</option>
+        </select>
+    </div>
+    <div class="tabs">
+        <button class="tab-btn active" id="btn-tab-amenities-list" onclick="amenitiesTab('list',this)">Listado de Amenities</button>
+        <button class="tab-btn" id="btn-tab-amenities-res" onclick="amenitiesTab('reservations',this)">Listado de Reservas</button>
+    </div>
+
+    <!-- Listado -->
+    <div id="tab-amenities-list">
+        <div class="card">
+            <div class="card-h"><span class="card-t">Amenities del Consorcio</span></div>
+            <table class="tbl">
+                <thead><tr><th>Nombre</th><th>Capacidad Max.</th><th>Descripción</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-amenities"><tr><td colspan="4" class="tbl-empty">Seleccioná un consorcio para ver sus amenities</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Reservas -->
+    <div id="tab-amenities-reservations" style="display:none;">
+        <div class="card">
+            <div class="card-h"><span class="card-t">Reservas Realizadas</span></div>
+            <table class="tbl">
+                <thead><tr><th>Amenity</th><th>Vecino</th><th>Unidad</th><th>Fecha</th><th>Horario</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-amenities-reservations"><tr><td colspan="7" class="tbl-empty">Seleccioná un consorcio para ver las reservas</td></tr></tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -553,6 +515,47 @@
         <div class="modal-footer">
             <button class="btn-s" onclick="closeModal('modal-consorcio')">Cancelar</button>
             <button class="btn-p" onclick="saveConsorcio()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Amenity -->
+<div class="modal-overlay" id="modal-amenity">
+    <div class="modal-box">
+        <div class="modal-head"><h3 id="m-amenity-title">Nuevo amenity</h3><button class="modal-close" onclick="closeModal('modal-amenity')">✕</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="m-amenity-id">
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Nombre *</label><input class="form-ctrl" id="m-amenity-nombre" placeholder="SUM / Piscina / Parrilla"></div>
+                <div class="form-group"><label class="form-label">Capacidad Máxima</label><input type="number" class="form-ctrl" id="m-amenity-capacidad" placeholder="Ej: 30"></div>
+            </div>
+            <div class="form-group"><label class="form-label">Descripción</label><input class="form-ctrl" id="m-amenity-desc" placeholder="Breve descripción del espacio"></div>
+            <div class="form-group"><label class="form-label">Condiciones de Uso</label><textarea class="form-ctrl" id="m-amenity-condiciones" rows="4" placeholder="Normas de convivencia, limpieza, horarios..."></textarea></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-amenity')">Cancelar</button>
+            <button class="btn-p" onclick="saveAmenity()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Asignar UF a Vecino -->
+<div class="modal-overlay" id="modal-asignar-uf">
+    <div class="modal-box">
+        <div class="modal-head"><h3>Asignar Unidad Funcional</h3><button class="modal-close" onclick="closeModal('modal-asignar-uf')">✕</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="m-asignar-vecino-id">
+            <p style="margin-bottom:15px; font-size:.9rem; color:var(--muted);" id="m-asignar-vecino-info"></p>
+            <div class="form-group">
+                <label class="form-label">Selecciona la Unidad Funcional libre *</label>
+                <select class="form-ctrl" id="m-asignar-unidad-select">
+                    <option value="">Seleccionar unidad...</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-asignar-uf')">Cancelar</button>
+            <button class="btn-p" onclick="guardarAsignacionUF()">Asignar</button>
         </div>
     </div>
 </div>
@@ -678,6 +681,12 @@
                 </div>
             </div>
             <div class="form-group"><label class="form-label">Notas</label><textarea class="form-ctrl" id="m-gasto-notas" rows="2"></textarea></div>
+            <div class="sep"></div>
+            <div class="form-group">
+                <label class="form-label">📎 Comprobante (PDF o imagen)</label>
+                <input type="file" class="form-ctrl" id="m-gasto-comprobante" accept=".pdf,image/*" style="padding: 8px;">
+                <div id="m-gasto-comprobante-info" style="display:none; margin-top:6px; font-size:.8rem; color:var(--teal);"></div>
+            </div>
         </div>
         <div class="modal-footer">
             <button class="btn-s" onclick="closeModal('modal-gasto')">Cancelar</button>
@@ -783,12 +792,11 @@ function show(id, el) {
     // Lazy-load data
     if (id === 'dashboard')    loadDashboard();
     if (id === 'consorcios')   loadConsorcios();
-    if (id === 'solicitudes')  loadSolicitudes();
     if (id === 'gastos')       initGastos();
     if (id === 'cobros')       initCobros();
     if (id === 'proveedores')  loadProveedores();
     if (id === 'balance')      initBalance();
-    if (id === 'mensajeria')   initComunicaciones();
+    if (id === 'amenities')    initAmenities();
 }
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
@@ -863,7 +871,7 @@ function populateConsorioSelects() {
     const opts = '<option value="">Todos</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
     const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
     ['filter-gastos-consorcio','filter-cobros-consorcio','filter-mora-consorcio','filter-balance-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts; });
-    ['m-gasto-consorcio','m-gen-consorcio','m-bulk-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts2; });
+    ['m-gasto-consorcio','m-gen-consorcio','m-bulk-consorcio','filter-amenities-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts2; });
 }
 
 function openConsorioModal(id) {
@@ -921,11 +929,13 @@ async function openDetail(id, nombre, dir) {
     document.querySelector('.page-header').style.display = 'none';
     $('consorcio-detail').style.display = 'block';
     await loadUFs();
+    await loadPendingNeighbors();
 }
 
 function closeDetail() {
     currentConsorioId = null;
     $('consorcio-detail').style.display = 'none';
+    $('consorcio-vecinos-pendientes-card').style.display = 'none';
     document.querySelector('#sec-consorcios .card').style.display = '';
     document.querySelector('#sec-consorcios .page-header').style.display = '';
 }
@@ -936,19 +946,31 @@ async function loadUFs() {
         const ufs = await api(`/api/consorcios/${currentConsorioId}/unidades`);
         const tb = $('tbody-ufs');
         if (!ufs.length) { tb.innerHTML = '<tr><td colspan="7" class="tbl-empty">Sin unidades. Añadí la primera o usá carga masiva.</td></tr>'; return; }
-        tb.innerHTML = ufs.map(u => `
+        tb.innerHTML = ufs.map(u => {
+            const vecinosList = u.vecinos_vinculados || [];
+            let nombresHtml = '';
+            let emailsHtml = '';
+            if (vecinosList.length > 0) {
+                nombresHtml = vecinosList.map(v => `<div><strong>${v.nombre || '—'}</strong> <span style="font-size:0.75rem; padding: 2px 6px; border-radius: 4px; background: rgba(124,58,237,0.12); color: var(--purple); text-transform:capitalize;">${v.rol === 'propietario' ? 'Prop.' : 'Inq.'}</span></div>`).join('');
+                emailsHtml = vecinosList.map(v => `<div style="font-size:0.85rem;">${v.email}</div>`).join('');
+            } else {
+                nombresHtml = u.vecino_nombre ? `<div>${u.vecino_nombre} <span style="font-size:0.75rem; color:var(--muted);">(Pre-cargado)</span></div>` : '<span class="text-muted">Sin asignar</span>';
+                emailsHtml = u.vecino_email ? `<div style="font-size:0.85rem;">${u.vecino_email}</div>` : '—';
+            }
+            return `
             <tr>
                 <td><strong>${u.numero}</strong></td>
                 <td>${u.piso||'—'}</td>
                 <td><span class="b b-gr">${u.tipo||'departamento'}</span></td>
                 <td>${u.superficie_m2||'—'}</td>
-                <td>${u.vecino_nombre||'<span class="text-muted">Sin asignar</span>'}</td>
-                <td class="text-muted">${u.vecino_email||'—'}</td>
+                <td>${nombresHtml}</td>
+                <td class="text-muted">${emailsHtml}</td>
                 <td><div class="inline-actions">
                     <button class="btn-s btn-sm" onclick="openUFModal('${u.id}')">✏️</button>
                     <button class="btn-danger btn-sm" onclick="deleteUF('${u.id}')">🗑</button>
                 </div></td>
-            </tr>`).join('');
+            </tr>`;
+        }).join('');
     } catch(e) { toast(e.message,'err'); }
 }
 
@@ -979,6 +1001,75 @@ async function deleteUF(uid) {
         await api(`/api/consorcios/${currentConsorioId}/unidades/${uid}`,{method:'DELETE'});
         toast('UF eliminada','warn'); await loadUFs();
     } catch(e) { toast(e.message,'err'); }
+}
+
+// ── Solicitudes Pendientes de Vecinos ─────────────────────────────────────────
+let pendingNeighborsList = [];
+
+async function loadPendingNeighbors() {
+    if (!currentConsorioId) return;
+    try {
+        const list = await api(`/api/consorcios/${currentConsorioId}/vecinos/pendientes`);
+        pendingNeighborsList = list;
+        const card = $('consorcio-vecinos-pendientes-card');
+        const tb = $('tbody-vecinos-pendientes');
+        
+        if (!list.length) {
+            card.style.display = 'none';
+            return;
+        }
+        
+        card.style.display = 'block';
+        tb.innerHTML = list.map(v => `
+            <tr>
+                <td><strong>${v.nombre || '—'}</strong></td>
+                <td>${v.email}</td>
+                <td><span class="b b-y">Pendiente de asignación</span></td>
+                <td>
+                    <button class="btn-teal btn-sm" onclick="openAsignarUFModal('${v.id}')">Asignar UF</button>
+                </td>
+            </tr>
+        `).join('');
+    } catch(e) { toast(e.message, 'err'); }
+}
+
+async function openAsignarUFModal(vid) {
+    const v = pendingNeighborsList.find(x => x.id === vid);
+    if (!v) return;
+
+    $('m-asignar-vecino-id').value = v.id;
+    $('m-asignar-vecino-info').textContent = `Vecino: ${v.nombre || '—'} (${v.email})`;
+    
+    try {
+        const list = await api(`/api/public/consorcios/${currentConsorioId}/unidades-libres`);
+        const select = $('m-asignar-unidad-select');
+        if (!list.length) {
+            select.innerHTML = '<option value="">No hay unidades libres. ¡Crea una unidad funcional primero!</option>';
+        } else {
+            select.innerHTML = '<option value="">Seleccionar unidad...</option>' + 
+                list.map(u => `<option value="${u.id}">UF ${u.numero} (Piso ${u.piso || '—'} - ${u.tipo})</option>`).join('');
+        }
+        openModal('modal-asignar-uf');
+    } catch(e) { toast(e.message, 'err'); }
+}
+
+async function guardarAsignacionUF() {
+    const vid = $('m-asignar-vecino-id').value;
+    const uid = $('m-asignar-unidad-select').value;
+    if (!uid) {
+        toast('Debes seleccionar una unidad funcional', 'warn');
+        return;
+    }
+    try {
+        await api(`/api/consorcios/${currentConsorioId}/vecinos/${vid}/asignar-unidad`, {
+            method: 'POST',
+            body: JSON.stringify({ unidad_id: uid })
+        });
+        toast('Vecino asignado con éxito');
+        closeModal('modal-asignar-uf');
+        await loadUFs();
+        await loadPendingNeighbors();
+    } catch(e) { toast(e.message, 'err'); }
 }
 
 function openBulkModal() {
@@ -1042,6 +1133,7 @@ async function loadGastos() {
                 <td>${g.pagado ? '<span class="b b-g">Pagado</span>' : '<span class="b b-y">Pendiente</span>'}</td>
                 <td>${g.recurrente ? `<span class="b b-b">${g.frecuencia||'recurrente'}</span>` : '—'}</td>
                 <td><div class="inline-actions">
+                    ${g.archivo_nombre ? `<a href="/api/gastos/${g.id}/comprobante" target="_blank" title="Ver comprobante" class="btn-s btn-sm" style="text-decoration:none;">📄</a>` : ''}
                     <button class="btn-s btn-sm" onclick="openGastoModal('${g.id}')">✏️</button>
                     <button class="btn-danger btn-sm" onclick="deleteGasto('${g.id}')">🗑</button>
                 </div></td>
@@ -1052,6 +1144,10 @@ async function loadGastos() {
 function openGastoModal(id) {
     $('m-gasto-id').value = id||'';
     $('m-gasto-title').textContent = id ? 'Editar gasto' : 'Nuevo gasto';
+    $('m-gasto-comprobante').value = '';
+    const infoEl = $('m-gasto-comprobante-info');
+    infoEl.style.display = 'none';
+    infoEl.innerHTML = '';
     if (!id) {
         ['m-gasto-desc','m-gasto-monto','m-gasto-notas'].forEach(f=>$(f).value='');
         $('m-gasto-fecha').value = new Date().toISOString().split('T')[0];
@@ -1059,6 +1155,17 @@ function openGastoModal(id) {
         $('m-gasto-pagado').checked = false;
         $('m-gasto-recurrente').checked = false;
         $('frecuencia-group').style.display = 'none';
+    } else {
+        // Show existing comprobante info if the gasto has one
+        const row = document.querySelector(`button[onclick="openGastoModal('${id}')"]`);
+        if (row) {
+            const tr = row.closest('tr');
+            const link = tr?.querySelector('a[href*="/comprobante"]');
+            if (link) {
+                infoEl.innerHTML = `📄 Comprobante actual adjunto (<a href="/api/gastos/${id}/comprobante" target="_blank">ver</a>). Seleccione un archivo para reemplazarlo.`;
+                infoEl.style.display = 'block';
+            }
+        }
     }
     openModal('modal-gasto');
     // Populate consorcio select
@@ -1068,26 +1175,38 @@ function openGastoModal(id) {
 
 async function saveGasto() {
     const consorcio_id = $('m-gasto-consorcio').value;
-    const monto = +$('m-gasto-monto').value;
+    const monto = $('m-gasto-monto').value;
     if (!consorcio_id || !monto) { toast('Consorcio y monto requeridos','warn'); return; }
-    const payload = {
-        consorcio_id, monto,
-        proveedor_id: $('m-gasto-proveedor').value||null,
-        descripcion: $('m-gasto-desc').value.trim(),
-        categoria: $('m-gasto-cat').value,
-        fecha_gasto: $('m-gasto-fecha').value,
-        fecha_vencimiento: $('m-gasto-vto').value||null,
-        pagado: $('m-gasto-pagado').checked,
-        fecha_pago: $('m-gasto-fecha-pago').value||null,
-        metodo_pago: $('m-gasto-metodo').value,
-        recurrente: $('m-gasto-recurrente').checked,
-        frecuencia: $('m-gasto-frecuencia').value,
-        notas: $('m-gasto-notas').value,
-    };
+
+    const fd = new FormData();
+    fd.append('consorcio_id', consorcio_id);
+    fd.append('monto', monto);
+    fd.append('proveedor_id', $('m-gasto-proveedor').value || '');
+    fd.append('descripcion', $('m-gasto-desc').value.trim());
+    fd.append('categoria', $('m-gasto-cat').value);
+    fd.append('fecha_gasto', $('m-gasto-fecha').value);
+    fd.append('fecha_vencimiento', $('m-gasto-vto').value || '');
+    fd.append('pagado', $('m-gasto-pagado').checked ? 'true' : 'false');
+    fd.append('fecha_pago', $('m-gasto-fecha-pago').value || '');
+    fd.append('metodo_pago', $('m-gasto-metodo').value);
+    fd.append('recurrente', $('m-gasto-recurrente').checked ? 'true' : 'false');
+    fd.append('frecuencia', $('m-gasto-frecuencia').value);
+    fd.append('notas', $('m-gasto-notas').value);
+
+    const fileInput = $('m-gasto-comprobante');
+    if (fileInput.files.length > 0) {
+        fd.append('comprobante', fileInput.files[0]);
+    }
+
     const gid = $('m-gasto-id').value;
     try {
-        if (gid) await api(`/api/gastos/${gid}`,{method:'PUT',body:JSON.stringify(payload)});
-        else      await api('/api/gastos',{method:'POST',body:JSON.stringify(payload)});
+        const url = gid ? `/api/gastos/${gid}` : '/api/gastos';
+        const method = gid ? 'PUT' : 'POST';
+        const r = await fetch(url, { method, body: fd });
+        if (!r.ok) {
+            const err = await r.json();
+            throw new Error(err.error || 'Error al guardar');
+        }
         closeModal('modal-gasto'); toast(gid?'Gasto actualizado':'Gasto registrado'); await loadGastos();
     } catch(e) { toast(e.message,'err'); }
 }
@@ -1328,185 +1447,167 @@ function exportBalance(fmt_) {
     const cid = $('filter-balance-consorcio')?.value; if(cid) params.set('consorcio_id',cid);
     const desde = $('filter-balance-desde')?.value; if(desde) params.set('desde',desde);
     const hasta = $('filter-balance-hasta')?.value; if(hasta) params.set('hasta',hasta);
-    window.location.href = '/api/balance/export?'+params;
+        window.location.href = '/api/balance/export?'+params;
 }
 
-// ── Solicitudes de Vinculación ─────────────────────────────────────────────────
-async function loadSolicitudes() {
-    try {
-        const reqs = await api('/api/admin/solicitudes');
-        const tb = $('tbody-solicitudes');
-        
-        // Actualizar contador de notificaciones en el sidebar
-        const badge = $('solicitudes-badge');
-        if (badge) {
-            badge.textContent = reqs.length;
-            badge.style.display = reqs.length > 0 ? 'inline-block' : 'none';
-        }
-        
-        if (!tb) return;
-        
-        if (!reqs.length) {
-            tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">No hay solicitudes de vinculación pendientes.</td></tr>';
-            return;
-        }
-        
-        tb.innerHTML = reqs.map(r => {
-            const fecha = new Date(r.created_at).toLocaleString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
-            return `
-                <tr>
-                    <td><strong>${r.vecinos?.nombre || 'Vecino'}</strong></td>
-                    <td class="text-muted">${r.vecinos?.email || '—'}</td>
-                    <td>${r.consorcios?.nombre || '—'}</td>
-                    <td><span class="b b-g">UF ${r.unidades_funcionales?.numero || '—'}</span></td>
-                    <td class="text-muted">${fecha}</td>
-                    <td>
-                        <div class="inline-actions" style="display:flex;gap:6px;">
-                            <button class="btn-s btn-sm" style="background:#10b981;color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-weight:600;font-size:0.75rem;" onclick="procesarSolicitud('${r.id}', 'aprobada')">Aprobar</button>
-                            <button class="btn-danger btn-sm" style="background:#ef4444;color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-weight:600;font-size:0.75rem;" onclick="procesarSolicitud('${r.id}', 'rechazada')">Rechazar</button>
-                        </div>
-                    </td>
-                </tr>`;
-        }).join('');
-    } catch(e) { toast(e.message,'err'); }
-}
+// ── AMENITIES ─────────────────────────────────────────────────────────────────
+let loadedAmenities = [];
+let loadedReservations = [];
 
-async function procesarSolicitud(sid, estado) {
-    const accion = estado === 'aprobada' ? 'aprobar' : 'rechazar';
-    if (!confirm(`¿Estás seguro de que deseas ${accion} esta solicitud de vinculación?`)) return;
-    
-    try {
-        await api(`/api/admin/solicitudes/${sid}/procesar`, {
-            method: 'POST',
-            body: JSON.stringify({ estado })
-        });
-        toast(estado === 'aprobada' ? '✓ Solicitud aprobada con éxito' : '✕ Solicitud rechazada');
-        await loadSolicitudes();
-        await loadDashboard(); // recargar KPIs
-    } catch(e) { toast(e.message,'err'); }
-}
-
-// ── Comunicaciones ─────────────────────────────────────────────────────────────
-const PLANTILLAS = {
-    libre: { asunto: '', cuerpo: '' },
-    asamblea: {
-        asunto: '📅 Convocatoria a Asamblea General Ordinaria',
-        cuerpo: 'Estimados vecinos del consorcio,\n\nLos convocamos a participar de la Asamblea General Ordinaria que se llevará a cabo el próximo [FECHA Y HORA] en [LUGAR].\n\nTemario a tratar:\n1. [PUNTO 1 A TRATAR - EJ: APROBACIÓN DE BALANCE]\n2. [PUNTO 2 A TRATAR - EJ: PLAN DE REPARACIONES]\n3. Elección de nuevos consejeros.\n\nSu presencia y participación es fundamental para el consorcio. Agradecemos su puntualidad.\n\nAtentamente,\nLa Administración.'
-    },
-    corte: {
-        asunto: '💧 Corte de Agua Programado por Mantenimiento',
-        cuerpo: 'Estimados vecinos,\n\nLes informamos que se realizará un corte programado en el suministro de agua el próximo [FECHA Y HORA] debido a tareas de [DESCRIPCIÓN DE TAREAS - EJ: LIMPIEZA DE TANQUES].\n\nSe estima que el suministro se verá afectado entre las [HORA INICIO] y las [HORA FIN].\n\nLes recomendamos almacenar agua suficiente para el periodo y tomar los recaudos correspondientes.\n\nDisculpen las molestias,\nLa Administración.'
+async function initAmenities() {
+    if (!consorcios.length) {
+        await loadConsorcios();
     }
-};
-
-function initComunicaciones() {
-    // Rellenar consorcios
-    const select = $('com-consorcio');
-    if (select) {
-        select.innerHTML = '<option value="">Seleccionar consorcio...</option>' + 
-            consorcios.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
+    if (consorcios.length && !$('filter-amenities-consorcio').value) {
+        $('filter-amenities-consorcio').value = consorcios[0].id;
     }
-    toggleDestinoFields();
-    aplicarPlantilla();
+    loadAmenitiesAndReservations();
 }
 
-function toggleDestinoFields() {
-    const destino = $('com-destino').value;
-    const row = $('row-destino-selects');
-    const groupConsorcio = $('group-consorcio');
-    const groupUnidad = $('group-unidad');
-    
-    if (destino === 'global') {
-        row.style.display = 'none';
-        $('com-consorcio').required = false;
-        $('com-unidad').required = false;
-    } else if (destino === 'consorcio') {
-        row.style.display = 'flex';
-        groupConsorcio.style.display = 'block';
-        groupUnidad.style.display = 'none';
-        $('com-consorcio').required = true;
-        $('com-unidad').required = false;
-    } else if (destino === 'unidad') {
-        row.style.display = 'flex';
-        groupConsorcio.style.display = 'block';
-        groupUnidad.style.display = 'block';
-        $('com-consorcio').required = true;
-        $('com-unidad').required = true;
-    }
-}
-
-async function loadDestinoUnidades() {
-    const cid = $('com-consorcio').value;
-    const select = $('com-unidad');
-    if (!cid || $('com-destino').value !== 'unidad') return;
-    
-    try {
-        select.innerHTML = '<option value="">Cargando unidades...</option>';
-        const ufs = await api(`/api/consorcios/${cid}/unidades`);
-        select.innerHTML = '<option value="">Seleccionar unidad...</option>' + 
-            ufs.map(u => `<option value="${u.id}">UF ${u.numero} (Piso ${u.piso || '—'} - ${u.tipo})</option>`).join('');
-    } catch(e) { toast(e.message,'err'); }
-}
-
-function aplicarPlantilla() {
-    const plant = $('com-plantilla').value;
-    const t = PLANTILLAS[plant] || PLANTILLAS.libre;
-    $('com-asunto').value = t.asunto;
-    $('com-cuerpo').value = t.cuerpo;
-    updateLivePreview();
-}
-
-function updateLivePreview() {
-    const asunto = $('com-asunto').value || '[Vista Previa de Asunto]';
-    const cuerpo = $('com-cuerpo').value || '[Vista Previa del Cuerpo]';
-    
-    $('preview-asunto').innerHTML = highlightVariables(asunto);
-    $('preview-cuerpo').innerHTML = highlightVariables(cuerpo);
-}
-
-function highlightVariables(text) {
-    if (!text) return '';
-    // Escapar HTML para evitar XSS en la vista previa
-    const escaped = text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-        
-    return escaped.replace(/\[([^\]]+)\]/g, '<span style="color:#f87171; font-weight:700; background:rgba(239,68,68,0.15); padding:2px 6px; border-radius:4px; border: 1px solid rgba(239,68,68,0.25);">[$1]</span>');
-}
-
-async function enviarComunicado(event) {
-    event.preventDefault();
-    const destino = $('com-destino').value;
-    const consorcio_id = (destino !== 'global') ? $('com-consorcio').value : null;
-    const unidad_id = (destino === 'unidad') ? $('com-unidad').value : null;
-    const asunto = $('com-asunto').value.trim();
-    const cuerpo = $('com-cuerpo').value.trim();
-    
-    if (!asunto || !cuerpo) {
-        toast('Asunto y cuerpo son requeridos', 'warn');
+async function loadAmenitiesAndReservations() {
+    const cid = $('filter-amenities-consorcio').value;
+    if (!cid) {
+        $('tbody-amenities').innerHTML = '<tr><td colspan="4" class="tbl-empty">Seleccioná un consorcio para ver sus amenities</td></tr>';
+        $('tbody-amenities-reservations').innerHTML = '<tr><td colspan="7" class="tbl-empty">Seleccioná un consorcio para ver las reservas</td></tr>';
         return;
     }
-    
-    // Validar si quedan variables sin completar
-    if (asunto.includes('[') || cuerpo.includes('[')) {
-        if (!confirm('⚠️ Aún quedan campos entre corchetes [...] en rojo. ¿Deseas enviar el comunicado de todas formas?')) {
-            return;
-        }
-    }
-    
-    const payload = { consorcio_id, unidad_id, asunto, cuerpo };
     try {
-        await api('/api/admin/comunicados', {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
-        toast('📢 Comunicado publicado con éxito');
-        $('form-comunicado').reset();
-        initComunicaciones();
+        const [amenities, reservations] = await Promise.all([
+            api(`/api/consorcios/${cid}/amenities`),
+            api(`/api/reservas_amenities?consorcio_id=${cid}`)
+        ]);
+        loadedAmenities = amenities;
+        loadedReservations = reservations;
+        renderAmenities();
+        renderAmenitiesReservations();
     } catch(e) { toast(e.message, 'err'); }
+}
+
+function renderAmenities() {
+    const tb = $('tbody-amenities');
+    if (!loadedAmenities.length) {
+        tb.innerHTML = '<tr><td colspan="4" class="tbl-empty">No hay amenities cargados. ¡Añadí el primero!</td></tr>';
+        return;
+    }
+    tb.innerHTML = loadedAmenities.map(a => `
+        <tr>
+            <td><strong>${a.nombre}</strong></td>
+            <td>${a.capacidad_maxima || 'Sin límite'}</td>
+            <td class="text-muted text-sm">${a.descripcion || '—'}</td>
+            <td>
+                <div class="inline-actions">
+                    <button class="btn-s btn-sm" onclick="openAmenityModal('${a.id}')">✏️ Editar</button>
+                    <button class="btn-danger btn-sm" onclick="deleteAmenity('${a.id}')">✕ Eliminar</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderAmenitiesReservations() {
+    const tb = $('tbody-amenities-reservations');
+    if (!loadedReservations.length) {
+        tb.innerHTML = '<tr><td colspan="7" class="tbl-empty">No hay reservas registradas.</td></tr>';
+        return;
+    }
+    tb.innerHTML = loadedReservations.map(r => `
+        <tr>
+            <td><strong>${(r.amenities||{}).nombre || '—'}</strong></td>
+            <td>${(r.vecinos||{}).nombre || 'Administración'}</td>
+            <td>${(r.vecinos||{}).unidad || '—'}</td>
+            <td>${r.fecha}</td>
+            <td>${r.hora_inicio.substring(0, 5)} - ${r.hora_fin.substring(0, 5)}</td>
+            <td>${statusBadge(r.estado)}</td>
+            <td>
+                ${r.estado === 'confirmada' ? `<button class="btn-danger btn-sm" onclick="cancelReservaAdmin('${r.id}')">✕ Cancelar</button>` : '—'}
+            </td>
+        </tr>
+    `).join('');
+}
+
+function openAmenityModal(id) {
+    const cid = $('filter-amenities-consorcio').value;
+    if (!cid) {
+        toast('Seleccioná un consorcio primero', 'warn');
+        return;
+    }
+    $('m-amenity-id').value = '';
+    $('m-amenity-nombre').value = '';
+    $('m-amenity-capacidad').value = '';
+    $('m-amenity-desc').value = '';
+    $('m-amenity-condiciones').value = '';
+    $('m-amenity-title').textContent = 'Nuevo amenity';
+
+    if (id) {
+        const a = loadedAmenities.find(x => x.id === id);
+        if (!a) return;
+        $('m-amenity-id').value = a.id;
+        $('m-amenity-title').textContent = 'Editar amenity';
+        $('m-amenity-nombre').value = a.nombre || '';
+        $('m-amenity-capacidad').value = a.capacidad_maxima || '';
+        $('m-amenity-desc').value = a.descripcion || '';
+        $('m-amenity-condiciones').value = a.condiciones_uso || '';
+    }
+    openModal('modal-amenity');
+}
+
+async function saveAmenity() {
+    const cid = $('filter-amenities-consorcio').value;
+    const id = $('m-amenity-id').value;
+    const nombre = $('m-amenity-nombre').value.trim();
+    const cap = parseInt($('m-amenity-capacidad').value) || null;
+    const desc = $('m-amenity-desc').value.trim();
+    const cond = $('m-amenity-condiciones').value.trim();
+
+    if (!nombre) {
+        toast('El nombre es obligatorio', 'warn');
+        return;
+    }
+
+    const payload = { nombre, capacidad_maxima: cap, descripcion: desc, condiciones_uso: cond };
+
+    try {
+        if (id) {
+            await api(`/api/consorcios/${cid}/amenities/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+            toast('Amenity actualizado');
+        } else {
+            await api(`/api/consorcios/${cid}/amenities`, { method: 'POST', body: JSON.stringify(payload) });
+            toast('Amenity creado');
+        }
+        closeModal('modal-amenity');
+        loadAmenitiesAndReservations();
+    } catch(e) { toast(e.message, 'err'); }
+}
+
+async function deleteAmenity(id) {
+    if (!confirm('¿Estás seguro de eliminar este amenity? Se cancelarán todas sus reservas.')) return;
+    const cid = $('filter-amenities-consorcio').value;
+    try {
+        await api(`/api/consorcios/${cid}/amenities/${id}`, { method: 'DELETE' });
+        toast('Amenity eliminado');
+        loadAmenitiesAndReservations();
+    } catch(e) { toast(e.message, 'err'); }
+}
+
+async function cancelReservaAdmin(rid) {
+    if (!confirm('¿Estás seguro de cancelar esta reserva?')) return;
+    try {
+        await api(`/api/reservas_amenities/${rid}`, { method: 'DELETE' });
+        toast('Reserva cancelada');
+        loadAmenitiesAndReservations();
+    } catch(e) { toast(e.message, 'err'); }
+}
+
+function amenitiesTab(tab, el) {
+    document.querySelectorAll('#sec-amenities .tab-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    if (tab === 'list') {
+        $('tab-amenities-list').style.display = 'block';
+        $('tab-amenities-reservations').style.display = 'none';
+    } else {
+        $('tab-amenities-list').style.display = 'none';
+        $('tab-amenities-reservations').style.display = 'block';
+    }
 }
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
@@ -1525,7 +1626,6 @@ document.addEventListener('keydown', e => {
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadDashboard();
 loadConsorcios();
-loadSolicitudes();
 </script>
 </body>
 </html>
