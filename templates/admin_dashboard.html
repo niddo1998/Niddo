@@ -594,26 +594,41 @@
 
 <!-- Modal Carga masiva -->
 <div class="modal-overlay" id="modal-bulk">
-    <div class="modal-box">
-        <div class="modal-head"><h3>Carga masiva de UFs</h3><button class="modal-close" onclick="closeModal('modal-bulk')">✕</button></div>
+    <div class="modal-box wide">
+        <div class="modal-head"><h3>Carga masiva de Consorcios y Unidades</h3><button class="modal-close" onclick="closeModal('modal-bulk')">✕</button></div>
         <div class="modal-body">
-            <div class="form-group">
-                <label class="form-label">Consorcio</label>
-                <select class="form-ctrl" id="m-bulk-consorcio"></select>
+
+            <div id="bulk-step-upload">
+                <div class="form-group">
+                    <label class="form-label">1. Descargá la plantilla</label>
+                    <div class="section-info" style="display:flex;justify-content:space-between;align-items:center;gap:14px;">
+                        <span>Bajá el Excel, completá los datos y volvé a subirlo. Podés crear varios consorcios y sus unidades funcionales en un mismo archivo.</span>
+                        <a class="btn-s btn-sm" href="/api/consorcios/plantilla" style="white-space:nowrap;">⬇ Descargar plantilla</a>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">2. Subí la plantilla completa</label>
+                    <div class="upload-zone" onclick="document.getElementById('bulk-file').click()">
+                        <div style="font-size:1.4rem;margin-bottom:6px;">📂</div>
+                        <div style="font-size:.84rem;color:var(--muted)" id="bulk-file-label">Hacé clic para seleccionar el archivo (.xlsx)</div>
+                    </div>
+                    <input type="file" id="bulk-file" accept=".xlsx" style="display:none" onchange="document.getElementById('bulk-file-label').textContent=this.files[0]?.name||'Seleccionar'">
+                </div>
             </div>
-            <div class="section-info" style="margin-bottom:12px;">
-                📋 El CSV debe tener estas columnas (primera fila = encabezados):<br>
-                <code style="font-size:.79rem;">numero, piso, tipo, superficie_m2, vecino_nombre, vecino_email</code>
+
+            <div id="bulk-step-results" style="display:none;">
+                <div class="kpi-row" id="bulk-results-kpis"></div>
+                <div id="bulk-results-errors"></div>
             </div>
-            <div class="upload-zone" onclick="document.getElementById('bulk-file').click()">
-                <div style="font-size:1.4rem;margin-bottom:6px;">📂</div>
-                <div style="font-size:.84rem;color:var(--muted)" id="bulk-file-label">Hacé clic para seleccionar el CSV</div>
-            </div>
-            <input type="file" id="bulk-file" accept=".csv" style="display:none" onchange="document.getElementById('bulk-file-label').textContent=this.files[0]?.name||'Seleccionar'">
+
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer" id="bulk-footer-upload">
             <button class="btn-s" onclick="closeModal('modal-bulk')">Cancelar</button>
-            <button class="btn-p" onclick="uploadBulk()">Cargar</button>
+            <button class="btn-p" onclick="uploadBulk()">Procesar carga</button>
+        </div>
+        <div class="modal-footer" id="bulk-footer-results" style="display:none;">
+            <button class="btn-s" onclick="resetBulkModal()">Subir otro archivo</button>
+            <button class="btn-p" onclick="closeModal('modal-bulk')">Cerrar</button>
         </div>
     </div>
 </div>
@@ -851,7 +866,7 @@ async function loadConsorcios() {
 
 function renderConsorcios() {
     const tb = $('tbody-consorcios');
-    if (!consorcios.length) { tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">No hay consorcios. ¡Añadí el primero!</td></tr>'; return; }
+    if (!consorcios.length) { tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">No hay consorcios todavía. Creá el primero o usá "Carga masiva" para cargar varios de una.</td></tr>'; return; }
     tb.innerHTML = consorcios.map(c => `
         <tr>
             <td><strong>${c.nombre}</strong></td>
@@ -871,7 +886,7 @@ function populateConsorioSelects() {
     const opts = '<option value="">Todos</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
     const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
     ['filter-gastos-consorcio','filter-cobros-consorcio','filter-mora-consorcio','filter-balance-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts; });
-    ['m-gasto-consorcio','m-gen-consorcio','m-bulk-consorcio','filter-amenities-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts2; });
+    ['m-gasto-consorcio','m-gen-consorcio','filter-amenities-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts2; });
 }
 
 function openConsorioModal(id) {
@@ -1073,22 +1088,60 @@ async function guardarAsignacionUF() {
 }
 
 function openBulkModal() {
-    populateConsorioSelects();
+    resetBulkModal();
     openModal('modal-bulk');
 }
 
+function resetBulkModal() {
+    $('bulk-file').value = '';
+    $('bulk-file-label').textContent = 'Hacé clic para seleccionar el archivo (.xlsx)';
+    $('bulk-step-upload').style.display = '';
+    $('bulk-step-results').style.display = 'none';
+    $('bulk-footer-upload').style.display = '';
+    $('bulk-footer-results').style.display = 'none';
+}
+
 async function uploadBulk() {
-    const cid = $('m-bulk-consorcio').value;
     const file = $('bulk-file').files[0];
-    if (!cid || !file) { toast('Seleccioná consorcio y archivo','warn'); return; }
+    if (!file) { toast('Seleccioná un archivo','warn'); return; }
     const fd = new FormData(); fd.append('file', file);
     try {
-        const r = await fetch(`/api/consorcios/${cid}/unidades/bulk`,{method:'POST',body:fd});
-        const d = await r.json();
-        closeModal('modal-bulk');
-        toast(`✅ ${d.inserted} unidades importadas`);
+        const r = await fetch('/api/consorcios/carga-masiva', {method:'POST', body:fd});
+        const d = await r.json().catch(()=>({}));
+        if (!r.ok) { toast(d.error || 'Error al procesar el archivo','err'); return; }
+        renderBulkResults(d);
+        toast('✅ Carga masiva procesada');
         await loadConsorcios();
     } catch(e) { toast('Error al importar','err'); }
+}
+
+function renderBulkResults(d) {
+    $('bulk-step-upload').style.display = 'none';
+    $('bulk-step-results').style.display = '';
+    $('bulk-footer-upload').style.display = 'none';
+    $('bulk-footer-results').style.display = '';
+
+    $('bulk-results-kpis').innerHTML = `
+        <div class="kpi"><div class="kpi-val">${d.consorcios_creados}</div><div class="kpi-label">Consorcios creados</div></div>
+        <div class="kpi"><div class="kpi-val">${d.consorcios_reutilizados}</div><div class="kpi-label">Consorcios ya existentes</div></div>
+        <div class="kpi"><div class="kpi-val">${d.unidades_creadas}</div><div class="kpi-label">UF creadas</div></div>
+        <div class="kpi"><div class="kpi-val">${d.unidades_omitidas}</div><div class="kpi-label">UF omitidas (ya existían)</div></div>`;
+
+    const errBox = $('bulk-results-errors');
+    if (!d.errores || !d.errores.length) {
+        errBox.innerHTML = '<div class="section-info">✅ No se encontraron errores en el archivo.</div>';
+        return;
+    }
+    errBox.innerHTML = `
+        <div class="card" style="margin-top:4px;">
+            <div class="card-h"><span class="card-t">⚠️ Filas con errores (${d.errores.length})</span></div>
+            <div style="max-height:220px;overflow-y:auto;">
+                <table class="tbl">
+                    <thead><tr><th>Hoja</th><th>Fila</th><th>Motivo</th></tr></thead>
+                    <tbody>${d.errores.map(e => `<tr><td>${e.hoja}</td><td>${e.fila}</td><td>${e.mensaje}</td></tr>`).join('')}</tbody>
+                </table>
+            </div>
+        </div>`;
 }
 
 function exportConsorcio(fmt) {
