@@ -1156,10 +1156,13 @@ function closeDetail() {
     document.querySelector('#sec-consorcios .page-header').style.display = '';
 }
 
+let currentUFs = [];
+
 async function loadUFs() {
     if (!currentConsorioId) return;
     try {
         const ufs = await api(`/api/consorcios/${currentConsorioId}/unidades`);
+        currentUFs = ufs;
         const tb = $('tbody-ufs');
         if (!ufs.length) { tb.innerHTML = '<tr><td colspan="7" class="tbl-empty">Sin unidades. Añadí la primera o usá carga masiva.</td></tr>'; return; }
         tb.innerHTML = ufs.map(u => {
@@ -1193,7 +1196,20 @@ async function loadUFs() {
 function openUFModal(id) {
     $('m-uf-id').value = id||'';
     $('m-uf-title').textContent = id ? 'Editar UF' : 'Nueva UF';
-    if (!id) { ['m-uf-numero','m-uf-piso','m-uf-sup','m-uf-vec-nombre','m-uf-vec-email'].forEach(f=>$(f).value=''); }
+    if (!id) {
+        ['m-uf-numero','m-uf-piso','m-uf-sup','m-uf-vec-nombre','m-uf-vec-email'].forEach(f=>$(f).value='');
+        $('m-uf-tipo').value = 'departamento';
+    } else {
+        const u = currentUFs.find(x => x.id === id);
+        if (u) {
+            $('m-uf-numero').value = u.numero || '';
+            $('m-uf-piso').value = u.piso || '';
+            $('m-uf-tipo').value = u.tipo || 'departamento';
+            $('m-uf-sup').value = u.superficie_m2 || '';
+            $('m-uf-vec-nombre').value = u.vecino_nombre || '';
+            $('m-uf-vec-email').value = u.vecino_email || '';
+        }
+    }
     openModal('modal-uf');
 }
 
@@ -1365,6 +1381,8 @@ async function loadProveedoresOpts() {
     } catch{}
 }
 
+let currentGastos = [];
+
 async function loadGastos() {
     const params = new URLSearchParams();
     const cid = $('filter-gastos-consorcio')?.value; if (cid) params.set('consorcio_id',cid);
@@ -1372,6 +1390,7 @@ async function loadGastos() {
     const hasta = $('filter-gastos-hasta')?.value; if (hasta) params.set('hasta',hasta);
     try {
         const data = await api('/api/gastos?'+params);
+        currentGastos = data;
         const tb = $('tbody-gastos');
         if (!data.length) { tb.innerHTML = '<tr><td colspan="9" class="tbl-empty">Sin gastos en el período</td></tr>'; $('gastos-total-label').textContent=''; return; }
         const total = data.reduce((s,g)=>s+(g.monto||0),0);
@@ -1402,7 +1421,14 @@ function openGastoModal(id) {
     const infoEl = $('m-gasto-comprobante-info');
     infoEl.style.display = 'none';
     infoEl.innerHTML = '';
+
+    // Populate consorcio select antes de setear su valor
+    const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    $('m-gasto-consorcio').innerHTML = opts2;
+
     if (!id) {
+        $('m-gasto-consorcio').value = '';
+        $('m-gasto-proveedor').value = '';
         ['m-gasto-desc','m-gasto-monto','m-gasto-notas'].forEach(f=>$(f).value='');
         $('m-gasto-fecha').value = new Date().toISOString().split('T')[0];
         ['m-gasto-vto','m-gasto-fecha-pago'].forEach(f=>$(f).value='');
@@ -1410,21 +1436,29 @@ function openGastoModal(id) {
         $('m-gasto-recurrente').checked = false;
         $('frecuencia-group').style.display = 'none';
     } else {
-        // Show existing comprobante info if the gasto has one
-        const row = document.querySelector(`button[onclick="openGastoModal('${id}')"]`);
-        if (row) {
-            const tr = row.closest('tr');
-            const link = tr?.querySelector('a[href*="/comprobante"]');
-            if (link) {
+        const g = currentGastos.find(x => x.id === id);
+        if (g) {
+            $('m-gasto-consorcio').value = g.consorcio_id || '';
+            $('m-gasto-proveedor').value = g.proveedor_id || '';
+            $('m-gasto-desc').value = g.descripcion || '';
+            $('m-gasto-cat').value = g.categoria || '';
+            $('m-gasto-monto').value = g.monto || '';
+            $('m-gasto-fecha').value = g.fecha_gasto || '';
+            $('m-gasto-vto').value = g.fecha_vencimiento || '';
+            $('m-gasto-metodo').value = g.metodo_pago || '';
+            $('m-gasto-pagado').checked = !!g.pagado;
+            $('m-gasto-fecha-pago').value = g.fecha_pago || '';
+            $('m-gasto-recurrente').checked = !!g.recurrente;
+            $('m-gasto-frecuencia').value = g.frecuencia || '';
+            $('frecuencia-group').style.display = g.recurrente ? 'block' : 'none';
+            $('m-gasto-notas').value = g.notas || '';
+            if (g.archivo_nombre) {
                 infoEl.innerHTML = `📄 Comprobante actual adjunto (<a href="/api/gastos/${id}/comprobante" target="_blank">ver</a>). Seleccione un archivo para reemplazarlo.`;
                 infoEl.style.display = 'block';
             }
         }
     }
     openModal('modal-gasto');
-    // Populate consorcio select
-    const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
-    $('m-gasto-consorcio').innerHTML = opts2;
 }
 
 async function saveGasto() {
