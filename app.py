@@ -116,6 +116,11 @@ def make_excel(headers: list, rows: list, sheet_name: str) -> openpyxl.Workbook:
 
 
 TIPOS_UF_VALIDOS = ['departamento', 'local', 'cochera', 'baulera']
+MARCA_FILA_EJEMPLO = '(borrar fila)'
+
+
+def es_fila_ejemplo(texto: str) -> bool:
+    return MARCA_FILA_EJEMPLO in (texto or '').lower()
 
 
 def build_carga_masiva_template(consorcios_existentes: list) -> openpyxl.Workbook:
@@ -429,6 +434,8 @@ def api_carga_masiva():
             if not row or all(v in (None, '') for v in row):
                 continue
             nombre = str(row[0]).strip() if row[0] else ''
+            if es_fila_ejemplo(nombre):
+                continue
             if not nombre:
                 errores.append({'hoja': 'Consorcios', 'fila': i, 'mensaje': 'Falta el nombre del consorcio'})
                 continue
@@ -463,6 +470,8 @@ def api_carga_masiva():
                            if row and not all(v in (None, '') for v in row)]
         for i, row in filas_unidades:
             nombre_con = str(row[0]).strip() if row[0] else ''
+            if es_fila_ejemplo(nombre_con):
+                continue
             con_id = mapa_consorcios.get(nombre_con.lower())
             if not nombre_con or not con_id:
                 errores.append({'hoja': 'Unidades', 'fila': i, 'mensaje': f'Consorcio no encontrado: "{nombre_con}"'})
