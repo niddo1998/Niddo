@@ -993,6 +993,27 @@
 
 <!-- ════════════════ SCRIPTS ════════════════ -->
 <script>
+// Synchronously show the correct tab from URL hash before loading data to avoid layout flashing
+(function() {
+    const hash = window.location.hash.substring(1);
+    if (hash && hash !== 'dashboard') {
+        const sec = document.getElementById('sec-' + hash);
+        if (sec) {
+            // Remove active from dashboard
+            const dash = document.getElementById('sec-dashboard');
+            if (dash) dash.classList.remove('active');
+            sec.classList.add('active');
+            
+            // Highlight the sidebar link
+            const link = document.querySelector(`.sidebar-nav a[onclick*="'${hash}'"]`);
+            if (link) {
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+            }
+        }
+    }
+})();
+
 // ── State ─────────────────────────────────────────────────────────────────────
 let consorcios = [];
 let proveedores = [];
