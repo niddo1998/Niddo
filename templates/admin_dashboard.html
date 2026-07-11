@@ -1001,9 +1001,14 @@ let currentConsorioId = null;
 // ── Navigation ────────────────────────────────────────────────────────────────
 function show(id, el) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-    document.getElementById('sec-'+id).classList.add('active');
+    const sectionEl = document.getElementById('sec-'+id);
+    if (sectionEl) sectionEl.classList.add('active');
     document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
     if (el) el.classList.add('active');
+    
+    // Persist state in URL hash
+    window.location.hash = id;
+    
     // Lazy-load data
     if (id === 'dashboard')    loadDashboard();
     if (id === 'consorcios')   loadConsorcios();
@@ -2188,8 +2193,19 @@ async function guardarAgendado() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-loadDashboard();
-loadConsorcios();
+loadConsorcios().then(() => {
+    const hash = window.location.hash.substring(1);
+    if (hash && hash !== 'dashboard') {
+        const link = document.querySelector(`.sidebar-nav a[onclick*="'${hash}'"]`);
+        if (link) {
+            show(hash, link);
+        } else {
+            show('dashboard', document.querySelector(`.sidebar-nav a[onclick*="'dashboard'"]`));
+        }
+    } else {
+        show('dashboard', document.querySelector(`.sidebar-nav a[onclick*="'dashboard'"]`));
+    }
+});
 </script>
 </body>
 </html>
