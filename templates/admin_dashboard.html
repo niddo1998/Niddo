@@ -192,6 +192,7 @@
         .toast-msg.info { background: #2563EB; } .toast-msg.warn { background: #D97706; }
         @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-8px); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
         /* ── Misc ── */
         .sep { height: 1px; background: var(--border); margin: 16px 0; }
@@ -311,7 +312,7 @@
         <div style="display:flex;gap:8px;">
             <button class="btn-s btn-sm" onclick="exportGastos('excel')">⬇ Excel</button>
             <button class="btn-s btn-sm" onclick="exportGastos('pdf')">⬇ PDF</button>
-            <button class="btn-p btn-sm" onclick="openGastoModal()">+ Nuevo gasto</button>
+            <button class="btn-p btn-sm" onclick="openGastoChoice()">+ Nuevo gasto</button>
         </div>
     </div>
     <div class="filters">
@@ -738,6 +739,86 @@
         <div class="modal-footer" id="bulk-footer-results" style="display:none;">
             <button class="btn-s" onclick="resetBulkModal()">Subir otro archivo</button>
             <button class="btn-p" onclick="closeModal('modal-bulk')">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Elección tipo de carga -->
+<div class="modal-overlay" id="modal-gasto-choice">
+    <div class="modal-box" style="max-width:480px;">
+        <div class="modal-head"><h3>Nuevo gasto</h3><button class="modal-close" onclick="closeModal('modal-gasto-choice')">✕</button></div>
+        <div class="modal-body" style="padding:28px;">
+            <p style="text-align:center;font-size:.88rem;color:var(--muted);margin:0 0 24px;">¿Cómo querés cargar el gasto?</p>
+            <div style="display:flex;gap:16px;">
+                <button onclick="openAutoExtract()" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 16px;border:2px solid var(--border);border-radius:14px;background:var(--card);cursor:pointer;transition:all .2s;" onmouseover="this.style.borderColor='var(--teal)';this.style.background='rgba(16,185,129,.06)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--card)'">
+                    <span style="font-size:2.4rem;">🤖</span>
+                    <span style="font-weight:700;font-size:.95rem;color:var(--text);">Carga automática</span>
+                    <span style="font-size:.78rem;color:var(--muted);text-align:center;line-height:1.4;">Subí una foto o PDF del comprobante y extraemos los datos con IA</span>
+                </button>
+                <button onclick="closeModal('modal-gasto-choice');openGastoModal()" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 16px;border:2px solid var(--border);border-radius:14px;background:var(--card);cursor:pointer;transition:all .2s;" onmouseover="this.style.borderColor='var(--purple)';this.style.background='rgba(124,58,237,.06)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--card)'">
+                    <span style="font-size:2.4rem;">✍️</span>
+                    <span style="font-weight:700;font-size:.95rem;color:var(--text);">Carga manual</span>
+                    <span style="font-size:.78rem;color:var(--muted);text-align:center;line-height:1.4;">Completá los campos del formulario manualmente</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Carga Automática (OCR/AI) -->
+<div class="modal-overlay" id="modal-auto-extract">
+    <div class="modal-box" style="max-width:540px;">
+        <div class="modal-head"><h3>🤖 Carga automática con IA</h3><button class="modal-close" onclick="closeModal('modal-auto-extract')">✕</button></div>
+        <div class="modal-body" style="padding:24px;">
+            <!-- Step 1: Upload -->
+            <div id="auto-step-upload">
+                <div id="auto-dropzone" style="border:2px dashed var(--border);border-radius:14px;padding:48px 24px;text-align:center;cursor:pointer;transition:all .25s;background:var(--card);">
+                    <div style="font-size:3rem;margin-bottom:12px;">📄</div>
+                    <p style="font-weight:600;font-size:.92rem;margin:0 0 6px;color:var(--text);">Arrastrá o hacé clic para subir</p>
+                    <p style="font-size:.78rem;color:var(--muted);margin:0;">Formatos: JPG, PNG, PDF — Máximo 10MB</p>
+                    <input type="file" id="auto-file-input" accept="image/*,.pdf" style="display:none;" onchange="handleAutoFile(this)">
+                </div>
+                <div id="auto-file-preview" style="display:none;margin-top:14px;padding:12px 16px;background:rgba(16,185,129,.08);border-radius:10px;display:flex;align-items:center;gap:10px;">
+                    <span style="font-size:1.4rem;">✅</span>
+                    <span id="auto-file-name" style="font-size:.85rem;font-weight:500;flex:1;"></span>
+                    <button onclick="clearAutoFile()" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--muted);">✕</button>
+                </div>
+                <div class="form-group" style="margin-top:14px;">
+                    <label class="form-label">Consorcio *</label>
+                    <select class="form-ctrl" id="auto-consorcio"></select>
+                </div>
+                <button class="btn-p" id="auto-extract-btn" onclick="extractGastoData()" style="width:100%;margin-top:10px;" disabled>
+                    ⚡ Extraer datos del comprobante
+                </button>
+            </div>
+            <!-- Step 2: Processing -->
+            <div id="auto-step-processing" style="display:none;text-align:center;padding:40px 0;">
+                <div style="font-size:3rem;margin-bottom:16px;animation:spin 1.5s linear infinite;">⚙️</div>
+                <p style="font-weight:600;font-size:.95rem;margin:0 0 6px;">Analizando comprobante...</p>
+                <p style="font-size:.82rem;color:var(--muted);margin:0;">La IA está extrayendo los datos. Esto puede tardar unos segundos.</p>
+            </div>
+            <!-- Step 3: Results -->
+            <div id="auto-step-results" style="display:none;">
+                <div style="background:rgba(16,185,129,.08);border-radius:10px;padding:14px 18px;margin-bottom:16px;">
+                    <p style="margin:0;font-size:.85rem;font-weight:600;color:var(--teal);">✅ Datos extraídos correctamente</p>
+                    <p style="margin:4px 0 0;font-size:.78rem;color:var(--muted);">Revisá los datos y confirmá para cargar el gasto.</p>
+                </div>
+                <div id="auto-results-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;"></div>
+                <div style="display:flex;gap:10px;margin-top:18px;">
+                    <button class="btn-s" onclick="resetAutoExtract()" style="flex:1;">↩ Reintentar</button>
+                    <button class="btn-p" onclick="confirmAutoExtract()" style="flex:1;">✅ Confirmar y cargar</button>
+                </div>
+            </div>
+            <!-- Error state -->
+            <div id="auto-step-error" style="display:none;text-align:center;padding:30px 0;">
+                <div style="font-size:3rem;margin-bottom:12px;">⚠️</div>
+                <p style="font-weight:600;font-size:.92rem;margin:0 0 6px;color:#EF4444;">No se pudieron extraer los datos</p>
+                <p id="auto-error-msg" style="font-size:.82rem;color:var(--muted);margin:0 0 18px;"></p>
+                <div style="display:flex;gap:10px;justify-content:center;">
+                    <button class="btn-s" onclick="resetAutoExtract()">↩ Reintentar</button>
+                    <button class="btn-p" onclick="closeModal('modal-auto-extract');openGastoModal()">✍️ Cargar manualmente</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -1438,6 +1519,130 @@ async function loadGastos() {
                 </div></td>
             </tr>`).join('');
     } catch(e) { toast(e.message,'err'); }
+}
+
+// ── Auto-extraction ───────────────────────────────────────────────────────────
+let autoExtractedData = null;
+let autoFileSelected = null;
+
+function openGastoChoice() {
+    openModal('modal-gasto-choice');
+}
+
+function openAutoExtract() {
+    closeModal('modal-gasto-choice');
+    resetAutoExtract();
+    const opts = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    $('auto-consorcio').innerHTML = opts;
+    openModal('modal-auto-extract');
+
+    // Dropzone events
+    const dz = $('auto-dropzone');
+    dz.onclick = () => $('auto-file-input').click();
+    dz.ondragover = (e) => { e.preventDefault(); dz.style.borderColor='var(--teal)'; dz.style.background='rgba(16,185,129,.06)'; };
+    dz.ondragleave = () => { dz.style.borderColor='var(--border)'; dz.style.background='var(--card)'; };
+    dz.ondrop = (e) => { e.preventDefault(); dz.style.borderColor='var(--border)'; dz.style.background='var(--card)'; if(e.dataTransfer.files.length) { $('auto-file-input').files = e.dataTransfer.files; handleAutoFile($('auto-file-input')); } };
+}
+
+function handleAutoFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { toast('El archivo es muy grande (máx 10MB)', 'warn'); return; }
+    autoFileSelected = file;
+    $('auto-file-name').textContent = file.name;
+    $('auto-file-preview').style.display = 'flex';
+    $('auto-dropzone').style.display = 'none';
+    $('auto-extract-btn').disabled = false;
+}
+
+function clearAutoFile() {
+    autoFileSelected = null;
+    $('auto-file-input').value = '';
+    $('auto-file-preview').style.display = 'none';
+    $('auto-dropzone').style.display = '';
+    $('auto-extract-btn').disabled = true;
+}
+
+function resetAutoExtract() {
+    autoExtractedData = null;
+    autoFileSelected = null;
+    $('auto-file-input').value = '';
+    ['auto-step-upload','auto-step-processing','auto-step-results','auto-step-error'].forEach(id => $(id).style.display = 'none');
+    $('auto-step-upload').style.display = '';
+    $('auto-file-preview').style.display = 'none';
+    $('auto-dropzone').style.display = '';
+    $('auto-extract-btn').disabled = true;
+}
+
+async function extractGastoData() {
+    if (!autoFileSelected) { toast('Seleccioná un archivo primero', 'warn'); return; }
+    if (!$('auto-consorcio').value) { toast('Seleccioná un consorcio', 'warn'); return; }
+
+    // Show processing
+    $('auto-step-upload').style.display = 'none';
+    $('auto-step-processing').style.display = '';
+
+    try {
+        const fd = new FormData();
+        fd.append('file', autoFileSelected);
+        fd.append('consorcio_id', $('auto-consorcio').value);
+
+        const r = await fetch('/api/gastos/extract', { method: 'POST', body: fd });
+        if (!r.ok) {
+            const err = await r.json();
+            throw new Error(err.error || 'Error al extraer datos');
+        }
+        autoExtractedData = await r.json();
+
+        // Show results
+        const labels = {
+            descripcion: '📝 Descripción', monto: '💰 Monto', categoria: '🏷️ Categoría',
+            fecha_gasto: '📅 Fecha', fecha_vencimiento: '⏰ Vencimiento', notas: '📋 Notas'
+        };
+        const catLabels = {
+            electricidad:'Electricidad', gas:'Gas', agua:'Agua', limpieza:'Limpieza',
+            ascensor:'Ascensor', seguro:'Seguro', honorarios:'Honorarios', impuesto:'Impuesto',
+            mantenimiento:'Mantenimiento', sueldos:'Sueldos', otro:'Otro'
+        };
+        let grid = '';
+        for (const [key, label] of Object.entries(labels)) {
+            let val = autoExtractedData[key] || '—';
+            if (key === 'monto' && val !== '—') val = fmt(parseFloat(val));
+            if (key === 'categoria') val = catLabels[val] || val || '—';
+            grid += `<div style="padding:10px 14px;background:var(--bg);border-radius:8px;">
+                <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;font-weight:600;margin-bottom:3px;">${label}</div>
+                <div style="font-size:.88rem;font-weight:600;color:var(--text);">${val}</div>
+            </div>`;
+        }
+        $('auto-results-grid').innerHTML = grid;
+        $('auto-step-processing').style.display = 'none';
+        $('auto-step-results').style.display = '';
+
+    } catch(e) {
+        $('auto-step-processing').style.display = 'none';
+        $('auto-error-msg').textContent = e.message;
+        $('auto-step-error').style.display = '';
+    }
+}
+
+function confirmAutoExtract() {
+    if (!autoExtractedData) return;
+    const d = autoExtractedData;
+    const cid = $('auto-consorcio').value;
+    closeModal('modal-auto-extract');
+
+    // Open gasto modal pre-filled
+    openGastoModal();
+    // Set values after modal opens
+    setTimeout(() => {
+        $('m-gasto-consorcio').value = cid;
+        if (d.descripcion) $('m-gasto-desc').value = d.descripcion;
+        if (d.categoria) $('m-gasto-cat').value = d.categoria;
+        if (d.monto) $('m-gasto-monto').value = d.monto;
+        if (d.fecha_gasto) $('m-gasto-fecha').value = d.fecha_gasto;
+        if (d.fecha_vencimiento) $('m-gasto-vto').value = d.fecha_vencimiento;
+        if (d.notas) $('m-gasto-notas').value = d.notas;
+    }, 50);
 }
 
 function openGastoModal(id) {
