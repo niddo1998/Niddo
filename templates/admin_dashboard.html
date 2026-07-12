@@ -69,16 +69,24 @@
         .topbar {
             position: fixed; top: 0; left: var(--sidebar-w); right: 0;
             height: 50px; background: var(--surface); border-bottom: 1px solid var(--border);
-            display: flex; align-items: center; justify-content: flex-end; padding: 0 22px; gap: 8px;
+            display: flex; align-items: center; justify-content: flex-end; padding: 0 22px; gap: 10px;
             z-index: 90; transition: background .3s, border-color .3s;
         }
         .topbar-btn {
-            display: flex; align-items: center; gap: 6px;
-            background: transparent; border: 1px solid var(--border); color: var(--muted);
-            padding: 6px 14px; border-radius: 8px; font-size: .8rem; font-weight: 500;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+            width: 32px; height: 32px; border-radius: 50%; font-size: .82rem; font-weight: 600;
             font-family: 'Inter', sans-serif; cursor: pointer; transition: all .15s;
+            user-select: none;
         }
-        .topbar-btn:hover { background: rgba(124,58,237,.08); color: var(--text); border-color: rgba(124,58,237,.25); }
+        .topbar-btn:hover { background: rgba(124,58,237,.15); color: var(--purple-light); border-color: rgba(124,58,237,.3); }
+        .topbar-btn.profile-circle {
+            background: linear-gradient(135deg, var(--purple), var(--teal));
+            color: #fff; border: none; font-size: .78rem; letter-spacing: -0.5px;
+        }
+        .topbar-btn.profile-circle:hover {
+            transform: scale(1.05);
+        }
 
         /* ── Main ── */
         .main { margin-left: var(--sidebar-w); padding: 68px 26px 22px; min-height: 100vh; }
@@ -257,8 +265,8 @@
 </div>
 
 <div class="topbar">
-    <button class="topbar-btn" onclick="openModal('modal-perfil')">👤 Perfil</button>
-    <button class="topbar-btn" onclick="openModal('modal-ayuda')">❓ Ayuda</button>
+    <button class="topbar-btn" onclick="openModal('modal-ayuda')" title="Ayuda">?</button>
+    <button class="topbar-btn profile-circle" id="topbar-perfil-btn" onclick="openModal('modal-perfil')" title="Mi Perfil">—</button>
 </div>
 
 <div class="main">
@@ -2533,6 +2541,19 @@ async function guardarAgendado() {
     $('perfil-nombre').textContent = userName;
     $('perfil-email').textContent = userEmail;
     $('perfil-avatar').textContent = (userName || 'A')[0].toUpperCase();
+    
+    // Compute initials for topbar button
+    let initials = 'A';
+    if (userName) {
+        const parts = userName.trim().split(/\s+/);
+        if (parts.length >= 2) {
+            initials = (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        } else if (parts.length === 1 && parts[0].length > 0) {
+            initials = parts[0].substring(0, 2).toUpperCase();
+        }
+    }
+    const topBtn = $('topbar-perfil-btn');
+    if (topBtn) topBtn.textContent = initials;
 })();
 // Update consorcio count when data loads
 function updatePerfilConsorcios() { $('perfil-consorcios').textContent = consorcios.length; }
