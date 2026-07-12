@@ -65,8 +65,23 @@
         .btn-sidebar:hover { background: rgba(124,58,237,.08); color: var(--text); }
         .btn-sidebar.danger:hover { background: rgba(239,68,68,.08); color: #f87171; }
 
+        /* ── Topbar ── */
+        .topbar {
+            position: fixed; top: 0; left: var(--sidebar-w); right: 0;
+            height: 50px; background: var(--surface); border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: flex-end; padding: 0 22px; gap: 8px;
+            z-index: 90; transition: background .3s, border-color .3s;
+        }
+        .topbar-btn {
+            display: flex; align-items: center; gap: 6px;
+            background: transparent; border: 1px solid var(--border); color: var(--muted);
+            padding: 6px 14px; border-radius: 8px; font-size: .8rem; font-weight: 500;
+            font-family: 'Inter', sans-serif; cursor: pointer; transition: all .15s;
+        }
+        .topbar-btn:hover { background: rgba(124,58,237,.08); color: var(--text); border-color: rgba(124,58,237,.25); }
+
         /* ── Main ── */
-        .main { margin-left: var(--sidebar-w); padding: 22px 26px; min-height: 100vh; }
+        .main { margin-left: var(--sidebar-w); padding: 68px 26px 22px; min-height: 100vh; }
         .section { display: none; }
         .section.active { display: block; animation: fadeUp .2s ease; }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
@@ -239,6 +254,11 @@
         <button class="btn-sidebar" id="theme-toggle">🌙 Cambiar tema</button>
         <button class="btn-sidebar danger" onclick="window.location.href='/auth/logout'">↩ Cerrar sesión</button>
     </div>
+</div>
+
+<div class="topbar">
+    <button class="topbar-btn" onclick="openModal('modal-perfil')">👤 Perfil</button>
+    <button class="topbar-btn" onclick="openModal('modal-ayuda')">❓ Ayuda</button>
 </div>
 
 <div class="main">
@@ -1069,6 +1089,59 @@
     </div>
 </div>
 
+<!-- Modal Perfil -->
+<div class="modal-overlay" id="modal-perfil">
+    <div class="modal-box" style="max-width:440px;">
+        <div class="modal-head"><h3>👤 Mi perfil</h3><button class="modal-close" onclick="closeModal('modal-perfil')">✕</button></div>
+        <div class="modal-body" style="padding:28px;">
+            <div style="text-align:center;margin-bottom:20px;">
+                <div id="perfil-avatar" style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--teal));margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:1.8rem;color:#fff;font-weight:700;"></div>
+                <p id="perfil-nombre" style="font-size:1rem;font-weight:700;margin:0;"></p>
+                <p id="perfil-email" style="font-size:.82rem;color:var(--muted);margin:4px 0 0;"></p>
+            </div>
+            <div style="border-top:1px solid var(--border);padding-top:16px;">
+                <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:.84rem;">
+                    <span style="color:var(--muted);">Rol</span>
+                    <span class="b b-p">Administrador</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:.84rem;">
+                    <span style="color:var(--muted);">Consorcios</span>
+                    <span id="perfil-consorcios" style="font-weight:600;">—</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Ayuda -->
+<div class="modal-overlay" id="modal-ayuda">
+    <div class="modal-box" style="max-width:500px;">
+        <div class="modal-head"><h3>❓ Centro de ayuda</h3><button class="modal-close" onclick="closeModal('modal-ayuda')">✕</button></div>
+        <div class="modal-body" style="padding:24px;">
+            <div class="section-info" style="margin-bottom:18px;">👋 ¡Bienvenido a Niddo! Acá podés encontrar información útil para usar la plataforma.</div>
+            
+            <h4 style="font-size:.85rem;font-weight:700;margin:0 0 10px;">📚 Guía rápida</h4>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">
+                <div style="padding:10px 14px;background:var(--surface2);border-radius:8px;font-size:.82rem;">
+                    <strong>Gastos:</strong> Cargá gastos manualmente o con IA. Se agrupan automáticamente en las liquidaciones.
+                </div>
+                <div style="padding:10px 14px;background:var(--surface2);border-radius:8px;font-size:.82rem;">
+                    <strong>Liquidaciones:</strong> Generá la liquidación mensual desde los gastos cargados. Podés previsualizarla y enviarla por email.
+                </div>
+                <div style="padding:10px 14px;background:var(--surface2);border-radius:8px;font-size:.82rem;">
+                    <strong>Cobros:</strong> Registrá los pagos de expensas de cada unidad funcional y hacé seguimiento de los estados.
+                </div>
+                <div style="padding:10px 14px;background:var(--surface2);border-radius:8px;font-size:.82rem;">
+                    <strong>Balance:</strong> Visualizá el resumen financiero del consorcio con ingresos, egresos y saldo.
+                </div>
+            </div>
+
+            <h4 style="font-size:.85rem;font-weight:700;margin:0 0 10px;">📧 Soporte</h4>
+            <p style="font-size:.82rem;color:var(--muted);margin:0;">Si necesitás ayuda, escribinos a <a href="mailto:soporte@niddo.app" style="color:var(--teal);text-decoration:none;font-weight:600;">soporte@niddo.app</a></p>
+        </div>
+    </div>
+</div>
+
 <!-- Toast container -->
 <div class="toast-container" id="toasts"></div>
 
@@ -1169,6 +1242,7 @@ async function loadConsorcios() {
         consorcios = await api('/api/consorcios');
         renderConsorcios();
         populateConsorioSelects();
+        if (typeof updatePerfilConsorcios === 'function') updatePerfilConsorcios();
     } catch(e) { toast(e.message,'err'); }
 }
 
@@ -2451,6 +2525,17 @@ async function guardarAgendado() {
         toast('⏰ Envío programado guardado');
     } catch(e) { toast(e.message,'err'); }
 }
+
+// ── Perfil ────────────────────────────────────────────────────────────────────
+(function() {
+    const userName = {{ user.name | tojson }};
+    const userEmail = {{ user.email | tojson }};
+    $('perfil-nombre').textContent = userName;
+    $('perfil-email').textContent = userEmail;
+    $('perfil-avatar').textContent = (userName || 'A')[0].toUpperCase();
+})();
+// Update consorcio count when data loads
+function updatePerfilConsorcios() { $('perfil-consorcios').textContent = consorcios.length; }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadConsorcios().then(() => {
