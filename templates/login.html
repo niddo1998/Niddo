@@ -4,33 +4,44 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ingresar | Niddo</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         :root {
-            --purple: #7C3AED;
-            --purple-light: #8B5CF6;
-            --teal: #10B981;
-            --bg: #0d0d12;
-            --surface: #16161f;
-            --border: rgba(255,255,255,0.07);
-            --text: #f0f0f5;
-            --muted: #8b8b9e;
+            --blue-100:#DCE9FF; --blue-500:#3E7BFA;
+            --mint-100:#DBF6EA; --mint-500:#209A69;
+            --bg-canvas:#E4EDFC;
+            --bg:#F4F7FD;
+            --surface:#FFFFFF;
+            --hairline: rgba(28,37,58,.09);
+            --text:#1B2233;
+            --text-muted:#68728A;
+            --text-faint:#98A1B5;
+            --accent: var(--blue-500);
+            --accent-soft: var(--blue-100);
+            --accent-ink:#ffffff;
+            --shadow-card: 0 1px 2px rgba(28,37,58,.05), 0 8px 22px -12px rgba(28,37,58,.16);
+            --shadow-window: 0 30px 70px -28px rgba(24,42,84,.28);
+            --r-lg:20px; --r-md:12px; --r-pill:999px;
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color-scheme: light;
         }
 
-        :root.light {
-            --bg: #f5f5fa;
-            --surface: #ffffff;
-            --border: rgba(0,0,0,0.08);
-            --text: #111118;
-            --muted: #6b6b80;
+        :root.dark {
+            --bg-canvas:#05080F; --bg:#0A101C; --surface:#121A2A;
+            --hairline: rgba(230,237,252,.09);
+            --text:#ECF0FA; --text-muted:#8D97B0; --text-faint:#565F78;
+            --accent:#729BFF; --accent-soft: rgba(114,155,255,.18); --accent-ink:#08132B;
+            --shadow-card: 0 1px 2px rgba(0,0,0,.35), 0 8px 22px -12px rgba(0,0,0,.55);
+            --shadow-window: 0 30px 70px -28px rgba(0,0,0,.55);
+            --blue-100: rgba(114,155,255,.16);
+            --mint-100: rgba(32,154,105,.22); --mint-500:#4FDA9E;
+            color-scheme: dark;
         }
 
         body {
-            font-family: 'Inter', sans-serif;
-            background: var(--bg);
+            font-family: var(--font);
+            background: var(--bg-canvas);
             color: var(--text);
             min-height: 100vh;
             display: flex;
@@ -41,29 +52,24 @@
             position: relative;
         }
 
-        /* Glow */
         body::before {
             content: '';
             position: fixed;
-            width: 500px;
-            height: 500px;
-            background: radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%);
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
+            inset: -10%;
+            background: radial-gradient(55% 55% at 50% 15%, var(--accent-soft), transparent 70%);
             pointer-events: none;
         }
 
-        /* Theme toggle */
         .theme-toggle {
             position: fixed;
             top: 1.25rem;
             right: 1.5rem;
             background: var(--surface);
-            border: 1px solid var(--border);
-            color: var(--muted);
+            border: 1px solid var(--hairline);
+            color: var(--text-muted);
             width: 36px;
             height: 36px;
-            border-radius: 8px;
+            border-radius: var(--r-pill);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -72,150 +78,84 @@
             transition: all 0.2s;
             z-index: 10;
         }
+        .theme-toggle:hover { color: var(--text); border-color: var(--accent); }
 
-        .theme-toggle:hover {
-            color: var(--text);
-            border-color: rgba(124,58,237,0.4);
+        .wrap { position: relative; width: 100%; max-width: 400px; }
+
+        .brand {
+            text-align: center;
+            margin-bottom: 1.75rem;
         }
+        .brand .mark {
+            width: 52px; height: 52px; border-radius: 16px;
+            background: var(--accent); color: var(--accent-ink);
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 14px; font-weight: 800; font-size: 1.3rem;
+            box-shadow: var(--shadow-card);
+            text-decoration: none;
+        }
+        .brand h1 { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.01em; }
+        .brand p { color: var(--text-muted); font-size: 0.88rem; margin-top: 4px; }
 
-        /* Card */
         .card {
             background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 18px;
-            padding: 2.5rem;
-            width: 100%;
-            max-width: 420px;
-            position: relative;
-            transition: background 0.3s, border-color 0.3s;
+            border: 1px solid var(--hairline);
+            border-radius: var(--r-lg);
+            padding: 1.4rem;
+            box-shadow: var(--shadow-window);
         }
 
-        .logo {
-            display: block;
-            text-align: center;
-            font-size: 1.5rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, var(--purple-light), var(--teal));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            text-decoration: none;
-            margin-bottom: 2rem;
-        }
-
-        h2 {
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--muted);
-            text-align: center;
-            margin-bottom: 1.5rem;
-            letter-spacing: -0.01em;
-        }
-
-        /* Role buttons */
-        .role-options {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
+        .role-options { display: flex; flex-direction: column; gap: 0.7rem; }
 
         .role-btn {
             display: flex;
             align-items: center;
             gap: 1rem;
-            padding: 1rem 1.25rem;
-            border-radius: 12px;
-            border: 1px solid var(--border);
+            padding: 1rem 1.1rem;
+            border-radius: var(--r-md);
+            border: 1px solid var(--hairline);
             background: transparent;
             color: var(--text);
-            font-family: 'Inter', sans-serif;
+            font-family: var(--font);
             font-size: 0.95rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
             text-align: left;
+            text-decoration: none;
         }
-
-        .role-btn:hover {
-            border-color: var(--purple-light);
-            background: rgba(124, 58, 237, 0.07);
-            transform: translateY(-1px);
-        }
-
-        .role-btn.admin:hover { border-color: var(--purple-light); }
-        .role-btn.vecino:hover { border-color: var(--teal); background: rgba(16,185,129,0.07); }
+        .role-btn:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
 
         .role-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.1rem;
-            flex-shrink: 0;
+            width: 42px; height: 42px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.15rem; flex-shrink: 0;
+            background: var(--blue-100);
         }
-
-        .role-icon.admin { background: rgba(124,58,237,0.12); }
-        .role-icon.vecino { background: rgba(16,185,129,0.12); }
+        .role-icon.vecino { background: var(--mint-100); }
 
         .role-info { flex: 1; }
         .role-name { font-weight: 700; margin-bottom: 0.1rem; }
-        .role-desc { font-size: 0.78rem; color: var(--muted); font-weight: 400; }
+        .role-desc { font-size: 0.78rem; color: var(--text-muted); font-weight: 400; }
+        .role-arrow { color: var(--text-faint); font-size: 0.9rem; }
 
-        .role-arrow { color: var(--muted); font-size: 0.85rem; }
-
-        .divider {
-            text-align: center;
-            margin-top: 1.75rem;
-            font-size: 0.85rem;
-            color: var(--muted);
-        }
-
-        .divider a {
-            color: var(--purple-light);
-            text-decoration: none;
-        }
-
+        .divider { text-align: center; margin-top: 1.5rem; font-size: 0.85rem; color: var(--text-muted); }
+        .divider a { color: var(--accent); text-decoration: none; font-weight: 600; }
         .divider a:hover { text-decoration: underline; }
-
-        .form-header {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .form-role-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 9px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1rem;
-        }
-
-        .form-role-icon.admin { background: rgba(124,58,237,0.12); }
-        .form-role-icon.vecino { background: rgba(16,185,129,0.12); }
-
-        .form-title {
-            font-size: 1.1rem;
-            font-weight: 700;
-        }
     </style>
 </head>
 <body>
 
-    <!-- Theme toggle -->
-    <button class="theme-toggle" id="theme-toggle" title="Cambiar tema">🌙</button>
+    <button class="theme-toggle" id="theme-toggle" title="Cambiar tema" aria-label="Cambiar tema">🌙</button>
 
-    <div class="card">
-        <a href="/" class="logo">Niddo</a>
+    <div class="wrap">
+        <div class="brand">
+            <a href="/" class="mark">N</a>
+            <h1>Bienvenido a Niddo</h1>
+            <p>Elegí cómo querés ingresar</p>
+        </div>
 
-        <!-- Role selection → redirect a Auth0 -->
-        <div id="role-selection">
-            <h2>¿Cómo querés ingresar?</h2>
+        <div class="card">
             <div class="role-options">
                 <a class="role-btn admin" id="btn-admin" href="/auth/login?role=admin">
                     <div class="role-icon admin">🏢</div>
@@ -242,19 +182,18 @@
     </div>
 
     <script>
-        // ——— Theme ———
         const toggle = document.getElementById('theme-toggle');
         const root = document.documentElement;
 
         function applyTheme(t) {
-            root.classList.toggle('light', t === 'light');
-            toggle.textContent = t === 'light' ? '☀️' : '🌙';
+            root.classList.toggle('dark', t === 'dark');
+            toggle.textContent = t === 'dark' ? '☀️' : '🌙';
         }
 
-        applyTheme(localStorage.getItem('theme') || 'dark');
+        applyTheme(localStorage.getItem('theme') || 'light');
 
         toggle.addEventListener('click', () => {
-            const next = root.classList.contains('light') ? 'dark' : 'light';
+            const next = root.classList.contains('dark') ? 'light' : 'dark';
             localStorage.setItem('theme', next);
             applyTheme(next);
         });
