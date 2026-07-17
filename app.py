@@ -784,6 +784,110 @@ def api_gasto_comprobante(gid):
     )
 
 
+@app.route('/api/gastos/extract', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_gastos_extract():
+    """Extrae datos de un comprobante usando Google Gemini Vision."""
+    import google.generativeai as genai
+
+    api_key = os.environ.get('GEMINI_API_KEY', '')
+    if not api_key:
+        return jsonify({'error': 'GEMINI_API_KEY no configurada'}), 500
+
+    genai.configure(api_key=api_key)
+
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'error': 'Se requiere un archivo'}), 400
+
+    file_bytes = file.read()
+    mime = file.content_type or 'image/jpeg'
+
+    # Determine MIME type for Gemini
+    if file.filename.lower().endswith('.pdf'):
+        mime = 'application/pdf'
+    elif file.filename.lower().endswith('.png'):
+        mime = 'image/png'
+    elif file.filename.lower().endswith(('.jpg', '.jpeg')):
+        mime = 'image/jpeg'
+
+    prompt = """Analizá esta factura/comprobante de un gasto de un consorcio de propiedad horizontal en Argentina.
+Extraé los siguientes campos y devolvé SOLO un JSON válido (sin markdown, sin texto adicional):
+
+{
+  "descripcion": "descripción breve del gasto (ej: 'Factura Edesur junio 2026')",
+  "monto": número decimal sin símbolo de moneda (ej: 15430.50),
+  "categoria": una de estas opciones exactas: "electricidad", "gas", "agua", "limpieza", "ascensor", "seguro", "honorarios", "impuesto", "mantenimiento", "sueldos", "otro",
+  "fecha_gasto": "YYYY-MM-DD" (fecha de emisión de la factura),
+  "fecha_vencimiento": "YYYY-MM-DD" o null (fecha de vencimiento de pago),
+  "notas": "datos adicionales relevantes (número de factura, cliente, medidor, etc.)"
+}
+
+IMPORTANTE:
+- El monto debe ser un número, NO un string. Sin puntos de miles, con punto decimal.
+- Las fechas en formato YYYY-MM-DD.
+- Si no podés determinar un campo, poné null.
+- Respondé SOLO el JSON, sin markdown ni explicaciones."""
+
+    try:
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        response = model.generate_content([
+            prompt,
+            {'mime_type': mime, 'data': file_bytes}
+        ])
+
+        # Parse the response - clean markdown if present
+        text = response.text.strip()
+        if text.startswith('```'):
+            text = text.split('\n', 1)[1] if '\n' in text else text[3:]
+            if text.endswith('```'):
+                text = text[:-3].strip()
+            elif '```' in text:
+                text = text[:text.rfind('```')].strip()
+
+        import json
+        data = json.loads(text)
+
+        # Sanitize and validate
+        result = {
+            'descripcion': str(data.get('descripcion', '') or '').strip(),
+            'monto': None,
+            'categoria': '',
+            'fecha_gasto': '',
+            'fecha_vencimiento': '',
+            'notas': str(data.get('notas', '') or '').strip(),
+        }
+
+        # Monto
+        try:
+            result['monto'] = round(float(data.get('monto', 0) or 0), 2)
+        except (ValueError, TypeError):
+            result['monto'] = None
+
+        # Categoria
+        valid_cats = ('electricidad','gas','agua','limpieza','ascensor','seguro',
+                      'honorarios','impuesto','mantenimiento','sueldos','otro')
+        cat = str(data.get('categoria', '') or '').lower().strip()
+        result['categoria'] = cat if cat in valid_cats else 'otro'
+
+        # Fechas
+        for fk in ('fecha_gasto', 'fecha_vencimiento'):
+            val = data.get(fk)
+            if val and val != 'null':
+                try:
+                    datetime.strptime(str(val), '%Y-%m-%d')
+                    result[fk] = str(val)
+                except ValueError:
+                    result[fk] = ''
+
+        return jsonify(result)
+
+    except json.JSONDecodeError:
+        return jsonify({'error': 'La IA no devolvió datos válidos. Intentá con otra imagen.'}), 422
+    except Exception as e:
+        return jsonify({'error': f'Error al procesar: {str(e)}'}), 500
+
+
 @app.route('/api/gastos/export')
 @require_auth(allowed_roles=['admin'])
 def api_gastos_export():
