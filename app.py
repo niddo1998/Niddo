@@ -99,8 +99,8 @@ def get_admin_id() -> Optional[str]:
     user = session.get('user')
     if not user:
         return None
-    result = supabase.table('administradores').select('id').eq('auth0_id', user['sub']).single().execute()
-    return result.data['id'] if result.data else None
+    result = supabase.table('administradores').select('id').eq('auth0_id', user['sub']).execute()
+    return result.data[0]['id'] if result.data else None
 
 
 def get_vecino_id() -> Optional[str]:
@@ -108,8 +108,8 @@ def get_vecino_id() -> Optional[str]:
     user = session.get('user')
     if not user:
         return None
-    result = supabase.table('vecinos').select('id').eq('auth0_id', user['sub']).single().execute()
-    return result.data['id'] if result.data else None
+    result = supabase.table('vecinos').select('id').eq('auth0_id', user['sub']).execute()
+    return result.data[0]['id'] if result.data else None
 
 
 def excel_response(wb: openpyxl.Workbook, filename: str) -> Response:
@@ -1407,8 +1407,15 @@ def api_dashboard_kpis():
 def api_me():
     user = session['user']
     table = 'administradores' if user['role'] == 'admin' else 'vecinos'
-    result = supabase.table(table).select('*').eq('auth0_id', user['sub']).single().execute()
-    return jsonify(result.data)
+    result = supabase.table(table).select('*').eq('auth0_id', user['sub']).execute()
+    if not result.data:
+        # La sesión es válida pero no hay fila de perfil (usuario borrado, DB
+        # reseteada, etc.). Cerramos la sesión en vez de devolver un 500: si
+        # no, el frontend reintenta, /login ve la sesión viva y redirige de
+        # vuelta al dashboard -> loop infinito de refrescos.
+        session.clear()
+        return jsonify({'error': 'Perfil no encontrado'}), 401
+    return jsonify(result.data[0])
 
 
 

@@ -692,12 +692,28 @@ const ebadge = e => {
 
 async function api(url,opts={}){
     const res=await fetch(url,{headers:{'Content-Type':'application/json'},...opts});
-    if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error||'Error '+res.status)}
+    if(!res.ok){const e=await res.json().catch(()=>({}));const err=new Error(e.error||'Error '+res.status);err.status=res.status;throw err}
     return res.json();
 }
 
 async function init(){
-    try{S.vecino=await api('/api/me')}catch(e){window.location.href='/login';return}
+    try{
+        S.vecino=await api('/api/me');
+    }catch(e){
+        // Sólo redirigimos a /login si de verdad no hay sesión (401/403).
+        // Si /api/me falla por otro motivo (500, red, etc.) y la sesión
+        // sigue viva, /login rebota de nuevo al dashboard y esto termina
+        // en un loop de refrescos infinito — mejor mostrar un error.
+        if(e.status===401||e.status===403){window.location.href='/login';return}
+        document.body.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:14px;text-align:center;padding:20px">'+
+            '<div style="font-size:2.5rem">⚠️</div>'+
+            '<div style="font-weight:800;font-size:1.1rem">No pudimos cargar tu panel</div>'+
+            '<div style="color:var(--muted);font-size:0.9rem;max-width:340px">'+(e.message||'Error de conexión')+'</div>'+
+            '<button class="btn btn-primary" onclick="location.reload()">Reintentar</button>'+
+            '<button class="btn btn-secondary" onclick="window.location.href=\'/auth/logout\'">Cerrar sesión</button>'+
+            '</div>';
+        return;
+    }
     const v=S.vecino;
     const ini=(v.nombre||v.email||'?').charAt(0).toUpperCase();
     document.getElementById('btn-av').textContent=ini;
