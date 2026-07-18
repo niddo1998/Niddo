@@ -5,28 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel Administrador | Niddo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700|Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
         :root {
-            --blue: #729BFF; --blue-light: #9AB8FF; --blue-dark: #5B8CFF; --blue-dim: rgba(114,155,255,0.18);
-            --purple: #8F6BE8; --purple-light: #A98CF5;
+            --blue: #e05d41; --blue-light: #e67d65; --blue-dark: #c5482e; --blue-dim: rgba(114,155,255,0.18);
+            --purple: #155140; --purple-light: #227b62;
             --teal: #4FDA9E; --red: #FF8E79;
-            --bg: #0A101C; --surface: #121A2A; --surface2: #16203A;
+            --bg: #f8f5ee; --surface: #121A2A; --surface2: #16203A;
             --border: rgba(230,237,252,0.09);
-            --text: #ECF0FA; --muted: #8D97B0;
+            --text: #211812; --muted: #8D97B0;
             --sidebar-w: 220px;
         }
         :root.light {
-            --blue: #3E7BFA; --blue-light: #5B93FF; --blue-dark: #2F62CC; --blue-dim: rgba(62,123,250,0.12);
-            --purple: #7548D9; --purple-light: #8F6BE8;
+            --blue: #e05d41; --blue-light: #e67d65; --blue-dark: #c5482e; --blue-dim: rgba(62,123,250,0.12);
+            --purple: #155140; --purple-light: #227b62;
             --teal: #209A69; --red: #E85B45;
-            --bg: #F4F7FD; --surface: #ffffff; --surface2: #EEF3FC;
-            --border: rgba(28,37,58,0.09); --text: #1B2233; --muted: #68728A;
+            --bg: #f8f5ee; --surface: #ffffff; --surface2: #EEF3FC;
+            --border: rgba(28,37,58,0.09); --text: #211812; --muted: #68728A;
         }
 
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text);
+        body { font-family: 'Nunito Sans', sans-serif; background: var(--bg); color: var(--text);
                -webkit-font-smoothing: antialiased; transition: background .3s, color .3s; }
 
         /* ── Sidebar ── */
@@ -48,7 +48,7 @@
             text-transform: uppercase; color: var(--muted); padding: 12px 10px 3px;
         }
         .nav-link {
-            color: var(--muted); padding: 7px 10px; border-radius: 8px;
+            color: var(--muted); padding: 7px 10px; border-radius: 12px;
             transition: all .15s; display: flex; align-items: center; gap: 8px;
             text-decoration: none; font-size: 0.82rem; cursor: pointer; margin-bottom: 1px;
         }
@@ -56,15 +56,15 @@
         .nav-link.active { background: var(--blue-dim); color: var(--blue-light); font-weight: 600; }
         .badge-count {
             margin-left: auto; font-size: .6rem; padding: 1px 7px;
-            border-radius: 10px; font-weight: 700;
+            border-radius: 16px; font-weight: 700;
             background: var(--blue-dim); color: var(--blue-light);
         }
         .sidebar-footer { padding: 8px 6px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 3px; }
         .btn-sidebar {
             background: transparent; color: var(--muted); border: none;
-            padding: 7px 10px; border-radius: 8px; cursor: pointer; width: 100%;
+            padding: 7px 10px; border-radius: 12px; cursor: pointer; width: 100%;
             display: flex; align-items: center; gap: 8px; font-size: .82rem;
-            font-family: 'Inter', sans-serif; transition: all .15s;
+            font-family: 'Nunito Sans', sans-serif; transition: all .15s;
         }
         .btn-sidebar:hover { background: var(--blue-dim); color: var(--text); }
         .btn-sidebar.danger:hover { background: rgba(239,68,68,.08); color: #f87171; }
@@ -80,7 +80,7 @@
             display: flex; align-items: center; justify-content: center;
             background: var(--surface2); border: 1px solid var(--border); color: var(--text);
             width: 32px; height: 32px; border-radius: 50%; font-size: .82rem; font-weight: 600;
-            font-family: 'Inter', sans-serif; cursor: pointer; transition: all .15s;
+            font-family: 'Nunito Sans', sans-serif; cursor: pointer; transition: all .15s;
             user-select: none;
         }
         .topbar-btn:hover { background: var(--blue-dim); color: var(--blue-light); border-color: rgba(62,123,250,.3); }
@@ -100,19 +100,19 @@
 
         /* ── Page header ── */
         .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
-        .page-title { font-size: 1.18rem; font-weight: 700; margin: 0; letter-spacing: -.02em; }
+        .page-title { font-size: 1.18rem; font-weight: 700; margin: 0; letter-spacing: -.02em;  font-family: 'Fredoka', sans-serif; }
         .page-sub { font-size: .77rem; color: var(--muted); margin-top: 2px; }
 
         /* ── KPI row ── */
         .kpi-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
         .kpi { background: var(--surface); border: 1px solid var(--border); padding: 14px 18px;
-               border-radius: 10px; flex: 1; min-width: 110px; }
+               border-radius: 16px; flex: 1; min-width: 110px; }
         .kpi-val { font-size: 1.45rem; font-weight: 800; line-height: 1; }
         .kpi-label { font-size: .72rem; color: var(--muted); margin-top: 3px; }
         .kpi-sub { font-size: .7rem; color: var(--muted); margin-top: 5px; }
 
         /* ── Card ── */
-        .card { background: var(--surface); border-radius: 10px; border: 1px solid var(--border); margin-bottom: 14px; overflow: hidden; }
+        .card { background: var(--surface); border-radius: 16px; border: 1px solid var(--border); margin-bottom: 14px; overflow: hidden; }
         .card-h { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
         .card-t { font-size: .85rem; font-weight: 700; margin: 0; }
         .card-p { padding: 14px 16px; }
@@ -142,22 +142,22 @@
         :root.light .b-gr { background:#F4F4F5; color:#52525B; }
 
         /* ── Buttons ── */
-        .btn-p { background: var(--blue); color: #fff; border-radius: 7px; font-size: .81rem;
-                 padding: 6px 14px; border: none; cursor: pointer; font-family: 'Inter',sans-serif;
+        .btn-p { background: var(--blue); color: #fff; border-radius: 12px; font-size: .81rem;
+                 padding: 6px 14px; border: none; cursor: pointer; font-family: 'Nunito Sans',sans-serif;
                  font-weight: 600; transition: all .2s; display: inline-flex; align-items: center; gap: 5px; }
         .btn-p:hover { background: var(--blue-light); box-shadow: 0 4px 14px rgba(62,123,250,.35); }
         .btn-s { border: 1px solid var(--border); color: var(--muted); background: var(--surface);
-                 border-radius: 7px; font-size: .81rem; padding: 6px 14px; cursor: pointer;
-                 font-family: 'Inter',sans-serif; font-weight: 500; transition: all .15s;
+                 border-radius: 12px; font-size: .81rem; padding: 6px 14px; cursor: pointer;
+                 font-family: 'Nunito Sans',sans-serif; font-weight: 500; transition: all .15s;
                  display: inline-flex; align-items: center; gap: 5px; }
         .btn-s:hover { color: var(--text); border-color: rgba(62,123,250,.3); }
         .btn-sm { padding: 3px 9px; font-size: .76rem; }
         .btn-danger { background: rgba(239,68,68,.1); color: #f87171; border: 1px solid rgba(239,68,68,.2);
-                      border-radius: 7px; font-size: .76rem; padding: 3px 9px; cursor: pointer;
-                      font-family: 'Inter',sans-serif; font-weight: 600; transition: all .15s; }
+                      border-radius: 12px; font-size: .76rem; padding: 3px 9px; cursor: pointer;
+                      font-family: 'Nunito Sans',sans-serif; font-weight: 600; transition: all .15s; }
         .btn-danger:hover { background: rgba(239,68,68,.2); }
-        .btn-teal { background: var(--teal); color: #fff; border-radius: 7px; font-size: .81rem;
-                    padding: 6px 14px; border: none; cursor: pointer; font-family: 'Inter',sans-serif;
+        .btn-teal { background: var(--teal); color: #fff; border-radius: 12px; font-size: .81rem;
+                    padding: 6px 14px; border: none; cursor: pointer; font-family: 'Nunito Sans',sans-serif;
                     font-weight: 600; transition: all .2s; display: inline-flex; align-items: center; gap: 5px; }
         .btn-teal:hover { background: #17835A; }
 
@@ -166,9 +166,9 @@
         .form-label { font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
                       color: var(--muted); margin-bottom: 5px; display: block; }
         .form-ctrl {
-            border-radius: 7px; border: 1px solid var(--border); font-size: .83rem;
+            border-radius: 12px; border: 1px solid var(--border); font-size: .83rem;
             background: var(--surface2); color: var(--text); padding: 8px 11px;
-            font-family: 'Inter',sans-serif; width: 100%; outline: none;
+            font-family: 'Nunito Sans',sans-serif; width: 100%; outline: none;
             transition: border-color .2s; appearance: auto;
         }
         .form-ctrl:focus { border-color: var(--blue-light); box-shadow: 0 0 0 2px rgba(62,123,250,.14); }
@@ -178,9 +178,9 @@
         .checkbox-row input { width: 15px; height: 15px; }
 
         /* ── Tabs ── */
-        .tabs { display: flex; gap: 2px; background: var(--surface2); border-radius: 8px; padding: 3px; margin-bottom: 16px; }
+        .tabs { display: flex; gap: 2px; background: var(--surface2); border-radius: 12px; padding: 3px; margin-bottom: 16px; }
         .tab-btn { padding: 6px 16px; border-radius: 6px; border: none; font-size: .8rem; font-weight: 500;
-                   color: var(--muted); background: transparent; cursor: pointer; font-family: 'Inter',sans-serif; transition: all .15s; }
+                   color: var(--muted); background: transparent; cursor: pointer; font-family: 'Nunito Sans',sans-serif; transition: all .15s; }
         .tab-btn.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 
         /* ── Filters bar ── */
@@ -212,7 +212,7 @@
         /* ── Toast ── */
         .toast-container { position: fixed; bottom: 22px; right: 22px; z-index: 9999;
                            display: flex; flex-direction: column-reverse; gap: 8px; }
-        .toast-msg { padding: 10px 16px; border-radius: 8px; font-size: .83rem; font-weight: 500;
+        .toast-msg { padding: 10px 16px; border-radius: 12px; font-size: .83rem; font-weight: 500;
                      color: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.25); max-width: 340px;
                      animation: toastIn .25s ease, toastOut .3s ease 2.7s forwards; }
         .toast-msg.ok { background: #17835A; } .toast-msg.err { background: #D14A35; }
@@ -228,13 +228,13 @@
         .text-sm { font-size: .78rem; }
         .inline-actions { display: flex; gap: 5px; align-items: center; }
         ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-        .upload-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 20px;
+        .upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 20px;
                        text-align: center; cursor: pointer; transition: all .15s; }
         .upload-zone:hover { border-color: var(--blue-light); }
         .progress-bar { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
         .progress-bar .fill { height: 100%; border-radius: 2px; }
         .section-info { background: var(--blue-dim); border: 1px solid rgba(62,123,250,.18);
-                        border-radius: 8px; padding: 10px 14px; font-size: .82rem; color: var(--muted); margin-bottom: 14px; }
+                        border-radius: 12px; padding: 10px 14px; font-size: .82rem; color: var(--muted); margin-bottom: 14px; }
     </style>
 </head>
 <body>

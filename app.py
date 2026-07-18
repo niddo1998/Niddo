@@ -13,15 +13,6 @@ from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
-# ── Export libs ────────────────────────────────────────────────────────────────
-import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment
-from openpyxl.worksheet.datavalidation import DataValidation
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib import colors
-from reportlab.lib.units import cm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -112,7 +103,8 @@ def get_vecino_id() -> Optional[str]:
     return result.data[0]['id'] if result.data else None
 
 
-def excel_response(wb: openpyxl.Workbook, filename: str) -> Response:
+def excel_response(wb, filename: str) -> Response:
+    import openpyxl
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -125,7 +117,9 @@ def pdf_response(buf: io.BytesIO, filename: str) -> Response:
     return send_file(buf, mimetype='application/pdf', download_name=filename, as_attachment=True)
 
 
-def make_excel(headers: list, rows: list, sheet_name: str) -> openpyxl.Workbook:
+def make_excel(headers: list, rows: list, sheet_name: str):
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = sheet_name
@@ -151,7 +145,10 @@ def es_fila_ejemplo(texto: str) -> bool:
     return MARCA_FILA_EJEMPLO in (texto or '').lower()
 
 
-def build_carga_masiva_template(consorcios_existentes: list) -> openpyxl.Workbook:
+def build_carga_masiva_template(consorcios_existentes: list):
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.worksheet.datavalidation import DataValidation
     header_fill = PatternFill("solid", fgColor="7C3AED")
     header_font = Font(color="FFFFFF", bold=True, size=11)
     example_font = Font(italic=True, color="9CA3AF")
@@ -221,6 +218,11 @@ def build_carga_masiva_template(consorcios_existentes: list) -> openpyxl.Workboo
 
 
 def make_pdf(title: str, headers: list, rows: list) -> io.BytesIO:
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=1*cm, rightMargin=1*cm,
                             topMargin=1.5*cm, bottomMargin=1*cm)
@@ -469,6 +471,7 @@ def api_carga_masiva():
     if not file:
         return jsonify({'error': 'No se envió archivo'}), 400
     try:
+        import openpyxl
         wb = openpyxl.load_workbook(io.BytesIO(file.read()), data_only=True)
     except Exception:
         return jsonify({'error': 'No se pudo leer el archivo. Verificá que sea el .xlsx de la plantilla.'}), 400
@@ -1489,6 +1492,11 @@ def api_vecinos_cobro_actual():
 @app.route('/api/vecinos/cobros/<rid>/cupon')
 @require_auth(allowed_roles=['vecino'])
 def api_vecinos_cupon_pago(rid):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
     vecino_id = get_vecino_id()
     cobro_res = supabase.table('cobros').select('*').eq('id', rid).single().execute()
     if not cobro_res.data:
@@ -1952,13 +1960,13 @@ def api_admin_avisos_pago_list():
     admin_id = get_admin_id()
     cid = request.args.get('consorcio_id')
     if cid:
-        q = supabase.table('avisos_pago').select('*, vecinos(nombre, email, unidad)').eq('consorcio_id', cid)
+        q = supabase.table('avisos_pago').select('id, consorcio_id, vecino_id, unidad_id, cobro_id, monto, fecha_pago, medio_pago, observaciones, adjunto_nombre, adjunto_mime, estado, created_at, vecinos(nombre, email, unidad)').eq('consorcio_id', cid)
     else:
         cons = supabase.table('consorcios').select('id').eq('admin_id', admin_id).execute().data or []
         cids = [c['id'] for c in cons]
         if not cids:
             return jsonify([])
-        q = supabase.table('avisos_pago').select('*, vecinos(nombre, email, unidad)').in_('consorcio_id', cids)
+        q = supabase.table('avisos_pago').select('id, consorcio_id, vecino_id, unidad_id, cobro_id, monto, fecha_pago, medio_pago, observaciones, adjunto_nombre, adjunto_mime, estado, created_at, vecinos(nombre, email, unidad)').in_('consorcio_id', cids)
     res = q.order('created_at', desc=True).execute()
     return jsonify(res.data)
 

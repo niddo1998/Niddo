@@ -27,7 +27,7 @@
         --border:rgba(28,37,58,0.09); --border2:rgba(28,37,58,0.05);
         --text:#1B2233; --text2:#45506B; --muted:#68728A;
     }
-    body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
+    body { font-family:'Nunito Sans',sans-serif; background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
     ::-webkit-scrollbar { width:4px; height:4px; } ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
     
     .app-header { position:fixed; top:0; left:0; right:0; height:var(--header-h); z-index:200; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 20px; }
@@ -55,14 +55,14 @@
     .app-sidebar { position:fixed; top:var(--header-h); left:0; bottom:0; width:var(--sidebar-w); background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow-y:auto; z-index:100; transition:all 0.2s; }
     .sidebar-nav { flex:1; padding:12px 8px; }
     .nav-group { font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--muted); padding:14px 10px 5px; }
-    .nav-btn { width:100%; background:none; border:none; color:var(--text2); text-align:left; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:0.83rem; font-weight:500; font-family:'Inter',sans-serif; transition:all 0.15s; display:flex; align-items:center; gap:9px; position:relative; }
+    .nav-btn { width:100%; background:none; border:none; color:var(--text2); text-align:left; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:0.83rem; font-weight:500; font-family:'Nunito Sans',sans-serif; transition:all 0.15s; display:flex; align-items:center; gap:9px; position:relative; }
     .nav-btn:hover { background:var(--surface2); color:var(--text); }
     .nav-btn.active { background:var(--blue-dim); color:var(--blue); font-weight:600; }
     .nav-btn.active::before { content:''; position:absolute; left:0; top:20%; bottom:20%; width:3px; background:var(--blue); border-radius:0 3px 3px 0; }
     .nbadge { margin-left:auto; background:var(--red); color:white; font-size:0.6rem; font-weight:700; padding:1px 5px; border-radius:10px; min-width:16px; text-align:center; }
     .nbadge.new { background:var(--blue); }
     .sidebar-footer { padding:10px 8px; border-top:1px solid var(--border); }
-    .btn-logout { background:transparent; color:var(--muted); border:none; padding:8px 10px; border-radius:8px; cursor:pointer; width:100%; display:flex; align-items:center; gap:9px; font-size:0.83rem; font-family:'Inter',sans-serif; transition:all 0.15s; text-align:left; }
+    .btn-logout { background:transparent; color:var(--muted); border:none; padding:8px 10px; border-radius:8px; cursor:pointer; width:100%; display:flex; align-items:center; gap:9px; font-size:0.83rem; font-family:'Nunito Sans',sans-serif; transition:all 0.15s; text-align:left; }
     .btn-logout:hover { background:rgba(239,68,68,0.08); color:#f87171; }
     
     .app-main { margin-left:var(--sidebar-w); padding-top:var(--header-h); min-height:100vh; transition:all 0.2s; }
@@ -70,7 +70,7 @@
     .section { display:none; } .section.active { display:block; animation:fadeUp 0.2s ease; }
     
     .bottom-nav { position:fixed; bottom:0; left:0; right:0; height:60px; background:var(--surface); border-top:1px solid var(--border); display:none; justify-content:space-around; align-items:center; z-index:800; box-shadow:0 -4px 16px rgba(0,0,0,0.15); }
-    .bottom-btn { background:none; border:none; color:var(--text2); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:0.65rem; font-weight:500; font-family:'Inter',sans-serif; gap:3px; cursor:pointer; flex:1; height:100%; transition:all 0.15s; }
+    .bottom-btn { background:none; border:none; color:var(--text2); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:0.65rem; font-weight:500; font-family:'Nunito Sans',sans-serif; gap:3px; cursor:pointer; flex:1; height:100%; transition:all 0.15s; }
     .bottom-btn.active { color:var(--blue); }
     .bottom-btn-icon { font-size:1.2rem; }
     
@@ -114,14 +114,14 @@
     
     .badge { display:inline-block; padding:3px 9px; border-radius:20px; font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; }
     .badge.ok{background:var(--teal-dim);color:var(--teal)} .badge.pending{background:rgba(245,158,11,0.12);color:var(--amber)} .badge.danger{background:rgba(239,68,68,0.12);color:#f87171} .badge.info{background:var(--blue-dim);color:var(--blue)} .badge.muted{background:var(--surface3);color:var(--muted)}
-    .btn { display:inline-flex; align-items:center; gap:6px; border:none; border-radius:8px; font-family:'Inter',sans-serif; font-weight:600; cursor:pointer; transition:all 0.2s; }
+    .btn { display:inline-flex; align-items:center; gap:6px; border:none; border-radius:8px; font-family:'Nunito Sans',sans-serif; font-weight:600; cursor:pointer; transition:all 0.2s; }
     .btn-primary{background:var(--blue);color:white;padding:8px 18px;font-size:0.85rem} .btn-primary:hover{background:var(--blue-dark);transform:translateY(-1px);box-shadow:0 4px 14px rgba(62,123,250,0.35)}
     .btn-secondary{background:var(--surface2);color:var(--text2);padding:8px 16px;font-size:0.83rem;border:1px solid var(--border)} .btn-secondary:hover{background:var(--surface3);color:var(--text)}
     .btn-danger{background:rgba(239,68,68,0.1);color:#f87171;padding:6px 14px;font-size:0.8rem} .btn-danger:hover{background:rgba(239,68,68,0.2)}
     .btn-sm{padding:5px 12px;font-size:0.78rem} .btn-xs{padding:3px 9px;font-size:0.72rem}
     .fg { margin-bottom:14px; }
     .fl { display:block; margin-bottom:5px; font-weight:600; font-size:0.78rem; color:var(--text2); }
-    .fc { border-radius:8px; border:1px solid var(--border); font-size:0.83rem; background:var(--surface2); color:var(--text); padding:8px 12px; font-family:'Inter',sans-serif; width:100%; outline:none; transition:border-color 0.2s; }
+    .fc { border-radius:8px; border:1px solid var(--border); font-size:0.83rem; background:var(--surface2); color:var(--text); padding:8px 12px; font-family:'Nunito Sans',sans-serif; width:100%; outline:none; transition:border-color 0.2s; }
     .fc:focus{border-color:var(--blue);background:var(--surface)}
     :root.light .fc{background:#fafafa;color:#111120;border-color:rgba(0,0,0,0.12)} :root.light .fc:focus{border-color:var(--blue);background:#fff}
     .f-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
@@ -175,7 +175,7 @@
     .md-empty-icon{font-size:3rem;opacity:0.3}
     
     .acc-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden}
-    .acc-btn{width:100%;background:none;border:none;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:0.9rem;font-weight:600;color:var(--text);font-family:'Inter',sans-serif;text-align:left;transition:background 0.15s}
+    .acc-btn{width:100%;background:none;border:none;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:0.9rem;font-weight:600;color:var(--text);font-family:'Nunito Sans',sans-serif;text-align:left;transition:background 0.15s}
     .acc-btn:hover{background:var(--surface2)}
     .acc-arr{transition:transform 0.25s;font-size:0.7rem;color:var(--muted)}
     .acc-btn.open .acc-arr{transform:rotate(180deg)}
@@ -198,7 +198,7 @@
     .vot-bar-f{height:100%;border-radius:3px;transition:width 0.6s ease}
     .vot-bar-f.yes{background:var(--teal)} .vot-bar-f.no{background:var(--red)} .vot-bar-f.abs{background:var(--muted)}
     .vot-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-    .vot-btn{flex:1;min-width:80px;padding:7px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-size:0.82rem;font-family:'Inter',sans-serif;font-weight:600;transition:all 0.15s}
+    .vot-btn{flex:1;min-width:80px;padding:7px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-size:0.82rem;font-family:'Nunito Sans',sans-serif;font-weight:600;transition:all 0.15s}
     .vot-btn:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-dim)}
     .vot-btn.voted{background:var(--teal-dim);color:var(--teal);border-color:var(--teal);cursor:default}
     
