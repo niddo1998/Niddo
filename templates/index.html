@@ -5,32 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Niddo — Administración de consorcios</title>
     <meta name="description" content="La plataforma más simple para administrar consorcios. Expensas, vecinos y finanzas en un solo lugar.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         :root {
-            --blue-50:#EFF5FF; --blue-100:#DCE9FF; --blue-500:#3E7BFA; --blue-600:#2F62CC;
+            --blue-50:#EAF3F0; --blue-100:#D7E8E1; --blue-500:#2F6F5E; --blue-600:#1E4A3E;
             --mint-100:#DBF6EA; --mint-500:#209A69;
-            --amber-100:#FFF1D6; --amber-500:#C6890A;
+            --amber-100:#FBE8CE; --amber-500:#E9A23B;
             --violet-100:#EBE1FF; --violet-500:#7548D9;
             --teal-100:#DAF3F3; --teal-500:#1D8189;
             --coral-100:#FFE1DE; --coral-500:#E85B45;
 
-            --bg-canvas:#E4EDFC;
-            --bg:#F4F7FD;
+            --bg-canvas:#EFF3EE;
+            --bg:#F7F9F5;
             --surface:#FFFFFF;
-            --surface-2:#EEF3FC;
-            --hairline: rgba(28,37,58,.09);
-            --text:#1B2233;
-            --text-muted:#68728A;
-            --text-faint:#98A1B5;
+            --surface-2:#E9F0EA;
+            --hairline: rgba(27,36,29,.09);
+            --text:#1B242D;
+            --text-muted:#68726A;
+            --text-faint:#98A192;
             --accent: var(--blue-500);
             --accent-strong: var(--blue-600);
             --accent-soft: var(--blue-100);
             --accent-ink:#ffffff;
-            --shadow-card: 0 1px 2px rgba(28,37,58,.05), 0 8px 22px -12px rgba(28,37,58,.16);
+            --shadow-card: 0 1px 2px rgba(27,36,29,.05), 0 8px 22px -12px rgba(27,36,29,.16);
             --r-lg:22px; --r-md:14px; --r-pill:999px;
-            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-display: 'Quicksand', var(--font);
             color-scheme: light;
         }
 
@@ -38,11 +42,11 @@
             --bg-canvas:#05080F; --bg:#0A101C; --surface:#121A2A; --surface-2:#0E1522;
             --hairline: rgba(230,237,252,.09);
             --text:#ECF0FA; --text-muted:#8D97B0; --text-faint:#565F78;
-            --accent:#729BFF; --accent-strong:#9AB8FF; --accent-soft: rgba(114,155,255,.18); --accent-ink:#08132B;
+            --accent:#4FDA9E; --accent-strong:#7AE6BB; --accent-soft: rgba(79,218,158,.18); --accent-ink:#08132B;
             --shadow-card: 0 1px 2px rgba(0,0,0,.35), 0 8px 22px -12px rgba(0,0,0,.55);
-            --blue-100: rgba(114,155,255,.16);
+            --blue-100: rgba(79,218,158,.16);
             --mint-100: rgba(32,154,105,.22); --mint-500:#4FDA9E;
-            --amber-100: rgba(198,137,10,.22); --amber-500:#F0B23E;
+            --amber-100: rgba(233,162,59,.22); --amber-500:#F0B23E;
             --violet-100: rgba(117,72,217,.24); --violet-500:#B49BFF;
             --teal-100: rgba(29,129,137,.24); --teal-500:#57C9D1;
             --coral-100: rgba(232,91,69,.2); --coral-500:#FF8E79;
@@ -60,7 +64,7 @@
             transition: background 0.3s, color 0.3s;
         }
 
-        h1, h2, h3 { text-wrap: balance; letter-spacing: -0.01em; }
+        h1, h2, h3 { font-family: var(--font-display); font-weight: 700; text-wrap: balance; letter-spacing: -0.01em; }
 
         /* NAV */
         nav {
@@ -98,15 +102,16 @@
         .nav-right { display: flex; align-items: center; gap: 0.6rem; }
 
         .logo {
-            font-size: 1.25rem;
-            font-weight: 800;
+            font-family: var(--font-display);
+            font-size: 1.4rem;
+            font-weight: 700;
             color: var(--text);
             text-decoration: none;
             display: flex;
             align-items: center;
             gap: 8px;
         }
-        .logo .dot { width: 9px; height: 9px; border-radius: 3px; background: var(--accent); }
+        .logo .o { color: var(--amber-500); }
 
         .nav-links { display: flex; align-items: center; gap: 2rem; list-style: none; }
         .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: color 0.2s; }
@@ -306,7 +311,7 @@
 
     <!-- NAV -->
     <nav>
-        <a href="/" class="logo"><span class="dot"></span>Niddo</a>
+        <a href="/" class="logo">nidd<span class="o">o</span></a>
         <ul class="nav-links">
             <li><a href="#solucion">Solución</a></li>
             <li><a href="#beneficios">Beneficios</a></li>
