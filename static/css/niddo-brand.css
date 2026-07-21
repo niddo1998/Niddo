@@ -1,0 +1,284 @@
+/* ==========================================================================
+   Niddo — Sistema de identidad visual
+   Manual de Marca · Ruta Barrio · V1.0 · 2026
+
+   Fuente de verdad para color, tipografía, forma e iconografía de toda la app.
+   No definir colores sueltos en los templates: usar estos tokens.
+   ========================================================================== */
+
+:root {
+    /* ── Paleta (§03) ──────────────────────────────────────────────────────
+       Proporción de uso: Terracota 60% · Verde 25% · Amarillo 10%.
+       Crema y tinta hacen de base. El amarillo es acento, nunca fondo
+       dominante. */
+    --nd-terracota:       #E8734A;
+    --nd-terracota-hondo: #C4502B;
+    --nd-verde:           #2F6F5E;
+    --nd-verde-bosque:    #1E4A3E;
+    --nd-amarillo:        #F2B705;
+    --nd-crema:           #F6EFE7;
+    --nd-crema-claro:     #FBF6EF;
+    --nd-tinta:           #2A211C;
+    --nd-gris-calido:     #574C42;
+    --nd-borde:           #E2D6C8;
+
+    /* Tinta sobre amarillo/terracota: el marrón que usa el manual en los
+       botones de acento. Más cálido que la tinta plena. */
+    --nd-tinta-calida:    #3A2A08;
+
+    /* Transparencias derivadas, para estados hover / fondos tenues. */
+    --nd-terracota-dim:   rgba(232,115,74,.14);
+    --nd-verde-dim:       rgba(47,111,94,.13);
+    --nd-amarillo-dim:    rgba(242,183,5,.18);
+
+    /* ── Superficies ──────────────────────────────────────────────────────
+       El lienzo es crema claro; las tarjetas, blancas. */
+    --bg:        var(--nd-crema-claro);
+    --surface:   #FFFFFF;
+    --surface2:  var(--nd-crema);
+    --surface3:  #F1E7DA;
+    --border:    var(--nd-borde);
+    --border2:   #EFE6DA;
+
+    /* ── Texto ────────────────────────────────────────────────────────────
+       --muted usa Gris Cálido y no el #8A7B6E del manual: aquel da 3.9:1
+       sobre blanco y no alcanza AA para texto corrido. */
+    --text:      var(--nd-tinta);
+    --text2:     var(--nd-gris-calido);
+    --muted:     var(--nd-gris-calido);
+
+    /* ── Roles semánticos ─────────────────────────────────────────────────
+       Blanco sobre terracota da 3.01:1 y no pasa AA, así que la acción
+       primaria lleva tinta encima (5.24:1), igual que el amarillo en el
+       manual. */
+    --accent:        var(--nd-terracota);
+    --accent-ink:    var(--nd-tinta);
+    --accent-strong: var(--nd-terracota-hondo);
+    --accent-soft:   var(--nd-terracota-dim);
+
+    --cta:           var(--nd-amarillo);      /* la acción destacada */
+    --cta-ink:       var(--nd-tinta-calida);
+
+    --ok:            var(--nd-verde);
+    --ok-ink:        var(--nd-crema);
+    --warn:          var(--nd-amarillo);
+    --warn-ink:      var(--nd-tinta-calida);
+    --danger:        var(--nd-terracota-hondo);
+    --danger-ink:    var(--nd-crema);
+
+    /* ── Tipografía (§02) ─────────────────────────────────────────────────
+       Fredoka display 500/600 · Nunito Sans texto 400/600/700/800. */
+    --font:         'Nunito Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-display: 'Fredoka', var(--font);
+
+    /* ── Forma (§05) ──────────────────────────────────────────────────────
+       "Esquinas bien redondeadas": la marca es redonda en todo. */
+    --r-sm:   10px;
+    --r-md:   14px;
+    --r-lg:   20px;
+    --r-xl:   26px;
+    --r-pill: 999px;
+
+    --shadow-card:   0 1px 2px rgba(42,33,28,.05), 0 8px 22px -12px rgba(42,33,28,.18);
+    --shadow-window: 0 12px 40px -16px rgba(42,33,28,.28);
+
+    color-scheme: light;
+}
+
+/* ==========================================================================
+   Alias heredados
+   Los templates traen nombres de una paleta anterior (--blue, --purple…).
+   Se remapean acá para que el CSS de componentes siga funcionando pintando
+   los colores de marca. No usar estos nombres en código nuevo.
+   ========================================================================== */
+:root {
+    --blue:        var(--nd-terracota);
+    --blue-light:  #EE8E6C;
+    --blue-dark:   var(--nd-terracota-hondo);
+    --blue-dim:    var(--nd-terracota-dim);
+    --blue-50:     var(--nd-crema);
+    --blue-100:    var(--nd-terracota-dim);
+    --blue-500:    var(--nd-terracota);
+    --blue-600:    var(--nd-terracota-hondo);
+
+    --purple:       var(--nd-verde);
+    --purple-light: #3E8B75;
+    --purple-dim:   var(--nd-verde-dim);
+
+    --teal:      var(--nd-verde);
+    --teal-dark: var(--nd-verde-bosque);
+    --teal-dim:  var(--nd-verde-dim);
+
+    --amber:      var(--nd-amarillo);
+    --amber-500:  var(--nd-amarillo);
+    --amber-100:  var(--nd-amarillo-dim);
+    --mint-500:   var(--nd-verde);
+    --mint-100:   var(--nd-verde-dim);
+
+    --red: var(--nd-terracota-hondo);
+
+    --bg-canvas: var(--nd-crema-claro);
+    --surface-2: var(--nd-crema);
+    --hairline:  var(--nd-borde);
+    --text-muted: var(--nd-gris-calido);
+    --text-faint: #8A7B6E;
+
+    --radius:    var(--r-md);
+    --radius-lg: var(--r-lg);
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -.01em;
+    text-wrap: balance;
+}
+
+/* ==========================================================================
+   Logotipo (§01, §04)
+   "La doble d son dos vecinos lado a lado; la o final es el nido que los
+   contiene." Siempre en Fredoka, siempre como texto corrido — nunca como
+   flex con gap, que separa la o del resto.
+   Mínimo digital: 24px de alto. Área de protección: la altura de la "o".
+   ========================================================================== */
+.nd-logo {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.4rem;
+    line-height: 1;
+    letter-spacing: -.01em;
+    color: var(--nd-tinta);
+    text-decoration: none;
+    display: inline-block;
+    white-space: nowrap;
+    padding: .34em;              /* área de protección ≈ altura de la "o" */
+}
+.nd-logo .o { color: var(--nd-terracota); }
+
+/* Sobre fondos oscuros o de color de la paleta. */
+.nd-logo--claro { color: var(--nd-crema); }
+.nd-logo--claro .o { color: var(--nd-verde); }
+
+.nd-logo--sobre-terracota { color: var(--nd-crema); }
+.nd-logo--sobre-terracota .o { color: var(--nd-verde); }
+
+/* Sobre verde la "o" verde desaparece: ahi el nido va en amarillo. */
+.nd-logo--sobre-verde { color: var(--nd-crema); }
+.nd-logo--sobre-verde .o { color: var(--nd-amarillo); }
+
+/* ==========================================================================
+   Isotipo (§02) — tres vecinos
+   Tres puntos = comunidad. Solo como app icon o marca reducida, nunca
+   junto al logotipo completo.
+   ========================================================================== */
+.nd-iso { display: block; width: 1em; height: 1em; flex-shrink: 0; }
+
+/* ==========================================================================
+   Iconografía (§05)
+   Grilla de 24px (viewBox 48 para trabajar a media unidad), trazo 2.4px,
+   esquinas bien redondeadas, sin relleno. El punto de acento (amarillo o
+   terracota) solo marca el estado activo.
+   ========================================================================== */
+.ic {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vertical-align: -.15em;
+}
+.ic-sm { width: 16px; height: 16px; }
+.ic-lg { width: 26px; height: 26px; }
+.ic-xl { width: 34px; height: 34px; }
+
+/* El punto de acento vive dentro del símbolo y no hereda el trazo. */
+.ic .dot { fill: var(--nd-amarillo); stroke: none; }
+
+/* ==========================================================================
+   Botones
+   ========================================================================== */
+.nd-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5em;
+    font-family: var(--font);
+    font-weight: 700;
+    font-size: .9rem;
+    padding: .65rem 1.3rem;
+    border-radius: var(--r-md);
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+    transition: filter .18s, background .18s, border-color .18s, transform .18s;
+}
+.nd-btn:hover { transform: translateY(-1px); }
+.nd-btn:active { transform: none; }
+
+.nd-btn--primary { background: var(--accent); color: var(--accent-ink); }
+.nd-btn--primary:hover { filter: brightness(1.05); }
+
+.nd-btn--cta { background: var(--cta); color: var(--cta-ink); }
+.nd-btn--cta:hover { filter: brightness(1.05); }
+
+.nd-btn--verde { background: var(--ok); color: var(--ok-ink); }
+.nd-btn--verde:hover { filter: brightness(1.08); }
+
+.nd-btn--outline {
+    background: transparent;
+    color: var(--nd-terracota-hondo);
+    border-color: var(--nd-terracota);
+}
+.nd-btn--outline:hover { background: var(--nd-terracota-dim); }
+
+.nd-btn--ghost {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+}
+.nd-btn--ghost:hover { border-color: var(--nd-terracota); }
+
+.nd-btn--danger { background: var(--danger); color: var(--danger-ink); }
+
+/* ==========================================================================
+   Accesibilidad
+   ========================================================================== */
+
+/* Texto solo para lectores de pantalla: encabezados de columna que en
+   pantalla se resuelven con un icono. */
+.sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ==========================================================================
+   Foco visible
+   ========================================================================== */
+:focus-visible {
+    outline: 2px solid var(--nd-terracota-hondo);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    .nd-btn:hover { transform: none; }
+}

@@ -5,29 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel Administrador | Niddo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-        :root {
-            --blue: #4FDA9E; --blue-light: #7AE6BB; --blue-dark: #2F6F5E; --blue-dim: rgba(79,218,158,0.18);
-            --purple: #F0B23E; --purple-light: #F5C56B;
-            --teal: #4FDA9E; --red: #FF8E79;
-            --bg: #0A101C; --surface: #121A2A; --surface2: #16203A;
-            --border: rgba(230,237,252,0.09);
-            --text: #ECF0FA; --muted: #8D97B0;
-            --sidebar-w: 220px;
-        }
-        :root.light {
-            --blue: #2F6F5E; --blue-light: #3D8A73; --blue-dark: #1E4A3E; --blue-dim: rgba(47,111,94,0.12);
-            --purple: #E9A23B; --purple-light: #F0B463;
-            --teal: #209A69; --red: #E85B45;
-            --bg: #F7F9F5; --surface: #ffffff; --surface2: #E9F0EA;
-            --border: rgba(27,36,29,0.09); --text: #1B242D; --muted: #68726A;
-        }
+        /* Color, tipografia y forma viven en niddo-brand.css. */
+        :root { --sidebar-w: 220px; }
 
-        body { font-family: 'Hanken Grotesk', sans-serif; background: var(--bg); color: var(--text);
-               -webkit-font-smoothing: antialiased; transition: background .3s, color .3s; }
+        body { background: var(--bg); color: var(--text); }
 
         /* ── Sidebar ── */
         .sidebar {
@@ -37,11 +24,8 @@
             overflow-y: auto; z-index: 100; transition: background .3s, border-color .3s;
         }
         .sidebar-brand {
-            font-family: 'Quicksand', 'Hanken Grotesk', sans-serif;
-            font-size: 1.05rem; font-weight: 700; padding: 16px;
+            display: block; font-size: 1.35rem; padding: 14px 16px;
             border-bottom: 1px solid var(--border);
-            background: linear-gradient(135deg, var(--blue-light), var(--purple-light));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
         }
         .sidebar-nav { padding: 6px 6px; flex: 1; }
         .nav-section-label {
@@ -53,22 +37,27 @@
             transition: all .15s; display: flex; align-items: center; gap: 8px;
             text-decoration: none; font-size: 0.82rem; cursor: pointer; margin-bottom: 1px;
         }
-        .nav-link:hover { background: var(--blue-dim); color: var(--text); }
-        .nav-link.active { background: var(--blue-dim); color: var(--blue-light); font-weight: 600; }
+        .nav-link:hover { background: var(--surface2); color: var(--text); }
+        .nav-link { position: relative; }
+        .nav-link.active {
+            background: var(--nd-terracota-dim); color: var(--nd-tinta); font-weight: 700;
+            box-shadow: inset 3px 0 0 var(--nd-terracota);
+        }
+        .nav-link.active .ic { color: var(--nd-terracota-hondo); }
         .badge-count {
             margin-left: auto; font-size: .6rem; padding: 1px 7px;
             border-radius: 16px; font-weight: 700;
-            background: var(--blue-dim); color: var(--blue-light);
+            background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo);
         }
         .sidebar-footer { padding: 8px 6px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 3px; }
         .btn-sidebar {
             background: transparent; color: var(--muted); border: none;
             padding: 7px 10px; border-radius: 12px; cursor: pointer; width: 100%;
             display: flex; align-items: center; gap: 8px; font-size: .82rem;
-            font-family: 'Hanken Grotesk', sans-serif; transition: all .15s;
+            font-family: var(--font); transition: all .15s;
         }
-        .btn-sidebar:hover { background: var(--blue-dim); color: var(--text); }
-        .btn-sidebar.danger:hover { background: rgba(239,68,68,.08); color: #f87171; }
+        .btn-sidebar:hover { background: var(--surface2); color: var(--text); }
+        .btn-sidebar.danger:hover { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
 
         /* ── Topbar ── */
         .topbar {
@@ -81,13 +70,13 @@
             display: flex; align-items: center; justify-content: center;
             background: var(--surface2); border: 1px solid var(--border); color: var(--text);
             width: 32px; height: 32px; border-radius: 50%; font-size: .82rem; font-weight: 600;
-            font-family: 'Hanken Grotesk', sans-serif; cursor: pointer; transition: all .15s;
+            font-family: var(--font); cursor: pointer; transition: all .15s;
             user-select: none;
         }
-        .topbar-btn:hover { background: var(--blue-dim); color: var(--blue-light); border-color: rgba(47,111,94,.3); }
+        .topbar-btn:hover { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); border-color: rgba(232,115,74,.32); }
         .topbar-btn.profile-circle {
-            background: linear-gradient(135deg, var(--blue), var(--purple));
-            color: #fff; border: none; font-size: .78rem; letter-spacing: -0.5px;
+            background: var(--nd-verde); color: var(--nd-crema);
+            border: none; font-size: .78rem; letter-spacing: -0.5px;
         }
         .topbar-btn.profile-circle:hover {
             transform: scale(1.05);
@@ -101,7 +90,7 @@
 
         /* ── Page header ── */
         .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
-        .page-title { font-family: 'Quicksand', 'Hanken Grotesk', sans-serif; font-size: 1.18rem; font-weight: 700; margin: 0; letter-spacing: -.02em; }
+        .page-title { font-family: var(--font-display); font-size: 1.18rem; font-weight: 700; margin: 0; letter-spacing: -.02em; }
         .page-sub { font-size: .77rem; color: var(--muted); margin-top: 2px; }
 
         /* ── KPI row ── */
@@ -124,43 +113,44 @@
                   letter-spacing: .05em; padding: 9px 13px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
         .tbl td { padding: 9px 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
         .tbl tbody tr:last-child td { border-bottom: none; }
-        .tbl tbody tr:hover { background: rgba(47,111,94,.05); }
+        .tbl tbody tr:hover { background: var(--surface2); }
         .tbl-empty { text-align: center; color: var(--muted); padding: 32px; font-size: .84rem; }
+
+        /* Los iconos inline necesitan aire: sin esto quedan pegados al texto. */
+        .section-info, .modal-head h3, .card-t, .btn-p, .btn-s, .btn-teal, .btn-danger {
+            display: inline-flex; align-items: center; gap: 7px;
+        }
+        .section-info { display: flex; align-items: flex-start; }
+        .section-info .ic { margin-top: 1px; flex-shrink: 0; }
 
         /* ── Badges ── */
         .b { padding: 2px 8px; border-radius: 6px; font-size: .68rem; font-weight: 600; white-space: nowrap; }
-        .b-g { background: rgba(16,185,129,.12); color: #34d399; }
-        .b-y { background: rgba(245,158,11,.12); color: #fbbf24; }
-        .b-r { background: rgba(239,68,68,.12); color: #f87171; }
-        .b-b { background: rgba(59,130,246,.12); color: #60a5fa; }
-        .b-p { background: rgba(124,58,237,.12); color: var(--purple-light); }
-        .b-gr { background: var(--surface2); color: var(--muted); }
-        :root.light .b-g { background:#ECFDF5; color:#065F46; }
-        :root.light .b-y { background:#FEF9C3; color:#854D0E; }
-        :root.light .b-r { background:#FEF2F2; color:#991B1B; }
-        :root.light .b-b { background:#EFF6FF; color:#1E40AF; }
-        :root.light .b-p { background:#F3F0FF; color:#5B21B6; }
-        :root.light .b-gr { background:#F4F4F5; color:#52525B; }
+        .b-g  { background: var(--nd-verde-dim);     color: var(--nd-verde-bosque); }
+        .b-y  { background: var(--nd-amarillo-dim);  color: var(--nd-tinta-calida); }
+        .b-r  { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
+        .b-b  { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
+        .b-p  { background: var(--nd-verde-dim);     color: var(--nd-verde-bosque); }
+        .b-gr { background: var(--surface2);         color: var(--muted); }
 
         /* ── Buttons ── */
-        .btn-p { background: var(--blue); color: #fff; border-radius: 7px; font-size: .81rem;
-                 padding: 6px 14px; border: none; cursor: pointer; font-family: 'Hanken Grotesk',sans-serif;
+        .btn-p { background: var(--accent); color: var(--accent-ink); border-radius: 7px; font-size: .81rem;
+                 padding: 6px 14px; border: none; cursor: pointer; font-family: var(--font);
                  font-weight: 600; transition: all .2s; display: inline-flex; align-items: center; gap: 5px; }
-        .btn-p:hover { background: var(--blue-light); box-shadow: 0 4px 14px rgba(47,111,94,.35); }
+        .btn-p:hover { filter: brightness(1.05); box-shadow: 0 4px 14px rgba(232,115,74,.35); }
         .btn-s { border: 1px solid var(--border); color: var(--muted); background: var(--surface);
                  border-radius: 7px; font-size: .81rem; padding: 6px 14px; cursor: pointer;
-                 font-family: 'Hanken Grotesk',sans-serif; font-weight: 500; transition: all .15s;
+                 font-family: var(--font); font-weight: 500; transition: all .15s;
                  display: inline-flex; align-items: center; gap: 5px; }
         .btn-s:hover { color: var(--text); border-color: rgba(47,111,94,.3); }
         .btn-sm { padding: 3px 9px; font-size: .76rem; }
-        .btn-danger { background: rgba(239,68,68,.1); color: #f87171; border: 1px solid rgba(239,68,68,.2);
+        .btn-danger { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); border: 1px solid rgba(232,115,74,.28);
                       border-radius: 7px; font-size: .76rem; padding: 3px 9px; cursor: pointer;
-                      font-family: 'Hanken Grotesk',sans-serif; font-weight: 600; transition: all .15s; }
-        .btn-danger:hover { background: rgba(239,68,68,.2); }
-        .btn-teal { background: var(--teal); color: #fff; border-radius: 7px; font-size: .81rem;
-                    padding: 6px 14px; border: none; cursor: pointer; font-family: 'Hanken Grotesk',sans-serif;
+                      font-family: var(--font); font-weight: 600; transition: all .15s; }
+        .btn-danger:hover { background: rgba(196,80,43,.2); }
+        .btn-teal { background: var(--ok); color: var(--ok-ink); border-radius: 7px; font-size: .81rem;
+                    padding: 6px 14px; border: none; cursor: pointer; font-family: var(--font);
                     font-weight: 600; transition: all .2s; display: inline-flex; align-items: center; gap: 5px; }
-        .btn-teal:hover { background: #17835A; }
+        .btn-teal:hover { background: var(--nd-verde-bosque); }
 
         /* ── Forms & inputs ── */
         .form-group { margin-bottom: 14px; }
@@ -169,7 +159,7 @@
         .form-ctrl {
             border-radius: 12px; border: 1px solid var(--border); font-size: .83rem;
             background: var(--surface2); color: var(--text); padding: 8px 11px;
-            font-family: 'Hanken Grotesk',sans-serif; width: 100%; outline: none;
+            font-family: var(--font); width: 100%; outline: none;
             transition: border-color .2s; appearance: auto;
         }
         .form-ctrl:focus { border-color: var(--blue-light); box-shadow: 0 0 0 2px rgba(47,111,94,.14); }
@@ -181,8 +171,8 @@
         /* ── Tabs ── */
         .tabs { display: flex; gap: 2px; background: var(--surface2); border-radius: 12px; padding: 3px; margin-bottom: 16px; }
         .tab-btn { padding: 6px 16px; border-radius: 6px; border: none; font-size: .8rem; font-weight: 500;
-                   color: var(--muted); background: transparent; cursor: pointer; font-family: 'Hanken Grotesk',sans-serif; transition: all .15s; }
-        .tab-btn.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+                   color: var(--muted); background: transparent; cursor: pointer; font-family: var(--font); transition: all .15s; }
+        .tab-btn.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(42,33,28,.1); }
 
         /* ── Filters bar ── */
         .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
@@ -190,14 +180,14 @@
 
         /* ── Modal ── */
         .modal-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 9000;
+            position: fixed; inset: 0; background: rgba(42,33,28,.55); z-index: 9000;
             display: none; align-items: center; justify-content: center;
         }
         .modal-overlay.open { display: flex; animation: fadeIn .15s ease; }
         .modal-box {
             background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
             width: 560px; max-width: 94vw; max-height: 88vh; overflow-y: auto;
-            box-shadow: 0 24px 60px rgba(0,0,0,.45); animation: modalIn .2s ease;
+            box-shadow: 0 24px 60px rgba(42,33,28,.45); animation: modalIn .2s ease;
         }
         .modal-box.wide { width: 720px; }
         .modal-head { padding: 14px 18px; border-bottom: 1px solid var(--border);
@@ -214,10 +204,12 @@
         .toast-container { position: fixed; bottom: 22px; right: 22px; z-index: 9999;
                            display: flex; flex-direction: column-reverse; gap: 8px; }
         .toast-msg { padding: 10px 16px; border-radius: 12px; font-size: .83rem; font-weight: 500;
-                     color: #fff; box-shadow: 0 4px 20px rgba(0,0,0,.25); max-width: 340px;
+                     color: var(--nd-crema); box-shadow: var(--shadow-window); max-width: 340px;
                      animation: toastIn .25s ease, toastOut .3s ease 2.7s forwards; }
-        .toast-msg.ok { background: #17835A; } .toast-msg.err { background: #D14A35; }
-        .toast-msg.info { background: #2F62CC; } .toast-msg.warn { background: #B37A08; }
+        .toast-msg.ok { background: var(--nd-verde-bosque); } .toast-msg.err { background: var(--nd-terracota-hondo); }
+        .toast-msg.info { background: var(--nd-verde); }
+        /* El amarillo no admite texto blanco (1.82:1): va con tinta. */
+        .toast-msg.warn { background: var(--nd-amarillo); color: var(--nd-tinta-calida); }
         @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-8px); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -234,43 +226,43 @@
         .upload-zone:hover { border-color: var(--blue-light); }
         .progress-bar { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
         .progress-bar .fill { height: 100%; border-radius: 2px; }
-        .section-info { background: var(--blue-dim); border: 1px solid rgba(47,111,94,.18);
+        .section-info { background: var(--nd-verde-dim); border: 1px solid rgba(47,111,94,.20);
                         border-radius: 8px; padding: 10px 14px; font-size: .82rem; color: var(--muted); margin-bottom: 14px; }
     </style>
 </head>
 <body>
+{% include '_icons.html' %}
 
 <div class="sidebar">
-    <div class="sidebar-brand">🏢 Niddo Admin</div>
+    <a href="/" class="nd-logo sidebar-brand">nidd<span class="o">o</span></a>
     <div class="sidebar-nav">
         <div class="nav-section-label">General</div>
-        <a class="nav-link active" onclick="show('dashboard',this)">◈ Dashboard</a>
-        <a class="nav-link" onclick="show('consorcios',this)">🏬 Consorcios</a>
+        <a class="nav-link active" onclick="show('dashboard',this)"><svg class="ic"><use href="#ic-panel"></use></svg>Dashboard</a>
+        <a class="nav-link" onclick="show('consorcios',this)"><svg class="ic"><use href="#ic-edificio"></use></svg>Consorcios</a>
 
         <div class="nav-section-label">Operaciones</div>
-        <a class="nav-link" onclick="show('gastos',this)">💸 Gastos</a>
-        <a class="nav-link" onclick="show('cobros',this)">💳 Cobros</a>
-        <a class="nav-link" onclick="show('proveedores',this)">🤝 Proveedores</a>
-        <a class="nav-link" onclick="show('amenities',this)">🏊 Amenities</a>
-        <a class="nav-link" onclick="show('liquidaciones',this)">📋 Liquidaciones</a>
+        <a class="nav-link" onclick="show('gastos',this)"><svg class="ic"><use href="#ic-expensa"></use></svg>Gastos</a>
+        <a class="nav-link" onclick="show('cobros',this)"><svg class="ic"><use href="#ic-cobro"></use></svg>Cobros</a>
+        <a class="nav-link" onclick="show('proveedores',this)"><svg class="ic"><use href="#ic-proveedor"></use></svg>Proveedores</a>
+        <a class="nav-link" onclick="show('amenities',this)"><svg class="ic"><use href="#ic-reserva"></use></svg>Amenities</a>
+        <a class="nav-link" onclick="show('liquidaciones',this)"><svg class="ic"><use href="#ic-liquidacion"></use></svg>Liquidaciones</a>
 
         <div class="nav-section-label">Finanzas</div>
-        <a class="nav-link" onclick="show('balance',this)">📊 Balance</a>
+        <a class="nav-link" onclick="show('balance',this)"><svg class="ic"><use href="#ic-balance"></use></svg>Balance</a>
 
         <div class="nav-section-label">Comunicación</div>
-        <a class="nav-link" onclick="show('mensajeria',this)">💬 Mensajería</a>
+        <a class="nav-link" onclick="show('mensajeria',this)"><svg class="ic"><use href="#ic-mensaje"></use></svg>Mensajería</a>
 
         <div class="nav-section-label">Sistema</div>
-        <a class="nav-link" onclick="show('config',this)">⚙️ Configuración</a>
+        <a class="nav-link" onclick="show('config',this)"><svg class="ic"><use href="#ic-config"></use></svg>Configuración</a>
     </div>
     <div class="sidebar-footer">
-        <button class="btn-sidebar" id="theme-toggle">🌙 Cambiar tema</button>
-        <button class="btn-sidebar danger" onclick="window.location.href='/auth/logout'">↩ Cerrar sesión</button>
+        <button class="btn-sidebar danger" onclick="window.location.href='/auth/logout'"><svg class="ic"><use href="#ic-salir"></use></svg>Cerrar sesión</button>
     </div>
 </div>
 
 <div class="topbar">
-    <button class="topbar-btn" onclick="openModal('modal-ayuda')" title="Ayuda">?</button>
+    <button class="topbar-btn" onclick="openModal('modal-ayuda')" title="Ayuda" aria-label="Ayuda"><svg class="ic"><use href="#ic-ayuda"></use></svg></button>
     <button class="topbar-btn profile-circle" id="topbar-perfil-btn" onclick="openModal('modal-perfil')" title="Mi Perfil">—</button>
 </div>
 
@@ -283,10 +275,10 @@
     </div>
     <div class="kpi-row" id="dash-kpis">
         <div class="kpi"><div class="kpi-val" id="kpi-consorcios">—</div><div class="kpi-label">Consorcios activos</div></div>
-        <div class="kpi"><div class="kpi-val" id="kpi-gastos" style="color:#fbbf24">—</div><div class="kpi-label">Gastos pendientes</div></div>
-        <div class="kpi"><div class="kpi-val" id="kpi-mora" style="color:#f87171">—</div><div class="kpi-label">Vecinos en mora</div></div>
+        <div class="kpi"><div class="kpi-val" id="kpi-gastos" style="color:var(--nd-tinta-calida)">—</div><div class="kpi-label">Gastos pendientes</div></div>
+        <div class="kpi"><div class="kpi-val" id="kpi-mora" style="color:var(--nd-terracota-hondo)">—</div><div class="kpi-label">Vecinos en mora</div></div>
     </div>
-    <div class="section-info">💡 Usá el panel lateral para gestionar consorcios, gastos, cobros y proveedores. Los datos se cargan en tiempo real desde Supabase.</div>
+    <div class="section-info"><svg class="ic ic-sm"><use href="#ic-info"></use></svg>Usá el panel lateral para gestionar consorcios, gastos, cobros y proveedores. Los datos se cargan en tiempo real desde Supabase.</div>
 </div>
 
 <!-- ═══ CONSORCIOS ═══ -->
@@ -294,7 +286,7 @@
     <div class="page-header">
         <div><h1 class="page-title">Consorcios</h1><p class="page-sub">Administrá tus edificios y unidades funcionales</p></div>
         <div style="display:flex;gap:8px;">
-            <button class="btn-s btn-sm" onclick="openBulkModal()">📤 Carga masiva</button>
+            <button class="btn-s btn-sm" onclick="openBulkModal()"><svg class="ic ic-sm"><use href="#ic-subir"></use></svg>Carga masiva</button>
             <button class="btn-p btn-sm" onclick="openConsorioModal()">+ Añadir consorcio</button>
         </div>
     </div>
@@ -311,9 +303,9 @@
         <div class="page-header">
             <div><h2 class="page-title" id="detail-nombre">—</h2><p class="page-sub" id="detail-dir">—</p></div>
             <div style="display:flex;gap:8px;">
-                <button class="btn-s btn-sm" onclick="exportConsorcio('excel')">⬇ Excel</button>
-                <button class="btn-s btn-sm" onclick="exportConsorcio('pdf')">⬇ PDF</button>
-                <button class="btn-s btn-sm" onclick="closeDetail()">← Volver</button>
+                <button class="btn-s btn-sm" onclick="exportConsorcio('excel')"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Excel</button>
+                <button class="btn-s btn-sm" onclick="exportConsorcio('pdf')"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>PDF</button>
+                <button class="btn-s btn-sm" onclick="closeDetail()"><svg class="ic ic-sm"><use href="#ic-volver"></use></svg>Volver</button>
                 <button class="btn-teal btn-sm" onclick="openUFModal()">+ Añadir UF</button>
             </div>
         </div>
@@ -343,8 +335,8 @@
     <div class="page-header">
         <div><h1 class="page-title">Gastos</h1><p class="page-sub">Facturas, servicios y pagos del consorcio</p></div>
         <div style="display:flex;gap:8px;">
-            <button class="btn-s btn-sm" onclick="exportGastos('excel')">⬇ Excel</button>
-            <button class="btn-s btn-sm" onclick="exportGastos('pdf')">⬇ PDF</button>
+            <button class="btn-s btn-sm" onclick="exportGastos('excel')"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Excel</button>
+            <button class="btn-s btn-sm" onclick="exportGastos('pdf')"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>PDF</button>
             <button class="btn-p btn-sm" onclick="openGastoChoice()">+ Nuevo gasto</button>
         </div>
     </div>
@@ -370,8 +362,8 @@
     <div class="page-header">
         <div><h1 class="page-title">Cobros</h1><p class="page-sub">Expensas y estado de pago por vecino</p></div>
         <div style="display:flex;gap:8px;">
-            <button class="btn-s btn-sm" onclick="exportCobros()">⬇ Exportar</button>
-            <button class="btn-teal btn-sm" onclick="openGenerarModal()">⚡ Generar cobros</button>
+            <button class="btn-s btn-sm" onclick="exportCobros()"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Exportar</button>
+            <button class="btn-teal btn-sm" onclick="openGenerarModal()"><svg class="ic ic-sm"><use href="#ic-rayo"></use></svg>Generar cobros</button>
         </div>
     </div>
     <div class="tabs">
@@ -431,8 +423,8 @@
     <div class="page-header">
         <div><h1 class="page-title">Balance</h1><p class="page-sub">Ingresos y egresos por consorcio</p></div>
         <div style="display:flex;gap:8px;">
-            <button class="btn-s btn-sm" onclick="exportBalance('excel')">⬇ Excel</button>
-            <button class="btn-s btn-sm" onclick="exportBalance('pdf')">⬇ PDF</button>
+            <button class="btn-s btn-sm" onclick="exportBalance('excel')"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Excel</button>
+            <button class="btn-s btn-sm" onclick="exportBalance('pdf')"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>PDF</button>
         </div>
     </div>
     <div class="filters">
@@ -441,8 +433,8 @@
         <input type="date" class="form-ctrl" id="filter-balance-hasta" onchange="loadBalance()">
     </div>
     <div class="kpi-row">
-        <div class="kpi"><div class="kpi-val" id="bal-ingresos" style="color:#34d399">—</div><div class="kpi-label">Ingresos (cobros)</div></div>
-        <div class="kpi"><div class="kpi-val" id="bal-egresos" style="color:#f87171">—</div><div class="kpi-label">Egresos (gastos)</div></div>
+        <div class="kpi"><div class="kpi-val" id="bal-ingresos" style="color:var(--nd-verde)">—</div><div class="kpi-label">Ingresos (cobros)</div></div>
+        <div class="kpi"><div class="kpi-val" id="bal-egresos" style="color:var(--nd-terracota-hondo)">—</div><div class="kpi-label">Egresos (gastos)</div></div>
         <div class="kpi"><div class="kpi-val" id="bal-resultado">—</div><div class="kpi-label">Resultado neto</div></div>
     </div>
     <div class="grid2">
@@ -466,7 +458,7 @@
 <!-- ═══ MENSAJERÍA ═══ -->
 <div id="sec-mensajeria" class="section">
     <div class="page-header"><div><h1 class="page-title">Mensajería</h1><p class="page-sub">Comunicación con vecinos</p></div></div>
-    <div class="section-info">📬 La mensajería estará disponible en la próxima versión. Podrás enviar comunicados a vecinos por consorcio o por unidad.</div>
+    <div class="section-info"><svg class="ic ic-sm"><use href="#ic-mensaje"></use></svg>La mensajería estará disponible en la próxima versión. Podrás enviar comunicados a vecinos por consorcio o por unidad.</div>
 </div>
 
 <!-- ═══ CONFIG ═══ -->
@@ -551,10 +543,10 @@
         <div class="page-header">
             <div><h2 class="page-title" id="liq-detail-titulo">—</h2><p class="page-sub" id="liq-detail-sub">—</p></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="btn-p btn-sm" onclick="openEnviarModal()">📤 Enviar resúmenes</button>
+                <button class="btn-p btn-sm" onclick="openEnviarModal()"><svg class="ic ic-sm"><use href="#ic-subir"></use></svg>Enviar resúmenes</button>
                 <button class="btn-s btn-sm" onclick="openAgendarModal()">⏰ Agendar envío</button>
-                <button class="btn-s btn-sm" onclick="openPreviewModal()">👁 Previsualizar</button>
-                <button class="btn-s btn-sm" onclick="closeLiqDetail()">← Volver</button>
+                <button class="btn-s btn-sm" onclick="openPreviewModal()"><svg class="ic ic-sm"><use href="#ic-ojo"></use></svg>Previsualizar</button>
+                <button class="btn-s btn-sm" onclick="closeLiqDetail()"><svg class="ic ic-sm"><use href="#ic-volver"></use></svg>Volver</button>
             </div>
         </div>
 
@@ -640,7 +632,7 @@
 <!-- Modal Consorcio -->
 <div class="modal-overlay" id="modal-consorcio">
     <div class="modal-box">
-        <div class="modal-head"><h3 id="m-cons-title">Nuevo consorcio</h3><button class="modal-close" onclick="closeModal('modal-consorcio')">✕</button></div>
+        <div class="modal-head"><h3 id="m-cons-title">Nuevo consorcio</h3><button class="modal-close" onclick="closeModal('modal-consorcio')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <input type="hidden" id="m-cons-id">
             <div class="form-row">
@@ -665,7 +657,7 @@
 <!-- Modal Amenity -->
 <div class="modal-overlay" id="modal-amenity">
     <div class="modal-box">
-        <div class="modal-head"><h3 id="m-amenity-title">Nuevo amenity</h3><button class="modal-close" onclick="closeModal('modal-amenity')">✕</button></div>
+        <div class="modal-head"><h3 id="m-amenity-title">Nuevo amenity</h3><button class="modal-close" onclick="closeModal('modal-amenity')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <input type="hidden" id="m-amenity-id">
             <div class="form-row">
@@ -685,7 +677,7 @@
 <!-- Modal Asignar UF a Vecino -->
 <div class="modal-overlay" id="modal-asignar-uf">
     <div class="modal-box">
-        <div class="modal-head"><h3>Asignar Unidad Funcional</h3><button class="modal-close" onclick="closeModal('modal-asignar-uf')">✕</button></div>
+        <div class="modal-head"><h3>Asignar Unidad Funcional</h3><button class="modal-close" onclick="closeModal('modal-asignar-uf')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <input type="hidden" id="m-asignar-vecino-id">
             <p style="margin-bottom:15px; font-size:.9rem; color:var(--muted);" id="m-asignar-vecino-info"></p>
@@ -706,7 +698,7 @@
 <!-- Modal UF -->
 <div class="modal-overlay" id="modal-uf">
     <div class="modal-box">
-        <div class="modal-head"><h3 id="m-uf-title">Nueva unidad funcional</h3><button class="modal-close" onclick="closeModal('modal-uf')">✕</button></div>
+        <div class="modal-head"><h3 id="m-uf-title">Nueva unidad funcional</h3><button class="modal-close" onclick="closeModal('modal-uf')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <input type="hidden" id="m-uf-id">
             <div class="form-row3">
@@ -738,7 +730,7 @@
 <!-- Modal Carga masiva -->
 <div class="modal-overlay" id="modal-bulk">
     <div class="modal-box wide">
-        <div class="modal-head"><h3>Carga masiva de Consorcios y Unidades</h3><button class="modal-close" onclick="closeModal('modal-bulk')">✕</button></div>
+        <div class="modal-head"><h3>Carga masiva de Consorcios y Unidades</h3><button class="modal-close" onclick="closeModal('modal-bulk')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
 
             <div id="bulk-step-upload">
@@ -746,13 +738,13 @@
                     <label class="form-label">1. Descargá la plantilla</label>
                     <div class="section-info" style="display:flex;justify-content:space-between;align-items:center;gap:14px;">
                         <span>Bajá el Excel, completá los datos y volvé a subirlo. Podés crear varios consorcios y sus unidades funcionales en un mismo archivo.</span>
-                        <a class="btn-s btn-sm" href="/api/consorcios/plantilla" style="white-space:nowrap;">⬇ Descargar plantilla</a>
+                        <a class="btn-s btn-sm" href="/api/consorcios/plantilla" style="white-space:nowrap;"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Descargar plantilla</a>
                     </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">2. Subí la plantilla completa</label>
                     <div class="upload-zone" onclick="document.getElementById('bulk-file').click()">
-                        <div style="font-size:1.4rem;margin-bottom:6px;">📂</div>
+                        <div style="margin-bottom:10px;color:var(--nd-terracota-hondo)"><svg class="ic ic-xl"><use href="#ic-carpeta"></use></svg></div>
                         <div style="font-size:.84rem;color:var(--muted)" id="bulk-file-label">Hacé clic para seleccionar el archivo (.xlsx)</div>
                     </div>
                     <input type="file" id="bulk-file" accept=".xlsx" style="display:none" onchange="document.getElementById('bulk-file-label').textContent=this.files[0]?.name||'Seleccionar'">
@@ -779,17 +771,17 @@
 <!-- Modal Elección tipo de carga -->
 <div class="modal-overlay" id="modal-gasto-choice">
     <div class="modal-box" style="max-width:480px;">
-        <div class="modal-head"><h3>Nuevo gasto</h3><button class="modal-close" onclick="closeModal('modal-gasto-choice')">✕</button></div>
+        <div class="modal-head"><h3>Nuevo gasto</h3><button class="modal-close" onclick="closeModal('modal-gasto-choice')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body" style="padding:28px;">
             <p style="text-align:center;font-size:.88rem;color:var(--muted);margin:0 0 24px;">¿Cómo querés cargar el gasto?</p>
             <div style="display:flex;gap:16px;">
-                <button onclick="openAutoExtract()" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 16px;border:2px solid var(--border);border-radius:14px;background:var(--card);cursor:pointer;transition:all .2s;" onmouseover="this.style.borderColor='var(--teal)';this.style.background='rgba(16,185,129,.06)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--card)'">
-                    <span style="font-size:2.4rem;">🤖</span>
+                <button onclick="openAutoExtract()" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 16px;border:2px solid var(--border);border-radius:14px;background:var(--card);cursor:pointer;transition:all .2s;" onmouseover="this.style.borderColor='var(--teal)';this.style.background='rgba(47,111,94,.06)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--card)'">
+                    <span style="color:var(--nd-terracota-hondo)"><svg class="ic ic-xl"><use href="#ic-rayo"></use></svg></span>
                     <span style="font-weight:700;font-size:.95rem;color:var(--text);">Carga automática</span>
                     <span style="font-size:.78rem;color:var(--muted);text-align:center;line-height:1.4;">Subí una foto o PDF del comprobante y extraemos los datos con IA</span>
                 </button>
                 <button onclick="closeModal('modal-gasto-choice');openGastoModal()" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 16px;border:2px solid var(--border);border-radius:14px;background:var(--card);cursor:pointer;transition:all .2s;" onmouseover="this.style.borderColor='var(--blue)';this.style.background='rgba(47,111,94,.08)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--card)'">
-                    <span style="font-size:2.4rem;">✍️</span>
+                    <span style="color:var(--nd-verde)"><svg class="ic ic-xl"><use href="#ic-editar"></use></svg></span>
                     <span style="font-weight:700;font-size:.95rem;color:var(--text);">Carga manual</span>
                     <span style="font-size:.78rem;color:var(--muted);text-align:center;line-height:1.4;">Completá los campos del formulario manualmente</span>
                 </button>
@@ -801,55 +793,55 @@
 <!-- Modal Carga Automática (OCR/AI) -->
 <div class="modal-overlay" id="modal-auto-extract">
     <div class="modal-box" style="max-width:540px;">
-        <div class="modal-head"><h3>🤖 Carga automática con IA</h3><button class="modal-close" onclick="closeModal('modal-auto-extract')">✕</button></div>
+        <div class="modal-head"><h3>Carga automática con IA</h3><button class="modal-close" onclick="closeModal('modal-auto-extract')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body" style="padding:24px;">
             <!-- Step 1: Upload -->
             <div id="auto-step-upload">
                 <div id="auto-dropzone" style="border:2px dashed var(--border);border-radius:14px;padding:48px 24px;text-align:center;cursor:pointer;transition:all .25s;background:var(--card);">
-                    <div style="font-size:3rem;margin-bottom:12px;">📄</div>
+                    <div style="margin-bottom:10px;color:var(--nd-terracota-hondo)"><svg class="ic ic-xl"><use href="#ic-doc"></use></svg></div>
                     <p style="font-weight:600;font-size:.92rem;margin:0 0 6px;color:var(--text);">Arrastrá o hacé clic para subir</p>
                     <p style="font-size:.78rem;color:var(--muted);margin:0;">Formatos: JPG, PNG, PDF — Máximo 10MB</p>
                     <input type="file" id="auto-file-input" accept="image/*,.pdf" style="display:none;" onchange="handleAutoFile(this)">
                 </div>
-                <div id="auto-file-preview" style="display:none;margin-top:14px;padding:12px 16px;background:rgba(16,185,129,.08);border-radius:10px;display:flex;align-items:center;gap:10px;">
-                    <span style="font-size:1.4rem;">✅</span>
+                <div id="auto-file-preview" style="display:none;margin-top:14px;padding:12px 16px;background:rgba(47,111,94,.08);border-radius:10px;display:flex;align-items:center;gap:10px;">
+                    <span style="color:var(--nd-verde)"><svg class="ic ic-lg"><use href="#ic-pagado"></use></svg></span>
                     <span id="auto-file-name" style="font-size:.85rem;font-weight:500;flex:1;"></span>
-                    <button onclick="clearAutoFile()" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--muted);">✕</button>
+                    <button onclick="clearAutoFile()" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--muted);"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
                 </div>
                 <div class="form-group" style="margin-top:14px;">
                     <label class="form-label">Consorcio *</label>
                     <select class="form-ctrl" id="auto-consorcio"></select>
                 </div>
                 <button class="btn-p" id="auto-extract-btn" onclick="extractGastoData()" style="width:100%;margin-top:10px;" disabled>
-                    ⚡ Extraer datos del comprobante
+                    <svg class="ic ic-sm"><use href="#ic-rayo"></use></svg>Extraer datos del comprobante
                 </button>
             </div>
             <!-- Step 2: Processing -->
             <div id="auto-step-processing" style="display:none;text-align:center;padding:40px 0;">
-                <div style="font-size:3rem;margin-bottom:16px;animation:spin 1.5s linear infinite;">⚙️</div>
+                <div style="margin-bottom:16px;animation:spin 1.5s linear infinite;color:var(--nd-terracota)"><svg class="ic ic-xl"><use href="#ic-config"></use></svg></div>
                 <p style="font-weight:600;font-size:.95rem;margin:0 0 6px;">Analizando comprobante...</p>
                 <p style="font-size:.82rem;color:var(--muted);margin:0;">La IA está extrayendo los datos. Esto puede tardar unos segundos.</p>
             </div>
             <!-- Step 3: Results -->
             <div id="auto-step-results" style="display:none;">
-                <div style="background:rgba(16,185,129,.08);border-radius:10px;padding:14px 18px;margin-bottom:16px;">
-                    <p style="margin:0;font-size:.85rem;font-weight:600;color:var(--teal);">✅ Datos extraídos correctamente</p>
+                <div style="background:rgba(47,111,94,.08);border-radius:10px;padding:14px 18px;margin-bottom:16px;">
+                    <p style="margin:0;font-size:.85rem;font-weight:600;color:var(--teal);"><svg class="ic ic-sm"><use href="#ic-pagado"></use></svg>Datos extraídos correctamente</p>
                     <p style="margin:4px 0 0;font-size:.78rem;color:var(--muted);">Revisá los datos y confirmá para cargar el gasto.</p>
                 </div>
                 <div id="auto-results-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;"></div>
                 <div style="display:flex;gap:10px;margin-top:18px;">
-                    <button class="btn-s" onclick="resetAutoExtract()" style="flex:1;">↩ Reintentar</button>
-                    <button class="btn-p" onclick="confirmAutoExtract()" style="flex:1;">✅ Confirmar y cargar</button>
+                    <button class="btn-s" onclick="resetAutoExtract()" style="flex:1;"><svg class="ic ic-sm"><use href="#ic-volver"></use></svg>Reintentar</button>
+                    <button class="btn-p" onclick="confirmAutoExtract()" style="flex:1;"><svg class="ic ic-sm"><use href="#ic-pagado"></use></svg>Confirmar y cargar</button>
                 </div>
             </div>
             <!-- Error state -->
             <div id="auto-step-error" style="display:none;text-align:center;padding:30px 0;">
-                <div style="font-size:3rem;margin-bottom:12px;">⚠️</div>
-                <p style="font-weight:600;font-size:.92rem;margin:0 0 6px;color:#EF4444;">No se pudieron extraer los datos</p>
+                <div style="margin-bottom:10px;color:var(--nd-terracota-hondo)"><svg class="ic ic-xl"><use href="#ic-alerta"></use></svg></div>
+                <p style="font-weight:600;font-size:.92rem;margin:0 0 6px;color:var(--nd-terracota-hondo);">No se pudieron extraer los datos</p>
                 <p id="auto-error-msg" style="font-size:.82rem;color:var(--muted);margin:0 0 18px;"></p>
                 <div style="display:flex;gap:10px;justify-content:center;">
-                    <button class="btn-s" onclick="resetAutoExtract()">↩ Reintentar</button>
-                    <button class="btn-p" onclick="closeModal('modal-auto-extract');openGastoModal()">✍️ Cargar manualmente</button>
+                    <button class="btn-s" onclick="resetAutoExtract()"><svg class="ic ic-sm"><use href="#ic-volver"></use></svg>Reintentar</button>
+                    <button class="btn-p" onclick="closeModal('modal-auto-extract');openGastoModal()"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg>Cargar manualmente</button>
                 </div>
             </div>
         </div>
@@ -859,7 +851,7 @@
 <!-- Modal Gasto -->
 <div class="modal-overlay" id="modal-gasto">
     <div class="modal-box wide">
-        <div class="modal-head"><h3 id="m-gasto-title">Nuevo gasto</h3><button class="modal-close" onclick="closeModal('modal-gasto')">✕</button></div>
+        <div class="modal-head"><h3 id="m-gasto-title">Nuevo gasto</h3><button class="modal-close" onclick="closeModal('modal-gasto')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <input type="hidden" id="m-gasto-id">
             <div class="form-row">
@@ -921,7 +913,7 @@
             <div class="form-group"><label class="form-label">Notas</label><textarea class="form-ctrl" id="m-gasto-notas" rows="2"></textarea></div>
             <div class="sep"></div>
             <div class="form-group">
-                <label class="form-label">📎 Comprobante (PDF o imagen)</label>
+                <label class="form-label"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>Comprobante (PDF o imagen)</label>
                 <input type="file" class="form-ctrl" id="m-gasto-comprobante" accept=".pdf,image/*" style="padding: 8px;">
                 <div id="m-gasto-comprobante-info" style="display:none; margin-top:6px; font-size:.8rem; color:var(--teal);"></div>
             </div>
@@ -936,7 +928,7 @@
 <!-- Modal Cobro (editar estado / mora) -->
 <div class="modal-overlay" id="modal-cobro">
     <div class="modal-box">
-        <div class="modal-head"><h3>Actualizar cobro</h3><button class="modal-close" onclick="closeModal('modal-cobro')">✕</button></div>
+        <div class="modal-head"><h3>Actualizar cobro</h3><button class="modal-close" onclick="closeModal('modal-cobro')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <input type="hidden" id="m-cobro-id">
             <div class="form-group"><label class="form-label">Estado</label>
@@ -961,7 +953,7 @@
 <!-- Modal Generar cobros -->
 <div class="modal-overlay" id="modal-generar">
     <div class="modal-box">
-        <div class="modal-head"><h3>Generar cobros del período</h3><button class="modal-close" onclick="closeModal('modal-generar')">✕</button></div>
+        <div class="modal-head"><h3>Generar cobros del período</h3><button class="modal-close" onclick="closeModal('modal-generar')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <div class="form-group"><label class="form-label">Consorcio *</label><select class="form-ctrl" id="m-gen-consorcio"></select></div>
             <div class="form-row">
@@ -973,7 +965,7 @@
         </div>
         <div class="modal-footer">
             <button class="btn-s" onclick="closeModal('modal-generar')">Cancelar</button>
-            <button class="btn-teal" onclick="generarCobros()">⚡ Generar</button>
+            <button class="btn-teal" onclick="generarCobros()"><svg class="ic ic-sm"><use href="#ic-rayo"></use></svg>Generar</button>
         </div>
     </div>
 </div>
@@ -981,7 +973,7 @@
 <!-- Modal Proveedor -->
 <div class="modal-overlay" id="modal-proveedor">
     <div class="modal-box">
-        <div class="modal-head"><h3 id="m-prov-title">Nuevo proveedor</h3><button class="modal-close" onclick="closeModal('modal-proveedor')">✕</button></div>
+        <div class="modal-head"><h3 id="m-prov-title">Nuevo proveedor</h3><button class="modal-close" onclick="closeModal('modal-proveedor')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <input type="hidden" id="m-prov-id">
             <div class="form-row">
@@ -1014,7 +1006,7 @@
 <!-- Modal Nueva Liquidación -->
 <div class="modal-overlay" id="modal-nueva-liq">
     <div class="modal-box">
-        <div class="modal-head"><h3>Nueva liquidación</h3><button class="modal-close" onclick="closeModal('modal-nueva-liq')">✕</button></div>
+        <div class="modal-head"><h3>Nueva liquidación</h3><button class="modal-close" onclick="closeModal('modal-nueva-liq')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <div class="section-info">Se creará una liquidación automáticamente agrupando los gastos cargados para el consorcio y período seleccionados.</div>
             <div class="form-group"><label class="form-label">Consorcio *</label><select class="form-ctrl" id="m-liq-consorcio"></select></div>
@@ -1022,7 +1014,7 @@
         </div>
         <div class="modal-footer">
             <button class="btn-s" onclick="closeModal('modal-nueva-liq')">Cancelar</button>
-            <button class="btn-p" onclick="crearLiquidacion()">⚡ Generar liquidación</button>
+            <button class="btn-p" onclick="crearLiquidacion()"><svg class="ic ic-sm"><use href="#ic-rayo"></use></svg>Generar liquidación</button>
         </div>
     </div>
 </div>
@@ -1031,15 +1023,15 @@
 <div class="modal-overlay" id="modal-preview">
     <div class="modal-box" style="width:680px;max-width:96vw;">
         <div class="modal-head">
-            <h3>👁 Previsualización del resumen</h3>
-            <button class="modal-close" onclick="closeModal('modal-preview')">✕</button>
+            <h3><svg class="ic"><use href="#ic-ojo"></use></svg>Previsualización del resumen</h3>
+            <button class="modal-close" onclick="closeModal('modal-preview')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
         </div>
         <div class="modal-body" style="padding:12px;">
             <div class="form-group" style="margin-bottom:10px;">
                 <label class="form-label">Seleccioná una UF para previsualizar</label>
                 <select class="form-ctrl" id="m-preview-uf" onchange="loadPreview()"></select>
             </div>
-            <div id="preview-frame" style="background:#f5f5fa;border-radius:8px;min-height:400px;"></div>
+            <div id="preview-frame" style="background:var(--surface2);border-radius:8px;min-height:400px;"></div>
         </div>
     </div>
 </div>
@@ -1047,18 +1039,18 @@
 <!-- Modal Enviar Resúmenes -->
 <div class="modal-overlay" id="modal-enviar">
     <div class="modal-box">
-        <div class="modal-head"><h3>📤 Enviar resúmenes por email</h3><button class="modal-close" onclick="closeModal('modal-enviar')">✕</button></div>
+        <div class="modal-head"><h3><svg class="ic ic-sm"><use href="#ic-subir"></use></svg>Enviar resúmenes por email</h3><button class="modal-close" onclick="closeModal('modal-enviar')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <div style="text-align:center;padding:20px;">
-                <div style="font-size:3rem;margin-bottom:12px;">📧</div>
+                <div style="margin-bottom:10px;color:var(--nd-terracota-hondo)"><svg class="ic ic-xl"><use href="#ic-mail"></use></svg></div>
                 <p style="font-size:.9rem;font-weight:600;margin-bottom:8px;">¿Enviar resúmenes de liquidación?</p>
                 <p style="font-size:.82rem;color:var(--muted);">Se enviarán resúmenes personalizados a <strong id="enviar-count">0</strong> de <strong id="enviar-total">0</strong> copropietarios con email configurado.</p>
-                <div class="section-info" style="margin-top:14px;">💡 Podés previsualizar el resumen antes de enviar usando el botón "Previsualizar".</div>
+                <div class="section-info" style="margin-top:14px;"><svg class="ic ic-sm"><use href="#ic-info"></use></svg>Podés previsualizar el resumen antes de enviar usando el botón "Previsualizar".</div>
             </div>
         </div>
         <div class="modal-footer">
             <button class="btn-s" onclick="closeModal('modal-enviar')">Cancelar</button>
-            <button class="btn-p" onclick="enviarResumenes()">📤 Enviar ahora</button>
+            <button class="btn-p" onclick="enviarResumenes()"><svg class="ic ic-sm"><use href="#ic-mail"></use></svg>Enviar ahora</button>
         </div>
     </div>
 </div>
@@ -1066,7 +1058,7 @@
 <!-- Modal Agendar Envío -->
 <div class="modal-overlay" id="modal-agendar">
     <div class="modal-box">
-        <div class="modal-head"><h3>⏰ Agendar envío automático</h3><button class="modal-close" onclick="closeModal('modal-agendar')">✕</button></div>
+        <div class="modal-head"><h3>⏰ Agendar envío automático</h3><button class="modal-close" onclick="closeModal('modal-agendar')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <div class="section-info">Configurá el envío automático mensual de resúmenes para este consorcio.</div>
             <div class="form-row">
@@ -1085,8 +1077,8 @@
             <div class="form-row">
                 <div class="form-group"><label class="form-label">Canal</label>
                     <select class="form-ctrl" id="m-ag-canal">
-                        <option value="email">📧 Email</option>
-                        <option value="whatsapp" disabled>💬 WhatsApp (próximamente)</option>
+                        <option value="email">Email</option>
+                        <option value="whatsapp" disabled>WhatsApp (próximamente)</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -1097,7 +1089,7 @@
         </div>
         <div class="modal-footer">
             <button class="btn-s" onclick="closeModal('modal-agendar')">Cancelar</button>
-            <button class="btn-p" onclick="guardarAgendado()">💾 Guardar</button>
+            <button class="btn-p" onclick="guardarAgendado()"><svg class="ic ic-sm"><use href="#ic-guardar"></use></svg>Guardar</button>
         </div>
     </div>
 </div>
@@ -1105,10 +1097,10 @@
 <!-- Modal Perfil -->
 <div class="modal-overlay" id="modal-perfil">
     <div class="modal-box" style="max-width:440px;">
-        <div class="modal-head"><h3>👤 Mi perfil</h3><button class="modal-close" onclick="closeModal('modal-perfil')">✕</button></div>
+        <div class="modal-head"><h3><svg class="ic"><use href="#ic-vecino"></use></svg>Mi perfil</h3><button class="modal-close" onclick="closeModal('modal-perfil')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body" style="padding:28px;">
             <div style="text-align:center;margin-bottom:20px;">
-                <div id="perfil-avatar" style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--blue));margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:1.8rem;color:#fff;font-weight:700;"></div>
+                <div id="perfil-avatar" style="width:72px;height:72px;border-radius:50%;background:var(--nd-verde);margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:1.8rem;color:#fff;font-weight:700;"></div>
                 <p id="perfil-nombre" style="font-size:1rem;font-weight:700;margin:0;"></p>
                 <p id="perfil-email" style="font-size:.82rem;color:var(--muted);margin:4px 0 0;"></p>
             </div>
@@ -1129,11 +1121,11 @@
 <!-- Modal Ayuda -->
 <div class="modal-overlay" id="modal-ayuda">
     <div class="modal-box" style="max-width:500px;">
-        <div class="modal-head"><h3>❓ Centro de ayuda</h3><button class="modal-close" onclick="closeModal('modal-ayuda')">✕</button></div>
+        <div class="modal-head"><h3><svg class="ic"><use href="#ic-ayuda"></use></svg>Centro de ayuda</h3><button class="modal-close" onclick="closeModal('modal-ayuda')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body" style="padding:24px;">
-            <div class="section-info" style="margin-bottom:18px;">👋 ¡Bienvenido a Niddo! Acá podés encontrar información útil para usar la plataforma.</div>
+            <div class="section-info" style="margin-bottom:18px;"><svg class="ic ic-sm"><use href="#ic-info"></use></svg>¡Bienvenido a Niddo! Acá podés encontrar información útil para usar la plataforma.</div>
             
-            <h4 style="font-size:.85rem;font-weight:700;margin:0 0 10px;">📚 Guía rápida</h4>
+            <h4 style="font-size:.85rem;font-weight:700;margin:0 0 10px;"><svg class="ic ic-sm"><use href="#ic-doc"></use></svg>Guía rápida</h4>
             <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">
                 <div style="padding:10px 14px;background:var(--surface2);border-radius:8px;font-size:.82rem;">
                     <strong>Gastos:</strong> Cargá gastos manualmente o con IA. Se agrupan automáticamente en las liquidaciones.
@@ -1149,7 +1141,7 @@
                 </div>
             </div>
 
-            <h4 style="font-size:.85rem;font-weight:700;margin:0 0 10px;">📧 Soporte</h4>
+            <h4 style="font-size:.85rem;font-weight:700;margin:0 0 10px;"><svg class="ic ic-sm"><use href="#ic-mail"></use></svg>Soporte</h4>
             <p style="font-size:.82rem;color:var(--muted);margin:0;">Si necesitás ayuda, escribinos a <a href="mailto:soporte@niddo.app" style="color:var(--teal);text-decoration:none;font-weight:600;">soporte@niddo.app</a></p>
         </div>
     </div>
@@ -1231,8 +1223,7 @@ function statusBadge(estado) {
 }
 function categoriaBadge(cat) {
     if (!cat) return '—';
-    const icons = {electricidad:'⚡',gas:'🔥',agua:'💧',limpieza:'🧹',ascensor:'🛗',seguro:'🛡️',honorarios:'👔',impuesto:'🏛️',otro:'📋'};
-    return `${icons[cat]||'📋'} ${cat}`;
+    return cat;
 }
 function toggleFrecuencia() {
     $('frecuencia-group').style.display = $('m-gasto-recurrente').checked ? 'block' : 'none';
@@ -1271,8 +1262,8 @@ function renderConsorcios() {
             <td class="text-muted">${c.encargado_nombre||'—'}</td>
             <td><div class="inline-actions">
                 <button class="btn-s btn-sm" onclick="openDetail('${c.id}','${c.nombre}','${c.direccion||''}')">Ver UFs</button>
-                <button class="btn-s btn-sm" onclick="openConsorioModal('${c.id}')">✏️</button>
-                <button class="btn-danger btn-sm" onclick="deleteConsorcio('${c.id}','${c.nombre}')">🗑</button>
+                <button class="btn-s btn-sm" onclick="openConsorioModal('${c.id}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button>
+                <button class="btn-danger btn-sm" onclick="deleteConsorcio('${c.id}','${c.nombre}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
             </div></td>
         </tr>`).join('');
 }
@@ -1364,7 +1355,7 @@ async function loadUFs() {
             let nombresHtml = '';
             let emailsHtml = '';
             if (vecinosList.length > 0) {
-                nombresHtml = vecinosList.map(v => `<div><strong>${v.nombre || '—'}</strong> <span style="font-size:0.75rem; padding: 2px 6px; border-radius: 4px; background: rgba(124,58,237,0.12); color: var(--purple); text-transform:capitalize;">${v.rol === 'propietario' ? 'Prop.' : 'Inq.'}</span></div>`).join('');
+                nombresHtml = vecinosList.map(v => `<div><strong>${v.nombre || '—'}</strong> <span style="font-size:0.75rem; padding: 2px 6px; border-radius: 4px; background: rgba(47,111,94,0.12); color: var(--purple); text-transform:capitalize;">${v.rol === 'propietario' ? 'Prop.' : 'Inq.'}</span></div>`).join('');
                 emailsHtml = vecinosList.map(v => `<div style="font-size:0.85rem;">${v.email}</div>`).join('');
             } else {
                 nombresHtml = u.vecino_nombre ? `<div>${u.vecino_nombre} <span style="font-size:0.75rem; color:var(--muted);">(Pre-cargado)</span></div>` : '<span class="text-muted">Sin asignar</span>';
@@ -1379,8 +1370,8 @@ async function loadUFs() {
                 <td>${nombresHtml}</td>
                 <td class="text-muted">${emailsHtml}</td>
                 <td><div class="inline-actions">
-                    <button class="btn-s btn-sm" onclick="openUFModal('${u.id}')">✏️</button>
-                    <button class="btn-danger btn-sm" onclick="deleteUF('${u.id}')">🗑</button>
+                    <button class="btn-s btn-sm" onclick="openUFModal('${u.id}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button>
+                    <button class="btn-danger btn-sm" onclick="deleteUF('${u.id}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
                 </div></td>
             </tr>`;
         }).join('');
@@ -1521,7 +1512,7 @@ async function uploadBulk() {
         const d = await r.json().catch(()=>({}));
         if (!r.ok) { toast(d.error || 'Error al procesar el archivo','err'); return; }
         renderBulkResults(d);
-        toast('✅ Carga masiva procesada');
+        toast('Carga masiva procesada');
         await loadConsorcios();
     } catch(e) { toast('Error al importar','err'); }
 }
@@ -1540,12 +1531,12 @@ function renderBulkResults(d) {
 
     const errBox = $('bulk-results-errors');
     if (!d.errores || !d.errores.length) {
-        errBox.innerHTML = '<div class="section-info">✅ No se encontraron errores en el archivo.</div>';
+        errBox.innerHTML = '<div class="section-info">No se encontraron errores en el archivo.</div>';
         return;
     }
     errBox.innerHTML = `
         <div class="card" style="margin-top:4px;">
-            <div class="card-h"><span class="card-t">⚠️ Filas con errores (${d.errores.length})</span></div>
+            <div class="card-h"><span class="card-t">Filas con errores (${d.errores.length})</span></div>
             <div style="max-height:220px;overflow-y:auto;">
                 <table class="tbl">
                     <thead><tr><th>Hoja</th><th>Fila</th><th>Motivo</th></tr></thead>
@@ -1600,9 +1591,9 @@ async function loadGastos() {
                 <td>${g.pagado ? '<span class="b b-g">Pagado</span>' : '<span class="b b-y">Pendiente</span>'}</td>
                 <td>${g.recurrente ? `<span class="b b-b">${g.frecuencia||'recurrente'}</span>` : '—'}</td>
                 <td><div class="inline-actions">
-                    ${g.archivo_nombre ? `<a href="/api/gastos/${g.id}/comprobante" target="_blank" title="Ver comprobante" class="btn-s btn-sm" style="text-decoration:none;">📄</a>` : ''}
-                    <button class="btn-s btn-sm" onclick="openGastoModal('${g.id}')">✏️</button>
-                    <button class="btn-danger btn-sm" onclick="deleteGasto('${g.id}')">🗑</button>
+                    ${g.archivo_nombre ? `<a href="/api/gastos/${g.id}/comprobante" target="_blank" title="Ver comprobante" class="btn-s btn-sm" style="text-decoration:none;" aria-label="Ver comprobante" title="Ver comprobante"><svg class="ic ic-sm"><use href="#ic-doc"></use></svg></a>` : ''}
+                    <button class="btn-s btn-sm" onclick="openGastoModal('${g.id}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button>
+                    <button class="btn-danger btn-sm" onclick="deleteGasto('${g.id}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
                 </div></td>
             </tr>`).join('');
     } catch(e) { toast(e.message,'err'); }
@@ -1626,7 +1617,7 @@ function openAutoExtract() {
     // Dropzone events
     const dz = $('auto-dropzone');
     dz.onclick = () => $('auto-file-input').click();
-    dz.ondragover = (e) => { e.preventDefault(); dz.style.borderColor='var(--teal)'; dz.style.background='rgba(16,185,129,.06)'; };
+    dz.ondragover = (e) => { e.preventDefault(); dz.style.borderColor='var(--teal)'; dz.style.background='rgba(47,111,94,.06)'; };
     dz.ondragleave = () => { dz.style.borderColor='var(--border)'; dz.style.background='var(--card)'; };
     dz.ondrop = (e) => { e.preventDefault(); dz.style.borderColor='var(--border)'; dz.style.background='var(--card)'; if(e.dataTransfer.files.length) { $('auto-file-input').files = e.dataTransfer.files; handleAutoFile($('auto-file-input')); } };
 }
@@ -1683,8 +1674,8 @@ async function extractGastoData() {
 
         // Show results
         const labels = {
-            descripcion: '📝 Descripción', monto: '💰 Monto', categoria: '🏷️ Categoría',
-            fecha_gasto: '📅 Fecha', fecha_vencimiento: '⏰ Vencimiento', notas: '📋 Notas'
+            descripcion: 'Descripción', monto: 'Monto', categoria: 'Categoría',
+            fecha_gasto: 'Fecha', fecha_vencimiento: 'Vencimiento', notas: 'Notas'
         };
         const catLabels = {
             electricidad:'Electricidad', gas:'Gas', agua:'Agua', limpieza:'Limpieza',
@@ -1771,7 +1762,7 @@ function openGastoModal(id) {
             $('frecuencia-group').style.display = g.recurrente ? 'block' : 'none';
             $('m-gasto-notas').value = g.notas || '';
             if (g.archivo_nombre) {
-                infoEl.innerHTML = `📄 Comprobante actual adjunto (<a href="/api/gastos/${id}/comprobante" target="_blank">ver</a>). Seleccione un archivo para reemplazarlo.`;
+                infoEl.innerHTML = `Comprobante actual adjunto (<a href="/api/gastos/${id}/comprobante" target="_blank">ver</a>). Seleccione un archivo para reemplazarlo.`;
                 infoEl.style.display = 'block';
             }
         }
@@ -1868,7 +1859,7 @@ async function loadCobros() {
                 <td><strong>${fmt(c.total)}</strong></td>
                 <td>${statusBadge(c.estado)}</td>
                 <td class="text-muted">${c.fecha_vencimiento||'—'}</td>
-                <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${c.interes_mora||0}','${c.notas||''}')">✏️</button></td>
+                <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${c.interes_mora||0}','${c.notas||''}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button></td>
             </tr>`;}).join('');
     } catch(e) { toast(e.message,'err'); }
 }
@@ -1879,9 +1870,9 @@ function renderCobrosKpis(data) {
     const mora = data.filter(c=>['vencido','en_mora'].includes(c.estado));
     const ingresos = pagados.reduce((s,c)=>s+(c.total||0),0);
     $('cobros-kpis').innerHTML = `
-        <div class="kpi"><div class="kpi-val" style="color:#34d399">${pagados.length}</div><div class="kpi-label">Pagados</div><div class="kpi-sub">${fmt(ingresos)}</div></div>
-        <div class="kpi"><div class="kpi-val" style="color:#fbbf24">${pendientes.length}</div><div class="kpi-label">Pendientes</div></div>
-        <div class="kpi"><div class="kpi-val" style="color:#f87171">${mora.length}</div><div class="kpi-label">En mora/vencidos</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:var(--nd-verde)">${pagados.length}</div><div class="kpi-label">Pagados</div><div class="kpi-sub">${fmt(ingresos)}</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:var(--nd-tinta-calida)">${pendientes.length}</div><div class="kpi-label">Pendientes</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:var(--nd-terracota-hondo)">${mora.length}</div><div class="kpi-label">En mora/vencidos</div></div>
     `;
 }
 
@@ -1892,7 +1883,7 @@ async function loadMora() {
         const data = await api('/api/cobros/mora?'+params);
         $('mora-count-label').textContent = data.length ? `${data.length} vecino(s) en mora` : 'Sin morosos';
         const tb = $('tbody-mora');
-        if (!data.length) { tb.innerHTML = '<tr><td colspan="10" class="tbl-empty">¡Sin morosos! 🎉</td></tr>'; return; }
+        if (!data.length) { tb.innerHTML = '<tr><td colspan="10" class="tbl-empty">¡Sin morosos!</td></tr>'; return; }
         const tasa = +($('cfg-tasa')?.value||2);
         const today = new Date();
         tb.innerHTML = data.map(c => {
@@ -1900,17 +1891,17 @@ async function loadMora() {
             const vto = c.fecha_vencimiento ? new Date(c.fecha_vencimiento) : null;
             const dias = vto ? Math.max(0,Math.ceil((today-vto)/(1000*60*60*24))) : '—';
             const interes = typeof dias === 'number' ? (c.monto_base||0)*tasa/100*dias : 0;
-            return `<tr style="background:rgba(239,68,68,.04)">
+            return `<tr style="background:rgba(196,80,43,.04)">
                 <td>${con.nombre||'—'}</td>
                 <td><strong>${uf.numero||'—'}</strong></td>
                 <td>${uf.vecino_nombre||'—'}</td>
                 <td class="text-muted">${uf.vecino_email||'—'}</td>
                 <td>${c.periodo||'—'}</td>
                 <td>${fmt(c.monto_base)}</td>
-                <td style="color:#f87171">+${fmt(interes)}</td>
+                <td style="color:var(--nd-terracota-hondo)">+${fmt(interes)}</td>
                 <td><strong>${fmt((c.monto_base||0)+interes)}</strong></td>
                 <td>${statusBadge(c.estado)}</td>
-                <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${interes.toFixed(2)}','')">✏️ Actualizar</button></td>
+                <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${interes.toFixed(2)}','')"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg>Actualizar</button></td>
             </tr>`;}).join('');
     } catch(e) { toast(e.message,'err'); }
 }
@@ -1955,7 +1946,7 @@ async function generarCobros() {
     const payload = { consorcio_id, periodo, monto_base, fecha_vencimiento: $('m-gen-vto').value||null };
     try {
         const r = await api('/api/cobros/generar',{method:'POST',body:JSON.stringify(payload)});
-        closeModal('modal-generar'); toast(`✅ ${r.generados} cobros generados`); await loadCobros();
+        closeModal('modal-generar'); toast(`${r.generados} cobros generados`); await loadCobros();
     } catch(e) { toast(e.message,'err'); }
 }
 
@@ -1980,8 +1971,8 @@ async function loadProveedores() {
                 <td class="text-muted">${p.email||'—'}</td>
                 <td class="text-muted">${p.telefono||'—'}</td>
                 <td><div class="inline-actions">
-                    <button class="btn-s btn-sm" onclick="openProveedorModal('${p.id}')">✏️</button>
-                    <button class="btn-danger btn-sm" onclick="deleteProveedor('${p.id}','${p.nombre}')">🗑</button>
+                    <button class="btn-s btn-sm" onclick="openProveedorModal('${p.id}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button>
+                    <button class="btn-danger btn-sm" onclick="deleteProveedor('${p.id}','${p.nombre}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
                 </div></td>
             </tr>`).join('');
     } catch(e) { toast(e.message,'err'); }
@@ -2036,7 +2027,7 @@ async function loadBalance() {
         const res = d.resultado;
         const el = $('bal-resultado');
         el.textContent = fmt(res);
-        el.style.color = res >= 0 ? '#34d399' : '#f87171';
+        el.style.color = res >= 0 ? 'var(--nd-verde)' : 'var(--nd-terracota-hondo)';
 
         $('tbody-bal-cobros').innerHTML = d.cobros.length
             ? d.cobros.map(c=>`<tr><td>${(c.consorcios||{}).nombre||'—'}</td><td>${c.periodo||'—'}</td><td>${fmt(c.total)}</td></tr>`).join('')
@@ -2102,8 +2093,8 @@ function renderAmenities() {
             <td class="text-muted text-sm">${a.descripcion || '—'}</td>
             <td>
                 <div class="inline-actions">
-                    <button class="btn-s btn-sm" onclick="openAmenityModal('${a.id}')">✏️ Editar</button>
-                    <button class="btn-danger btn-sm" onclick="deleteAmenity('${a.id}')">✕ Eliminar</button>
+                    <button class="btn-s btn-sm" onclick="openAmenityModal('${a.id}')"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg>Editar</button>
+                    <button class="btn-danger btn-sm" onclick="deleteAmenity('${a.id}')"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg>Eliminar</button>
                 </div>
             </td>
         </tr>
@@ -2125,7 +2116,7 @@ function renderAmenitiesReservations() {
             <td>${r.hora_inicio.substring(0, 5)} - ${r.hora_fin.substring(0, 5)}</td>
             <td>${statusBadge(r.estado)}</td>
             <td>
-                ${r.estado === 'confirmada' ? `<button class="btn-danger btn-sm" onclick="cancelReservaAdmin('${r.id}')">✕ Cancelar</button>` : '—'}
+                ${r.estado === 'confirmada' ? `<button class="btn-danger btn-sm" onclick="cancelReservaAdmin('${r.id}')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg>Cancelar</button>` : '—'}
             </td>
         </tr>
     `).join('');
@@ -2216,14 +2207,6 @@ function amenitiesTab(tab, el) {
     }
 }
 
-// ── Theme ─────────────────────────────────────────────────────────────────────
-(function(){
-    const btn = $('theme-toggle'), root = document.documentElement;
-    function apply(t){ root.classList.toggle('light',t==='light'); btn.textContent=t==='light'?'☀️ Cambiar tema':'🌙 Cambiar tema'; }
-    apply(localStorage.getItem('theme')||'light');
-    btn.addEventListener('click',()=>{ const n=root.classList.contains('light')?'dark':'light'; localStorage.setItem('theme',n); apply(n); });
-})();
-
 // ── Keyboard ──────────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
     if (e.key==='Escape') document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));
@@ -2257,11 +2240,11 @@ async function loadLiquidaciones() {
                 <td><strong>${l.periodo}</strong></td>
                 <td>${(l.consorcios||{}).nombre||'—'}</td>
                 <td>${fmt(l.total_egresos)}</td>
-                <td style="font-weight:600;color:${(l.saldo_final||0)>=0?'#34d399':'#f87171'}">${fmt(l.saldo_final)}</td>
+                <td style="font-weight:600;color:${(l.saldo_final||0)>=0?'var(--nd-verde)':'var(--nd-terracota-hondo)'}">${fmt(l.saldo_final)}</td>
                 <td><span class="b ${estadoBadge}">${estadoLabel}</span></td>
                 <td><div class="inline-actions">
                     <button class="btn-s btn-sm" onclick="openLiqDetail('${l.id}')">Ver detalle</button>
-                    ${l.estado==='borrador'?`<button class="btn-danger btn-sm" onclick="deleteLiquidacion('${l.id}')">🗑</button>`:''}
+                    ${l.estado==='borrador'?`<button class="btn-danger btn-sm" onclick="deleteLiquidacion('${l.id}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>`:''}
                 </div></td>
             </tr>`;}).join('');
     } catch(e) { toast(e.message,'err'); }
@@ -2284,7 +2267,7 @@ async function crearLiquidacion() {
             body: JSON.stringify({ consorcio_id, periodo, auto_generar: true })
         });
         closeModal('modal-nueva-liq');
-        toast('✅ Liquidación creada desde los gastos del período');
+        toast('Liquidación creada desde los gastos del período');
         await loadLiquidaciones();
         await openLiqDetail(liq.id);
     } catch(e) { toast(e.message,'err'); }
@@ -2310,8 +2293,8 @@ async function openLiqDetail(lid) {
         // KPIs
         $('liq-detail-kpis').innerHTML = `
             <div class="kpi"><div class="kpi-val">${fmt(l.total_egresos)}</div><div class="kpi-label">Total egresos</div></div>
-            <div class="kpi"><div class="kpi-val" style="color:#34d399">${fmt(l.saldo_inicial)}</div><div class="kpi-label">Saldo inicial</div></div>
-            <div class="kpi"><div class="kpi-val" style="color:${(l.saldo_final||0)>=0?'#34d399':'#f87171'}">${fmt(l.saldo_final)}</div><div class="kpi-label">Saldo final</div></div>
+            <div class="kpi"><div class="kpi-val" style="color:var(--nd-verde)">${fmt(l.saldo_inicial)}</div><div class="kpi-label">Saldo inicial</div></div>
+            <div class="kpi"><div class="kpi-val" style="color:${(l.saldo_final||0)>=0?'var(--nd-verde)':'var(--nd-terracota-hondo)'}">${fmt(l.saldo_final)}</div><div class="kpi-label">Saldo final</div></div>
             <div class="kpi"><div class="kpi-val"><span class="b ${l.estado==='publicada'?'b-g':l.estado==='cerrada'?'b-gr':'b-y'}">${l.estado}</span></div><div class="kpi-label">Estado</div></div>
         `;
 
@@ -2392,15 +2375,15 @@ async function loadProrrateo() {
                 <td>${uf.piso||'—'}</td>
                 <td>${uf.vecino_nombre||'<span class="text-muted">—</span>'}</td>
                 <td class="text-muted">${fmt(p.saldo_anterior)}</td>
-                <td style="color:#10B981">${fmt(p.pago_realizado)}</td>
-                <td style="color:${p.saldo_pendiente>0?'#EF4444':'inherit'}">${fmt(p.saldo_pendiente)}</td>
+                <td style="color:var(--nd-verde)">${fmt(p.pago_realizado)}</td>
+                <td style="color:${p.saldo_pendiente>0?'var(--nd-terracota-hondo)':'inherit'}">${fmt(p.saldo_pendiente)}</td>
                 <td>${fmt(p.interes_mora)}</td>
                 <td class="text-muted">${p.porcentaje_a}%</td>
                 <td>${fmt(p.expensa_a)}</td>
                 <td class="text-muted">${p.porcentaje_c}%</td>
                 <td>${fmt(p.adicional_ordinaria)}</td>
                 <td><strong>${fmt(p.total_unidad)}</strong></td>
-                <td><button class="btn-s btn-sm" onclick="openPreviewUF('${p.unidad_id}')">👁</button></td>
+                <td><button class="btn-s btn-sm" onclick="openPreviewUF('${p.unidad_id}')" aria-label="Previsualizar" title="Previsualizar"><svg class="ic ic-sm"><use href="#ic-ojo"></use></svg></button></td>
             </tr>`;}).join('');
     } catch(e) { toast(e.message,'err'); }
 }
@@ -2418,7 +2401,7 @@ async function loadEnvios() {
             return `<tr>
                 <td><strong>${uf.numero||'—'}</strong></td>
                 <td>${uf.vecino_nombre||'—'}</td>
-                <td><span class="b b-b">📧 Email</span></td>
+                <td><span class="b b-b">Email</span></td>
                 <td><span class="b ${estadoMap[e.estado]||'b-gr'}">${e.estado}</span></td>
                 <td class="text-muted">${e.email_destino||'—'}</td>
                 <td class="text-muted">${fecha}</td>
@@ -2442,7 +2425,7 @@ async function guardarConfigLiq() {
                 notas: $('liq-notas').value,
             })
         });
-        toast('✅ Liquidación actualizada');
+        toast('Liquidación actualizada');
         await openLiqDetail(currentLiqId);
     } catch(e) { toast(e.message,'err'); }
 }
@@ -2481,7 +2464,7 @@ async function loadPreview(uid) {
     try {
         const res = await api(`/api/liquidaciones/${currentLiqId}/resumen/${uid}`);
         $('preview-frame').innerHTML = `<iframe srcdoc="${res.html.replace(/"/g,'&quot;')}" style="width:100%;height:700px;border:none;border-radius:8px;"></iframe>`;
-    } catch(e) { $('preview-frame').innerHTML = `<p style="color:#f87171;text-align:center;padding:40px;">Error: ${e.message}</p>`; }
+    } catch(e) { $('preview-frame').innerHTML = `<p style="color:var(--nd-terracota-hondo);text-align:center;padding:40px;">Error: ${e.message}</p>`; }
 }
 
 // ── Enviar ─────────────────────────────────────────────────────────────────────
@@ -2502,7 +2485,7 @@ async function enviarResumenes() {
             method: 'POST', body: JSON.stringify({})
         });
         closeModal('modal-enviar');
-        toast(`📧 ${res.enviados} resúmenes enviados, ${res.fallidos} fallidos`);
+        toast(`${res.enviados} resúmenes enviados, ${res.fallidos} fallidos`);
         liqTab('envios', document.querySelectorAll('#liq-tabs .tab-btn')[2]);
     } catch(e) { toast(e.message,'err'); }
 }

@@ -7,35 +7,19 @@
     <meta name="description" content="La plataforma más simple para administrar consorcios. Expensas, vecinos y finanzas en un solo lugar.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+        /* Paleta y tipografia viven en niddo-brand.css.
+           Aca solo los acentos ilustrativos de las tarjetas, todos dentro
+           de la paleta del manual. */
         :root {
-            --blue-50:#EAF3F0; --blue-100:#D7E8E1; --blue-500:#2F6F5E; --blue-600:#1E4A3E;
-            --mint-100:#DBF6EA; --mint-500:#209A69;
-            --amber-100:#FBE8CE; --amber-500:#E9A23B;
-            --violet-100:#EBE1FF; --violet-500:#7548D9;
-            --teal-100:#DAF3F3; --teal-500:#1D8189;
-            --coral-100:#FFE1DE; --coral-500:#E85B45;
-
-            --bg-canvas:#EFF3EE;
-            --bg:#F7F9F5;
-            --surface:#FFFFFF;
-            --surface-2:#E9F0EA;
-            --hairline: rgba(27,36,29,.09);
-            --text:#1B242D;
-            --text-muted:#68726A;
-            --text-faint:#98A192;
-            --accent: var(--blue-500);
-            --accent-strong: var(--blue-600);
-            --accent-soft: var(--blue-100);
-            --accent-ink:#ffffff;
-            --shadow-card: 0 1px 2px rgba(27,36,29,.05), 0 8px 22px -12px rgba(27,36,29,.16);
-            --r-lg:22px; --r-md:14px; --r-pill:999px;
-            --font: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            --font-display: 'Quicksand', var(--font);
-            color-scheme: light;
+            --blue-50: var(--nd-crema);
+            --violet-100: var(--nd-verde-dim);   --violet-500: var(--nd-verde);
+            --teal-100:   var(--nd-verde-dim);   --teal-500:   var(--nd-verde-bosque);
+            --coral-100:  var(--nd-terracota-dim); --coral-500: var(--nd-terracota-hondo);
         }
 
         html { scroll-behavior: smooth; }
@@ -68,17 +52,6 @@
 
         .nav-right { display: flex; align-items: center; gap: 0.6rem; }
 
-        .logo {
-            font-family: var(--font-display);
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: var(--text);
-            text-decoration: none;
-            display: inline-block;
-            letter-spacing: -0.01em;
-            white-space: nowrap;
-        }
-        .logo .o { color: var(--amber-500); }
 
         .nav-links { display: flex; align-items: center; gap: 2rem; list-style: none; }
         .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: color 0.2s; }
@@ -99,10 +72,12 @@
             border: 1px solid transparent;
         }
 
-        .btn-primary { background: var(--accent); color: var(--accent-ink); }
-        .btn-primary:hover { box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--accent) 55%, transparent); transform: translateY(-1px); }
+        /* Registrarse es la conversion: lleva el amarillo de acento, igual que el
+           "Suma tu edificio" del manual. */
+        .btn-primary { background: var(--cta); color: var(--cta-ink); }
+        .btn-primary:hover { box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--cta) 60%, transparent); transform: translateY(-1px); }
 
-        .btn-outline { background: transparent; color: var(--accent); border-color: var(--accent); }
+        .btn-outline { background: transparent; color: var(--accent-strong); border-color: var(--accent); }
         .btn-outline:hover { background: var(--accent-soft); }
 
         .btn-ghost { background: var(--surface); color: var(--text); border-color: var(--hairline); }
@@ -211,16 +186,17 @@
         }
         .card:hover { border-color: var(--accent); transform: translateY(-3px); }
         .card-icon {
-            width: 44px; height: 44px; border-radius: 12px;
-            background: var(--blue-100);
+            width: 44px; height: 44px; border-radius: var(--r-md);
+            background: var(--nd-terracota-dim);
+            color: var(--nd-terracota-hondo);
             display: flex; align-items: center; justify-content: center;
-            font-size: 1.2rem; margin-bottom: 1.1rem;
+            margin-bottom: 1.1rem;
         }
-        .card.cat-mint .card-icon { background: var(--mint-100); }
-        .card.cat-amber .card-icon { background: var(--amber-100); }
-        .card.cat-violet .card-icon { background: var(--violet-100); }
-        .card.cat-teal .card-icon { background: var(--teal-100); }
-        .card.cat-coral .card-icon { background: var(--coral-100); }
+        .card.cat-mint .card-icon { background: var(--nd-verde-dim); color: var(--nd-verde-bosque); }
+        .card.cat-amber .card-icon { background: var(--nd-amarillo-dim); color: var(--nd-tinta-calida); }
+        .card.cat-violet .card-icon { background: var(--nd-verde-dim); color: var(--nd-verde-bosque); }
+        .card.cat-teal .card-icon { background: var(--nd-verde-dim); color: var(--nd-verde-bosque); }
+        .card.cat-coral .card-icon { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
         .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
         .card p { font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; }
 
@@ -236,7 +212,7 @@
             flex-direction: column;
             align-items: center;
         }
-        .pillar .card-icon { width: 52px; height: 52px; border-radius: 14px; font-size: 1.4rem; margin-bottom: 1rem; }
+        .pillar .card-icon { width: 54px; height: 54px; border-radius: var(--r-md); margin-bottom: 1rem; }
         .pillar h3 { font-size: 1.05rem; font-weight: 800; margin-bottom: 0.5rem; }
         .pillar p { font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 1rem; }
 
@@ -278,10 +254,11 @@
     </style>
 </head>
 <body>
+{% include '_icons.html' %}
 
     <!-- NAV -->
     <nav>
-        <a href="/" class="logo">nidd<span class="o">o</span></a>
+        <a href="/" class="nd-logo">nidd<span class="o">o</span></a>
         <ul class="nav-links">
             <li><a href="#solucion">Solución</a></li>
             <li><a href="#beneficios">Beneficios</a></li>
@@ -346,17 +323,17 @@
         <p class="section-sub">Administradores, vecinos y proveedores trabajan sobre los mismos datos, cada uno desde su propio acceso.</p>
         <div class="grid-3">
             <div class="pillar">
-                <div class="card-icon">🏢</div>
+                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-edificio"></use></svg></div>
                 <h3>Administradores</h3>
                 <p>Expensas, balance, sueldos, proveedores y mensajería de toda tu cartera de consorcios en un solo panel.</p>
             </div>
             <div class="pillar">
-                <div class="card-icon">🏠</div>
+                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-vecino"></use></svg></div>
                 <h3>Vecinos</h3>
                 <p>Pagan su expensa, reservan amenities, votan y hacen seguimiento de reclamos desde el celular.</p>
             </div>
             <div class="pillar">
-                <div class="card-icon">🤝</div>
+                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-proveedor"></use></svg></div>
                 <h3>Proveedores</h3>
                 <p>Reciben órdenes de trabajo y gestionan sus cobros sin depender de llamados o planillas sueltas.</p>
             </div>
@@ -371,32 +348,32 @@
 
         <div class="grid-3">
             <div class="card">
-                <div class="card-icon">🧾</div>
+                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-expensa"></use></svg></div>
                 <h3>Expensas automáticas</h3>
                 <p>Liquidación inteligente con QR obligatorio CABA, reconocimiento de facturas con IA y envío digital.</p>
             </div>
             <div class="card cat-mint">
-                <div class="card-icon">📊</div>
+                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-balance"></use></svg></div>
                 <h3>Contabilidad y balance</h3>
                 <p>Balance automático, conciliación bancaria y reportes exportables. Gestioná toda tu cartera desde un panel.</p>
             </div>
             <div class="card cat-amber">
-                <div class="card-icon">👷</div>
+                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-proveedor"></use></svg></div>
                 <h3>Sueldos y compliance</h3>
                 <p>Liquidación de sueldos por convenio, aguinaldos, vacaciones y presentación de cargas sociales.</p>
             </div>
             <div class="card cat-violet">
-                <div class="card-icon">🤝</div>
+                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-proveedor"></use></svg></div>
                 <h3>Proveedores</h3>
                 <p>Marketplace verificado de proveedores y gestión de órdenes de pago en un solo flujo.</p>
             </div>
             <div class="card cat-teal">
-                <div class="card-icon">💰</div>
+                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-cobro"></use></svg></div>
                 <h3>Inversión del float</h3>
                 <p>El capital en tránsito genera rendimiento automáticamente. Exclusivo de Niddo.</p>
             </div>
             <div class="card cat-coral">
-                <div class="card-icon">🏷️</div>
+                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-liquidacion"></use></svg></div>
                 <h3>White label y API</h3>
                 <p>Branding personalizable, trabajo en equipo multiusuario e integraciones por API abierta.</p>
             </div>
@@ -411,17 +388,17 @@
 
         <div class="grid-3">
             <div class="card">
-                <div class="card-icon">💳</div>
+                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-cobro"></use></svg></div>
                 <h3>Pagos por QR</h3>
                 <p>Pagá tu expensa con cualquier billetera virtual. Historial completo y comprobantes instantáneos.</p>
             </div>
             <div class="card cat-amber">
-                <div class="card-icon">🔔</div>
+                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-campana"></use></svg></div>
                 <h3>Comunicación directa</h3>
                 <p>Notificaciones en tiempo real, anuncios del consorcio y canal de comunicación con administración.</p>
             </div>
             <div class="card cat-violet">
-                <div class="card-icon">🗳️</div>
+                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-reserva"></use></svg></div>
                 <h3>Votaciones y reclamos</h3>
                 <p>Participá en asambleas online, cargá reclamos y hacé seguimiento hasta su resolución.</p>
             </div>

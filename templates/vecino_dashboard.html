@@ -6,35 +6,30 @@
     <title>Mi Consorcio | Niddo</title>
     <meta name="description" content="Dashboard de vecino Niddo — gestioná tus expensas, reservas, reclamos y comunicados del consorcio.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Hanken+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-    :root {
-        --purple:#F0B23E; --purple-light:#F5C56B; --purple-dim:rgba(240,178,62,0.18);
-        --teal:#4FDA9E; --teal-dark:#3BC38A; --teal-dim:rgba(79,218,158,0.16);
-        --amber:#F0B23E; --red:#FF8E79; --blue:#4FDA9E; --blue-dark:#2F6F5E; --blue-dim:rgba(79,218,158,0.18);
-        --bg:#0A101C; --surface:#121A2A; --surface2:#16203A; --surface3:#1C2740;
-        --border:rgba(230,237,252,0.09); --border2:rgba(230,237,252,0.05);
-        --text:#ECF0FA; --text2:#B7C0D6; --muted:#8D97B0;
-        --sidebar-w:230px; --header-h:58px; --radius:14px; --radius-lg:22px;
+    /* Color, tipografia y forma viven en niddo-brand.css. */
+    :root { --sidebar-w:230px; --header-h:58px; }
+
+    body { background:var(--bg); color:var(--text); }
+
+    /* Los iconos inline necesitan aire junto al texto. */
+    .nav-btn, .bottom-btn, .dd-item, .btn, .pg-title, .twh h3, .btn-logout, .mc {
+        display:inline-flex; align-items:center; gap:8px;
     }
-    :root.light {
-        --purple:#E9A23B; --purple-light:#F0B463; --purple-dim:rgba(233,162,59,0.12);
-        --teal:#209A69; --teal-dark:#17835A; --teal-dim:rgba(32,154,105,0.12);
-        --amber:#E9A23B; --red:#E85B45; --blue:#2F6F5E; --blue-dark:#1E4A3E; --blue-dim:rgba(47,111,94,0.12);
-        --bg:#EFF3EE; --surface:#ffffff; --surface2:#F7F9F5; --surface3:#E9F0EA;
-        --border:rgba(27,36,29,0.09); --border2:rgba(27,36,29,0.05);
-        --text:#1B242D; --text2:#45506B; --muted:#68726A;
-    }
-    body { font-family:'Hanken Grotesk',sans-serif; background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
+    .nav-btn, .btn-logout, .dd-item { display:flex; }
+    .bottom-btn { flex-direction:column; gap:3px; }
+    .pg-title .ic { flex-shrink:0; }
+
     ::-webkit-scrollbar { width:4px; height:4px; } ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
     
     .app-header { position:fixed; top:0; left:0; right:0; height:var(--header-h); z-index:200; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 20px; }
     .header-brand { width:var(--sidebar-w); display:flex; align-items:center; gap:10px; flex-shrink:0; }
-    .header-logo { width:32px; height:32px; border-radius:8px; background:linear-gradient(135deg,var(--blue),var(--purple)); display:flex; align-items:center; justify-content:center; font-size:1rem; }
-    .header-brand-text { font-family:'Quicksand','Hanken Grotesk',sans-serif; font-size:1rem; font-weight:700; letter-spacing:-0.02em; }
-    .header-brand-text span { background:linear-gradient(135deg,var(--blue),var(--purple-light)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .header-brand-text { font-size:1.25rem; }
     .header-center { flex:1; display:flex; align-items:center; gap:8px; font-size:0.82rem; color:var(--muted); padding-left:12px; }
     .hbadge-con { background:var(--blue-dim); color:var(--blue); border-radius:6px; padding:3px 10px; font-size:0.78rem; font-weight:700; }
     .hbadge-uf  { background:var(--purple-dim); color:var(--purple-light); border-radius:6px; padding:3px 10px; font-size:0.78rem; font-weight:600; }
@@ -43,35 +38,36 @@
     .hbtn:hover { background:var(--surface2); color:var(--text); }
     
     .user-drop { position:relative; }
-    .user-av { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,var(--purple),var(--blue)); display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700; cursor:pointer; border:none; color:white; transition:all 0.2s; }
+    .user-av { width:32px; height:32px; border-radius:50%; background:var(--nd-verde); display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700; cursor:pointer; border:none; color:white; transition:all 0.2s; }
     .user-av:hover { transform:scale(1.08); box-shadow:0 0 0 3px var(--purple-dim); }
-    .dd-menu { position:absolute; right:0; top:calc(100% + 8px); background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); min-width:180px; padding:6px; box-shadow:0 8px 32px rgba(0,0,0,0.35); z-index:500; display:none; }
+    .dd-menu { position:absolute; right:0; top:calc(100% + 8px); background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); min-width:180px; padding:6px; box-shadow:0 8px 32px rgba(42,33,28,0.35); z-index:500; display:none; }
     .dd-menu.open { display:block; animation:fadeIn 0.1s ease; }
     .dd-item { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:7px; cursor:pointer; font-size:0.83rem; color:var(--text2); transition:all 0.12s; border:none; background:none; width:100%; text-align:left; text-decoration:none; }
     .dd-item:hover { background:var(--surface2); color:var(--text); }
-    .dd-item.danger:hover { background:rgba(239,68,68,0.08); color:#f87171; }
+    .dd-item.danger:hover { background:var(--nd-terracota-dim); color:var(--nd-terracota-hondo); }
     .dd-sep { border:none; border-top:1px solid var(--border); margin:4px 0; }
     
     .app-sidebar { position:fixed; top:var(--header-h); left:0; bottom:0; width:var(--sidebar-w); background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow-y:auto; z-index:100; transition:all 0.2s; }
     .sidebar-nav { flex:1; padding:12px 8px; }
     .nav-group { font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--muted); padding:14px 10px 5px; }
-    .nav-btn { width:100%; background:none; border:none; color:var(--text2); text-align:left; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:0.83rem; font-weight:500; font-family:'Hanken Grotesk',sans-serif; transition:all 0.15s; display:flex; align-items:center; gap:9px; position:relative; }
+    .nav-btn { width:100%; background:none; border:none; color:var(--text2); text-align:left; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:0.83rem; font-weight:500; font-family:var(--font); transition:all 0.15s; display:flex; align-items:center; gap:9px; position:relative; }
     .nav-btn:hover { background:var(--surface2); color:var(--text); }
-    .nav-btn.active { background:var(--blue-dim); color:var(--blue); font-weight:600; }
-    .nav-btn.active::before { content:''; position:absolute; left:0; top:20%; bottom:20%; width:3px; background:var(--blue); border-radius:0 3px 3px 0; }
-    .nbadge { margin-left:auto; background:var(--red); color:white; font-size:0.6rem; font-weight:700; padding:1px 5px; border-radius:10px; min-width:16px; text-align:center; }
+    .nav-btn.active { background:var(--nd-terracota-dim); color:var(--nd-tinta); font-weight:700; }
+    .nav-btn.active .ic { color:var(--nd-terracota-hondo); }
+    .nav-btn.active::before { content:''; position:absolute; left:0; top:20%; bottom:20%; width:3px; background:var(--nd-terracota); border-radius:0 3px 3px 0; }
+    .nbadge { margin-left:auto; background:var(--nd-terracota-hondo); color:var(--nd-crema); font-size:0.6rem; font-weight:700; padding:1px 5px; border-radius:10px; min-width:16px; text-align:center; }
     .nbadge.new { background:var(--blue); }
     .sidebar-footer { padding:10px 8px; border-top:1px solid var(--border); }
-    .btn-logout { background:transparent; color:var(--muted); border:none; padding:8px 10px; border-radius:8px; cursor:pointer; width:100%; display:flex; align-items:center; gap:9px; font-size:0.83rem; font-family:'Hanken Grotesk',sans-serif; transition:all 0.15s; text-align:left; }
-    .btn-logout:hover { background:rgba(239,68,68,0.08); color:#f87171; }
+    .btn-logout { background:transparent; color:var(--muted); border:none; padding:8px 10px; border-radius:8px; cursor:pointer; width:100%; display:flex; align-items:center; gap:9px; font-size:0.83rem; font-family:var(--font); transition:all 0.15s; text-align:left; }
+    .btn-logout:hover { background:var(--nd-terracota-dim); color:var(--nd-terracota-hondo); }
     
     .app-main { margin-left:var(--sidebar-w); padding-top:var(--header-h); min-height:100vh; transition:all 0.2s; }
     .sw { padding:28px 32px; }
     .section { display:none; } .section.active { display:block; animation:fadeUp 0.2s ease; }
     
-    .bottom-nav { position:fixed; bottom:0; left:0; right:0; height:60px; background:var(--surface); border-top:1px solid var(--border); display:none; justify-content:space-around; align-items:center; z-index:800; box-shadow:0 -4px 16px rgba(0,0,0,0.15); }
-    .bottom-btn { background:none; border:none; color:var(--text2); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:0.65rem; font-weight:500; font-family:'Hanken Grotesk',sans-serif; gap:3px; cursor:pointer; flex:1; height:100%; transition:all 0.15s; }
-    .bottom-btn.active { color:var(--blue); }
+    .bottom-nav { position:fixed; bottom:0; left:0; right:0; height:60px; background:var(--surface); border-top:1px solid var(--border); display:none; justify-content:space-around; align-items:center; z-index:800; box-shadow:0 -4px 16px rgba(42,33,28,0.15); }
+    .bottom-btn { background:none; border:none; color:var(--text2); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:0.65rem; font-weight:500; font-family:var(--font); gap:3px; cursor:pointer; flex:1; height:100%; transition:all 0.15s; }
+    .bottom-btn.active { color:var(--nd-terracota-hondo); font-weight:700; }
     .bottom-btn-icon { font-size:1.2rem; }
     
     @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
@@ -87,12 +83,12 @@
     .badge-new { font-size:0.6rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; padding:2px 7px; border-radius:4px; background:var(--blue-dim); color:var(--blue); }
     .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; margin-bottom:24px; }
     .stat-card { background:var(--surface); border:1px solid var(--border); padding:16px 18px; border-radius:var(--radius); border-left:3px solid var(--blue); transition:all 0.2s; }
-    .stat-card:hover { transform:translateY(-2px); box-shadow:0 4px 16px rgba(0,0,0,0.2); }
+    .stat-card:hover { transform:translateY(-2px); box-shadow:0 4px 16px rgba(42,33,28,0.2); }
     .stat-card.purple{border-left-color:var(--purple)} .stat-card.amber{border-left-color:var(--amber)} .stat-card.red{border-left-color:var(--red)}
     .stat-label { font-size:0.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px; font-weight:600; }
     .stat-value { font-size:1.65rem; font-weight:800; letter-spacing:-0.02em; }
     .stat-chip { font-size:0.7rem; margin-top:5px; padding:2px 7px; border-radius:4px; display:inline-block; font-weight:600; }
-    .stat-chip.ok{background:var(--teal-dim);color:var(--teal)} .stat-chip.bad{background:rgba(239,68,68,0.1);color:#f87171} .stat-chip.warn{background:rgba(245,158,11,0.1);color:var(--amber)}
+    .stat-chip.ok{background:var(--teal-dim);color:var(--teal)} .stat-chip.bad{background:var(--nd-terracota-dim);color:var(--nd-terracota-hondo)} .stat-chip.warn{background:rgba(242,183,5,0.1);color:var(--amber)}
     
     .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:20px; }
     .twh { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--surface2); }
@@ -105,7 +101,7 @@
     .table thead th.sortable:hover { color:var(--text); }
     .table tbody td { padding:11px 14px; border-bottom:1px solid var(--border2); vertical-align:middle; }
     .table tbody tr:last-child td { border-bottom:none; }
-    .table tbody tr:hover { background:rgba(16,185,129,0.03); }
+    .table tbody tr:hover { background:rgba(47,111,94,0.03); }
     .table tbody tr.totales-row { background:var(--surface2); font-weight:700; }
     .tbl-empty { text-align:center; color:var(--muted); padding:32px 14px !important; font-size:0.85rem; }
     .state-dot { display:inline-flex; align-items:center; gap:6px; }
@@ -113,26 +109,25 @@
     .dot.ok{background:var(--teal)} .dot.pending{background:var(--amber)} .dot.danger{background:var(--red)} .dot.muted{background:var(--muted)}
     
     .badge { display:inline-block; padding:3px 9px; border-radius:20px; font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; }
-    .badge.ok{background:var(--teal-dim);color:var(--teal)} .badge.pending{background:rgba(245,158,11,0.12);color:var(--amber)} .badge.danger{background:rgba(239,68,68,0.12);color:#f87171} .badge.info{background:var(--blue-dim);color:var(--blue)} .badge.muted{background:var(--surface3);color:var(--muted)}
-    .btn { display:inline-flex; align-items:center; gap:6px; border:none; border-radius:8px; font-family:'Hanken Grotesk',sans-serif; font-weight:600; cursor:pointer; transition:all 0.2s; }
-    .btn-primary{background:var(--blue);color:white;padding:8px 18px;font-size:0.85rem} .btn-primary:hover{background:var(--blue-dark);transform:translateY(-1px);box-shadow:0 4px 14px rgba(47,111,94,0.35)}
+    .badge.ok{background:var(--teal-dim);color:var(--teal)} .badge.pending{background:rgba(242,183,5,0.12);color:var(--amber)} .badge.danger{background:var(--nd-terracota-dim);color:var(--nd-terracota-hondo)} .badge.info{background:var(--blue-dim);color:var(--blue)} .badge.muted{background:var(--surface3);color:var(--muted)}
+    .btn { display:inline-flex; align-items:center; gap:6px; border:none; border-radius:8px; font-family:var(--font); font-weight:600; cursor:pointer; transition:all 0.2s; }
+    .btn-primary{background:var(--accent);color:var(--accent-ink);padding:8px 18px;font-size:0.85rem} .btn-primary:hover{filter:brightness(1.05);transform:translateY(-1px);box-shadow:0 4px 14px rgba(232,115,74,0.35)}
     .btn-secondary{background:var(--surface2);color:var(--text2);padding:8px 16px;font-size:0.83rem;border:1px solid var(--border)} .btn-secondary:hover{background:var(--surface3);color:var(--text)}
-    .btn-danger{background:rgba(239,68,68,0.1);color:#f87171;padding:6px 14px;font-size:0.8rem} .btn-danger:hover{background:rgba(239,68,68,0.2)}
+    .btn-danger{background:var(--nd-terracota-dim);color:var(--nd-terracota-hondo);padding:6px 14px;font-size:0.8rem} .btn-danger:hover{background:rgba(232,115,74,.24)}
     .btn-sm{padding:5px 12px;font-size:0.78rem} .btn-xs{padding:3px 9px;font-size:0.72rem}
     .fg { margin-bottom:14px; }
     .fl { display:block; margin-bottom:5px; font-weight:600; font-size:0.78rem; color:var(--text2); }
-    .fc { border-radius:8px; border:1px solid var(--border); font-size:0.83rem; background:var(--surface2); color:var(--text); padding:8px 12px; font-family:'Hanken Grotesk',sans-serif; width:100%; outline:none; transition:border-color 0.2s; }
+    .fc { border-radius:8px; border:1px solid var(--border); font-size:0.83rem; background:var(--surface2); color:var(--text); padding:8px 12px; font-family:var(--font); width:100%; outline:none; transition:border-color 0.2s; }
     .fc:focus{border-color:var(--blue);background:var(--surface)}
-    :root.light .fc{background:#fafafa;color:#111120;border-color:rgba(0,0,0,0.12)} :root.light .fc:focus{border-color:var(--blue);background:#fff}
     .f-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
     .chart-box { background:var(--surface); border:1px solid var(--border); padding:20px; border-radius:var(--radius); margin-bottom:20px; }
     .chart-box h3 { font-size:0.88rem; font-weight:700; margin-bottom:14px; }
     .chart-box canvas { max-height:260px; }
     
     /* ── DRAWERS ── */
-    .drawer-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9000; display:none; justify-content:flex-end; }
+    .drawer-overlay { position:fixed; inset:0; background:rgba(42,33,28,.5); z-index:9000; display:none; justify-content:flex-end; }
     .drawer-overlay.open { display:flex; animation:fadeIn 0.2s ease; }
-    .drawer { width:460px; max-width:100vw; height:100%; background:var(--surface); border-left:1px solid var(--border); display:flex; flex-direction:column; box-shadow:-8px 0 32px rgba(0,0,0,.4); transform:translateX(100%); transition:transform 0.25s ease-out; }
+    .drawer { width:460px; max-width:100vw; height:100%; background:var(--surface); border-left:1px solid var(--border); display:flex; flex-direction:column; box-shadow:-8px 0 32px rgba(42,33,28,.4); transform:translateX(100%); transition:transform 0.25s ease-out; }
     .drawer-overlay.open .drawer { transform:translateX(0); }
     .drawer-header { display:flex; justify-content:space-between; align-items:center; padding:18px 20px; border-bottom:1px solid var(--border); }
     .drawer-header h3 { font-size:1rem; font-weight:700; margin:0; }
@@ -140,9 +135,9 @@
     .drawer-footer { padding:14px 20px; border-top:1px solid var(--border); display:flex; gap:10px; justify-content:flex-end; background:var(--surface2); position:sticky; bottom:0; }
     
     /* ── MODALS ── */
-    .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:9000; display:none; align-items:center; justify-content:center; padding:20px; }
+    .modal-overlay { position:fixed; inset:0; background:rgba(42,33,28,.6); z-index:9000; display:none; align-items:center; justify-content:center; padding:20px; }
     .modal-overlay.open{display:flex;animation:fadeIn .15s ease}
-    .modal-box { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); width:540px; max-width:96vw; max-height:90vh; overflow-y:auto; box-shadow:0 24px 60px rgba(0,0,0,.5); animation:modalIn .2s ease; }
+    .modal-box { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); width:540px; max-width:96vw; max-height:90vh; overflow-y:auto; box-shadow:0 24px 60px rgba(42,33,28,.5); animation:modalIn .2s ease; }
     .mh{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--border)}
     .mh h3{font-size:1rem;font-weight:700;margin:0}
     .mc{background:none;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer;padding:2px 6px;border-radius:5px}
@@ -152,14 +147,14 @@
     
     /* ── DRAG & DROP ── */
     .dropzone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 24px 16px; text-align: center; background: var(--surface2); cursor: pointer; transition: all 0.2s; position: relative; margin-bottom: 14px; }
-    .dropzone:hover, .dropzone.dragover { border-color: var(--blue); background: rgba(62, 123, 250, 0.04); }
+    .dropzone:hover, .dropzone.dragover { border-color: var(--blue); background: rgba(232,115,74,0.04); }
     .dropzone-text { font-size: 0.8rem; color: var(--text2); margin-top: 6px; }
     .dropzone-preview { display: none; align-items: center; justify-content: space-between; background: var(--surface3); padding: 8px 12px; border-radius: 6px; margin-top: 10px; font-size: 0.8rem; border: 1px solid var(--border); }
     .dropzone-preview span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%; }
     .dropzone-remove { color: var(--red); background: none; border: none; font-weight: 600; cursor: pointer; font-size: 0.75rem; }
     
     .toast-container{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column-reverse;gap:8px}
-    .toast{padding:10px 16px;border-radius:9px;font-size:0.82rem;font-weight:500;color:white;box-shadow:0 4px 20px rgba(0,0,0,.3);max-width:320px;animation:toastIn .25s ease,toastOut .3s ease 2.8s forwards}
+    .toast{padding:10px 16px;border-radius:var(--r-md);font-size:0.82rem;font-weight:600;color:var(--nd-crema);box-shadow:var(--shadow-window);max-width:320px;animation:toastIn .25s ease,toastOut .3s ease 2.8s forwards}
     .toast.ok{background:var(--teal)} .toast.err{background:var(--red)} .toast.info{background:var(--blue)} .toast.warn{background:var(--amber)}
     
     .md-layout{display:grid;grid-template-columns:290px 1fr;gap:16px;height:calc(100vh - var(--header-h) - 120px)}
@@ -175,7 +170,7 @@
     .md-empty-icon{font-size:3rem;opacity:0.3}
     
     .acc-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden}
-    .acc-btn{width:100%;background:none;border:none;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:0.9rem;font-weight:600;color:var(--text);font-family:'Hanken Grotesk',sans-serif;text-align:left;transition:background 0.15s}
+    .acc-btn{width:100%;background:none;border:none;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:0.9rem;font-weight:600;color:var(--text);font-family:var(--font);text-align:left;transition:background 0.15s}
     .acc-btn:hover{background:var(--surface2)}
     .acc-arr{transition:transform 0.25s;font-size:0.7rem;color:var(--muted)}
     .acc-btn.open .acc-arr{transform:rotate(180deg)}
@@ -184,7 +179,7 @@
     
     .full-overlay{position:fixed;inset:0;background:var(--bg);z-index:99999;display:none;align-items:center;justify-content:center;padding:20px}
     .full-overlay.visible{display:flex}
-    .ov-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:36px;width:500px;max-width:96vw;box-shadow:0 20px 60px rgba(0,0,0,.5);text-align:center}
+    .ov-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:36px;width:500px;max-width:96vw;box-shadow:0 20px 60px rgba(42,33,28,.5);text-align:center}
     .ov-icon{font-size:3rem;margin-bottom:16px}
     .ov-title{font-size:1.5rem;font-weight:800;margin-bottom:10px}
     .ov-sub{color:var(--muted);font-size:0.9rem;margin-bottom:24px;line-height:1.6}
@@ -198,12 +193,12 @@
     .vot-bar-f{height:100%;border-radius:3px;transition:width 0.6s ease}
     .vot-bar-f.yes{background:var(--teal)} .vot-bar-f.no{background:var(--red)} .vot-bar-f.abs{background:var(--muted)}
     .vot-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-    .vot-btn{flex:1;min-width:80px;padding:7px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-size:0.82rem;font-family:'Hanken Grotesk',sans-serif;font-weight:600;transition:all 0.15s}
+    .vot-btn{flex:1;min-width:80px;padding:7px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-size:0.82rem;font-family:var(--font);font-weight:600;transition:all 0.15s}
     .vot-btn:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-dim)}
     .vot-btn.voted{background:var(--teal-dim);color:var(--teal);border-color:var(--teal);cursor:default}
     
-    .slot-taken{background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;padding:6px 12px;border-radius:6px;font-size:0.8rem;display:flex;align-items:center;gap:8px;margin-bottom:6px}
-    .slot-free{background:var(--teal-dim);border:1px solid rgba(32,154,105,0.2);color:var(--teal);padding:6px 12px;border-radius:6px;font-size:0.8rem}
+    .slot-taken{background:var(--nd-terracota-dim);border:1px solid rgba(232,115,74,.28);color:var(--nd-terracota-hondo);padding:6px 12px;border-radius:6px;font-size:0.8rem;display:flex;align-items:center;gap:8px;margin-bottom:6px}
+    .slot-free{background:var(--teal-dim);border:1px solid rgba(47,111,94,0.2);color:var(--teal);padding:6px 12px;border-radius:6px;font-size:0.8rem}
     .medio-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
     .medio-nom{font-weight:700;font-size:0.86rem;margin-bottom:2px}
     .medio-desc{font-size:0.78rem;color:var(--muted);line-height:1.5}
@@ -222,9 +217,10 @@
     </style>
 </head>
 <body>
+{% include '_icons.html' %}
 <div class="full-overlay" id="onboarding-overlay">
     <div class="ov-card">
-        <div class="ov-icon">🏢</div>
+        <div class="ov-icon"><svg class="ic ic-xl"><use href="#ic-edificio"></use></svg></div>
         <div class="ov-title">¡Bienvenido a Niddo!</div>
         <div class="ov-sub">Para acceder al dashboard, asociá tu cuenta a tu consorcio y unidad funcional.</div>
         <div style="text-align:left;margin-bottom:18px">
@@ -232,7 +228,7 @@
             <div class="fg"><label class="fl">2. Unidad Funcional</label><select id="ob-uf" class="fc" disabled><option value="">Seleccioná un consorcio primero</option></select></div>
             <div class="fg"><label class="fl">3. Tu rol</label><select id="ob-rol" class="fc"><option value="propietario">Propietario / Dueño</option><option value="inquilino">Inquilino</option></select></div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><input type="checkbox" id="ob-nouf" onchange="toggleNoUF()" style="width:16px;height:16px;cursor:pointer"><label for="ob-nouf" style="font-size:0.83rem;cursor:pointer">No encuentro mi unidad (asignación manual)</label></div>
-            <div id="ob-nouf-msg" style="display:none;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);padding:10px;border-radius:8px;font-size:0.8rem;color:var(--amber);line-height:1.4;margin-bottom:8px">⚠️ Tu acceso quedará pendiente hasta que el administrador te asigne una unidad.</div>
+            <div id="ob-nouf-msg" style="display:none;background:rgba(242,183,5,0.08);border:1px solid rgba(242,183,5,0.2);padding:10px;border-radius:8px;font-size:0.8rem;color:var(--amber);line-height:1.4;margin-bottom:8px"><svg class="ic ic-sm"><use href="#ic-alerta"></use></svg>Tu acceso quedará pendiente hasta que el administrador te asigne una unidad.</div>
         </div>
         <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px" onclick="guardarAsociacion()">Asociar y Comenzar →</button>
     </div>
@@ -242,21 +238,19 @@
         <div class="ov-icon">⏳</div>
         <div class="ov-title">Solicitud en Espera</div>
         <div class="ov-sub">Tu solicitud fue enviada. El administrador del edificio debe asignarte una unidad antes de continuar.</div>
-        <button class="btn btn-secondary" style="width:100%;justify-content:center" onclick="window.location.href='/auth/logout'">↩ Cerrar Sesión</button>
+        <button class="btn btn-secondary" style="width:100%;justify-content:center" onclick="window.location.href='/auth/logout'"><svg class="ic"><use href="#ic-salir"></use></svg>Cerrar Sesión</button>
     </div>
 </div>
 
 <header class="app-header">
     <div class="header-brand">
-        <div class="header-logo">🏠</div>
-        <div class="header-brand-text"><span>Niddo</span></div>
+        <a href="/" class="nd-logo header-brand-text">nidd<span class="o">o</span></a>
     </div>
     <div class="header-center">
         <span id="hbadge-con" class="hbadge-con" style="display:none"></span>
         <span id="hbadge-uf"  class="hbadge-uf"  style="display:none"></span>
     </div>
     <div class="header-actions">
-        <button class="hbtn" id="btn-theme">🌙</button>
         <div class="user-drop">
             <button class="user-av" id="btn-av" onclick="toggleDd()">?</button>
             <div class="dd-menu" id="dd-menu">
@@ -264,9 +258,9 @@
                     <div style="font-weight:700;font-size:0.85rem" id="dd-name">–</div>
                     <div style="color:var(--muted);font-size:0.75rem" id="dd-email">–</div>
                 </div>
-                <button class="dd-item" onclick="showSection('perfil')">👤 Mi Perfil</button>
+                <button class="dd-item" onclick="showSection('perfil')"><svg class="ic"><use href="#ic-vecino"></use></svg>Mi Perfil</button>
                 <hr class="dd-sep">
-                <a class="dd-item danger" href="/auth/logout">↩ Cerrar Sesión</a>
+                <a class="dd-item danger" href="/auth/logout"><svg class="ic"><use href="#ic-salir"></use></svg>Cerrar Sesión</a>
             </div>
         </div>
     </div>
@@ -275,35 +269,35 @@
 <aside class="app-sidebar" id="sidebar">
     <nav class="sidebar-nav">
         <span class="nav-group">Principal</span>
-        <button class="nav-btn active" id="nav-inicio"      onclick="showSection('inicio')">🏠 Inicio</button>
-        <button class="nav-btn"        id="nav-comunicados" onclick="showSection('comunicados')">📢 Comunicados <span class="nbadge" id="nbadge-com" style="display:none">0</span></button>
+        <button class="nav-btn active" id="nav-inicio"      onclick="showSection('inicio')"><svg class="ic"><use href="#ic-edificio"></use></svg>Inicio</button>
+        <button class="nav-btn"        id="nav-comunicados" onclick="showSection('comunicados')"><svg class="ic"><use href="#ic-megafono"></use></svg>Comunicados <span class="nbadge" id="nbadge-com" style="display:none">0</span></button>
         <span class="nav-group">Finanzas</span>
-        <button class="nav-btn"        id="nav-expensas"    onclick="showSection('expensas')">🧾 Expensas</button>
-        <button class="nav-btn"        id="nav-gastos"      onclick="showSection('gastos')">📊 Reporte de Gastos</button>
+        <button class="nav-btn"        id="nav-expensas"    onclick="showSection('expensas')"><svg class="ic"><use href="#ic-expensa"></use></svg>Expensas</button>
+        <button class="nav-btn"        id="nav-gastos"      onclick="showSection('gastos')"><svg class="ic"><use href="#ic-balance"></use></svg>Reporte de Gastos</button>
         <span class="nav-group">Comunidad</span>
-        <button class="nav-btn"        id="nav-reclamos"    onclick="showSection('reclamos')">⚠️ Reclamos <span class="nbadge" id="nbadge-rec" style="display:none">0</span></button>
-        <button class="nav-btn"        id="nav-votaciones"  onclick="showSection('votaciones')">🗳️ Votaciones <span class="nbadge new" id="nbadge-vot" style="display:none">0</span></button>
-        <button class="nav-btn"        id="nav-reservas"    onclick="showSection('reservas')">📅 Reservas</button>
-        <button class="nav-btn"        id="nav-archivos"    onclick="showSection('archivos')">📁 Archivos</button>
+        <button class="nav-btn"        id="nav-reclamos"    onclick="showSection('reclamos')"><svg class="ic"><use href="#ic-alerta"></use></svg>Reclamos <span class="nbadge" id="nbadge-rec" style="display:none">0</span></button>
+        <button class="nav-btn"        id="nav-votaciones"  onclick="showSection('votaciones')"><svg class="ic"><use href="#ic-urna"></use></svg>Votaciones <span class="nbadge new" id="nbadge-vot" style="display:none">0</span></button>
+        <button class="nav-btn"        id="nav-reservas"    onclick="showSection('reservas')"><svg class="ic"><use href="#ic-reserva"></use></svg>Reservas</button>
+        <button class="nav-btn"        id="nav-archivos"    onclick="showSection('archivos')"><svg class="ic"><use href="#ic-carpeta"></use></svg>Archivos</button>
     </nav>
     <div class="sidebar-footer">
-        <button class="btn-logout" onclick="window.location.href='/auth/logout'">↩ Cerrar Sesión</button>
+        <button class="btn-logout" onclick="window.location.href='/auth/logout'"><svg class="ic"><use href="#ic-salir"></use></svg>Cerrar Sesión</button>
     </div>
 </aside>
 
 <nav class="bottom-nav">
-    <button class="bottom-btn active" id="bnav-inicio" onclick="showSection('inicio')"><span class="bottom-btn-icon">🏠</span><span>Inicio</span></button>
-    <button class="bottom-btn" id="bnav-comunicados" onclick="showSection('comunicados')"><span class="bottom-btn-icon">📢</span><span>Avisos</span></button>
-    <button class="bottom-btn" id="bnav-expensas" onclick="showSection('expensas')"><span class="bottom-btn-icon">🧾</span><span>Expensas</span></button>
-    <button class="bottom-btn" id="bnav-reclamos" onclick="showSection('reclamos')"><span class="bottom-btn-icon">⚠️</span><span>Reclamos</span></button>
-    <button class="bottom-btn" id="bnav-reservas" onclick="showSection('reservas')"><span class="bottom-btn-icon">📅</span><span>Reservas</span></button>
+    <button class="bottom-btn active" id="bnav-inicio" onclick="showSection('inicio')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-edificio"></use></svg></span><span>Inicio</span></button>
+    <button class="bottom-btn" id="bnav-comunicados" onclick="showSection('comunicados')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-megafono"></use></svg></span><span>Avisos</span></button>
+    <button class="bottom-btn" id="bnav-expensas" onclick="showSection('expensas')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-expensa"></use></svg></span><span>Expensas</span></button>
+    <button class="bottom-btn" id="bnav-reclamos" onclick="showSection('reclamos')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-alerta"></use></svg></span><span>Reclamos</span></button>
+    <button class="bottom-btn" id="bnav-reservas" onclick="showSection('reservas')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-reserva"></use></svg></span><span>Reservas</span></button>
 </nav>
 
 <main class="app-main">
 
 <!-- INICIO -->
 <div id="section-inicio" class="section active sw">
-    <div class="pg-head"><div class="pg-title">🏠 Mi Dashboard</div><div class="pg-sub" id="ini-sub">Resumen de tu actividad en el consorcio</div></div>
+    <div class="pg-head"><div class="pg-title"><svg class="ic"><use href="#ic-edificio"></use></svg>Mi Dashboard</div><div class="pg-sub" id="ini-sub">Resumen de tu actividad en el consorcio</div></div>
     <div class="stats-grid">
         <div class="stat-card amber"><div class="stat-label">Próximo Vencimiento</div><div class="stat-value" id="kpi-venc">–</div><div class="stat-chip warn" id="kpi-venc-chip">–</div></div>
         <div class="stat-card red"><div class="stat-label">Monto Adeudado</div><div class="stat-value" id="kpi-deuda">–</div><div class="stat-chip" id="kpi-deuda-chip">–</div></div>
@@ -317,13 +311,13 @@
             <div id="wgt-cobro" style="color:var(--muted);font-size:0.85rem">Cargando...</div>
         </div>
         <div class="table-wrap" style="margin:0;padding:24px">
-            <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:12px">💰 Medios de Pago</h3>
+            <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:12px"><svg class="ic"><use href="#ic-cobro"></use></svg>Medios de Pago</h3>
             <div id="wgt-medios" style="color:var(--muted);font-size:0.85rem">Cargando...</div>
         </div>
     </div>
     
     <div class="table-wrap">
-        <div class="twh"><h3>📢 Comunicados Recientes</h3><button class="btn btn-secondary btn-sm" onclick="showSection('comunicados')">Ver todos</button></div>
+        <div class="twh"><h3><svg class="ic"><use href="#ic-megafono"></use></svg>Comunicados Recientes</h3><button class="btn btn-secondary btn-sm" onclick="showSection('comunicados')">Ver todos</button></div>
         <div id="ini-coms" style="padding:0 16px 16px"><div style="color:var(--muted);font-size:0.85rem;padding:20px 0;text-align:center">Cargando...</div></div>
     </div>
 </div>
@@ -331,26 +325,26 @@
 <!-- COMUNICADOS -->
 <div id="section-comunicados" class="section sw">
     <div class="pg-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-        <div><div class="pg-title">📢 Comunicados</div><div class="pg-sub">Novedades y avisos de la administración</div></div>
+        <div><div class="pg-title"><svg class="ic"><use href="#ic-megafono"></use></svg>Comunicados</div><div class="pg-sub">Novedades y avisos de la administración</div></div>
         <div style="display:flex;gap:8px">
             <button class="btn btn-secondary btn-sm" onclick="filterComs('all')">Todos</button>
             <button class="btn btn-secondary btn-sm" onclick="filterComs('importantes')">⭐ Importantes</button>
-            <button class="btn btn-secondary btn-sm" onclick="filterComs('no_leidos')">🔵 No Leídos</button>
+            <button class="btn btn-secondary btn-sm" onclick="filterComs('no_leidos')">No Leídos</button>
         </div>
     </div>
     <div class="md-layout">
         <div class="md-list" id="com-list"><div style="padding:20px;color:var(--muted);text-align:center;font-size:0.85rem">Cargando...</div></div>
-        <div class="md-detail" id="com-detail"><div class="md-empty"><div class="md-empty-icon">📢</div><div>Seleccioná un comunicado para leerlo</div></div></div>
+        <div class="md-detail" id="com-detail"><div class="md-empty"><div class="md-empty-icon"><svg class="ic ic-xl"><use href="#ic-megafono"></use></svg></div><div>Seleccioná un comunicado para leerlo</div></div></div>
     </div>
 </div>
 
 <!-- EXPENSAS -->
 <div id="section-expensas" class="section sw">
     <div class="pg-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-        <div><div class="pg-title">🧾 Mis Expensas</div><div class="pg-sub">Cuenta corriente, historial y pagos</div></div>
+        <div><div class="pg-title"><svg class="ic"><use href="#ic-expensa"></use></svg>Mis Expensas</div><div class="pg-sub">Cuenta corriente, historial y pagos</div></div>
         <div style="display:flex;gap:8px;align-items:center">
             <div><label class="fl" style="margin:0 6px 0 0;font-size:0.75rem">Desde</label><input type="date" id="exp-desde" class="fc" style="width:140px" onchange="loadCobros()"></div>
-            <button class="btn btn-primary" onclick="openDrawer('drawer-pago')">💳 Informar Pago</button>
+            <button class="btn btn-primary" onclick="openDrawer('drawer-pago')"><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>Informar Pago</button>
         </div>
     </div>
     <div class="stats-grid">
@@ -389,13 +383,13 @@
 
 <!-- REPORTE GASTOS -->
 <div id="section-gastos" class="section sw">
-    <div class="pg-head"><div class="pg-title">📊 Reporte de Gastos</div><div class="pg-sub">Gastos del consorcio — transparencia total</div></div>
+    <div class="pg-head"><div class="pg-title"><svg class="ic"><use href="#ic-balance"></use></svg>Reporte de Gastos</div><div class="pg-sub">Gastos del consorcio — transparencia total</div></div>
     <div class="table-wrap" style="padding:16px;margin-bottom:16px">
         <div class="f-row" style="align-items:flex-end">
             <div class="fg" style="margin-bottom:0"><label class="fl">Desde</label><input type="date" id="gas-desde" class="fc" onchange="loadGastos()"></div>
             <div class="fg" style="margin-bottom:0"><label class="fl">Hasta</label><input type="date" id="gas-hasta" class="fc" onchange="loadGastos()"></div>
             <div class="fg" style="margin-bottom:0"><label class="fl">Categoría</label><select id="gas-cat" class="fc" onchange="loadGastos()"><option value="">Todas</option><option value="electricidad">Electricidad</option><option value="gas">Gas</option><option value="agua">Agua</option><option value="limpieza">Limpieza</option><option value="ascensor">Ascensor</option><option value="seguro">Seguro</option><option value="honorarios">Honorarios</option><option value="otro">Otro</option></select></div>
-            <button class="btn btn-secondary" onclick="loadGastos()">🔍 Filtrar</button>
+            <button class="btn btn-secondary" onclick="loadGastos()"><svg class="ic ic-sm"><use href="#ic-buscar"></use></svg>Filtrar</button>
         </div>
     </div>
     
@@ -413,7 +407,7 @@
                     <th class="sortable" onclick="sortTable(4, 'table-gastos')">Monto ↕</th>
                     <th class="sortable" onclick="sortTable(5, 'table-gastos')">Venc. ↕</th>
                     <th>Pagado</th>
-                    <th>📎</th>
+                    <th><span class="sr-only">Adjunto</span></th>
                 </tr>
             </thead>
             <tbody id="tb-gastos">
@@ -426,7 +420,7 @@
 <!-- RECLAMOS -->
 <div id="section-reclamos" class="section sw">
     <div class="pg-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-        <div><div class="pg-title">⚠️ Reclamos</div><div class="pg-sub">Presentá y gestioná tus reclamos ante la administración</div></div>
+        <div><div class="pg-title"><svg class="ic"><use href="#ic-alerta"></use></svg>Reclamos</div><div class="pg-sub">Presentá y gestioná tus reclamos ante la administración</div></div>
         <div style="display:flex;gap:8px;align-items:center">
             <select id="rec-filter" class="fc" style="width:140px" onchange="loadReclamos()"><option value="">Todos</option><option value="activo">Activos</option><option value="en_proceso">En proceso</option><option value="resuelto">Resueltos</option><option value="cerrado">Cerrados</option></select>
             <button class="btn btn-primary" onclick="openDrawer('drawer-reclamo')">+ Nuevo Reclamo</button>
@@ -434,16 +428,16 @@
     </div>
     <div class="md-layout">
         <div class="md-list" id="rec-list"><div style="padding:20px;color:var(--muted);text-align:center;font-size:0.85rem">Cargando...</div></div>
-        <div class="md-detail" id="rec-detail"><div class="md-empty"><div class="md-empty-icon">⚠️</div><div>Seleccioná un reclamo para ver el detalle</div></div></div>
+        <div class="md-detail" id="rec-detail"><div class="md-empty"><div class="md-empty-icon"><svg class="ic ic-xl"><use href="#ic-alerta"></use></svg></div><div>Seleccioná un reclamo para ver el detalle</div></div></div>
     </div>
 </div>
 
 <!-- VOTACIONES -->
 <div id="section-votaciones" class="section sw">
-    <div class="pg-head"><div class="pg-title">🗳️ Votaciones <span class="badge-new">Participá</span></div><div class="pg-sub">Decidí junto a tus vecinos en asambleas digitales</div></div>
+    <div class="pg-head"><div class="pg-title"><svg class="ic"><use href="#ic-urna"></use></svg>Votaciones <span class="badge-new">Participá</span></div><div class="pg-sub">Decidí junto a tus vecinos en asambleas digitales</div></div>
     <div style="display:flex;gap:8px;margin-bottom:18px">
-        <button class="btn btn-secondary btn-sm" onclick="filterVots('activa')">✅ Activas</button>
-        <button class="btn btn-secondary btn-sm" onclick="filterVots('cerrada')">📦 Finalizadas</button>
+        <button class="btn btn-secondary btn-sm" onclick="filterVots('activa')">Activas</button>
+        <button class="btn btn-secondary btn-sm" onclick="filterVots('cerrada')">Finalizadas</button>
         <button class="btn btn-secondary btn-sm" onclick="filterVots('')">Todas</button>
     </div>
     <div id="vot-container"><div style="color:var(--muted);text-align:center;padding:40px;font-size:0.88rem">Cargando votaciones...</div></div>
@@ -451,7 +445,7 @@
 
 <!-- RESERVAS -->
 <div id="section-reservas" class="section sw">
-    <div class="pg-head"><div class="pg-title">📅 Reservas de Amenities</div><div class="pg-sub">Consultá disponibilidad y reservá espacios comunes</div></div>
+    <div class="pg-head"><div class="pg-title"><svg class="ic"><use href="#ic-reserva"></use></svg>Reservas de Amenities</div><div class="pg-sub">Consultá disponibilidad y reservá espacios comunes</div></div>
     <div class="table-wrap" style="padding:20px;margin-bottom:18px">
         <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:16px">Nueva Reserva</h3>
         <div class="f-row">
@@ -461,8 +455,8 @@
             <div class="fg" style="margin-bottom:0"><label class="fl">Hora Fin</label><input type="time" id="res-hf" class="fc"></div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap">
-            <button class="btn btn-primary" onclick="realizarReserva()">✔ Confirmar Reserva</button>
-            <button class="btn btn-secondary btn-sm" id="btn-cond" onclick="verCondiciones()" disabled>📖 Condiciones</button>
+            <button class="btn btn-primary" onclick="realizarReserva()"><svg class="ic ic-sm"><use href="#ic-pagado"></use></svg>Confirmar Reserva</button>
+            <button class="btn btn-secondary btn-sm" id="btn-cond" onclick="verCondiciones()" disabled><svg class="ic ic-sm"><use href="#ic-doc"></use></svg>Condiciones</button>
             <span id="am-desc" style="font-size:0.82rem;color:var(--muted)">Seleccioná un espacio para ver los detalles</span>
         </div>
     </div>
@@ -480,10 +474,10 @@
 <!-- ARCHIVOS -->
 <div id="section-archivos" class="section sw">
     <div class="pg-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-        <div><div class="pg-title">📁 Archivos del Consorcio</div><div class="pg-sub">Documentos, reglamentos y comprobantes</div></div>
+        <div><div class="pg-title"><svg class="ic"><use href="#ic-carpeta"></use></svg>Archivos del Consorcio</div><div class="pg-sub">Documentos, reglamentos y comprobantes</div></div>
         <div style="display:flex;gap:8px">
-            <button class="btn btn-secondary btn-xs" onclick="toggleAllAccordions(true)">📂 Expandir Todo</button>
-            <button class="btn btn-secondary btn-xs" onclick="toggleAllAccordions(false)">📁 Colapsar Todo</button>
+            <button class="btn btn-secondary btn-xs" onclick="toggleAllAccordions(true)"><svg class="ic ic-sm"><use href="#ic-carpeta"></use></svg>Expandir Todo</button>
+            <button class="btn btn-secondary btn-xs" onclick="toggleAllAccordions(false)"><svg class="ic ic-sm"><use href="#ic-carpeta"></use></svg>Colapsar Todo</button>
         </div>
     </div>
     <div id="archivos-acc"></div>
@@ -491,7 +485,7 @@
 
 <!-- PERFIL -->
 <div id="section-perfil" class="section sw">
-    <div class="pg-head"><div class="pg-title">👤 Mi Perfil</div><div class="pg-sub">Tus datos y unidades registradas</div></div>
+    <div class="pg-head"><div class="pg-title"><svg class="ic"><use href="#ic-vecino"></use></svg>Mi Perfil</div><div class="pg-sub">Tus datos y unidades registradas</div></div>
     <div class="table-wrap" style="padding:20px;max-width:560px"><div id="perfil-content" style="color:var(--muted);font-size:0.85rem">Cargando...</div></div>
 </div>
 
@@ -503,8 +497,8 @@
 <div class="drawer-overlay" id="drawer-pago">
     <div class="drawer">
         <div class="drawer-header">
-            <h3>💳 Informar Pago</h3>
-            <button class="mc" onclick="closeDrawer('drawer-pago')">✕</button>
+            <h3><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>Informar Pago</h3>
+            <button class="mc" onclick="closeDrawer('drawer-pago')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
         </div>
         <div class="drawer-body">
             <!-- Contextual Read Only Data -->
@@ -549,7 +543,7 @@
                 <div class="fg">
                     <label class="fl">Comprobante de Pago *</label>
                     <div class="dropzone" id="dz-pago" onclick="document.getElementById('pg-comp').click()">
-                        <div>📂 Arrastrá tu comprobante o hacé click aquí</div>
+                        <div><svg class="ic ic-sm"><use href="#ic-carpeta"></use></svg>Arrastrá tu comprobante o hacé click aquí</div>
                         <div class="dropzone-text">Soporta imágenes y PDF (Máx. 5MB)</div>
                         <input type="file" id="pg-comp" style="display:none" accept=".pdf,image/*" onchange="handleFileSelect(this, 'dz-pago')">
                     </div>
@@ -572,8 +566,8 @@
 <div class="drawer-overlay" id="drawer-reclamo">
     <div class="drawer">
         <div class="drawer-header">
-            <h3>⚠️ Nuevo Reclamo</h3>
-            <button class="mc" onclick="closeDrawer('drawer-reclamo')">✕</button>
+            <h3><svg class="ic"><use href="#ic-alerta"></use></svg>Nuevo Reclamo</h3>
+            <button class="mc" onclick="closeDrawer('drawer-reclamo')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
         </div>
         <div class="drawer-body">
             <!-- Contextual Read Only Data -->
@@ -611,7 +605,7 @@
                 <div class="fg">
                     <label class="fl">Adjuntar Foto o Evidencia</label>
                     <div class="dropzone" id="dz-rec" onclick="document.getElementById('rc-adj').click()">
-                        <div>📸 Arrastrá una foto/documento o hacé click aquí</div>
+                        <div><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>Arrastrá una foto/documento o hacé click aquí</div>
                         <div class="dropzone-text">Soporta imágenes y PDF (Máx. 5MB)</div>
                         <input type="file" id="rc-adj" style="display:none" accept="image/*,.pdf" onchange="handleFileSelect(this, 'dz-rec')">
                     </div>
@@ -632,7 +626,7 @@
 <!-- Modal Condiciones Amenity -->
 <div class="modal-overlay" id="modal-cond">
     <div class="modal-box">
-        <div class="mh"><h3 id="cond-titulo">Condiciones de Uso</h3><button class="mc" onclick="closeModal('modal-cond')">✕</button></div>
+        <div class="mh"><h3 id="cond-titulo">Condiciones de Uso</h3><button class="mc" onclick="closeModal('modal-cond')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="mb"><div id="cond-body" style="white-space:pre-wrap;font-size:0.88rem;line-height:1.7;color:var(--text2)">Sin condiciones.</div></div>
         <div class="mf"><button class="btn btn-primary" onclick="closeModal('modal-cond')">Cerrar</button></div>
     </div>
@@ -664,8 +658,6 @@ document.addEventListener('click', e => {
 
 function toggleDd(){document.getElementById('dd-menu').classList.toggle('open')}
 document.addEventListener('click',e=>{const dd=document.getElementById('dd-menu');if(!document.getElementById('btn-av').contains(e.target)&&dd.classList.contains('open'))dd.classList.remove('open')});
-document.getElementById('btn-theme').addEventListener('click',()=>{document.documentElement.classList.toggle('light');const l=document.documentElement.classList.contains('light');document.getElementById('btn-theme').textContent=l?'🌙':'☀️';localStorage.setItem('niddo-theme',l?'light':'dark')});
-if(localStorage.getItem('niddo-theme')!=='dark'){document.documentElement.classList.add('light');document.getElementById('btn-theme').textContent='🌙'}
 
 function showSection(name){
     document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
@@ -706,7 +698,7 @@ async function init(){
         // en un loop de refrescos infinito — mejor mostrar un error.
         if(e.status===401||e.status===403){window.location.href='/login';return}
         document.body.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:14px;text-align:center;padding:20px">'+
-            '<div style="font-size:2.5rem">⚠️</div>'+
+            '<div style="color:var(--nd-terracota-hondo)"><svg class="ic ic-xl"><use href="#ic-alerta"></use></svg></div>'+
             '<div style="font-weight:800;font-size:1.1rem">No pudimos cargar tu panel</div>'+
             '<div style="color:var(--muted);font-size:0.9rem;max-width:340px">'+(e.message||'Error de conexión')+'</div>'+
             '<button class="btn btn-primary" onclick="location.reload()">Reintentar</button>'+
@@ -777,7 +769,7 @@ function renderCobroWgt(cobro){
             <span style="font-size:0.8rem;color:var(--text2)">Vence el ${venc} (Período: ${cobro.periodo||'–'})</span>
         </div>
         <div style="display:flex;align-items:center;gap:12px">
-            <button class="btn btn-primary" onclick="openDrawer('drawer-pago')">💳 Informar Pago</button>
+            <button class="btn btn-primary" onclick="openDrawer('drawer-pago')"><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>Informar Pago</button>
             <a href="/api/vecinos/cobros/${cobro.id}/cupon" target="_blank" style="color:var(--blue);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:4px">
                 <span>⬇ Descargar Cupón</span>
             </a>
@@ -790,12 +782,12 @@ function renderMediosWgt(medios){
     el.innerHTML = medios.map((m, idx) => `
         <div class="acc-item" style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px">
             <button class="acc-btn" onclick="toggleAcc(this)" style="padding:10px 14px;font-size:0.85rem">
-                <span>💳 ${m.nombre}</span>
+                <span><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>${m.nombre}</span>
                 <span class="acc-arr">▼</span>
             </button>
             <div class="acc-body" style="padding:12px 14px;background:var(--surface2)">
                 <p style="font-size:0.82rem;color:var(--text2);line-height:1.5;margin-bottom:8px">${m.descripcion||''}</p>
-                <button class="btn btn-secondary btn-xs" onclick="copiarTexto('${m.descripcion?.replace(/'/g, "\\'").replace(/\n/g, " ")}', this)">📋 Copiar Datos</button>
+                <button class="btn btn-secondary btn-xs" onclick="copiarTexto('${m.descripcion?.replace(/'/g, "\\'").replace(/\n/g, " ")}', this)"><svg class="ic ic-sm"><use href="#ic-doc"></use></svg>Copiar Datos</button>
             </div>
         </div>
     `).join('');
@@ -804,7 +796,7 @@ function renderMediosWgt(medios){
 function copiarTexto(texto, btn){
     navigator.clipboard.writeText(texto).then(()=>{
         const originalText = btn.textContent;
-        btn.textContent = '✅ Copiado!';
+        btn.textContent = 'Copiado';
         toast('Datos copiados al portapapeles', 'ok');
         setTimeout(()=>btn.textContent = originalText, 2000);
     }).catch(()=>{
@@ -848,9 +840,9 @@ async function loadBadges(){try{const v=await api('/api/votaciones?estado=activa
 
 async function loadComs(){
     document.getElementById('com-list').innerHTML='<div style="padding:20px;color:var(--muted);text-align:center;font-size:0.85rem">Cargando...</div>';
-    try{let url='/api/comunicados';if(S.comFilter==='importantes')url+='?importante=true';else if(S.comFilter==='no_leidos')url+='?no_leidos=true';S.coms=await api(url);renderComsList()}catch(e){document.getElementById('com-list').innerHTML='<div style="padding:20px;color:#f87171;text-align:center">Error al cargar</div>'}
+    try{let url='/api/comunicados';if(S.comFilter==='importantes')url+='?importante=true';else if(S.comFilter==='no_leidos')url+='?no_leidos=true';S.coms=await api(url);renderComsList()}catch(e){document.getElementById('com-list').innerHTML='<div style="padding:20px;color:var(--nd-terracota-hondo);text-align:center">Error al cargar</div>'}
 }
-function filterComs(f){S.comFilter=f;document.getElementById('com-detail').innerHTML='<div class="md-empty"><div class="md-empty-icon">📢</div><div>Seleccioná un comunicado</div></div>';loadComs()}
+function filterComs(f){S.comFilter=f;document.getElementById('com-detail').innerHTML='<div class="md-empty"><div class="md-empty-icon"><svg class="ic ic-xl"><use href="#ic-megafono"></use></svg></div><div>Seleccioná un comunicado</div></div>';loadComs()}
 function renderComsList(){
     const el=document.getElementById('com-list');
     if(!S.coms.length){el.innerHTML='<div style="padding:24px;color:var(--muted);text-align:center;font-size:0.85rem">Sin comunicados</div>';return}
@@ -929,9 +921,9 @@ function updateKpisCobro(cobros){
 function renderExpChart(){
     const ctx=document.getElementById('chart-exp');if(!ctx)return;
     const data=S.cobros.slice().reverse().slice(-12);
-    const colors=data.map(c=>c.estado==='pagado'?'rgba(16,185,129,0.7)':c.estado==='vencido'?'rgba(239,68,68,0.7)':'rgba(245,158,11,0.7)');
+    const colors=data.map(c=>c.estado==='pagado'?'rgba(47,111,94,0.7)':c.estado==='vencido'?'rgba(196,80,43,0.7)':'rgba(242,183,5,0.7)');
     if(S.charts.exp)S.charts.exp.destroy();
-    S.charts.exp=new Chart(ctx,{type:'bar',data:{labels:data.map(c=>c.periodo||''),datasets:[{label:'Expensa',data:data.map(c=>c.total||0),backgroundColor:colors,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString('es-AR'),color:'#8b8b9e'},grid:{color:'rgba(255,255,255,0.04)'}},x:{ticks:{color:'#8b8b9e'},grid:{display:false}}}}})
+    S.charts.exp=new Chart(ctx,{type:'bar',data:{labels:data.map(c=>c.periodo||''),datasets:[{label:'Expensa',data:data.map(c=>c.total||0),backgroundColor:colors,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString('es-AR'),color:'#574C42'},grid:{color:'rgba(42,33,28,0.08)'}},x:{ticks:{color:'#574C42'},grid:{display:false}}}}})
 }
 function populatePagoCobros(){
     const sel=document.getElementById('pg-cobro');sel.innerHTML='<option value="">Sin especificar</option>';
@@ -1007,7 +999,7 @@ async function loadGastos(){
                 <td data-val="${g.monto || 0}"><strong>${fmt$(g.monto)}</strong></td>
                 <td data-val="${g.fecha_vencimiento || ''}">${fmtD(g.fecha_vencimiento)}</td>
                 <td>${g.pagado?'<span class="badge ok">Sí</span>':'<span class="badge pending">No</span>'}</td>
-                <td>${g.archivo_nombre?`<a href="/api/gastos/${g.id}/comprobante" target="_blank" style="color:var(--blue);font-size:0.8rem">📎</a>`:'–'}</td>
+                <td>${g.archivo_nombre?`<a href="/api/gastos/${g.id}/comprobante" target="_blank" style="color:var(--blue);font-size:0.8rem" aria-label="Adjunto" title="Adjunto"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg></a>`:'–'}</td>
             </tr>`;
         });
         
@@ -1027,21 +1019,21 @@ async function loadReclamos(){
     document.getElementById('rec-list').innerHTML='<div style="padding:20px;color:var(--muted);text-align:center;font-size:0.85rem">Cargando...</div>';
     const est=document.getElementById('rec-filter').value;
     try{S.recs=await api('/api/reclamos'+(est?'?estado='+est:''));renderRecList()}
-    catch(e){document.getElementById('rec-list').innerHTML='<div style="padding:20px;color:#f87171;text-align:center">Error al cargar</div>'}
+    catch(e){document.getElementById('rec-list').innerHTML='<div style="padding:20px;color:var(--nd-terracota-hondo);text-align:center">Error al cargar</div>'}
 }
 function renderRecList(){
     const el=document.getElementById('rec-list');
-    if(!S.recs.length){el.innerHTML='<div style="padding:32px;text-align:center;color:var(--muted)"><div style="font-size:2.5rem;margin-bottom:8px">✅</div><div style="font-size:0.85rem">Sin reclamos registrados</div></div>';return}
+    if(!S.recs.length){el.innerHTML='<div style="padding:32px;text-align:center;color:var(--muted)"><div style="margin-bottom:8px;color:var(--nd-verde)"><svg class="ic ic-xl"><use href="#ic-pagado"></use></svg></div><div style="font-size:0.85rem">Sin reclamos registrados</div></div>';return}
     el.innerHTML=S.recs.map(r=>`<div class="md-item" id="ri-${r.id}" onclick="openRec('${r.id}')"><div class="md-it">${r.titulo}</div><div class="md-im">${ebadge(r.estado)}<span>${new Date(r.created_at).toLocaleDateString('es-AR')}</span></div></div>`).join('')
 }
 function openRec(id){
     document.querySelectorAll('.md-item').forEach(i=>i.classList.remove('active'));const it=document.getElementById('ri-'+id);if(it)it.classList.add('active');
     const r=S.recs.find(x=>x.id===id);if(!r)return;
-    document.getElementById('rec-detail').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px"><h2 style="font-size:1rem;font-weight:800">${r.titulo}</h2>${ebadge(r.estado)}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;font-size:0.78rem;color:var(--muted)"><span>📂 ${r.categoria}</span><span>📅 ${new Date(r.created_at).toLocaleDateString('es-AR')}</span><span>🔄 ${new Date(r.updated_at).toLocaleDateString('es-AR')}</span></div><div style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:16px;font-size:0.85rem;line-height:1.7;color:var(--text2)">${r.descripcion}</div>${r.respuesta_admin?`<div style="background:var(--blue-dim);border:1px solid rgba(47,111,94,0.2);border-radius:8px;padding:14px;margin-bottom:16px"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--blue);margin-bottom:6px">Respuesta Admin</div><div style="font-size:0.85rem;color:var(--text2);line-height:1.7">${r.respuesta_admin}</div></div>`:''} ${r.adjunto_nombre?`<a href="/api/reclamos/${r.id}/adjunto" target="_blank" class="btn btn-secondary btn-sm" style="margin-bottom:14px">📎 ${r.adjunto_nombre}</a>`:''}<div style="display:flex;gap:8px">${r.estado==='activo'?`<button class="btn btn-danger btn-sm" onclick="cancelarRec('${r.id}')">Cancelar Reclamo</button>`:''}</div>`
+    document.getElementById('rec-detail').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px"><h2 style="font-size:1rem;font-weight:800">${r.titulo}</h2>${ebadge(r.estado)}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;font-size:0.78rem;color:var(--muted)"><span>${r.categoria}</span><span>${new Date(r.created_at).toLocaleDateString('es-AR')}</span><span>${new Date(r.updated_at).toLocaleDateString('es-AR')}</span></div><div style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:16px;font-size:0.85rem;line-height:1.7;color:var(--text2)">${r.descripcion}</div>${r.respuesta_admin?`<div style="background:var(--blue-dim);border:1px solid rgba(47,111,94,0.2);border-radius:8px;padding:14px;margin-bottom:16px"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--blue);margin-bottom:6px">Respuesta Admin</div><div style="font-size:0.85rem;color:var(--text2);line-height:1.7">${r.respuesta_admin}</div></div>`:''} ${r.adjunto_nombre?`<a href="/api/reclamos/${r.id}/adjunto" target="_blank" class="btn btn-secondary btn-sm" style="margin-bottom:14px"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>${r.adjunto_nombre}</a>`:''}<div style="display:flex;gap:8px">${r.estado==='activo'?`<button class="btn btn-danger btn-sm" onclick="cancelarRec('${r.id}')">Cancelar Reclamo</button>`:''}</div>`
 }
 async function cancelarRec(id){
     if(!confirm('¿Cancelar este reclamo?'))return;
-    try{await api('/api/reclamos/'+id,{method:'DELETE'});toast('Reclamo cancelado','ok');await loadReclamos();document.getElementById('rec-detail').innerHTML='<div class="md-empty"><div class="md-empty-icon">⚠️</div><div>Seleccioná un reclamo</div></div>'}
+    try{await api('/api/reclamos/'+id,{method:'DELETE'});toast('Reclamo cancelado','ok');await loadReclamos();document.getElementById('rec-detail').innerHTML='<div class="md-empty"><div class="md-empty-icon"><svg class="ic ic-xl"><use href="#ic-alerta"></use></svg></div><div>Seleccioná un reclamo</div></div>'}
     catch(e){toast(e.message,'err')}
 }
 async function submitReclamo(){
@@ -1088,19 +1080,19 @@ async function submitReclamo(){
 async function loadVots(){
     document.getElementById('vot-container').innerHTML='<div style="color:var(--muted);text-align:center;padding:40px">Cargando...</div>';
     try{const url='/api/votaciones'+(S.votFilter?'?estado='+S.votFilter:'');S.vots=await api(url);renderVots()}
-    catch(e){document.getElementById('vot-container').innerHTML='<div style="color:#f87171;text-align:center;padding:40px">Error al cargar votaciones</div>'}
+    catch(e){document.getElementById('vot-container').innerHTML='<div style="color:var(--nd-terracota-hondo);text-align:center;padding:40px">Error al cargar votaciones</div>'}
 }
 function filterVots(f){S.votFilter=f;loadVots()}
 function renderVots(){
     const c=document.getElementById('vot-container');
-    if(!S.vots.length){c.innerHTML='<div style="text-align:center;padding:48px;color:var(--muted)"><div style="font-size:3rem;margin-bottom:10px;opacity:0.3">🗳️</div><div>No hay votaciones en este momento</div></div>';return}
+    if(!S.vots.length){c.innerHTML='<div style="text-align:center;padding:48px;color:var(--muted)"><div style="margin-bottom:10px;opacity:0.35"><svg class="ic ic-xl"><use href="#ic-urna"></use></svg></div><div>No hay votaciones en este momento</div></div>';return}
     c.innerHTML=S.vots.map(v=>{
         const tot=v.total_votos||0;const opc=v.opciones||['Si','No','Abstención'];
         const barras=opc.map(op=>{const cnt=(v.conteo_votos||{})[op]||0;const pct=tot>0?Math.round(cnt/tot*100):0;const clm={'Si':'yes','No':'no','Abstención':'abs'};return`<div class="vot-bar-w"><div class="vot-bar-l"><span>${op}</span><span>${cnt} votos (${pct}%)</span></div><div class="vot-bar"><div class="vot-bar-f ${clm[op]||'abs'}" style="width:${pct}%"></div></div></div>`}).join('');
         const bloq=v.ya_vote||v.estado!=='activa';
         const btns=bloq?'':opc.map(op=>`<button class="vot-btn" onclick="votar('${v.id}','${op}')">${op}</button>`).join('');
-        const yaVote=v.ya_vote?`<div style="color:var(--teal);font-size:0.8rem;margin-top:8px">✅ Ya votaste: <strong>${v.mi_opcion||'–'}</strong></div>`:'';
-        return`<div class="vot-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div class="vot-title">${v.titulo}</div>${ebadge(v.estado)}</div><div class="vot-desc">${v.descripcion||''}</div>${v.fecha_limite?`<div style="font-size:0.75rem;color:var(--muted);margin-bottom:10px">📅 Vence: ${fmtD(v.fecha_limite)} · ${tot} votos emitidos</div>`:''} ${barras}${yaVote}${!bloq?`<div class="vot-btns">${btns}</div>`:''}</div>`
+        const yaVote=v.ya_vote?`<div style="color:var(--teal);font-size:0.8rem;margin-top:8px">Ya votaste: <strong>${v.mi_opcion||'–'}</strong></div>`:'';
+        return`<div class="vot-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div class="vot-title">${v.titulo}</div>${ebadge(v.estado)}</div><div class="vot-desc">${v.descripcion||''}</div>${v.fecha_limite?`<div style="font-size:0.75rem;color:var(--muted);margin-bottom:10px">Vence: ${fmtD(v.fecha_limite)} · ${tot} votos emitidos</div>`:''} ${barras}${yaVote}${!bloq?`<div class="vot-btns">${btns}</div>`:''}</div>`
     }).join('')
 }
 async function votar(vid,opcion){
@@ -1129,8 +1121,8 @@ async function onResDateChanged(){
     const el=document.getElementById('disp-lista');document.getElementById('disp-titulo').textContent='Disponibilidad'+(fecha?' — '+fmtD(fecha):'');
     if(!aid||!fecha){el.innerHTML='<p style="color:var(--muted);font-size:0.85rem">Seleccioná un amenity y fecha.</p>';return}
     el.innerHTML='<p style="color:var(--muted);font-size:0.85rem">Cargando...</p>';
-    try{const d=await api('/api/reservas_amenities?amenity_id='+aid+'&fecha='+fecha);if(!d.length){el.innerHTML='<div class="slot-free">✅ Sin reservas — todo el día disponible</div>';return}el.innerHTML=d.map(r=>`<div class="slot-taken">🔴 ${r.hora_inicio?.substring(0,5)} – ${r.hora_fin?.substring(0,5)} <span style="margin-left:auto;opacity:0.7">Reservado</span></div>`).join('')}
-    catch(e){el.innerHTML='<p style="color:#f87171;font-size:0.85rem">Error al cargar disponibilidad</p>'}
+    try{const d=await api('/api/reservas_amenities?amenity_id='+aid+'&fecha='+fecha);if(!d.length){el.innerHTML='<div class="slot-free">Sin reservas — todo el día disponible</div>';return}el.innerHTML=d.map(r=>`<div class="slot-taken">${r.hora_inicio?.substring(0,5)} – ${r.hora_fin?.substring(0,5)} <span style="margin-left:auto;opacity:0.7">Reservado</span></div>`).join('')}
+    catch(e){el.innerHTML='<p style="color:var(--nd-terracota-hondo);font-size:0.85rem">Error al cargar disponibilidad</p>'}
 }
 function verCondiciones(){if(!S.selAm)return;document.getElementById('cond-titulo').textContent='Condiciones — '+S.selAm.nombre;document.getElementById('cond-body').textContent=S.selAm.condiciones_uso||'Sin condiciones especificadas.';openModal('modal-cond')}
 async function realizarReserva(){
@@ -1145,13 +1137,13 @@ async function cancelarReserva(rid){
     catch(e){toast(e.message,'err')}
 }
 
-const CATS=[{k:'reglamento_copropiedad',l:'📋 Reglamento de Copropiedad'},{k:'reglamento_espacios',l:'🏊 Reglamento de Espacios Comunes'},{k:'actas',l:'📝 Actas de Asamblea'},{k:'comprobantes',l:'🧾 Comprobantes'},{k:'bancarios',l:'🏦 Documentos Bancarios'},{k:'estructura',l:'🏗️ Estructura del Consorcio'},{k:'otros',l:'📂 Otros Documentos'}];
+const CATS=[{k:'reglamento_copropiedad',l:'Reglamento de Copropiedad'},{k:'reglamento_espacios',l:'Reglamento de Espacios Comunes'},{k:'actas',l:'Actas de Asamblea'},{k:'comprobantes',l:'Comprobantes'},{k:'bancarios',l:'Documentos Bancarios'},{k:'estructura',l:'Estructura del Consorcio'},{k:'otros',l:'Otros Documentos'}];
 async function loadArchivos(){
     const c=document.getElementById('archivos-acc');c.innerHTML='<div style="color:var(--muted);font-size:0.85rem;padding:12px">Cargando archivos...</div>';
     try{
         const data=await api('/api/archivos');const byc={};data.forEach(a=>{if(!byc[a.categoria])byc[a.categoria]=[];byc[a.categoria].push(a)});
-        c.innerHTML=CATS.map(cat=>{const files=byc[cat.k]||[];return`<div class="acc-item"><button class="acc-btn" onclick="toggleAcc(this)"><span>${cat.l} <span style="color:var(--muted);font-weight:400;font-size:0.78rem">(${files.length})</span></span><span class="acc-arr">▼</span></button><div class="acc-body">${files.length===0?'<p style="color:var(--muted);font-size:0.83rem;padding:4px 0">Sin archivos en esta categoría</p>':files.map(f=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2)"><div><div style="font-size:0.85rem;font-weight:600">📄 ${f.nombre}</div><div style="font-size:0.72rem;color:var(--muted)">${new Date(f.created_at).toLocaleDateString('es-AR')} · ${f.mime_type}</div></div><a class="btn btn-secondary btn-xs" href="/api/archivos/${f.id}/descargar" download="${f.nombre}">⬇ Descargar</a></div>`).join('')}</div></div>`}).join('')
-    }catch(e){c.innerHTML='<div style="color:#f87171;font-size:0.85rem;padding:12px">Error al cargar archivos</div>'}
+        c.innerHTML=CATS.map(cat=>{const files=byc[cat.k]||[];return`<div class="acc-item"><button class="acc-btn" onclick="toggleAcc(this)"><span>${cat.l} <span style="color:var(--muted);font-weight:400;font-size:0.78rem">(${files.length})</span></span><span class="acc-arr">▼</span></button><div class="acc-body">${files.length===0?'<p style="color:var(--muted);font-size:0.83rem;padding:4px 0">Sin archivos en esta categoría</p>':files.map(f=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2)"><div><div style="font-size:0.85rem;font-weight:600"><svg class="ic ic-sm"><use href="#ic-doc"></use></svg>${f.nombre}</div><div style="font-size:0.72rem;color:var(--muted)">${new Date(f.created_at).toLocaleDateString('es-AR')} · ${f.mime_type}</div></div><a class="btn btn-secondary btn-xs" href="/api/archivos/${f.id}/descargar" download="${f.nombre}">⬇ Descargar</a></div>`).join('')}</div></div>`}).join('')
+    }catch(e){c.innerHTML='<div style="color:var(--nd-terracota-hondo);font-size:0.85rem;padding:12px">Error al cargar archivos</div>'}
 }
 function toggleAcc(btn){btn.classList.toggle('open');btn.nextElementSibling.classList.toggle('open')}
 function toggleAllAccordions(expand) {
@@ -1169,7 +1161,7 @@ function toggleAllAccordions(expand) {
 
 async function loadPerfil(){
     const el=document.getElementById('perfil-content');const v=S.vecino;if(!v)return;
-    el.innerHTML=`<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px"><div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--blue));display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:800;color:white">${(v.nombre||v.email||'?').charAt(0).toUpperCase()}</div><div><div style="font-size:1rem;font-weight:800">${v.nombre||'–'}</div><div style="color:var(--muted);font-size:0.83rem">${v.email}</div><div style="margin-top:4px">${ebadge('activo')}</div></div></div><div style="border-top:1px solid var(--border);padding-top:16px"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:12px">Mis Unidades</div>${S.unidades.map(u=>{const con=u.consorcios||{};const uf=u.unidades_funcionales||{};return`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px"><div style="font-weight:700;margin-bottom:4px">🏢 ${con.nombre||'–'}</div><div style="font-size:0.8rem;color:var(--muted)">Unidad ${uf.numero||'–'} · Piso ${uf.piso||'–'} · ${u.rol||'propietario'}</div>${con.encargado_nombre?`<div style="font-size:0.78rem;color:var(--text2);margin-top:4px">📞 ${con.encargado_nombre} ${con.encargado_tel?'· '+con.encargado_tel:''}</div>`:''}</div>`}).join('')}</div>`
+    el.innerHTML=`<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px"><div style="width:52px;height:52px;border-radius:50%;background:var(--nd-verde);display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:800;color:white">${(v.nombre||v.email||'?').charAt(0).toUpperCase()}</div><div><div style="font-size:1rem;font-weight:800">${v.nombre||'–'}</div><div style="color:var(--muted);font-size:0.83rem">${v.email}</div><div style="margin-top:4px">${ebadge('activo')}</div></div></div><div style="border-top:1px solid var(--border);padding-top:16px"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:12px">Mis Unidades</div>${S.unidades.map(u=>{const con=u.consorcios||{};const uf=u.unidades_funcionales||{};return`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px"><div style="font-weight:700;margin-bottom:4px"><svg class="ic ic-sm"><use href="#ic-edificio"></use></svg>${con.nombre||'–'}</div><div style="font-size:0.8rem;color:var(--muted)">Unidad ${uf.numero||'–'} · Piso ${uf.piso||'–'} · ${u.rol||'propietario'}</div>${con.encargado_nombre?`<div style="font-size:0.78rem;color:var(--text2);margin-top:4px">${con.encargado_nombre} ${con.encargado_tel?'· '+con.encargado_tel:''}</div>`:''}</div>`}).join('')}</div>`
 }
 
 async function showOnboarding(){

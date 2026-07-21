@@ -6,201 +6,131 @@
     <title>Ingresar | Niddo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        :root {
-            --blue-100:#D7E8E1; --blue-500:#2F6F5E;
-            --mint-100:#FBE8CE; --mint-500:#E9A23B;
-            --bg-canvas:#EFF3EE;
-            --bg:#F7F9F5;
-            --surface:#FFFFFF;
-            --hairline: rgba(27,36,29,.09);
-            --text:#1B242D;
-            --text-muted:#68726A;
-            --text-faint:#98A192;
-            --accent: var(--blue-500);
-            --accent-soft: var(--blue-100);
-            --accent-ink:#ffffff;
-            --shadow-card: 0 1px 2px rgba(27,36,29,.05), 0 8px 22px -12px rgba(27,36,29,.16);
-            --shadow-window: 0 30px 70px -28px rgba(27,50,42,.28);
-            --r-lg:20px; --r-md:12px; --r-pill:999px;
-            --font: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            --font-display: 'Quicksand', var(--font);
-            color-scheme: light;
-        }
-
-        :root.dark {
-            --bg-canvas:#05080F; --bg:#0A101C; --surface:#121A2A;
-            --hairline: rgba(230,237,252,.09);
-            --text:#ECF0FA; --text-muted:#8D97B0; --text-faint:#565F78;
-            --accent:#4FDA9E; --accent-soft: rgba(79,218,158,.18); --accent-ink:#08132B;
-            --shadow-card: 0 1px 2px rgba(0,0,0,.35), 0 8px 22px -12px rgba(0,0,0,.55);
-            --shadow-window: 0 30px 70px -28px rgba(0,0,0,.55);
-            --blue-100: rgba(79,218,158,.16);
-            --mint-100: rgba(233,162,59,.22); --mint-500:#F0B23E;
-            color-scheme: dark;
-        }
-
         body {
-            font-family: var(--font);
-            background: var(--bg-canvas);
-            color: var(--text);
+            background: var(--nd-crema);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 1.5rem;
-            transition: background 0.3s, color 0.3s;
             position: relative;
         }
 
+        /* Halo terracota tenue: la marca entra por el color, no por un borde. */
         body::before {
             content: '';
             position: fixed;
             inset: -10%;
-            background: radial-gradient(55% 55% at 50% 15%, var(--accent-soft), transparent 70%);
+            background: radial-gradient(55% 55% at 50% 12%, var(--nd-terracota-dim), transparent 70%);
             pointer-events: none;
         }
 
-        .theme-toggle {
-            position: fixed;
-            top: 1.25rem;
-            right: 1.5rem;
-            background: var(--surface);
-            border: 1px solid var(--hairline);
-            color: var(--text-muted);
-            width: 36px;
-            height: 36px;
-            border-radius: var(--r-pill);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: all 0.2s;
-            z-index: 10;
-        }
-        .theme-toggle:hover { color: var(--text); border-color: var(--accent); }
-
         .wrap { position: relative; width: 100%; max-width: 400px; }
 
-        .brand {
-            text-align: center;
-            margin-bottom: 1.75rem;
-        }
+        .brand { text-align: center; margin-bottom: 1.75rem; }
         .brand .mark {
-            width: 52px; height: 52px; border-radius: 16px;
-            background: var(--accent); color: var(--accent-ink);
+            width: 60px; height: 60px; border-radius: var(--r-lg);
+            background: var(--surface); border: 1px solid var(--border);
             display: flex; align-items: center; justify-content: center;
-            margin: 0 auto 14px; font-weight: 800; font-size: 1.3rem;
+            margin: 0 auto 16px; padding: 12px;
             box-shadow: var(--shadow-card);
             text-decoration: none;
         }
-        .brand h1 { font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
-        .brand p { color: var(--text-muted); font-size: 0.88rem; margin-top: 4px; }
+        .brand h1 { font-size: 1.4rem; }
+        .brand p { color: var(--muted); font-size: .88rem; margin-top: 5px; }
 
         .card {
             background: var(--surface);
-            border: 1px solid var(--hairline);
-            border-radius: var(--r-lg);
+            border: 1px solid var(--border);
+            border-radius: var(--r-xl);
             padding: 1.4rem;
             box-shadow: var(--shadow-window);
         }
 
-        .role-options { display: flex; flex-direction: column; gap: 0.7rem; }
+        .role-options { display: flex; flex-direction: column; gap: .7rem; }
 
         .role-btn {
             display: flex;
             align-items: center;
             gap: 1rem;
             padding: 1rem 1.1rem;
-            border-radius: var(--r-md);
-            border: 1px solid var(--hairline);
+            border-radius: var(--r-lg);
+            border: 1px solid var(--border);
             background: transparent;
             color: var(--text);
             font-family: var(--font);
-            font-size: 0.95rem;
+            font-size: .95rem;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: border-color .2s, background .2s, transform .2s;
             text-align: left;
             text-decoration: none;
         }
-        .role-btn:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
+        .role-btn:hover {
+            border-color: var(--nd-terracota);
+            background: var(--nd-terracota-dim);
+            transform: translateY(-1px);
+        }
 
         .role-icon {
-            width: 42px; height: 42px; border-radius: 12px;
+            width: 46px; height: 46px; border-radius: var(--r-md);
             display: flex; align-items: center; justify-content: center;
-            font-size: 1.15rem; flex-shrink: 0;
-            background: var(--blue-100);
+            flex-shrink: 0;
+            background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo);
         }
-        .role-icon.vecino { background: var(--mint-100); }
+        .role-icon.vecino { background: var(--nd-verde-dim); color: var(--nd-verde-bosque); }
 
-        .role-info { flex: 1; }
-        .role-name { font-weight: 700; margin-bottom: 0.1rem; }
-        .role-desc { font-size: 0.78rem; color: var(--text-muted); font-weight: 400; }
-        .role-arrow { color: var(--text-faint); font-size: 0.9rem; }
+        .role-info { flex: 1; display: block; }
+        .role-name { display: block; font-weight: 700; margin-bottom: .1rem; }
+        .role-desc { display: block; font-size: .78rem; color: var(--muted); font-weight: 400; line-height: 1.45; }
+        .role-arrow { color: var(--nd-terracota); display: flex; }
 
-        .divider { text-align: center; margin-top: 1.5rem; font-size: 0.85rem; color: var(--text-muted); }
-        .divider a { color: var(--accent); text-decoration: none; font-weight: 600; }
-        .divider a:hover { text-decoration: underline; }
+        .volver { text-align: center; margin-top: 1.5rem; font-size: .85rem; }
+        .volver a { color: var(--nd-terracota-hondo); text-decoration: none; font-weight: 700; }
+        .volver a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
-
-    <button class="theme-toggle" id="theme-toggle" title="Cambiar tema" aria-label="Cambiar tema">🌙</button>
+{% include '_icons.html' %}
 
     <div class="wrap">
         <div class="brand">
-            <a href="/" class="mark">N</a>
+            <a href="/" class="mark" aria-label="Niddo — ir al inicio">
+                <svg class="nd-iso" style="width:100%;height:100%"><use href="#nd-isotipo"></use></svg>
+            </a>
             <h1>Bienvenido a Niddo</h1>
             <p>Elegí cómo querés ingresar</p>
         </div>
 
         <div class="card">
             <div class="role-options">
-                <a class="role-btn admin" id="btn-admin" href="/auth/login?role=admin">
-                    <div class="role-icon admin">🏢</div>
-                    <div class="role-info">
-                        <div class="role-name">Administrador</div>
-                        <div class="role-desc">Gestión de expensas, finanzas y consorcio</div>
-                    </div>
-                    <span class="role-arrow">›</span>
+                <a class="role-btn" id="btn-admin" href="/auth/login?role=admin">
+                    <span class="role-icon"><svg class="ic ic-lg"><use href="#ic-edificio"></use></svg></span>
+                    <span class="role-info">
+                        <span class="role-name">Administrador</span>
+                        <span class="role-desc">Gestión de expensas, finanzas y consorcio</span>
+                    </span>
+                    <span class="role-arrow"><svg class="ic ic-sm"><use href="#ic-chevron"></use></svg></span>
                 </a>
-                <a class="role-btn vecino" id="btn-vecino" href="/auth/login?role=vecino">
-                    <div class="role-icon vecino">🏠</div>
-                    <div class="role-info">
-                        <div class="role-name">Vecino</div>
-                        <div class="role-desc">Pagos, reclamos y amenities</div>
-                    </div>
-                    <span class="role-arrow">›</span>
+                <a class="role-btn" id="btn-vecino" href="/auth/login?role=vecino">
+                    <span class="role-icon vecino"><svg class="ic ic-lg"><use href="#ic-vecino"></use></svg></span>
+                    <span class="role-info">
+                        <span class="role-name">Vecino</span>
+                        <span class="role-desc">Pagos, reclamos y amenities</span>
+                    </span>
+                    <span class="role-arrow"><svg class="ic ic-sm"><use href="#ic-chevron"></use></svg></span>
                 </a>
             </div>
         </div>
 
-        <div class="divider">
+        <div class="volver">
             <a href="/">← Volver al inicio</a>
         </div>
     </div>
-
-    <script>
-        const toggle = document.getElementById('theme-toggle');
-        const root = document.documentElement;
-
-        function applyTheme(t) {
-            root.classList.toggle('dark', t === 'dark');
-            toggle.textContent = t === 'dark' ? '☀️' : '🌙';
-        }
-
-        applyTheme(localStorage.getItem('theme') || 'light');
-
-        toggle.addEventListener('click', () => {
-            const next = root.classList.contains('dark') ? 'light' : 'dark';
-            localStorage.setItem('theme', next);
-            applyTheme(next);
-        });
-    </script>
 </body>
 </html>

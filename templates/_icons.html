@@ -1,0 +1,235 @@
+{# ===========================================================================
+   Niddo — biblioteca de iconos
+   Manual de Marca · §05 Iconografia
+
+   Grilla de 24px trabajada en viewBox de 48 (media unidad), trazo de 2.4px,
+   esquinas bien redondeadas, sin relleno. El trazo hereda currentColor via
+   la clase .ic de niddo-brand.css.
+
+   Los seis primeros son los del manual, calcados. El resto sigue la misma
+   grilla y el mismo trazo.
+
+   Uso:  <svg class="ic"><use href="#ic-edificio"></use></svg>
+   =========================================================================== #}
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+
+    {# ── Del manual ──────────────────────────────────────────────────── #}
+    <symbol id="ic-edificio" viewBox="0 0 48 48">
+        <path d="M10 20 L24 9 L38 20"></path>
+        <rect x="12" y="20" width="24" height="18" rx="4"></rect>
+        <rect x="20" y="28" width="8" height="10"></rect>
+    </symbol>
+
+    <symbol id="ic-expensa" viewBox="0 0 48 48">
+        <rect x="12" y="8" width="24" height="32" rx="4"></rect>
+        <line x1="18" y1="18" x2="30" y2="18"></line>
+        <line x1="18" y1="24" x2="30" y2="24"></line>
+        <line x1="18" y1="30" x2="26" y2="30"></line>
+    </symbol>
+
+    <symbol id="ic-vecino" viewBox="0 0 48 48">
+        <circle cx="24" cy="18" r="7"></circle>
+        <path d="M12 39 C12 30 18 27 24 27 C30 27 36 30 36 39"></path>
+    </symbol>
+
+    <symbol id="ic-reserva" viewBox="0 0 48 48">
+        <rect x="9" y="12" width="30" height="26" rx="4"></rect>
+        <line x1="9" y1="20" x2="39" y2="20"></line>
+        <line x1="16" y1="8" x2="16" y2="14"></line>
+        <line x1="32" y1="8" x2="32" y2="14"></line>
+        <circle cx="24" cy="29" r="2.6" class="dot"></circle>
+    </symbol>
+
+    <symbol id="ic-pendiente" viewBox="0 0 48 48">
+        <circle cx="24" cy="24" r="14"></circle>
+        <path d="M24 17 L24 24 L29 27"></path>
+    </symbol>
+
+    <symbol id="ic-pagado" viewBox="0 0 48 48">
+        <circle cx="24" cy="24" r="13"></circle>
+        <path d="M18 24 L22 28 L30 20"></path>
+    </symbol>
+
+    {# ── Extensiones sobre la misma grilla ───────────────────────────── #}
+    <symbol id="ic-panel" viewBox="0 0 48 48">
+        <rect x="9" y="9" width="13" height="13" rx="3.5"></rect>
+        <rect x="26" y="9" width="13" height="13" rx="3.5"></rect>
+        <rect x="9" y="26" width="13" height="13" rx="3.5"></rect>
+        <rect x="26" y="26" width="13" height="13" rx="3.5"></rect>
+    </symbol>
+
+    <symbol id="ic-cobro" viewBox="0 0 48 48">
+        <rect x="7" y="14" width="34" height="20" rx="4"></rect>
+        <circle cx="24" cy="24" r="5"></circle>
+        <line x1="13" y1="24" x2="13" y2="24"></line>
+        <line x1="35" y1="24" x2="35" y2="24"></line>
+    </symbol>
+
+    <symbol id="ic-proveedor" viewBox="0 0 48 48">
+        <rect x="8" y="17" width="32" height="21" rx="4"></rect>
+        <path d="M18 17 V13 C18 11.3 19.3 10 21 10 H27 C28.7 10 30 11.3 30 13 V17"></path>
+        <line x1="8" y1="26" x2="40" y2="26"></line>
+    </symbol>
+
+    <symbol id="ic-liquidacion" viewBox="0 0 48 48">
+        <rect x="12" y="8" width="24" height="32" rx="4"></rect>
+        <path d="M18 25 L22 29 L30 20"></path>
+    </symbol>
+
+    <symbol id="ic-balance" viewBox="0 0 48 48">
+        <rect x="12" y="26" width="7" height="12" rx="2.5"></rect>
+        <rect x="22" y="17" width="7" height="21" rx="2.5"></rect>
+        <rect x="32" y="22" width="7" height="16" rx="2.5"></rect>
+        <line x1="9" y1="38" x2="41" y2="38"></line>
+    </symbol>
+
+    <symbol id="ic-mensaje" viewBox="0 0 48 48">
+        <path d="M40 22 C40 29.2 32.8 35 24 35 C22 35 20 34.7 18.2 34.1 L9 38 L12.2 29.8 C10.2 27.6 8 25 8 22 C8 14.8 15.2 9 24 9 C32.8 9 40 14.8 40 22 Z"></path>
+    </symbol>
+
+    {# Controles deslizantes: el engranaje de 8 radios se leia como un sol. #}
+    <symbol id="ic-config" viewBox="0 0 48 48">
+        <line x1="9" y1="17" x2="39" y2="17"></line>
+        <line x1="9" y1="31" x2="39" y2="31"></line>
+        <circle cx="19" cy="17" r="4.2"></circle>
+        <circle cx="31" cy="31" r="4.2"></circle>
+    </symbol>
+
+    <symbol id="ic-salir" viewBox="0 0 48 48">
+        <path d="M20 11 H13 C10.8 11 9 12.8 9 15 V33 C9 35.2 10.8 37 13 37 H20"></path>
+        <path d="M29 16 L37 24 L29 32"></path>
+        <line x1="37" y1="24" x2="18" y2="24"></line>
+    </symbol>
+
+    <symbol id="ic-ayuda" viewBox="0 0 48 48">
+        <circle cx="24" cy="24" r="15"></circle>
+        <path d="M19.4 19.6 A4.7 4.7 0 1 1 24.6 24.6 V27"></path>
+        <line x1="24" y1="32.5" x2="24" y2="32.5"></line>
+    </symbol>
+
+    <symbol id="ic-campana" viewBox="0 0 48 48">
+        <path d="M24 9 C18.5 9 14 13.5 14 19 C14 28 11 31 11 31 H37 C37 31 34 28 34 19 C34 13.5 29.5 9 24 9 Z"></path>
+        <path d="M20.8 36 A3.4 3.4 0 0 0 27.2 36"></path>
+    </symbol>
+
+    <symbol id="ic-mas" viewBox="0 0 48 48">
+        <line x1="24" y1="12" x2="24" y2="36"></line>
+        <line x1="12" y1="24" x2="36" y2="24"></line>
+    </symbol>
+
+    <symbol id="ic-buscar" viewBox="0 0 48 48">
+        <circle cx="21" cy="21" r="11"></circle>
+        <line x1="29" y1="29" x2="38" y2="38"></line>
+    </symbol>
+
+    <symbol id="ic-descargar" viewBox="0 0 48 48">
+        <line x1="24" y1="9" x2="24" y2="28"></line>
+        <path d="M16 21 L24 29 L32 21"></path>
+        <path d="M11 33 V36 C11 38 12.5 39 14 39 H34 C35.5 39 37 38 37 36 V33"></path>
+    </symbol>
+
+    <symbol id="ic-chevron" viewBox="0 0 48 48">
+        <path d="M19 12 L31 24 L19 36"></path>
+    </symbol>
+
+    <symbol id="ic-cerrar" viewBox="0 0 48 48">
+        <line x1="14" y1="14" x2="34" y2="34"></line>
+        <line x1="34" y1="14" x2="14" y2="34"></line>
+    </symbol>
+
+    <symbol id="ic-megafono" viewBox="0 0 48 48">
+        <path d="M11 19 H17 L31 10 V38 L17 29 H11 C9.3 29 8 27.7 8 26 V22 C8 20.3 9.3 19 11 19 Z"></path>
+        <path d="M36 18 C38.5 20.5 38.5 27.5 36 30"></path>
+        <path d="M15 29 L17 39 H23 L21.3 29"></path>
+    </symbol>
+
+    <symbol id="ic-urna" viewBox="0 0 48 48">
+        <rect x="8" y="22" width="32" height="17" rx="3.5"></rect>
+        <path d="M17 22 V10 H31 V22"></path>
+        <path d="M20.5 15 L23 17.5 L28 12.5"></path>
+        <line x1="18" y1="30.5" x2="30" y2="30.5"></line>
+    </symbol>
+
+    <symbol id="ic-volver" viewBox="0 0 48 48">
+        <path d="M29 12 L17 24 L29 36"></path>
+    </symbol>
+
+    <symbol id="ic-subir" viewBox="0 0 48 48">
+        <line x1="24" y1="29" x2="24" y2="10"></line>
+        <path d="M16 18 L24 10 L32 18"></path>
+        <path d="M11 33 V36 C11 38 12.5 39 14 39 H34 C35.5 39 37 38 37 36 V33"></path>
+    </symbol>
+
+    <symbol id="ic-rayo" viewBox="0 0 48 48">
+        <path d="M26 7 L13 27 H23 L21 41 L35 21 H25 Z"></path>
+    </symbol>
+
+    <symbol id="ic-ojo" viewBox="0 0 48 48">
+        <path d="M6 24 C11 15 17 11 24 11 C31 11 37 15 42 24 C37 33 31 37 24 37 C17 37 11 33 6 24 Z"></path>
+        <circle cx="24" cy="24" r="6"></circle>
+    </symbol>
+
+    <symbol id="ic-guardar" viewBox="0 0 48 48">
+        <path d="M10 12 C10 10 11.5 9 13 9 H31 L39 17 V35 C39 37 37.5 38 36 38 H13 C11.5 38 10 37 10 35 Z"></path>
+        <path d="M17 9 V19 H30 V9"></path>
+        <rect x="16" y="26" width="16" height="12" rx="2"></rect>
+    </symbol>
+
+    <symbol id="ic-adjunto" viewBox="0 0 48 48">
+        <path d="M33 22 L21 34 C17.7 37.3 12.7 37.3 9.4 34 C6.1 30.7 6.1 25.7 9.4 22.4 L23 8.8 C25.2 6.6 28.6 6.6 30.8 8.8 C33 11 33 14.4 30.8 16.6 L17.6 29.8 C16.5 30.9 14.8 30.9 13.7 29.8 C12.6 28.7 12.6 27 13.7 25.9 L25 14.6"></path>
+    </symbol>
+
+    <symbol id="ic-mail" viewBox="0 0 48 48">
+        <rect x="7" y="12" width="34" height="24" rx="4"></rect>
+        <path d="M8 15 L24 26 L40 15"></path>
+    </symbol>
+
+    <symbol id="ic-basura" viewBox="0 0 48 48">
+        <line x1="9" y1="14" x2="39" y2="14"></line>
+        <path d="M13 14 V37 C13 39 14.5 40 16 40 H32 C33.5 40 35 39 35 37 V14"></path>
+        <path d="M19 14 V10 C19 8.5 20 8 21 8 H27 C28 8 29 8.5 29 10 V14"></path>
+        <line x1="20" y1="21" x2="20" y2="33"></line>
+        <line x1="28" y1="21" x2="28" y2="33"></line>
+    </symbol>
+
+    <symbol id="ic-alerta" viewBox="0 0 48 48">
+        <path d="M24 8 L42 38 C43 40 41.5 41 40 41 H8 C6.5 41 5 40 6 38 Z"></path>
+        <line x1="24" y1="19" x2="24" y2="28"></line>
+        <line x1="24" y1="34" x2="24" y2="34"></line>
+    </symbol>
+
+    <symbol id="ic-info" viewBox="0 0 48 48">
+        <circle cx="24" cy="24" r="15"></circle>
+        <line x1="24" y1="22" x2="24" y2="32"></line>
+        <line x1="24" y1="16" x2="24" y2="16"></line>
+    </symbol>
+
+    <symbol id="ic-editar" viewBox="0 0 48 48">
+        <path d="M31 9 L39 17 L18 38 H10 V30 Z"></path>
+        <line x1="27" y1="13" x2="35" y2="21"></line>
+    </symbol>
+
+    <symbol id="ic-doc" viewBox="0 0 48 48">
+        <path d="M27 8 H16 C14 8 12 9.5 12 12 V36 C12 38.5 14 40 16 40 H32 C34 40 36 38.5 36 36 V17 Z"></path>
+        <path d="M27 8 V17 H36"></path>
+    </symbol>
+
+    <symbol id="ic-carpeta" viewBox="0 0 48 48">
+        <path d="M8 15 C8 13 9.5 12 11 12 H19 L23 17 H37 C38.5 17 40 18 40 20 V34 C40 36 38.5 37 37 37 H11 C9.5 37 8 36 8 34 Z"></path>
+    </symbol>
+
+    {# ── Isotipo: tres vecinos (§02). Relleno, no trazo. ─────────────── #}
+    <symbol id="nd-isotipo" viewBox="0 0 100 100">
+        <circle cx="50" cy="30" r="15" fill="#E8734A" stroke="none"></circle>
+        <circle cx="28" cy="68" r="15" fill="#2F6F5E" stroke="none"></circle>
+        <circle cx="72" cy="68" r="15" fill="#F2B705" stroke="none"></circle>
+    </symbol>
+
+    {# Variante sobre fondo de color: el vecino de arriba va crema. #}
+    <symbol id="nd-isotipo-claro" viewBox="0 0 100 100">
+        <circle cx="50" cy="30" r="15" fill="#F6EFE7" stroke="none"></circle>
+        <circle cx="28" cy="68" r="15" fill="#2F6F5E" stroke="none"></circle>
+        <circle cx="72" cy="68" r="15" fill="#F2B705" stroke="none"></circle>
+    </symbol>
+
+</svg>
