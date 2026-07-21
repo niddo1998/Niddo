@@ -38,21 +38,6 @@
             color-scheme: light;
         }
 
-        :root.dark {
-            --bg-canvas:#05080F; --bg:#0A101C; --surface:#121A2A; --surface-2:#0E1522;
-            --hairline: rgba(230,237,252,.09);
-            --text:#ECF0FA; --text-muted:#8D97B0; --text-faint:#565F78;
-            --accent:#4FDA9E; --accent-strong:#7AE6BB; --accent-soft: rgba(79,218,158,.18); --accent-ink:#08132B;
-            --shadow-card: 0 1px 2px rgba(0,0,0,.35), 0 8px 22px -12px rgba(0,0,0,.55);
-            --blue-100: rgba(79,218,158,.16);
-            --mint-100: rgba(32,154,105,.22); --mint-500:#4FDA9E;
-            --amber-100: rgba(233,162,59,.22); --amber-500:#F0B23E;
-            --violet-100: rgba(117,72,217,.24); --violet-500:#B49BFF;
-            --teal-100: rgba(29,129,137,.24); --teal-500:#57C9D1;
-            --coral-100: rgba(232,91,69,.2); --coral-500:#FF8E79;
-            color-scheme: dark;
-        }
-
         html { scroll-behavior: smooth; }
 
         body {
@@ -81,24 +66,6 @@
             border-bottom: 1px solid var(--hairline);
         }
 
-        .theme-toggle {
-            background: var(--surface);
-            border: 1px solid var(--hairline);
-            color: var(--text-muted);
-            width: 36px;
-            height: 36px;
-            border-radius: var(--r-pill);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: all 0.2s;
-            flex-shrink: 0;
-        }
-
-        .theme-toggle:hover { color: var(--text); border-color: var(--accent); }
-
         .nav-right { display: flex; align-items: center; gap: 0.6rem; }
 
         .logo {
@@ -107,9 +74,9 @@
             font-weight: 700;
             color: var(--text);
             text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            display: inline-block;
+            letter-spacing: -0.01em;
+            white-space: nowrap;
         }
         .logo .o { color: var(--amber-500); }
 
@@ -304,6 +271,9 @@
         @media (max-width: 600px) {
             .stats { gap: 1.5rem; }
             .nav-links { display: none; }
+            nav { padding: 0.9rem 1.1rem; }
+            .nav-right { gap: 0.45rem; }
+            .nav-right .btn { padding: 0.55rem 0.9rem; font-size: 0.82rem; white-space: nowrap; }
         }
     </style>
 </head>
@@ -317,7 +287,6 @@
             <li><a href="#beneficios">Beneficios</a></li>
         </ul>
         <div class="nav-right">
-            <button class="theme-toggle" id="theme-toggle" title="Cambiar tema" aria-label="Cambiar tema">🌙</button>
             <a href="/login" class="btn btn-outline">Iniciar sesión</a>
             <a href="/login" class="btn btn-primary">Registrarme</a>
         </div>
@@ -473,31 +442,6 @@
     <footer>
         <p>© 2026 Niddo · <a href="/login">Iniciar sesión</a> · <a href="/login">Registrarme</a></p>
     </footer>
-
-    <script>
-        const toggle = document.getElementById('theme-toggle');
-        const root = document.documentElement;
-
-        function applyTheme(theme) {
-            if (theme === 'dark') {
-                root.classList.add('dark');
-                toggle.textContent = '☀️';
-            } else {
-                root.classList.remove('dark');
-                toggle.textContent = '🌙';
-            }
-        }
-
-        // Pastel claro por defecto; oscuro sólo si el usuario lo eligió antes
-        applyTheme(localStorage.getItem('theme') || 'light');
-
-        toggle.addEventListener('click', () => {
-            const isDark = root.classList.contains('dark');
-            const next = isDark ? 'light' : 'dark';
-            localStorage.setItem('theme', next);
-            applyTheme(next);
-        });
-    </script>
 
 </body>
 </html>
