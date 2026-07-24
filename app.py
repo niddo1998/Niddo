@@ -1727,9 +1727,14 @@ def api_votaciones_list():
         q = q.eq('estado', request.args['estado'])
     votaciones = q.order('created_at', desc=True).execute().data or []
     unidad_id = v_data.get('unidad_id')
+    vot_ids = [vot['id'] for vot in votaciones]
+    votos_por_votacion = {}
+    if vot_ids:
+        todos_votos = supabase.table('votos').select('votacion_id, opcion, unidad_id').in_('votacion_id', vot_ids).execute().data or []
+        for voto in todos_votos:
+            votos_por_votacion.setdefault(voto['votacion_id'], []).append(voto)
     for vot in votaciones:
-        votos_res = supabase.table('votos').select('opcion').eq('votacion_id', vot['id']).execute()
-        votos = votos_res.data or []
+        votos = votos_por_votacion.get(vot['id'], [])
         conteo = {}
         for voto in votos:
             op = voto['opcion']
@@ -1738,10 +1743,10 @@ def api_votaciones_list():
         vot['total_votos'] = len(votos)
         vot['ya_vote'] = False
         if unidad_id:
-            mi_voto = supabase.table('votos').select('opcion').eq('votacion_id', vot['id']).eq('unidad_id', unidad_id).execute()
-            if mi_voto.data:
+            mi_voto = next((voto for voto in votos if voto.get('unidad_id') == unidad_id), None)
+            if mi_voto:
                 vot['ya_vote'] = True
-                vot['mi_opcion'] = mi_voto.data[0]['opcion']
+                vot['mi_opcion'] = mi_voto['opcion']
     return jsonify(votaciones)
 
 
@@ -2148,6 +2153,14 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo):
     else:
         periodo_ant = f'{year}-{int(month)-1:02d}'
 
+    uf_ids = [uf['id'] for uf in ufs]
+    cobros_ant_por_uf = {}
+    if uf_ids:
+        cobros_ant = supabase.table('cobros').select('unidad_id, total, estado, fecha_pago') \
+            .in_('unidad_id', uf_ids).eq('periodo', periodo_ant).execute().data
+        for c in cobros_ant:
+            cobros_ant_por_uf.setdefault(c['unidad_id'], c)
+
     prorrateo_rows = []
     for uf in ufs:
         pct_a = float(uf.get('porcentaje_a', 0))
@@ -2156,12 +2169,10 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo):
         adicional = round(total_egresos * pct_c / 100, 2) if pct_c > 0 else 0
 
         # Buscar saldo anterior (cobro del período anterior)
-        cobro_ant = supabase.table('cobros').select('total, estado, fecha_pago') \
-            .eq('unidad_id', uf['id']).eq('periodo', periodo_ant).limit(1).execute().data
+        c = cobros_ant_por_uf.get(uf['id'])
         saldo_ant = 0
         pago = 0
-        if cobro_ant:
-            c = cobro_ant[0]
+        if c:
             if c.get('estado') == 'pagado':
                 pago = float(c.get('total', 0))
             else:
@@ -2231,16 +2242,26 @@ def api_liquidaciones_delete(lid):
     return jsonify({'ok': True})
 
 
+def _rubros_con_items(liq_id):
+    """Trae los rubros de una liquidación junto con sus items, en 2 queries en vez de 1+N."""
+    rubros = supabase.table('liquidacion_rubros').select('*') \
+        .eq('liquidacion_id', liq_id).order('numero_rubro').execute().data
+    rubro_ids = [r['id'] for r in rubros]
+    items_por_rubro = {}
+    if rubro_ids:
+        todos_items = supabase.table('liquidacion_items').select('*') \
+            .in_('rubro_id', rubro_ids).execute().data
+        for it in todos_items:
+            items_por_rubro.setdefault(it['rubro_id'], []).append(it)
+    for r in rubros:
+        r['items'] = items_por_rubro.get(r['id'], [])
+    return rubros
+
+
 @app.route('/api/liquidaciones/<lid>/rubros', methods=['GET'])
 @require_auth(allowed_roles=['admin'])
 def api_liquidacion_rubros(lid):
-    rubros = supabase.table('liquidacion_rubros').select('*') \
-        .eq('liquidacion_id', lid).order('numero_rubro').execute().data
-    for r in rubros:
-        items = supabase.table('liquidacion_items').select('*') \
-            .eq('rubro_id', r['id']).execute().data
-        r['items'] = items
-    return jsonify(rubros)
+    return jsonify(_rubros_con_items(lid))
 
 
 @app.route('/api/liquidaciones/<lid>/prorrateo', methods=['GET'])
@@ -2441,13 +2462,7 @@ def api_liquidacion_resumen(lid, uid):
 
     uf = prorrateo.get('unidades_funcionales', {})
 
-    rubros = supabase.table('liquidacion_rubros').select('*') \
-        .eq('liquidacion_id', lid).order('numero_rubro').execute().data
-    # Fetch items for each rubro
-    for r in rubros:
-        items = supabase.table('liquidacion_items').select('*') \
-            .eq('rubro_id', r['id']).execute().data
-        r['items'] = items
+    rubros = _rubros_con_items(lid)
 
     html = _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf)
 
@@ -2484,12 +2499,7 @@ def api_liquidacion_enviar(lid):
     prorrateos = q.execute().data
 
     # Obtener rubros con items
-    rubros = supabase.table('liquidacion_rubros').select('*') \
-        .eq('liquidacion_id', lid).order('numero_rubro').execute().data
-    for r in rubros:
-        items = supabase.table('liquidacion_items').select('*') \
-            .eq('rubro_id', r['id']).execute().data
-        r['items'] = items
+    rubros = _rubros_con_items(lid)
 
     enviados = 0
     fallidos = 0

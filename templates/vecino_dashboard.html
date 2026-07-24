@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     /* Color, tipografia y forma viven en niddo-brand.css. */
@@ -197,8 +197,21 @@
     .vot-btn:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-dim)}
     .vot-btn.voted{background:var(--teal-dim);color:var(--teal);border-color:var(--teal);cursor:default}
     
-    .slot-taken{background:var(--nd-terracota-dim);border:1px solid rgba(232,115,74,.28);color:var(--nd-terracota-hondo);padding:6px 12px;border-radius:6px;font-size:0.8rem;display:flex;align-items:center;gap:8px;margin-bottom:6px}
-    .slot-free{background:var(--teal-dim);border:1px solid rgba(47,111,94,0.2);color:var(--teal);padding:6px 12px;border-radius:6px;font-size:0.8rem}
+    .cal-dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+    .cal-dot-free{background:var(--teal-dim);border:1px solid var(--teal)}
+    .cal-dot-taken{background:var(--nd-terracota-dim);border:1px solid var(--nd-terracota)}
+    .cal-dot-sel{background:var(--accent)}
+    .cal-grid{display:flex;max-height:560px;overflow-y:auto;user-select:none;-webkit-user-select:none}
+    .cal-hourcol{position:relative;width:52px;flex-shrink:0;border-right:1px solid var(--border)}
+    .cal-hourlabel{position:absolute;left:0;right:8px;text-align:right;font-size:0.68rem;color:var(--muted);transform:translateY(-50%);padding-right:4px}
+    .cal-hourline{position:absolute;left:0;right:0;border-top:1px solid var(--border2)}
+    .cal-track{position:relative;flex:1;touch-action:none;cursor:pointer;background:repeating-linear-gradient(180deg,transparent,transparent 27px,var(--border2) 27px,var(--border2) 28px)}
+    .cal-block{position:absolute;left:4px;right:4px;border-radius:6px;font-size:0.72rem;padding:3px 8px;overflow:hidden;box-sizing:border-box}
+    .cal-booked{background:var(--nd-terracota-dim);border:1px solid var(--nd-terracota);color:var(--nd-terracota-hondo);font-weight:600}
+    .cal-booked-time{display:block;font-weight:400;opacity:0.8;font-size:0.68rem}
+    .cal-selection{background:var(--accent);opacity:0.85;color:var(--accent-ink);font-weight:700;border:1px solid var(--nd-terracota-hondo);pointer-events:none;display:none}
+    .cal-confirm-bar{display:none;padding:14px 16px;border-top:1px solid var(--border);background:var(--surface2);align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;position:sticky;bottom:0}
+    .cal-confirm-bar.show{display:flex;animation:fadeUp 0.15s ease}
     .medio-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
     .medio-nom{font-weight:700;font-size:0.86rem;margin-bottom:2px}
     .medio-desc{font-size:0.78rem;color:var(--muted);line-height:1.5}
@@ -445,24 +458,41 @@
 
 <!-- RESERVAS -->
 <div id="section-reservas" class="section sw">
-    <div class="pg-head"><div class="pg-title"><svg class="ic"><use href="#ic-reserva"></use></svg>Reservas de Amenities</div><div class="pg-sub">Consultá disponibilidad y reservá espacios comunes</div></div>
+    <div class="pg-head"><div class="pg-title"><svg class="ic"><use href="#ic-reserva"></use></svg>Reservas de Amenities</div><div class="pg-sub">Tocá y arrastrá sobre el calendario para elegir tu horario</div></div>
     <div class="table-wrap" style="padding:20px;margin-bottom:18px">
-        <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:16px">Nueva Reserva</h3>
-        <div class="f-row">
+        <div class="f-row" style="align-items:end">
             <div class="fg" style="margin-bottom:0"><label class="fl">Espacio / Amenity</label><select id="res-am" class="fc" onchange="onAmenitySelected()"><option value="">Cargando...</option></select></div>
-            <div class="fg" style="margin-bottom:0"><label class="fl">Fecha</label><input type="date" id="res-fecha" class="fc" onchange="onResDateChanged()"></div>
-            <div class="fg" style="margin-bottom:0"><label class="fl">Hora Inicio</label><input type="time" id="res-hi" class="fc"></div>
-            <div class="fg" style="margin-bottom:0"><label class="fl">Hora Fin</label><input type="time" id="res-hf" class="fc"></div>
+            <div class="fg" style="margin-bottom:0">
+                <label class="fl">Fecha</label>
+                <div style="display:flex;gap:6px">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="shiftResDate(-1)" aria-label="Día anterior" style="padding:8px 12px">‹</button>
+                    <input type="date" id="res-fecha" class="fc" onchange="onResDateChanged()" style="flex:1">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="shiftResDate(1)" aria-label="Día siguiente" style="padding:8px 12px">›</button>
+                </div>
+            </div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap">
-            <button class="btn btn-primary" onclick="realizarReserva()"><svg class="ic ic-sm"><use href="#ic-pagado"></use></svg>Confirmar Reserva</button>
             <button class="btn btn-secondary btn-sm" id="btn-cond" onclick="verCondiciones()" disabled><svg class="ic ic-sm"><use href="#ic-doc"></use></svg>Condiciones</button>
             <span id="am-desc" style="font-size:0.82rem;color:var(--muted)">Seleccioná un espacio para ver los detalles</span>
         </div>
     </div>
     <div class="table-wrap" style="margin-bottom:18px">
-        <div class="twh"><h3 id="disp-titulo">Disponibilidad del Día</h3></div>
-        <div style="padding:16px" id="disp-lista"><p style="color:var(--muted);font-size:0.85rem">Seleccioná un amenity y fecha.</p></div>
+        <div class="twh">
+            <h3 id="disp-titulo">Disponibilidad del Día</h3>
+            <div style="display:flex;gap:14px;font-size:0.72rem;color:var(--muted);flex-wrap:wrap">
+                <span style="display:flex;align-items:center;gap:5px"><span class="cal-dot cal-dot-free"></span>Disponible</span>
+                <span style="display:flex;align-items:center;gap:5px"><span class="cal-dot cal-dot-taken"></span>Reservado</span>
+                <span style="display:flex;align-items:center;gap:5px"><span class="cal-dot cal-dot-sel"></span>Tu selección</span>
+            </div>
+        </div>
+        <div id="cal-wrap"><p style="color:var(--muted);font-size:0.85rem;padding:16px">Seleccioná un amenity y fecha.</p></div>
+        <div id="cal-confirm-bar" class="cal-confirm-bar">
+            <div style="font-size:0.86rem"><strong id="cal-sel-label">–</strong></div>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-secondary btn-sm" onclick="clearSeleccion()">Cancelar</button>
+                <button class="btn btn-primary btn-sm" onclick="realizarReserva()"><svg class="ic ic-sm"><use href="#ic-pagado"></use></svg>Confirmar Reserva</button>
+            </div>
+        </div>
     </div>
     <div class="table-wrap">
         <div class="twh"><h3>Mis Reservas</h3></div>
@@ -635,7 +665,7 @@
 <div class="toast-container" id="tc"></div>
 
 <script>
-const S = { vecino:null, unidades:[], activeU:null, coms:[], comFilter:'all', recs:[], vots:[], votFilter:'', cobros:[], amenities:[], selAm:null, charts:{} };
+const S = { vecino:null, unidades:[], activeU:null, coms:[], comFilter:'all', recs:[], vots:[], votFilter:'', cobros:[], amenities:[], selAm:null, charts:{}, booked:[], selStart:null, selEnd:null, dragAnchor:null, dragging:false };
 
 function toast(msg, t='ok'){const el=document.createElement('div');el.className='toast '+t;el.textContent=msg;document.getElementById('tc').appendChild(el);setTimeout(()=>el.remove(),3200)}
 function openModal(id){document.getElementById(id).classList.add('open')}
@@ -1101,14 +1131,29 @@ async function votar(vid,opcion){
     catch(e){toast(e.message,'err')}
 }
 
+// ── Calendario de reservas (estilo Google Calendar: click/arrastre para elegir horario) ──
+const CAL_START=8*60, CAL_END=24*60, CAL_SLOT=30, CAL_SLOTPX=28;
+const minToHHMM=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+const hhmmToMin=s=>{const p=s.split(':').map(Number);return p[0]*60+p[1]};
+const calY2Min=y=>{const raw=CAL_START+y/CAL_SLOTPX*CAL_SLOT;return Math.max(CAL_START,Math.min(CAL_END,Math.round(raw/CAL_SLOT)*CAL_SLOT))};
+const calIsBooked=m=>S.booked.some(b=>m>=b.start&&m<b.end);
+
 async function loadReservas(){
     const cid=(S.activeU?.consorcios?.id)||S.vecino?.consorcio_id;if(!cid)return;
     try{S.amenities=await api('/api/consorcios/'+cid+'/amenities');const sel=document.getElementById('res-am');sel.innerHTML='<option value="">Seleccioná un espacio...</option>';S.amenities.forEach(a=>{const o=document.createElement('option');o.value=a.id;o.textContent=a.nombre;sel.appendChild(o)})}catch(e){}
+    const fEl=document.getElementById('res-fecha');if(!fEl.value)fEl.value=new Date().toISOString().split('T')[0];
     await loadMisReservas();
 }
 async function loadMisReservas(){
     const tb=document.getElementById('tb-reservas');tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Cargando...</td></tr>';
     try{const d=await api('/api/reservas_amenities?only_mine=true');if(!d.length){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Sin reservas registradas</td></tr>';return}tb.innerHTML=d.map(r=>`<tr><td>${r.amenities?.nombre||'–'}</td><td>${fmtD(r.fecha)}</td><td>${r.hora_inicio?.substring(0,5)} – ${r.hora_fin?.substring(0,5)}</td><td>${ebadge(r.estado)}</td><td>${r.estado==='confirmada'?`<button class="btn btn-danger btn-xs" onclick="cancelarReserva('${r.id}')">Cancelar</button>`:'–'}</td></tr>`).join('')}catch(e){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Error al cargar</td></tr>'}
+}
+function shiftResDate(delta){
+    const fEl=document.getElementById('res-fecha');
+    const base=fEl.value?new Date(fEl.value+'T00:00:00'):new Date();
+    base.setDate(base.getDate()+delta);
+    fEl.value=base.toISOString().split('T')[0];
+    onResDateChanged();
 }
 function onAmenitySelected(){
     const aid=document.getElementById('res-am').value;S.selAm=S.amenities.find(a=>a.id===aid);
@@ -1117,23 +1162,87 @@ function onAmenitySelected(){
     onResDateChanged();
 }
 async function onResDateChanged(){
+    clearSeleccion();
     const aid=document.getElementById('res-am').value;const fecha=document.getElementById('res-fecha').value;
-    const el=document.getElementById('disp-lista');document.getElementById('disp-titulo').textContent='Disponibilidad'+(fecha?' — '+fmtD(fecha):'');
-    if(!aid||!fecha){el.innerHTML='<p style="color:var(--muted);font-size:0.85rem">Seleccioná un amenity y fecha.</p>';return}
-    el.innerHTML='<p style="color:var(--muted);font-size:0.85rem">Cargando...</p>';
-    try{const d=await api('/api/reservas_amenities?amenity_id='+aid+'&fecha='+fecha);if(!d.length){el.innerHTML='<div class="slot-free">Sin reservas — todo el día disponible</div>';return}el.innerHTML=d.map(r=>`<div class="slot-taken">${r.hora_inicio?.substring(0,5)} – ${r.hora_fin?.substring(0,5)} <span style="margin-left:auto;opacity:0.7">Reservado</span></div>`).join('')}
-    catch(e){el.innerHTML='<p style="color:var(--nd-terracota-hondo);font-size:0.85rem">Error al cargar disponibilidad</p>'}
+    const wrap=document.getElementById('cal-wrap');document.getElementById('disp-titulo').textContent='Disponibilidad'+(fecha?' — '+fmtD(fecha):'');
+    if(!aid||!fecha){wrap.innerHTML='<p style="color:var(--muted);font-size:0.85rem;padding:16px">Seleccioná un amenity y fecha.</p>';return}
+    wrap.innerHTML='<p style="color:var(--muted);font-size:0.85rem;padding:16px">Cargando...</p>';
+    try{
+        const d=await api('/api/reservas_amenities?amenity_id='+aid+'&fecha='+fecha);
+        S.booked=d.filter(r=>r.estado==='confirmada').map(r=>({start:hhmmToMin(r.hora_inicio),end:hhmmToMin(r.hora_fin)}));
+        renderCalendar();
+    }catch(e){wrap.innerHTML='<p style="color:var(--nd-terracota-hondo);font-size:0.85rem;padding:16px">Error al cargar disponibilidad</p>'}
+}
+function renderCalendar(){
+    const wrap=document.getElementById('cal-wrap');
+    const totalPx=(CAL_END-CAL_START)/CAL_SLOT*CAL_SLOTPX;
+    let hoursHtml='';
+    for(let m=CAL_START;m<=CAL_END;m+=60){
+        const top=(m-CAL_START)/CAL_SLOT*CAL_SLOTPX;
+        hoursHtml+=`<div class="cal-hourline" style="top:${top}px"></div><div class="cal-hourlabel" style="top:${top}px">${String(Math.floor(m/60)).padStart(2,'0')}:00</div>`;
+    }
+    const bookedHtml=S.booked.map(b=>{
+        const s=Math.max(b.start,CAL_START),e=Math.min(b.end,CAL_END);
+        const top=(s-CAL_START)/CAL_SLOT*CAL_SLOTPX, h=Math.max(4,(e-s)/CAL_SLOT*CAL_SLOTPX);
+        return `<div class="cal-block cal-booked" style="top:${top}px;height:${h}px">Reservado<span class="cal-booked-time">${minToHHMM(b.start)}–${minToHHMM(b.end)}</span></div>`;
+    }).join('');
+    wrap.innerHTML=`<div class="cal-grid">
+        <div class="cal-hourcol" style="height:${totalPx}px">${hoursHtml}</div>
+        <div class="cal-track" id="cal-track" style="height:${totalPx}px">${bookedHtml}<div class="cal-block cal-selection" id="cal-selection"></div></div>
+    </div>`;
+    const track=document.getElementById('cal-track');
+    track.addEventListener('pointerdown',calPointerDown);
+    renderSelection();
+}
+function renderSelection(){
+    const sel=document.getElementById('cal-selection');if(!sel)return;
+    const bar=document.getElementById('cal-confirm-bar');
+    if(S.selStart==null){sel.style.display='none';bar.classList.remove('show');return}
+    const top=(S.selStart-CAL_START)/CAL_SLOT*CAL_SLOTPX, h=(S.selEnd-S.selStart)/CAL_SLOT*CAL_SLOTPX;
+    sel.style.display='block';sel.style.top=top+'px';sel.style.height=h+'px';
+    sel.textContent=minToHHMM(S.selStart)+' – '+minToHHMM(S.selEnd);
+    bar.classList.add('show');
+    document.getElementById('cal-sel-label').textContent=(S.selAm?.nombre||'')+': '+minToHHMM(S.selStart)+' – '+minToHHMM(S.selEnd);
+}
+function clearSeleccion(){S.selStart=null;S.selEnd=null;S.dragAnchor=null;renderSelection()}
+function calPointerDown(e){
+    if(!S.selAm){toast('Elegí un espacio primero','warn');return}
+    e.preventDefault();
+    const track=e.currentTarget;
+    const min=calY2Min(e.clientY-track.getBoundingClientRect().top);
+    if(calIsBooked(min)){toast('Ese horario ya está reservado','warn');return}
+    try{track.setPointerCapture(e.pointerId)}catch(err){}
+    S.dragAnchor=min;S.selStart=min;S.selEnd=Math.min(min+CAL_SLOT,CAL_END);S.dragging=true;
+    renderSelection();
+    track.onpointermove=ev=>calPointerMove(ev,track);
+    track.onpointerup=()=>calPointerUp(track);
+    track.onpointercancel=()=>calPointerUp(track);
+}
+function calPointerMove(e,track){
+    if(!S.dragging)return;
+    const m1=calY2Min(e.clientY-track.getBoundingClientRect().top);
+    let lo=Math.min(S.dragAnchor,m1), hi=Math.max(S.dragAnchor,m1)+CAL_SLOT;
+    hi=Math.min(hi,CAL_END);
+    let maxHi=CAL_END;S.booked.forEach(b=>{if(b.start>=S.dragAnchor&&b.start<hi)maxHi=Math.min(maxHi,b.start)});hi=Math.min(hi,maxHi);
+    let minLo=CAL_START;S.booked.forEach(b=>{if(b.end<=S.dragAnchor&&b.end>lo)minLo=Math.max(minLo,b.end)});lo=Math.max(lo,minLo);
+    S.selStart=lo;S.selEnd=hi;
+    renderSelection();
+}
+function calPointerUp(track){
+    S.dragging=false;track.onpointermove=null;track.onpointerup=null;track.onpointercancel=null;
 }
 function verCondiciones(){if(!S.selAm)return;document.getElementById('cond-titulo').textContent='Condiciones — '+S.selAm.nombre;document.getElementById('cond-body').textContent=S.selAm.condiciones_uso||'Sin condiciones especificadas.';openModal('modal-cond')}
 async function realizarReserva(){
-    const aid=document.getElementById('res-am').value;const fecha=document.getElementById('res-fecha').value;const hi=document.getElementById('res-hi').value;const hf=document.getElementById('res-hf').value;
-    if(!aid||!fecha||!hi||!hf){toast('Completá todos los campos','warn');return}
-    try{await api('/api/reservas_amenities',{method:'POST',body:JSON.stringify({amenity_id:aid,fecha,hora_inicio:hi,hora_fin:hf})});toast('Reserva confirmada','ok');await loadMisReservas();onResDateChanged()}
-    catch(e){toast(e.message,'err')}
+    const aid=document.getElementById('res-am').value;const fecha=document.getElementById('res-fecha').value;
+    if(!aid||!fecha||S.selStart==null){toast('Elegí un horario en el calendario','warn');return}
+    try{
+        await api('/api/reservas_amenities',{method:'POST',body:JSON.stringify({amenity_id:aid,fecha,hora_inicio:minToHHMM(S.selStart),hora_fin:minToHHMM(S.selEnd)})});
+        toast('Reserva confirmada','ok');clearSeleccion();await loadMisReservas();onResDateChanged()
+    }catch(e){toast(e.message,'err')}
 }
 async function cancelarReserva(rid){
     if(!confirm('¿Cancelar esta reserva?'))return;
-    try{await api('/api/reservas_amenities/'+rid,{method:'DELETE'});toast('Reserva cancelada','ok');await loadMisReservas()}
+    try{await api('/api/reservas_amenities/'+rid,{method:'DELETE'});toast('Reserva cancelada','ok');await loadMisReservas();onResDateChanged()}
     catch(e){toast(e.message,'err')}
 }
 
