@@ -778,7 +778,7 @@
                 <button onclick="openAutoExtract()" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 16px;border:2px solid var(--border);border-radius:14px;background:var(--card);cursor:pointer;transition:all .2s;" onmouseover="this.style.borderColor='var(--teal)';this.style.background='rgba(47,111,94,.06)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--card)'">
                     <span style="color:var(--nd-terracota-hondo)"><svg class="ic ic-xl"><use href="#ic-rayo"></use></svg></span>
                     <span style="font-weight:700;font-size:.95rem;color:var(--text);">Carga automática</span>
-                    <span style="font-size:.78rem;color:var(--muted);text-align:center;line-height:1.4;">Subí una foto o PDF del comprobante y extraemos los datos con IA</span>
+                    <span style="font-size:.78rem;color:var(--muted);text-align:center;line-height:1.4;">Subí una o varias fotos o PDF de los comprobantes y extraemos los datos con IA</span>
                 </button>
                 <button onclick="closeModal('modal-gasto-choice');openGastoModal()" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 16px;border:2px solid var(--border);border-radius:14px;background:var(--card);cursor:pointer;transition:all .2s;" onmouseover="this.style.borderColor='var(--blue)';this.style.background='rgba(47,111,94,.08)'" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--card)'">
                     <span style="color:var(--nd-verde)"><svg class="ic ic-xl"><use href="#ic-editar"></use></svg></span>
@@ -792,15 +792,15 @@
 
 <!-- Modal Carga Automática (OCR/AI) -->
 <div class="modal-overlay" id="modal-auto-extract">
-    <div class="modal-box" style="max-width:940px;">
+    <div class="modal-box" style="width:940px;max-width:94vw;">
         <div class="modal-head"><h3>Carga automática con IA</h3><button class="modal-close" onclick="closeModal('modal-auto-extract')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body" style="padding:24px;">
             <!-- Step 1: Upload -->
             <div id="auto-step-upload">
                 <div id="auto-dropzone" style="border:2px dashed var(--border);border-radius:14px;padding:48px 24px;text-align:center;cursor:pointer;transition:all .25s;background:var(--card);">
                     <div style="margin-bottom:10px;color:var(--nd-terracota-hondo)"><svg class="ic ic-xl"><use href="#ic-doc"></use></svg></div>
-                    <p style="font-weight:600;font-size:.92rem;margin:0 0 6px;color:var(--text);">Arrastrá o hacé clic para subir</p>
-                    <p style="font-size:.78rem;color:var(--muted);margin:0;">Formatos: JPG, PNG, PDF — Máximo 10MB</p>
+                    <p style="font-weight:600;font-size:.92rem;margin:0 0 6px;color:var(--text);">Arrastrá o hacé clic para subir uno o varios comprobantes</p>
+                    <p style="font-size:.78rem;color:var(--muted);margin:0;">Formatos: JPG, PNG, PDF — Hasta 10 archivos por lote, máximo 10MB cada uno</p>
                     <input type="file" id="auto-file-input" accept="image/*,.pdf" multiple style="display:none;" onchange="handleAutoFiles(this)">
                 </div>
                 <div id="auto-file-list" style="display:none;margin-top:14px;"></div>
@@ -815,8 +815,9 @@
             <!-- Step 2: Processing -->
             <div id="auto-step-processing" style="display:none;text-align:center;padding:40px 0;">
                 <div style="margin-bottom:16px;animation:spin 1.5s linear infinite;color:var(--nd-terracota)"><svg class="ic ic-xl"><use href="#ic-config"></use></svg></div>
-                <p style="font-weight:600;font-size:.95rem;margin:0 0 6px;">Analizando comprobante...</p>
-                <p id="auto-progress" style="font-size:.82rem;color:var(--muted);margin:0;">La IA está extrayendo los datos. Esto puede tardar unos segundos.</p>
+                <p style="font-weight:600;font-size:.95rem;margin:0 0 6px;">Analizando con IA...</p>
+                <p id="auto-progress" style="font-size:.82rem;color:var(--muted);margin:0;">La IA está extrayendo los datos. Puede tardar unos segundos por comprobante.</p>
+                <p style="font-size:.75rem;color:var(--muted);margin:8px 0 0;">No cierres esta ventana hasta que termine el lote.</p>
             </div>
             <!-- Step 3: Results -->
             <div id="auto-step-results" style="display:none;">
@@ -1608,6 +1609,19 @@ const escHtml = s => String(s ?? '').replace(/[&<>"']/g,
 
 let autoExtractedResults = [];
 let autoFilesSelected = [];
+// Un lote tarda entre 3 y 28 segundos por archivo, así que la ventana en la que el
+// modal puede cerrarse (Escape o la X) mientras corre es enorme. Este flag impide que
+// un segundo lote arranque encima del primero y que el estado se descarte a mitad.
+let autoExtractRunning = false;
+// El consorcio queda fijado al arrancar el lote: guardar no vuelve a leer el select.
+let autoBatchConsorcioId = '';
+
+// new Date().toISOString() da UTC: entre las 21:00 y la medianoche argentina (UTC-3)
+// eso adelanta un día. Esta versión usa los getters locales.
+function hoyLocalISO() {
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
 
 function openGastoChoice() {
     openModal('modal-gasto-choice');
@@ -1615,6 +1629,13 @@ function openGastoChoice() {
 
 function openAutoExtract() {
     closeModal('modal-gasto-choice');
+    // Si hay un lote corriendo, reabrir el modal muestra su progreso: no se descarta
+    // nada ni se permite elegir otro consorcio encima del lote en curso.
+    if (autoExtractRunning) {
+        openModal('modal-auto-extract');
+        toast('Hay un lote analizándose. Esperá a que termine.', 'info');
+        return;
+    }
     resetAutoExtract();
     const opts = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
     $('auto-consorcio').innerHTML = opts;
@@ -1678,6 +1699,8 @@ function renderAutoFileList() {
 }
 
 function resetAutoExtract() {
+    // Único punto donde se descarta el estado del lote: si hay uno corriendo, no se toca.
+    if (autoExtractRunning) { toast('Hay un lote analizándose. Esperá a que termine.', 'info'); return; }
     autoExtractedResults = [];
     autoFilesSelected = [];
     $('auto-file-input').value = '';
@@ -1699,25 +1722,32 @@ async function extractOne(file, consorcioId) {
 }
 
 async function extractGastosData() {
+    if (autoExtractRunning) return;
     if (!autoFilesSelected.length) { toast('Seleccioná al menos un archivo', 'warn'); return; }
     if (!$('auto-consorcio').value) { toast('Seleccioná un consorcio', 'warn'); return; }
 
     const consorcioId = $('auto-consorcio').value;
     const total = autoFilesSelected.length;
     autoExtractedResults = [];
+    autoBatchConsorcioId = consorcioId;
+    autoExtractRunning = true;
 
     $('auto-step-upload').style.display = 'none';
     $('auto-step-processing').style.display = '';
 
-    for (let i = 0; i < total; i++) {
-        const file = autoFilesSelected[i];
-        $('auto-progress').textContent = `Analizando ${i + 1} de ${total} — ${file.name}`;
-        try {
-            const data = await extractOne(file, consorcioId);
-            autoExtractedResults.push({ file, data, error: null, incluir: true, pagado: false });
-        } catch (e) {
-            autoExtractedResults.push({ file, data: null, error: e.message, incluir: false, pagado: false });
+    try {
+        for (let i = 0; i < total; i++) {
+            const file = autoFilesSelected[i];
+            $('auto-progress').textContent = `Analizando ${i + 1} de ${total} — ${file.name}`;
+            try {
+                const data = await extractOne(file, consorcioId);
+                autoExtractedResults.push({ file, data, error: null, incluir: true, pagado: false });
+            } catch (e) {
+                autoExtractedResults.push({ file, data: null, error: e.message, incluir: false, pagado: false });
+            }
         }
+    } finally {
+        autoExtractRunning = false;
     }
 
     $('auto-step-processing').style.display = 'none';
@@ -1729,9 +1759,11 @@ function renderBatchResults() {
     const total = autoExtractedResults.length;
     const ok = autoExtractedResults.filter(r => !r.error).length;
     const fallidos = total - ok;
+    // "listos" y no "analizados": una fila puede fallar al extraer o al guardar, y
+    // después de una carga parcial las filas que quedan son las que no se guardaron.
     $('auto-results-title').textContent = fallidos
-        ? `${ok} de ${total} comprobantes analizados (${fallidos} con error)`
-        : `${ok} comprobante${ok === 1 ? '' : 's'} analizado${ok === 1 ? '' : 's'}`;
+        ? `${ok} de ${total} comprobantes listos (${fallidos} con error)`
+        : `${ok} comprobante${ok === 1 ? '' : 's'} listo${ok === 1 ? '' : 's'} para cargar`;
 
     $('tbody-auto-results').innerHTML = autoExtractedResults.map((r, i) => {
         if (r.error) {
@@ -1777,17 +1809,23 @@ function updateConfirmButton() {
 }
 
 async function retryExtraction(idx) {
+    // Mismo flag que el lote: un doble clic no dispara dos extracciones de la misma fila.
+    if (autoExtractRunning) return;
     const r = autoExtractedResults[idx];
+    if (!r) return;
+    autoExtractRunning = true;
     r.error = 'Reintentando…';
     renderBatchResults();
     try {
-        r.data = await extractOne(r.file, $('auto-consorcio').value);
+        r.data = await extractOne(r.file, autoBatchConsorcioId || $('auto-consorcio').value);
         r.error = null;
         r.incluir = true;
     } catch (e) {
         r.data = null;
         r.error = e.message;
         r.incluir = false;
+    } finally {
+        autoExtractRunning = false;
     }
     renderBatchResults();
 }
@@ -1799,7 +1837,7 @@ async function saveOneGasto(r, consorcioId) {
     fd.append('monto', d.monto);
     fd.append('descripcion', (d.descripcion || '').trim());
     fd.append('categoria', d.categoria || '');
-    fd.append('fecha_gasto', d.fecha_gasto || new Date().toISOString().split('T')[0]);
+    fd.append('fecha_gasto', d.fecha_gasto || hoyLocalISO());
     fd.append('fecha_vencimiento', d.fecha_vencimiento || '');
     fd.append('pagado', r.pagado ? 'true' : 'false');
     fd.append('notas', d.notas || '');
@@ -1813,7 +1851,8 @@ async function saveOneGasto(r, consorcioId) {
 }
 
 async function confirmBatchExtract() {
-    const consorcioId = $('auto-consorcio').value;
+    // El consorcio se fijó al arrancar el lote: no se relee el select al guardar.
+    const consorcioId = autoBatchConsorcioId || $('auto-consorcio').value;
     const pendientes = autoExtractedResults.filter(r => !r.error && r.incluir);
     if (!pendientes.length) { toast('No hay gastos para cargar', 'warn'); return; }
 
@@ -1824,24 +1863,44 @@ async function confirmBatchExtract() {
     }
 
     $('auto-confirm-btn').disabled = true;
-    const fallidos = [];
-    let guardados = 0;
+    const guardadas = [];
+    let fallidas = 0;
 
     for (let i = 0; i < pendientes.length; i++) {
         $('auto-confirm-label').textContent = `Cargando ${i + 1} de ${pendientes.length}…`;
+        const r = pendientes[i];
         try {
-            await saveOneGasto(pendientes[i], consorcioId);
-            guardados++;
+            await saveOneGasto(r, consorcioId);
+            guardadas.push(r);
         } catch (e) {
-            fallidos.push(`${pendientes[i].file.name}: ${e.message}`);
+            // El error se escribe en la fila: un toast de 3,2 segundos y 340px no es
+            // un informe de fallas usable cuando hay hasta 10 comprobantes.
+            r.error = `No se pudo cargar — ${e.message}`;
+            r.incluir = false;
+            fallidas++;
         }
     }
 
+    // Las filas ya guardadas salen del lote para que un reintento no las duplique.
+    autoExtractedResults = autoExtractedResults.filter(r => !guardadas.includes(r));
+
+    if (guardadas.length) {
+        toast(guardadas.length === 1 ? '1 gasto cargado' : `${guardadas.length} gastos cargados`);
+        await loadGastos();
+    }
+
+    if (fallidas) {
+        // Falla parcial: el modal queda abierto con las filas fallidas marcadas para
+        // que se vea cuáles quedaron pendientes y se puedan reintentar sin recargar todo.
+        renderBatchResults();
+        toast(fallidas === 1
+            ? '1 comprobante quedó sin cargar — revisá la tabla'
+            : `${fallidas} comprobantes quedaron sin cargar — revisá la tabla`, 'err');
+        return;
+    }
+
     closeModal('modal-auto-extract');
-    if (guardados) toast(guardados === 1 ? '1 gasto cargado' : `${guardados} gastos cargados`);
-    if (fallidos.length) toast(`No se pudieron cargar — ${fallidos.join(' | ')}`, 'err');
     resetAutoExtract();
-    await loadGastos();
 }
 
 function openGastoModal(id) {
