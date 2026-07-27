@@ -1,5 +1,6 @@
 import io
 import os
+import json
 import base64
 from datetime import datetime, timezone, date
 from typing import Optional
@@ -862,7 +863,6 @@ IMPORTANTE:
             elif '```' in text:
                 text = text[:text.rfind('```')].strip()
 
-        import json
         data = json.loads(text)
 
         # Sanitize and validate
