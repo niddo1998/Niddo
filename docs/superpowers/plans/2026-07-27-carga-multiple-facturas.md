@@ -897,15 +897,16 @@ grep -n "autoFileSelected\|autoExtractedData\|confirmAutoExtract\|extractGastoDa
 ```
 Expected: sin resultados. Cualquier coincidencia es un resto del código anterior que hay que sacar.
 
-- [ ] **Step 4: Push y despliegue**
+- [ ] **Step 4: Cerrar la tarea sin desplegar**
 
-```bash
-cd /Users/santiagodespontin/Niddo/Niddo
-git push origin main
-```
+El trabajo vive en la rama `feat/carga-multiple-facturas`, no en `main`. Esta tarea **no** hace push ni merge: la integración se decide después de la revisión final de toda la rama.
 
-Vercel despliega solo con el push. No hacen falta variables de entorno nuevas: `GROQ_API_KEY` ya está configurada.
+Si los pasos 1-3 dejaron algún arreglo sin commitear, commitearlo en la rama. Si no hay cambios, no hay commit que hacer.
 
-- [ ] **Step 5: Prueba en producción**
+### Despliegue (fuera del alcance de esta tarea)
+
+Una vez integrada la rama a `main` y pusheada, Vercel despliega solo. No hacen falta variables de entorno nuevas: `GROQ_API_KEY` ya está configurada.
+
+Prueba en producción, con facturas reales:
 
 Con facturas reales, en el panel de administración: Nuevo gasto → Carga automática → subir 3 comprobantes → elegir consorcio → extraer → revisar la tabla → cargar. Confirmar en la tabla de gastos que aparecen los 3, cada uno con su comprobante adjunto abriendo el ícono de documento.
