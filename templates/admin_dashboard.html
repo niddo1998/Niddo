@@ -808,7 +808,7 @@
                     <label class="form-label">Consorcio *</label>
                     <select class="form-ctrl" id="auto-consorcio"></select>
                 </div>
-                <button class="btn-p" id="auto-extract-btn" onclick="extractGastoData()" style="width:100%;margin-top:10px;" disabled>
+                <button class="btn-p" id="auto-extract-btn" onclick="extractGastosData()" style="width:100%;margin-top:10px;" disabled>
                     <svg class="ic ic-sm"><use href="#ic-rayo"></use></svg><span id="auto-extract-btn-label">Extraer datos del comprobante</span>
                 </button>
             </div>
@@ -816,7 +816,7 @@
             <div id="auto-step-processing" style="display:none;text-align:center;padding:40px 0;">
                 <div style="margin-bottom:16px;animation:spin 1.5s linear infinite;color:var(--nd-terracota)"><svg class="ic ic-xl"><use href="#ic-config"></use></svg></div>
                 <p style="font-weight:600;font-size:.95rem;margin:0 0 6px;">Analizando comprobante...</p>
-                <p style="font-size:.82rem;color:var(--muted);margin:0;">La IA está extrayendo los datos. Esto puede tardar unos segundos.</p>
+                <p id="auto-progress" style="font-size:.82rem;color:var(--muted);margin:0;">La IA está extrayendo los datos. Esto puede tardar unos segundos.</p>
             </div>
             <!-- Step 3: Results -->
             <div id="auto-step-results" style="display:none;">
@@ -1683,55 +1683,47 @@ function resetAutoExtract() {
     renderAutoFileList();
 }
 
-async function extractGastoData() {
-    if (!autoFilesSelected.length) { toast('Seleccioná un archivo primero', 'warn'); return; }
+async function extractOne(file, consorcioId) {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('consorcio_id', consorcioId);
+    const r = await fetch('/api/gastos/extract', { method: 'POST', body: fd });
+    if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${r.status} al extraer datos`);
+    }
+    return r.json();
+}
+
+async function extractGastosData() {
+    if (!autoFilesSelected.length) { toast('Seleccioná al menos un archivo', 'warn'); return; }
     if (!$('auto-consorcio').value) { toast('Seleccioná un consorcio', 'warn'); return; }
 
-    // Show processing
+    const consorcioId = $('auto-consorcio').value;
+    const total = autoFilesSelected.length;
+    autoExtractedResults = [];
+
     $('auto-step-upload').style.display = 'none';
     $('auto-step-processing').style.display = '';
 
-    try {
-        const fd = new FormData();
-        fd.append('file', autoFilesSelected[0]);
-        fd.append('consorcio_id', $('auto-consorcio').value);
-
-        const r = await fetch('/api/gastos/extract', { method: 'POST', body: fd });
-        if (!r.ok) {
-            const err = await r.json();
-            throw new Error(err.error || 'Error al extraer datos');
+    for (let i = 0; i < total; i++) {
+        const file = autoFilesSelected[i];
+        $('auto-progress').textContent = `Analizando ${i + 1} de ${total} — ${file.name}`;
+        try {
+            const data = await extractOne(file, consorcioId);
+            autoExtractedResults.push({ file, data, error: null, incluir: true, pagado: false });
+        } catch (e) {
+            autoExtractedResults.push({ file, data: null, error: e.message, incluir: false, pagado: false });
         }
-        autoExtractedData = await r.json();
-
-        // Show results
-        const labels = {
-            descripcion: 'Descripción', monto: 'Monto', categoria: 'Categoría',
-            fecha_gasto: 'Fecha', fecha_vencimiento: 'Vencimiento', notas: 'Notas'
-        };
-        const catLabels = {
-            electricidad:'Electricidad', gas:'Gas', agua:'Agua', limpieza:'Limpieza',
-            ascensor:'Ascensor', seguro:'Seguro', honorarios:'Honorarios', impuesto:'Impuesto',
-            mantenimiento:'Mantenimiento', sueldos:'Sueldos', otro:'Otro'
-        };
-        let grid = '';
-        for (const [key, label] of Object.entries(labels)) {
-            let val = autoExtractedData[key] || '—';
-            if (key === 'monto' && val !== '—') val = fmt(parseFloat(val));
-            if (key === 'categoria') val = catLabels[val] || val || '—';
-            grid += `<div style="padding:10px 14px;background:var(--bg);border-radius:8px;">
-                <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;font-weight:600;margin-bottom:3px;">${label}</div>
-                <div style="font-size:.88rem;font-weight:600;color:var(--text);">${val}</div>
-            </div>`;
-        }
-        $('auto-results-grid').innerHTML = grid;
-        $('auto-step-processing').style.display = 'none';
-        $('auto-step-results').style.display = '';
-
-    } catch(e) {
-        $('auto-step-processing').style.display = 'none';
-        $('auto-error-msg').textContent = e.message;
-        $('auto-step-error').style.display = '';
     }
+
+    $('auto-step-processing').style.display = 'none';
+    renderBatchResults();
+    $('auto-step-results').style.display = '';
+}
+
+function renderBatchResults() {
+    console.log('renderBatchResults stub', autoExtractedResults);
 }
 
 function confirmAutoExtract() {
