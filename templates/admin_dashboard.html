@@ -1707,6 +1707,7 @@ function confirmAutoExtract() {
     if (!autoExtractedData) return;
     const d = autoExtractedData;
     const cid = $('auto-consorcio').value;
+    const file = autoFileSelected;
     closeModal('modal-auto-extract');
 
     // Open gasto modal pre-filled
@@ -1720,6 +1721,15 @@ function confirmAutoExtract() {
         if (d.fecha_gasto) $('m-gasto-fecha').value = d.fecha_gasto;
         if (d.fecha_vencimiento) $('m-gasto-vto').value = d.fecha_vencimiento;
         if (d.notas) $('m-gasto-notas').value = d.notas;
+
+        if (file) {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            $('m-gasto-comprobante').files = dt.files;
+            const infoEl = $('m-gasto-comprobante-info');
+            infoEl.innerHTML = `Comprobante adjuntado desde la carga automática (${file.name}).`;
+            infoEl.style.display = 'block';
+        }
     }, 50);
 }
 
