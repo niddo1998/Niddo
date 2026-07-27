@@ -1792,8 +1792,56 @@ async function retryExtraction(idx) {
     renderBatchResults();
 }
 
-function confirmBatchExtract() {
-    console.log('confirmBatchExtract stub', autoExtractedResults.filter(r => r.incluir));
+async function saveOneGasto(r, consorcioId) {
+    const d = r.data;
+    const fd = new FormData();
+    fd.append('consorcio_id', consorcioId);
+    fd.append('monto', d.monto);
+    fd.append('descripcion', (d.descripcion || '').trim());
+    fd.append('categoria', d.categoria || '');
+    fd.append('fecha_gasto', d.fecha_gasto || new Date().toISOString().split('T')[0]);
+    fd.append('fecha_vencimiento', d.fecha_vencimiento || '');
+    fd.append('pagado', r.pagado ? 'true' : 'false');
+    fd.append('notas', d.notas || '');
+    fd.append('comprobante', r.file);
+    const resp = await fetch('/api/gastos', { method: 'POST', body: fd });
+    if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || `Error ${resp.status}`);
+    }
+    return resp.json();
+}
+
+async function confirmBatchExtract() {
+    const consorcioId = $('auto-consorcio').value;
+    const pendientes = autoExtractedResults.filter(r => !r.error && r.incluir);
+    if (!pendientes.length) { toast('No hay gastos para cargar', 'warn'); return; }
+
+    const sinMonto = pendientes.filter(r => !r.data.monto || Number(r.data.monto) <= 0);
+    if (sinMonto.length) {
+        toast(`Completá el monto de: ${sinMonto.map(r => r.file.name).join(', ')}`, 'warn');
+        return;
+    }
+
+    $('auto-confirm-btn').disabled = true;
+    const fallidos = [];
+    let guardados = 0;
+
+    for (let i = 0; i < pendientes.length; i++) {
+        $('auto-confirm-label').textContent = `Cargando ${i + 1} de ${pendientes.length}…`;
+        try {
+            await saveOneGasto(pendientes[i], consorcioId);
+            guardados++;
+        } catch (e) {
+            fallidos.push(`${pendientes[i].file.name}: ${e.message}`);
+        }
+    }
+
+    closeModal('modal-auto-extract');
+    if (guardados) toast(guardados === 1 ? '1 gasto cargado' : `${guardados} gastos cargados`);
+    if (fallidos.length) toast(`No se pudieron cargar — ${fallidos.join(' | ')}`, 'err');
+    resetAutoExtract();
+    await loadGastos();
 }
 
 function openGastoModal(id) {
