@@ -790,14 +790,14 @@ def api_gasto_comprobante(gid):
 @app.route('/api/gastos/extract', methods=['POST'])
 @require_auth(allowed_roles=['admin'])
 def api_gastos_extract():
-    """Extrae datos de un comprobante usando Google Gemini Vision."""
-    import google.generativeai as genai
+    """Extrae datos de un comprobante usando Groq Vision (Qwen), gratis sin tarjeta."""
+    from groq import Groq
 
-    api_key = os.environ.get('GEMINI_API_KEY', '')
+    api_key = os.environ.get('GROQ_API_KEY', '')
     if not api_key:
-        return jsonify({'error': 'GEMINI_API_KEY no configurada'}), 500
+        return jsonify({'error': 'GROQ_API_KEY no configurada'}), 500
 
-    genai.configure(api_key=api_key)
+    client = Groq(api_key=api_key)
 
     file = request.files.get('file')
     if not file or not file.filename:
@@ -806,9 +806,12 @@ def api_gastos_extract():
     file_bytes = file.read()
     mime = file.content_type or 'image/jpeg'
 
-    # Determine MIME type for Gemini
     if file.filename.lower().endswith('.pdf'):
-        mime = 'application/pdf'
+        mime = 'image/png'
+        import fitz  # PyMuPDF
+        pdf = fitz.open(stream=file_bytes, filetype='pdf')
+        pix = pdf[0].get_pixmap(dpi=200)
+        file_bytes = pix.tobytes('png')
     elif file.filename.lower().endswith('.png'):
         mime = 'image/png'
     elif file.filename.lower().endswith(('.jpg', '.jpeg')):
@@ -833,14 +836,22 @@ IMPORTANTE:
 - Respondé SOLO el JSON, sin markdown ni explicaciones."""
 
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content([
-            prompt,
-            {'mime_type': mime, 'data': file_bytes}
-        ])
+        image_b64 = base64.b64encode(file_bytes).decode('utf-8')
+        completion = client.chat.completions.create(
+            model='qwen/qwen3.6-27b',
+            messages=[{
+                'role': 'user',
+                'content': [
+                    {'type': 'text', 'text': prompt},
+                    {'type': 'image_url', 'image_url': {'url': f'data:{mime};base64,{image_b64}'}}
+                ]
+            }],
+            response_format={'type': 'json_object'},
+            max_completion_tokens=1024
+        )
 
         # Parse the response - clean markdown if present
-        text = response.text.strip()
+        text = completion.choices[0].message.content.strip()
         if text.startswith('```'):
             text = text.split('\n', 1)[1] if '\n' in text else text[3:]
             if text.endswith('```'):
