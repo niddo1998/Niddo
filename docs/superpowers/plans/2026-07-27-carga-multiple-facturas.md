@@ -261,7 +261,15 @@ En `<div id="auto-step-processing" ...>`, reemplazar el párrafo secundario para
 <p id="auto-progress" style="font-size:.82rem;color:var(--muted);margin:0;">La IA está extrayendo los datos. Esto puede tardar unos segundos.</p>
 ```
 
-- [ ] **Step 2: Reemplazar `extractGastoData` por el loop**
+- [ ] **Step 2: Apuntar el botón a la función nueva**
+
+La Task 1 dejó el botón llamando a `extractGastoData` (la función vieja de un solo archivo), porque `extractGastosData` todavía no existía. Ahora sí. En el markup del botón de extracción, cambiar el handler:
+
+```html
+<button class="btn-p" id="auto-extract-btn" onclick="extractGastosData()" style="width:100%;margin-top:10px;" disabled>
+```
+
+- [ ] **Step 3: Reemplazar `extractGastoData` por el loop**
 
 Borrar la función `extractGastoData` completa (desde `async function extractGastoData() {` hasta su llave de cierre, incluyendo todo el armado del `auto-results-grid` y el manejo del paso de error) y poner en su lugar:
 
@@ -306,7 +314,7 @@ async function extractGastosData() {
 }
 ```
 
-- [ ] **Step 3: Stub temporal de `renderBatchResults`**
+- [ ] **Step 4: Stub temporal de `renderBatchResults`**
 
 Agregar justo debajo, para que la Task 2 sea verificable por sí sola. La Task 3 lo reemplaza por la implementación real:
 
@@ -316,12 +324,12 @@ function renderBatchResults() {
 }
 ```
 
-- [ ] **Step 4: Verificar sintaxis**
+- [ ] **Step 5: Verificar sintaxis**
 
 Run: `<scratchpad>/check-js.sh`
 Expected: `SINTAXIS OK`
 
-- [ ] **Step 5: Verificar el loop secuencial contra la API real**
+- [ ] **Step 6: Verificar el loop secuencial contra la API real**
 
 Crear `<scratchpad>/test_loop.py` y correrlo. Prueba la premisa central del diseño: N llamadas secuenciales funcionan y cada una devuelve JSON válido.
 
@@ -377,7 +385,7 @@ print('TOTAL:', round(time.time() - t0, 2), 's')
 Run: `python3 <scratchpad>/test_loop.py`
 Expected: las 3 líneas imprimen JSON parseado sin excepción, cada llamada entre 3 y 8 segundos, total por debajo de 25s. Confirma que el rate limit del plan gratuito no se toca con un lote de 3.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 cd /Users/santiagodespontin/Niddo/Niddo
@@ -537,7 +545,13 @@ async function retryExtraction(idx) {
 
 - [ ] **Step 6: Stub temporal de `confirmBatchExtract`**
 
-Borrar la función `confirmAutoExtract` completa y poner:
+Borrar la función `confirmAutoExtract` completa. Con eso desaparece el último consumidor de `autoExtractedData`, así que borrar también su declaración —la Task 1 la dejó viva a propósito porque `extractGastoData` y `confirmAutoExtract` todavía dependían de ella:
+
+```js
+let autoExtractedData = null;
+```
+
+En su lugar poner:
 
 ```js
 function confirmBatchExtract() {
