@@ -38,15 +38,25 @@ El backend no cambia. Se reutilizan dos endpoints existentes y ya probados:
 
 ## Por qué el análisis va en el navegador y no en el backend
 
-Cada llamada a Groq tarda alrededor de 4,5 segundos (medido con archivos reales de
-prueba). Procesar el lote entero dentro de una sola petición al backend sumaría esos
-tiempos: tres facturas darían unos 14 segundos, por encima del límite de 10 segundos
-que Vercel aplica por defecto a las funciones en el plan Hobby. Al superarse el límite
-se perdería el lote completo.
+Durante la implementación se midió la latencia real de `/api/gastos/extract` con
+archivos de prueba: **entre 3 y 28 segundos por archivo**, con mucha varianza según el
+tamaño y la calidad del comprobante. (La estimación original de este documento era de
+unos 4,5 segundos fijos por llamada; era optimista y quedó desmentida por la medición.)
 
-Haciendo una petición por archivo desde el navegador, cada una dura lo que tarda una
-sola factura y nunca se acerca al límite. Además el progreso es visible y una falla
-queda aislada en su archivo.
+Procesar el lote entero dentro de una sola petición al backend sumaría esos tiempos:
+con tres facturas el peor caso medido supera holgadamente el límite de 10 segundos que
+Vercel aplica por defecto a las funciones en el plan Hobby, y al superarse el límite se
+perdería **el lote completo**.
+
+Haciendo una petición por archivo desde el navegador el radio de impacto queda acotado
+a un comprobante. Esto **no** garantiza quedar por debajo del límite: un archivo del
+extremo lento del rango medido puede pasarse de los 10 segundos y volver un 504. Lo que
+sí garantiza es que ese 504 se lleve puesta una sola fila y no el lote: el cliente marca
+esa fila como extracción fallida, con su mensaje de error y un botón "Reintentar", y el
+resto del lote sigue. Además el progreso es visible archivo por archivo.
+
+Si el 504 en archivos lentos resultara frecuente en producción, la salida es subir
+`maxDuration` de la función (requiere plan Pago), no volver al lote en una sola petición.
 
 El límite de 30 peticiones por minuto del plan gratuito de Groq deja margen de sobra
 para un lote de 10.
