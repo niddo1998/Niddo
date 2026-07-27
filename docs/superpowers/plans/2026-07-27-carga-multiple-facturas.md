@@ -495,15 +495,18 @@ function renderBatchResults() {
             </tr>`;
         }
         const d = r.data;
+        // Si la categoría no es una de las 11 válidas, el select mostraría la primera
+        // opción sin que el modelo cambie: se guardaría un valor distinto al que se ve.
+        if (!AUTO_CATEGORIAS.includes(d.categoria)) d.categoria = 'otro';
         const cats = AUTO_CATEGORIAS.map(c =>
             `<option value="${c}"${d.categoria === c ? ' selected' : ''}>${AUTO_CAT_LABELS[c]}</option>`).join('');
         return `<tr>
             <td><input type="checkbox" ${r.incluir ? 'checked' : ''} onchange="setResultFlag(${i},'incluir',this.checked)"></td>
             <td><input class="form-ctrl" style="min-width:180px;" value="${escHtml(d.descripcion)}" oninput="setResultField(${i},'descripcion',this.value)"></td>
-            <td><input class="form-ctrl" type="number" step="0.01" style="width:115px;" value="${d.monto ?? ''}" oninput="setResultField(${i},'monto',this.value)"></td>
+            <td><input class="form-ctrl" type="number" step="0.01" style="width:115px;" value="${escHtml(d.monto ?? '')}" oninput="setResultField(${i},'monto',this.value)"></td>
             <td><select class="form-ctrl" style="width:145px;" onchange="setResultField(${i},'categoria',this.value)">${cats}</select></td>
-            <td><input class="form-ctrl" type="date" style="width:150px;" value="${d.fecha_gasto || ''}" oninput="setResultField(${i},'fecha_gasto',this.value)"></td>
-            <td><input class="form-ctrl" type="date" style="width:150px;" value="${d.fecha_vencimiento || ''}" oninput="setResultField(${i},'fecha_vencimiento',this.value)"></td>
+            <td><input class="form-ctrl" type="date" style="width:150px;" value="${escHtml(d.fecha_gasto || '')}" oninput="setResultField(${i},'fecha_gasto',this.value)"></td>
+            <td><input class="form-ctrl" type="date" style="width:150px;" value="${escHtml(d.fecha_vencimiento || '')}" oninput="setResultField(${i},'fecha_vencimiento',this.value)"></td>
             <td style="text-align:center;"><input type="checkbox" ${r.pagado ? 'checked' : ''} onchange="setResultFlag(${i},'pagado',this.checked)"></td>
         </tr>`;
     }).join('');
