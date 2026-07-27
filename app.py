@@ -808,10 +808,13 @@ def api_gastos_extract():
 
     if file.filename.lower().endswith('.pdf'):
         mime = 'image/png'
-        import fitz  # PyMuPDF
-        pdf = fitz.open(stream=file_bytes, filetype='pdf')
-        pix = pdf[0].get_pixmap(dpi=200)
-        file_bytes = pix.tobytes('png')
+        try:
+            import fitz  # PyMuPDF
+            pdf = fitz.open(stream=file_bytes, filetype='pdf')
+            pix = pdf[0].get_pixmap(dpi=200)
+            file_bytes = pix.tobytes('png')
+        except Exception as e:
+            return jsonify({'error': f'No se pudo convertir el PDF: {str(e)}'}), 500
     elif file.filename.lower().endswith('.png'):
         mime = 'image/png'
     elif file.filename.lower().endswith(('.jpg', '.jpeg')):
