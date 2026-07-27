@@ -801,19 +801,15 @@
                     <div style="margin-bottom:10px;color:var(--nd-terracota-hondo)"><svg class="ic ic-xl"><use href="#ic-doc"></use></svg></div>
                     <p style="font-weight:600;font-size:.92rem;margin:0 0 6px;color:var(--text);">Arrastrá o hacé clic para subir</p>
                     <p style="font-size:.78rem;color:var(--muted);margin:0;">Formatos: JPG, PNG, PDF — Máximo 10MB</p>
-                    <input type="file" id="auto-file-input" accept="image/*,.pdf" style="display:none;" onchange="handleAutoFile(this)">
+                    <input type="file" id="auto-file-input" accept="image/*,.pdf" multiple style="display:none;" onchange="handleAutoFiles(this)">
                 </div>
-                <div id="auto-file-preview" style="display:none;margin-top:14px;padding:12px 16px;background:rgba(47,111,94,.08);border-radius:10px;display:flex;align-items:center;gap:10px;">
-                    <span style="color:var(--nd-verde)"><svg class="ic ic-lg"><use href="#ic-pagado"></use></svg></span>
-                    <span id="auto-file-name" style="font-size:.85rem;font-weight:500;flex:1;"></span>
-                    <button onclick="clearAutoFile()" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--muted);"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
-                </div>
+                <div id="auto-file-list" style="display:none;margin-top:14px;"></div>
                 <div class="form-group" style="margin-top:14px;">
                     <label class="form-label">Consorcio *</label>
                     <select class="form-ctrl" id="auto-consorcio"></select>
                 </div>
                 <button class="btn-p" id="auto-extract-btn" onclick="extractGastoData()" style="width:100%;margin-top:10px;" disabled>
-                    <svg class="ic ic-sm"><use href="#ic-rayo"></use></svg>Extraer datos del comprobante
+                    <svg class="ic ic-sm"><use href="#ic-rayo"></use></svg><span id="auto-extract-btn-label">Extraer datos del comprobante</span>
                 </button>
             </div>
             <!-- Step 2: Processing -->
@@ -1600,8 +1596,14 @@ async function loadGastos() {
 }
 
 // ── Auto-extraction ───────────────────────────────────────────────────────────
+const AUTO_MAX_FILES = 10;
+const AUTO_MAX_SIZE = 10 * 1024 * 1024;
+const escHtml = s => String(s ?? '').replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+let autoExtractedResults = [];
+let autoFilesSelected = [];
 let autoExtractedData = null;
-let autoFileSelected = null;
 
 function openGastoChoice() {
     openModal('modal-gasto-choice');
@@ -1619,41 +1621,70 @@ function openAutoExtract() {
     dz.onclick = () => $('auto-file-input').click();
     dz.ondragover = (e) => { e.preventDefault(); dz.style.borderColor='var(--teal)'; dz.style.background='rgba(47,111,94,.06)'; };
     dz.ondragleave = () => { dz.style.borderColor='var(--border)'; dz.style.background='var(--card)'; };
-    dz.ondrop = (e) => { e.preventDefault(); dz.style.borderColor='var(--border)'; dz.style.background='var(--card)'; if(e.dataTransfer.files.length) { $('auto-file-input').files = e.dataTransfer.files; handleAutoFile($('auto-file-input')); } };
+    dz.ondrop = (e) => {
+        e.preventDefault();
+        dz.style.borderColor='var(--border)'; dz.style.background='var(--card)';
+        if (e.dataTransfer.files.length) addAutoFiles(e.dataTransfer.files);
+    };
 }
 
-function handleAutoFile(input) {
-    const file = input.files[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { toast('El archivo es muy grande (máx 10MB)', 'warn'); return; }
-    autoFileSelected = file;
-    $('auto-file-name').textContent = file.name;
-    $('auto-file-preview').style.display = 'flex';
-    $('auto-dropzone').style.display = 'none';
-    $('auto-extract-btn').disabled = false;
+function handleAutoFiles(input) {
+    addAutoFiles(input.files);
+    input.value = '';
 }
 
-function clearAutoFile() {
-    autoFileSelected = null;
-    $('auto-file-input').value = '';
-    $('auto-file-preview').style.display = 'none';
-    $('auto-dropzone').style.display = '';
-    $('auto-extract-btn').disabled = true;
+function addAutoFiles(fileList) {
+    const incoming = Array.from(fileList || []);
+    for (const f of incoming) {
+        if (autoFilesSelected.length >= AUTO_MAX_FILES) {
+            toast(`Máximo ${AUTO_MAX_FILES} comprobantes por lote`, 'warn');
+            break;
+        }
+        if (f.size > AUTO_MAX_SIZE) { toast(`${f.name} supera los 10MB`, 'warn'); continue; }
+        if (autoFilesSelected.some(x => x.name === f.name && x.size === f.size)) continue;
+        autoFilesSelected.push(f);
+    }
+    renderAutoFileList();
+}
+
+function removeAutoFile(idx) {
+    autoFilesSelected.splice(idx, 1);
+    renderAutoFileList();
+}
+
+function renderAutoFileList() {
+    const list = $('auto-file-list');
+    const n = autoFilesSelected.length;
+    if (!n) {
+        list.style.display = 'none';
+        list.innerHTML = '';
+    } else {
+        list.style.display = 'block';
+        list.innerHTML = autoFilesSelected.map((f, i) => `
+            <div style="padding:10px 14px;background:rgba(47,111,94,.08);border-radius:10px;display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                <span style="color:var(--nd-verde)"><svg class="ic ic-sm"><use href="#ic-pagado"></use></svg></span>
+                <span style="font-size:.85rem;font-weight:500;flex:1;">${escHtml(f.name)}</span>
+                <button onclick="removeAutoFile(${i})" style="background:none;border:none;cursor:pointer;color:var(--muted);"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
+            </div>`).join('');
+    }
+    $('auto-extract-btn').disabled = n === 0;
+    $('auto-extract-btn-label').textContent = n > 1
+        ? `Extraer datos de ${n} comprobantes`
+        : 'Extraer datos del comprobante';
 }
 
 function resetAutoExtract() {
     autoExtractedData = null;
-    autoFileSelected = null;
+    autoExtractedResults = [];
+    autoFilesSelected = [];
     $('auto-file-input').value = '';
     ['auto-step-upload','auto-step-processing','auto-step-results','auto-step-error'].forEach(id => $(id).style.display = 'none');
     $('auto-step-upload').style.display = '';
-    $('auto-file-preview').style.display = 'none';
-    $('auto-dropzone').style.display = '';
-    $('auto-extract-btn').disabled = true;
+    renderAutoFileList();
 }
 
 async function extractGastoData() {
-    if (!autoFileSelected) { toast('Seleccioná un archivo primero', 'warn'); return; }
+    if (!autoFilesSelected.length) { toast('Seleccioná un archivo primero', 'warn'); return; }
     if (!$('auto-consorcio').value) { toast('Seleccioná un consorcio', 'warn'); return; }
 
     // Show processing
@@ -1662,7 +1693,7 @@ async function extractGastoData() {
 
     try {
         const fd = new FormData();
-        fd.append('file', autoFileSelected);
+        fd.append('file', autoFilesSelected[0]);
         fd.append('consorcio_id', $('auto-consorcio').value);
 
         const r = await fetch('/api/gastos/extract', { method: 'POST', body: fd });
@@ -1707,7 +1738,7 @@ function confirmAutoExtract() {
     if (!autoExtractedData) return;
     const d = autoExtractedData;
     const cid = $('auto-consorcio').value;
-    const file = autoFileSelected;
+    const file = autoFilesSelected[0];
     closeModal('modal-auto-extract');
 
     // Open gasto modal pre-filled
