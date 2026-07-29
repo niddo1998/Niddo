@@ -2183,17 +2183,26 @@ def api_liquidaciones_create():
         liq_res = supabase.table('liquidaciones').insert(payload).execute()
     except Exception as e:
         msg = str(e)
+        # El texto crudo de Supabase se adjunta siempre: sin él, un fallo acá es
+        # indistinguible de otro y no hay forma de diagnosticarlo desde la UI.
+        if 'PGRST204' in msg or 'schema cache' in msg:
+            return jsonify({'error':
+                'PostgREST tiene el esquema viejo en caché y no ve la columna numero_revision. '
+                'Corré  NOTIFY pgrst, \'reload schema\';  en el SQL Editor de Supabase '
+                f'y reintentá. [{msg}]'
+            }), 409
+        if 'numero_revision' in msg and ('does not exist' in msg or '42703' in msg):
+            return jsonify({'error':
+                'Falta correr supabase_schema_v8.sql en Supabase '
+                f'(la columna numero_revision no existe). [{msg}]'
+            }), 409
         if 'duplicate key' in msg or '23505' in msg:
             return jsonify({'error':
-                'Ya existe una liquidación para este consorcio y período. Falta correr la '
-                'migración supabase_schema_v8.sql en Supabase para poder reliquidar el mismo mes.'
+                'Ya existe una liquidación para este consorcio, período y revisión. Si ya corriste '
+                'supabase_schema_v8.sql, puede haber quedado la UNIQUE vieja de v7 sin bajar. '
+                f'[{msg}]'
             }), 409
-        if 'numero_revision' in msg:
-            return jsonify({'error':
-                'Falta correr la migración supabase_schema_v8.sql en Supabase '
-                '(la columna numero_revision no existe todavía).'
-            }), 409
-        return jsonify({'error': f'Error al crear liquidación: {msg}'}), 500
+        return jsonify({'error': f'Error al crear la liquidación: {msg}'}), 500
 
     liq = liq_res.data[0] if liq_res.data else {}
     liq_id = liq.get('id')
@@ -2201,11 +2210,19 @@ def api_liquidaciones_create():
     if not liq_id:
         return jsonify({'error': 'Error al crear liquidación'}), 500
 
-    # Auto-generar rubros desde gastos del período
+    # Auto-generar rubros desde gastos del período.
+    # Si algo falla acá la cabecera ya está insertada: se borra para no dejar una
+    # liquidación vacía que después ocupe un número de revisión y confunda.
     if d.get('auto_generar', True):
-        _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id, gastos_ids=gastos_ids)
-        _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=numero_revision)
-        _recalcular_totales(liq_id)
+        try:
+            _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id, gastos_ids=gastos_ids)
+            _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=numero_revision)
+            _recalcular_totales(liq_id)
+        except Exception as e:
+            supabase.table('liquidaciones').delete().eq('id', liq_id).execute()
+            return jsonify({'error':
+                f'La liquidación se creó pero falló al generar rubros/prorrateo: {e}'
+            }), 500
 
     # Refetch con datos completos
     liq = supabase.table('liquidaciones').select('*, consorcios(nombre, direccion)').eq('id', liq_id).single().execute().data
