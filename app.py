@@ -266,6 +266,28 @@ def require_auth(allowed_roles=None):
     return decorator
 
 
+@app.errorhandler(Exception)
+def _api_errors_como_json(e):
+    """Toda excepción bajo /api/ vuelve como JSON con su motivo.
+
+    Sin esto Flask responde su página HTML de error, el cliente hace r.json(),
+    falla el parseo y cae en el `catch(()=>({error:'Error'}))` de admin_dashboard:
+    el usuario ve un toast "Error" sin causa y no queda nada con qué diagnosticar.
+    """
+    from werkzeug.exceptions import HTTPException
+    if not request.path.startswith('/api/'):
+        # Las páginas siguen con el manejo por defecto: un HTTPException ya es una
+        # respuesta válida, cualquier otra cosa se re-lanza para no devolver el
+        # objeto excepción como si fuera un body.
+        if isinstance(e, HTTPException):
+            return e
+        raise e
+    if isinstance(e, HTTPException):
+        return jsonify({'error': e.description}), e.code
+    app.logger.exception('Error no atrapado en %s', request.path)
+    return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+
+
 # ── Páginas públicas ───────────────────────────────────────────────────────────
 @app.route('/')
 def index():
