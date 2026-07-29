@@ -18,37 +18,17 @@
 -- ============================================================
 
 
--- ── 1. Columna de revisión ───────────────────────────────────
+-- ── 1. Bajar el UNIQUE(consorcio_id, periodo) de v7 ──────────
+-- v7 lo declaró como UNIQUE(...) dentro del CREATE TABLE, así que Postgres lo
+-- nombró <tabla>_<columnas>_key. El IF EXISTS hace que no falle si ya se bajó
+-- o si nunca se llamó así (para ese caso está la verificación del final).
+ALTER TABLE liquidaciones
+  DROP CONSTRAINT IF EXISTS liquidaciones_consorcio_id_periodo_key;
+
+
+-- ── 2. Columna de revisión ───────────────────────────────────
 ALTER TABLE liquidaciones
   ADD COLUMN IF NOT EXISTS numero_revision INTEGER NOT NULL DEFAULT 1;
-
-
--- ── 2. Bajar el UNIQUE(consorcio_id, periodo) de v7 ──────────
--- Se busca por definición y no por nombre fijo, porque el nombre que le puso
--- Postgres depende de cómo se creó la tabla.
-DO $$
-DECLARE
-  c RECORD;
-BEGIN
-  FOR c IN
-    SELECT con.conname
-    FROM   pg_constraint con
-    JOIN   pg_class      rel ON rel.oid = con.conrelid
-    JOIN   pg_namespace  nsp ON nsp.oid = rel.relnamespace
-    WHERE  rel.relname = 'liquidaciones'
-      AND  nsp.nspname = 'public'
-      AND  con.contype = 'u'
-      AND  (
-             SELECT array_agg(att.attname ORDER BY att.attname)
-             FROM   unnest(con.conkey) AS k(attnum)
-             JOIN   pg_attribute att
-                    ON att.attrelid = con.conrelid AND att.attnum = k.attnum
-           ) = ARRAY['consorcio_id', 'periodo']
-  LOOP
-    EXECUTE format('ALTER TABLE liquidaciones DROP CONSTRAINT %I', c.conname);
-    RAISE NOTICE 'Constraint % eliminada', c.conname;
-  END LOOP;
-END $$;
 
 
 -- ── 3. Backfill: numerar las liquidaciones que ya existían ───
@@ -81,8 +61,23 @@ CREATE INDEX IF NOT EXISTS idx_resumen_envios_liq_estado
   ON resumen_envios(liquidacion_id, estado);
 
 
--- ── Verificación ─────────────────────────────────────────────
+-- ============================================================
+--  Verificación — correr aparte y leer el resultado
+-- ============================================================
+--
+-- (a) ¿Quedó alguna UNIQUE vieja que siga bloqueando la reliquidación?
+--     Lo esperado es ver SÓLO la primary key. Si aparece una fila cuya
+--     definición sea "UNIQUE (consorcio_id, periodo)" hay que bajarla a mano:
+--       ALTER TABLE liquidaciones DROP CONSTRAINT <conname>;
+--
+-- SELECT con.conname, pg_get_constraintdef(con.oid) AS definicion
+-- FROM   pg_constraint con
+-- JOIN   pg_class rel ON rel.oid = con.conrelid
+-- WHERE  rel.relname = 'liquidaciones'
+--   AND  con.contype IN ('u', 'p');
+--
+-- (b) Las liquidaciones existentes deberían quedar todas en revisión 1:
+--
 -- SELECT periodo, numero_revision, estado, total_egresos
 -- FROM   liquidaciones
--- WHERE  consorcio_id = '<tu-consorcio>'
 -- ORDER  BY periodo DESC, numero_revision;
