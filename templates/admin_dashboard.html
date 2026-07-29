@@ -168,6 +168,23 @@
         .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: .83rem; }
         .checkbox-row input { width: 15px; height: 15px; }
 
+        /* ── Listas de selección (gastos a liquidar / destinatarios del envío) ── */
+        .pick-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+        .pick-bar .spacer { margin-left: auto; font-size: .78rem; color: var(--muted); }
+        .pick-list { border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+                     max-height: 260px; overflow-y: auto; }
+        .pick-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+                    border-bottom: 1px solid var(--border); font-size: .82rem; cursor: pointer; }
+        .pick-row:last-child { border-bottom: none; }
+        .pick-row:hover { background: var(--surface2); }
+        .pick-row input { width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; }
+        .pick-row.is-off { opacity: .6; }
+        .pick-main { flex: 1; min-width: 0; }
+        .pick-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .pick-sub { font-size: .72rem; color: var(--muted); margin-top: 1px; }
+        .pick-amount { font-weight: 700; white-space: nowrap; }
+        .pick-empty { padding: 22px 14px; text-align: center; color: var(--muted); font-size: .82rem; }
+
         /* ── Tabs ── */
         .tabs { display: flex; gap: 2px; background: var(--surface2); border-radius: 12px; padding: 3px; margin-bottom: 16px; }
         .tab-btn { padding: 6px 16px; border-radius: 6px; border: none; font-size: .8rem; font-weight: 500;
@@ -1002,12 +1019,26 @@
 
 <!-- Modal Nueva Liquidación -->
 <div class="modal-overlay" id="modal-nueva-liq">
-    <div class="modal-box">
+    <div class="modal-box" style="width:620px;max-width:96vw;">
         <div class="modal-head"><h3>Nueva liquidación</h3><button class="modal-close" onclick="closeModal('modal-nueva-liq')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
-            <div class="section-info">Se creará una liquidación automáticamente agrupando los gastos cargados para el consorcio y período seleccionados.</div>
-            <div class="form-group"><label class="form-label">Consorcio *</label><select class="form-ctrl" id="m-liq-consorcio"></select></div>
-            <div class="form-group"><label class="form-label">Período (AAAA-MM) *</label><input type="month" class="form-ctrl" id="m-liq-periodo"></div>
+            <div class="section-info" id="m-liq-info">Elegí el consorcio y el período para ver los gastos que se pueden liquidar.</div>
+            <div class="form-row">
+                <div class="form-group"><label class="form-label">Consorcio *</label><select class="form-ctrl" id="m-liq-consorcio" onchange="cargarGastosDisponibles()"></select></div>
+                <div class="form-group"><label class="form-label">Período (AAAA-MM) *</label><input type="month" class="form-ctrl" id="m-liq-periodo" onchange="cargarGastosDisponibles()"></div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Gastos a incluir</label>
+                <div class="pick-bar">
+                    <button type="button" class="btn-s btn-sm" onclick="liqGastosSeleccionar('nuevos')">Sólo los no enviados</button>
+                    <button type="button" class="btn-s btn-sm" onclick="liqGastosSeleccionar('todos')">Todos</button>
+                    <button type="button" class="btn-s btn-sm" onclick="liqGastosSeleccionar('ninguno')">Ninguno</button>
+                    <span class="spacer" id="m-liq-gastos-resumen">—</span>
+                </div>
+                <div class="pick-list" id="m-liq-gastos-list">
+                    <div class="pick-empty">Elegí consorcio y período.</div>
+                </div>
+            </div>
         </div>
         <div class="modal-footer">
             <button class="btn-s" onclick="closeModal('modal-nueva-liq')">Cancelar</button>
@@ -1035,14 +1066,23 @@
 
 <!-- Modal Enviar Resúmenes -->
 <div class="modal-overlay" id="modal-enviar">
-    <div class="modal-box">
+    <div class="modal-box" style="width:560px;max-width:96vw;">
         <div class="modal-head"><h3><svg class="ic ic-sm"><use href="#ic-subir"></use></svg>Enviar resúmenes por email</h3><button class="modal-close" onclick="closeModal('modal-enviar')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
-            <div style="text-align:center;padding:20px;">
-                <div style="margin-bottom:10px;color:var(--nd-terracota-hondo)"><svg class="ic ic-xl"><use href="#ic-mail"></use></svg></div>
-                <p style="font-size:.9rem;font-weight:600;margin-bottom:8px;">¿Enviar resúmenes de liquidación?</p>
-                <p style="font-size:.82rem;color:var(--muted);">Se enviarán resúmenes personalizados a <strong id="enviar-count">0</strong> de <strong id="enviar-total">0</strong> copropietarios con email configurado.</p>
-                <div class="section-info" style="margin-top:14px;"><svg class="ic ic-sm"><use href="#ic-info"></use></svg>Podés previsualizar el resumen antes de enviar usando el botón "Previsualizar".</div>
+            <!-- El texto va dentro de un <span>: .section-info es flex y cada nodo suelto
+                 (incluidos los <strong>) se volvería un ítem, partiendo la frase. -->
+            <div class="section-info"><svg class="ic ic-sm"><use href="#ic-info"></use></svg><span>Se enviará a <strong id="enviar-count">0</strong> de <strong id="enviar-total">0</strong> unidades con email configurado. Destildá las que no quieras notificar.</span></div>
+            <div class="form-group">
+                <label class="form-label">Destinatarios</label>
+                <div class="pick-bar">
+                    <button type="button" class="btn-s btn-sm" onclick="enviarUFSeleccionar('todos')">Todas</button>
+                    <button type="button" class="btn-s btn-sm" onclick="enviarUFSeleccionar('ninguno')">Ninguna</button>
+                    <button type="button" class="btn-s btn-sm" onclick="enviarUFSeleccionar('pendientes')">Sólo las que no recibieron</button>
+                    <span class="spacer" id="m-enviar-resumen">—</span>
+                </div>
+                <div class="pick-list" id="m-enviar-list">
+                    <div class="pick-empty">Cargando...</div>
+                </div>
             </div>
         </div>
         <div class="modal-footer">
@@ -2416,8 +2456,10 @@ async function loadLiquidaciones() {
         tb.innerHTML = data.map(l => {
             const estadoBadge = l.estado === 'publicada' ? 'b-g' : l.estado === 'cerrada' ? 'b-gr' : 'b-y';
             const estadoLabel = l.estado === 'publicada' ? 'Publicada' : l.estado === 'cerrada' ? 'Cerrada' : 'Borrador';
+            const rev = l.numero_revision || 1;
+            const revBadge = rev > 1 ? ` <span class="b b-y" title="Reliquidación del mismo período">rev. ${rev}</span>` : '';
             return `<tr>
-                <td><strong>${l.periodo}</strong></td>
+                <td><strong>${l.periodo}</strong>${revBadge}</td>
                 <td>${(l.consorcios||{}).nombre||'—'}</td>
                 <td>${fmt(l.total_egresos)}</td>
                 <td style="font-weight:600;color:${(l.saldo_final||0)>=0?'var(--nd-verde)':'var(--nd-terracota-hondo)'}">${fmt(l.saldo_final)}</td>
@@ -2430,24 +2472,105 @@ async function loadLiquidaciones() {
     } catch(e) { toast(e.message,'err'); }
 }
 
+// ── Selector de gastos de la nueva liquidación ────────────────────────────────
+// Por defecto vienen tildados los gastos del período que todavía no se avisaron
+// por email; los ya enviados se muestran destildados pero se pueden re-incluir.
+let liqGastos = [];          // [{...gasto, ya_enviado}]
+let liqGastosSel = new Set();  // ids tildados
+
 function openNuevaLiquidacionModal() {
     const opts = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
     $('m-liq-consorcio').innerHTML = opts;
     $('m-liq-periodo').value = new Date().toISOString().slice(0,7);
+    liqGastos = []; liqGastosSel = new Set();
+    $('m-liq-gastos-list').innerHTML = '<div class="pick-empty">Elegí consorcio y período.</div>';
+    $('m-liq-gastos-resumen').textContent = '—';
+    $('m-liq-info').textContent = 'Elegí el consorcio y el período para ver los gastos que se pueden liquidar.';
     openModal('modal-nueva-liq');
+}
+
+async function cargarGastosDisponibles() {
+    const consorcio_id = $('m-liq-consorcio').value;
+    const periodo = $('m-liq-periodo').value;
+    if (!consorcio_id || !periodo) return;
+    $('m-liq-gastos-list').innerHTML = '<div class="pick-empty">Cargando gastos...</div>';
+    try {
+        const params = new URLSearchParams({consorcio_id, periodo});
+        const data = await api('/api/liquidaciones/gastos-disponibles?'+params);
+        liqGastos = data.gastos || [];
+        // Default: sólo lo que todavía no se mandó por correo.
+        liqGastosSel = new Set(liqGastos.filter(g => !g.ya_enviado).map(g => g.id));
+
+        const previas = data.liquidaciones_previas || 0;
+        if (!previas) {
+            $('m-liq-info').textContent = 'Primera liquidación de este período. Vienen tildados todos los gastos del mes.';
+        } else if (liqGastosSel.size) {
+            $('m-liq-info').textContent = `Ya hay ${previas} liquidación(es) de este período. Vienen tildados los ${liqGastosSel.size} gasto(s) que todavía no se avisaron por email; podés tildar también los ya enviados.`;
+        } else {
+            $('m-liq-info').textContent = `Ya hay ${previas} liquidación(es) de este período y todos los gastos ya se avisaron por email. Tildá manualmente los que quieras volver a incluir.`;
+        }
+        renderGastosDisponibles();
+    } catch(e) {
+        $('m-liq-gastos-list').innerHTML = `<div class="pick-empty">Error: ${e.message}</div>`;
+    }
+}
+
+function renderGastosDisponibles() {
+    const cont = $('m-liq-gastos-list');
+    if (!liqGastos.length) {
+        cont.innerHTML = '<div class="pick-empty">No hay gastos cargados para este consorcio en el período elegido.</div>';
+        $('m-liq-gastos-resumen').textContent = '0 gastos';
+        return;
+    }
+    cont.innerHTML = liqGastos.map(g => {
+        const on = liqGastosSel.has(g.id);
+        const prov = (g.proveedores||{}).nombre;
+        const sub = [g.fecha_gasto, g.categoria, prov].filter(Boolean).join(' · ');
+        const badge = g.ya_enviado ? '<span class="b b-gr">Ya enviado</span>' : '';
+        return `<label class="pick-row ${on?'':'is-off'}">
+            <input type="checkbox" ${on?'checked':''} onchange="liqGastoToggle('${g.id}',this.checked)">
+            <span class="pick-main">
+                <span class="pick-title">${g.descripcion||'(sin descripción)'}</span>
+                <span class="pick-sub">${sub}</span>
+            </span>
+            ${badge}
+            <span class="pick-amount">${fmt(g.monto)}</span>
+        </label>`;
+    }).join('');
+    const total = liqGastos.filter(g=>liqGastosSel.has(g.id)).reduce((s,g)=>s+(+g.monto||0),0);
+    $('m-liq-gastos-resumen').textContent = `${liqGastosSel.size} de ${liqGastos.length} · ${fmt(total)}`;
+}
+
+function liqGastoToggle(id, checked) {
+    if (checked) liqGastosSel.add(id); else liqGastosSel.delete(id);
+    renderGastosDisponibles();
+}
+
+function liqGastosSeleccionar(modo) {
+    if (modo === 'todos')       liqGastosSel = new Set(liqGastos.map(g=>g.id));
+    else if (modo === 'ninguno') liqGastosSel = new Set();
+    else                         liqGastosSel = new Set(liqGastos.filter(g=>!g.ya_enviado).map(g=>g.id));
+    renderGastosDisponibles();
 }
 
 async function crearLiquidacion() {
     const consorcio_id = $('m-liq-consorcio').value;
     const periodo = $('m-liq-periodo').value;
     if (!consorcio_id || !periodo) { toast('Seleccioná consorcio y período','warn'); return; }
+    if (!liqGastosSel.size) { toast('Tildá al menos un gasto para liquidar','warn'); return; }
     try {
         const liq = await api('/api/liquidaciones', {
             method: 'POST',
-            body: JSON.stringify({ consorcio_id, periodo, auto_generar: true })
+            body: JSON.stringify({
+                consorcio_id, periodo, auto_generar: true,
+                gastos_ids: [...liqGastosSel],
+            })
         });
         closeModal('modal-nueva-liq');
-        toast('Liquidación creada desde los gastos del período');
+        const rev = liq.numero_revision || 1;
+        toast(rev > 1
+            ? `Liquidación ${periodo} (revisión ${rev}) creada con ${liqGastosSel.size} gasto(s)`
+            : `Liquidación creada con ${liqGastosSel.size} gasto(s)`);
         await loadLiquidaciones();
         await openLiqDetail(liq.id);
     } catch(e) { toast(e.message,'err'); }
@@ -2467,7 +2590,9 @@ async function openLiqDetail(lid) {
         if (!currentLiqData) { toast('Liquidación no encontrada','err'); closeLiqDetail(); return; }
 
         const l = currentLiqData;
-        $('liq-detail-titulo').textContent = `Liquidación ${l.periodo}`;
+        $('liq-detail-titulo').textContent = (l.numero_revision || 1) > 1
+            ? `Liquidación ${l.periodo} — revisión ${l.numero_revision}`
+            : `Liquidación ${l.periodo}`;
         $('liq-detail-sub').textContent = `${(l.consorcios||{}).nombre||''} — ${(l.consorcios||{}).direccion||''}`;
 
         // KPIs
@@ -2648,21 +2773,88 @@ async function loadPreview(uid) {
 }
 
 // ── Enviar ─────────────────────────────────────────────────────────────────────
-function openEnviarModal() {
+// Todas las UF con email vienen tildadas; el admin puede destildar antes de enviar.
+let enviarUFs = [];          // [{unidad_id, uf, email, ya_recibio}]
+let enviarUFSel = new Set();
+
+async function openEnviarModal() {
     if (!currentLiqId) return;
-    api(`/api/liquidaciones/${currentLiqId}/prorrateo`).then(data => {
-        const count = data.filter(p => (p.unidades_funcionales||{}).vecino_email).length;
-        $('enviar-count').textContent = count;
-        $('enviar-total').textContent = data.length;
-        openModal('modal-enviar');
-    });
+    $('m-enviar-list').innerHTML = '<div class="pick-empty">Cargando...</div>';
+    $('m-enviar-resumen').textContent = '—';
+    openModal('modal-enviar');
+    try {
+        const [prorrateo, envios] = await Promise.all([
+            api(`/api/liquidaciones/${currentLiqId}/prorrateo`),
+            api(`/api/liquidaciones/${currentLiqId}/envios`).catch(()=>[]),
+        ]);
+        const recibieron = new Set(envios.filter(e=>e.estado==='enviado').map(e=>e.unidad_id));
+        enviarUFs = prorrateo.map(p => {
+            const uf = p.unidades_funcionales || {};
+            return {
+                unidad_id: p.unidad_id,
+                numero: uf.numero || '—',
+                nombre: uf.vecino_nombre || 'Sin nombre',
+                email: uf.vecino_email || '',
+                total: p.total_unidad,
+                ya_recibio: recibieron.has(p.unidad_id),
+            };
+        });
+        enviarUFSel = new Set(enviarUFs.filter(u=>u.email).map(u=>u.unidad_id));
+        renderEnviarUFs();
+    } catch(e) {
+        $('m-enviar-list').innerHTML = `<div class="pick-empty">Error: ${e.message}</div>`;
+    }
+}
+
+function renderEnviarUFs() {
+    const cont = $('m-enviar-list');
+    if (!enviarUFs.length) {
+        cont.innerHTML = '<div class="pick-empty">Esta liquidación no tiene unidades con prorrateo.</div>';
+        $('enviar-count').textContent = 0; $('enviar-total').textContent = 0;
+        $('m-enviar-resumen').textContent = '0 destinatarios';
+        return;
+    }
+    cont.innerHTML = enviarUFs.map(u => {
+        const on = enviarUFSel.has(u.unidad_id);
+        const sinMail = !u.email;
+        const badge = sinMail ? '<span class="b b-r">Sin email</span>'
+                    : u.ya_recibio ? '<span class="b b-g">Ya recibió</span>' : '';
+        return `<label class="pick-row ${on?'':'is-off'}">
+            <input type="checkbox" ${on?'checked':''} ${sinMail?'disabled':''} onchange="enviarUFToggle('${u.unidad_id}',this.checked)">
+            <span class="pick-main">
+                <span class="pick-title">UF ${u.numero} — ${u.nombre}</span>
+                <span class="pick-sub">${u.email || 'sin email configurado'}</span>
+            </span>
+            ${badge}
+            <span class="pick-amount">${fmt(u.total)}</span>
+        </label>`;
+    }).join('');
+    const conMail = enviarUFs.filter(u=>u.email).length;
+    $('enviar-count').textContent = enviarUFSel.size;
+    $('enviar-total').textContent = conMail;
+    $('m-enviar-resumen').textContent = `${enviarUFSel.size} de ${enviarUFs.length} seleccionadas`;
+}
+
+function enviarUFToggle(id, checked) {
+    if (checked) enviarUFSel.add(id); else enviarUFSel.delete(id);
+    renderEnviarUFs();
+}
+
+function enviarUFSeleccionar(modo) {
+    const conMail = enviarUFs.filter(u=>u.email);
+    if (modo === 'todos')        enviarUFSel = new Set(conMail.map(u=>u.unidad_id));
+    else if (modo === 'ninguno') enviarUFSel = new Set();
+    else                         enviarUFSel = new Set(conMail.filter(u=>!u.ya_recibio).map(u=>u.unidad_id));
+    renderEnviarUFs();
 }
 
 async function enviarResumenes() {
     if (!currentLiqId) return;
+    if (!enviarUFSel.size) { toast('Tildá al menos una unidad para enviar','warn'); return; }
     try {
         const res = await api(`/api/liquidaciones/${currentLiqId}/enviar`, {
-            method: 'POST', body: JSON.stringify({})
+            method: 'POST',
+            body: JSON.stringify({ unidades_ids: [...enviarUFSel] })
         });
         closeModal('modal-enviar');
         toast(`${res.enviados} resúmenes enviados, ${res.fallidos} fallidos`);

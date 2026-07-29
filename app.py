@@ -2046,24 +2046,132 @@ def api_liquidaciones_list():
     q = supabase.table('liquidaciones').select('*, consorcios(nombre, direccion)').eq('admin_id', admin_id)
     if request.args.get('consorcio_id'):
         q = q.eq('consorcio_id', request.args['consorcio_id'])
-    res = q.order('periodo', desc=True).execute()
+    # Se ordena por created_at (no por numero_revision) para que el listado siga
+    # funcionando aunque todavía no se haya corrido supabase_schema_v8.sql.
+    res = q.order('periodo', desc=True).order('created_at', desc=True).execute()
     return jsonify(res.data)
+
+
+def _periodo_rango(periodo):
+    """'2026-07' → ('2026-07-01', '2026-08-01') para filtrar gastos del mes."""
+    year, month = periodo.split('-')[:2]
+    desde = f'{year}-{month}-01'
+    if int(month) == 12:
+        hasta = f'{int(year)+1}-01-01'
+    else:
+        hasta = f'{year}-{int(month)+1:02d}-01'
+    return desde, hasta
+
+
+def _liquidaciones_del_periodo(consorcio_id, periodo):
+    """Liquidaciones existentes de ese consorcio+período (todas sus revisiones)."""
+    return supabase.table('liquidaciones').select('*') \
+        .eq('consorcio_id', consorcio_id).eq('periodo', periodo).execute().data
+
+
+def _ultima_revision(liquidaciones):
+    """Mayor numero_revision del set. Devuelve 0 si no hay ninguna.
+
+    Se usa .get() con fallback a 1 para que siga funcionando contra una base a la
+    que todavía no se le corrió supabase_schema_v8.sql.
+    """
+    return max([int(l.get('numero_revision') or 1) for l in liquidaciones], default=0)
+
+
+def _gastos_ya_enviados(consorcio_id, periodo, excluir_liq_id=None):
+    """IDs de gastos que ya viajaron en un resumen efectivamente enviado por email.
+
+    Se apoya en `resumen_envios.estado='enviado'` (no en `liquidaciones.estado`) para que
+    una liquidación en borrador o cuyo envío falló no marque sus gastos como ya avisados.
+    """
+    liqs = supabase.table('liquidaciones').select('id') \
+        .eq('consorcio_id', consorcio_id).eq('periodo', periodo).execute().data
+    liq_ids = [l['id'] for l in liqs if l['id'] != excluir_liq_id]
+    if not liq_ids:
+        return set()
+
+    envios = supabase.table('resumen_envios').select('liquidacion_id') \
+        .in_('liquidacion_id', liq_ids).eq('estado', 'enviado').execute().data
+    liq_enviadas = {e['liquidacion_id'] for e in envios}
+    if not liq_enviadas:
+        return set()
+
+    rubros = supabase.table('liquidacion_rubros').select('id') \
+        .in_('liquidacion_id', list(liq_enviadas)).execute().data
+    rubro_ids = [r['id'] for r in rubros]
+    if not rubro_ids:
+        return set()
+
+    items = supabase.table('liquidacion_items').select('gasto_id') \
+        .in_('rubro_id', rubro_ids).execute().data
+    return {it['gasto_id'] for it in items if it.get('gasto_id')}
+
+
+@app.route('/api/liquidaciones/gastos-disponibles', methods=['GET'])
+@require_auth(allowed_roles=['admin'])
+def api_liquidacion_gastos_disponibles():
+    """Gastos del período con la marca de si ya se avisaron por email.
+
+    Alimenta el selector del modal "Nueva liquidación": los `ya_enviado=False`
+    vienen tildados por defecto, los `ya_enviado=True` destildados pero elegibles.
+    """
+    admin_id = get_admin_id()
+    consorcio_id = request.args.get('consorcio_id')
+    periodo = request.args.get('periodo')
+    if not consorcio_id or not periodo:
+        return jsonify({'error': 'Faltan consorcio_id y periodo'}), 400
+
+    desde, hasta = _periodo_rango(periodo)
+    gastos = supabase.table('gastos') \
+        .select('id, descripcion, categoria, monto, fecha_gasto, pagado, proveedores(nombre)') \
+        .eq('consorcio_id', consorcio_id) \
+        .eq('admin_id', admin_id) \
+        .gte('fecha_gasto', desde) \
+        .lt('fecha_gasto', hasta) \
+        .order('fecha_gasto').execute().data
+
+    ya = _gastos_ya_enviados(consorcio_id, periodo)
+    for g in gastos:
+        g['ya_enviado'] = g['id'] in ya
+
+    previas = _liquidaciones_del_periodo(consorcio_id, periodo)
+    ultima_rev = _ultima_revision(previas)
+
+    return jsonify({
+        'gastos': gastos,
+        'liquidaciones_previas': len(previas),
+        'proxima_revision': ultima_rev + 1,
+        'ya_enviados': len(ya),
+    })
 
 
 @app.route('/api/liquidaciones', methods=['POST'])
 @require_auth(allowed_roles=['admin'])
 def api_liquidaciones_create():
-    """Crea una liquidación nueva. Opcionalmente auto-genera rubros desde gastos del período."""
+    """Crea una liquidación nueva. Opcionalmente auto-genera rubros desde gastos del período.
+
+    Se admite más de una liquidación por consorcio+período (revisiones): la 2da y
+    siguientes sirven para liquidar gastos que se cargaron después del primer envío.
+    """
     admin_id = get_admin_id()
     d = request.json
     consorcio_id = d['consorcio_id']
     periodo = d['periodo']  # "2026-07"
+    gastos_ids = d.get('gastos_ids')  # None = todos los gastos del período
+
+    if gastos_ids is not None and not gastos_ids:
+        return jsonify({'error': 'Seleccioná al menos un gasto para liquidar'}), 400
+
+    # Número de revisión: 1 para la primera del período, +1 para cada reliquidación
+    previas = _liquidaciones_del_periodo(consorcio_id, periodo)
+    numero_revision = _ultima_revision(previas) + 1
 
     # Crear cabecera
     payload = {
         'consorcio_id': consorcio_id,
         'admin_id': admin_id,
         'periodo': periodo,
+        'numero_revision': numero_revision,
         'fecha_vencimiento_1': d.get('fecha_vencimiento_1'),
         'fecha_vencimiento_2': d.get('fecha_vencimiento_2'),
         'interes_2_vto': d.get('interes_2_vto', 0),
@@ -2071,7 +2179,22 @@ def api_liquidaciones_create():
         'notas': d.get('notas', ''),
         'estado': 'borrador',
     }
-    liq_res = supabase.table('liquidaciones').insert(payload).execute()
+    try:
+        liq_res = supabase.table('liquidaciones').insert(payload).execute()
+    except Exception as e:
+        msg = str(e)
+        if 'duplicate key' in msg or '23505' in msg:
+            return jsonify({'error':
+                'Ya existe una liquidación para este consorcio y período. Falta correr la '
+                'migración supabase_schema_v8.sql en Supabase para poder reliquidar el mismo mes.'
+            }), 409
+        if 'numero_revision' in msg:
+            return jsonify({'error':
+                'Falta correr la migración supabase_schema_v8.sql en Supabase '
+                '(la columna numero_revision no existe todavía).'
+            }), 409
+        return jsonify({'error': f'Error al crear liquidación: {msg}'}), 500
+
     liq = liq_res.data[0] if liq_res.data else {}
     liq_id = liq.get('id')
 
@@ -2080,8 +2203,8 @@ def api_liquidaciones_create():
 
     # Auto-generar rubros desde gastos del período
     if d.get('auto_generar', True):
-        _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id)
-        _generar_prorrateo(liq_id, consorcio_id, periodo)
+        _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id, gastos_ids=gastos_ids)
+        _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=numero_revision)
         _recalcular_totales(liq_id)
 
     # Refetch con datos completos
@@ -2089,15 +2212,13 @@ def api_liquidaciones_create():
     return jsonify(liq), 201
 
 
-def _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id):
-    """Agrupa los gastos del consorcio en el período por categoría → rubros."""
-    # Determinar rango de fechas del período
-    year, month = periodo.split('-')
-    desde = f'{year}-{month}-01'
-    if int(month) == 12:
-        hasta = f'{int(year)+1}-01-01'
-    else:
-        hasta = f'{year}-{int(month)+1:02d}-01'
+def _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id, gastos_ids=None):
+    """Agrupa los gastos del consorcio en el período por categoría → rubros.
+
+    `gastos_ids` acota la liquidación a esos gastos (selección manual del admin).
+    Con None entran todos los del período, como antes.
+    """
+    desde, hasta = _periodo_rango(periodo)
 
     gastos = supabase.table('gastos').select('*') \
         .eq('consorcio_id', consorcio_id) \
@@ -2105,6 +2226,10 @@ def _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id):
         .gte('fecha_gasto', desde) \
         .lt('fecha_gasto', hasta) \
         .execute().data
+
+    if gastos_ids is not None:
+        elegidos = set(gastos_ids)
+        gastos = [g for g in gastos if g.get('id') in elegidos]
 
     # Agrupar por rubro
     rubros_dict = {}  # {numero_rubro: {nombre, items: [{descripcion, monto, gasto_id}]}}
@@ -2150,8 +2275,14 @@ def _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id):
                 supabase.table('liquidacion_items').insert(items_payload).execute()
 
 
-def _generar_prorrateo(liq_id, consorcio_id, periodo):
-    """Genera la tabla de prorrateo para cada UF del consorcio."""
+def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
+    """Genera la tabla de prorrateo para cada UF del consorcio.
+
+    En una reliquidación del mismo período (numero_revision > 1) NO se vuelve a
+    arrastrar el saldo del mes anterior: ya se le cobró al vecino en la revisión 1
+    y volver a incluirlo le facturaría dos veces la misma deuda vieja. La revisión
+    complementaria factura únicamente los gastos nuevos que se le sumaron.
+    """
     ufs = supabase.table('unidades_funcionales').select('*') \
         .eq('consorcio_id', consorcio_id).order('numero').execute().data
 
@@ -2161,7 +2292,7 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo):
     total_egresos = sum(float(r.get('subtotal', 0)) for r in rubros)
 
     # Buscar cobros del período anterior para saldos
-    year, month = periodo.split('-')
+    year, month = periodo.split('-')[:2]
     if int(month) == 1:
         periodo_ant = f'{int(year)-1}-12'
     else:
@@ -2169,7 +2300,7 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo):
 
     uf_ids = [uf['id'] for uf in ufs]
     cobros_ant_por_uf = {}
-    if uf_ids:
+    if uf_ids and numero_revision <= 1:
         cobros_ant = supabase.table('cobros').select('unidad_id, total, estado, fecha_pago') \
             .in_('unidad_id', uf_ids).eq('periodo', periodo_ant).execute().data
         for c in cobros_ant:
@@ -2252,7 +2383,14 @@ def api_liquidaciones_update(lid):
 @require_auth(allowed_roles=['admin'])
 def api_liquidaciones_delete(lid):
     admin_id = get_admin_id()
-    supabase.table('liquidaciones').delete().eq('id', lid).eq('admin_id', admin_id).eq('estado', 'borrador').execute()
+    res = supabase.table('liquidaciones').delete() \
+        .eq('id', lid).eq('admin_id', admin_id).eq('estado', 'borrador').execute()
+    if not res.data:
+        # Antes devolvía ok igual y la liquidación seguía ahí sin que el admin se enterara.
+        return jsonify({'error':
+            'Sólo se pueden eliminar liquidaciones en borrador. Esta ya fue publicada: '
+            'creá una nueva liquidación del mismo período con los gastos que falten.'
+        }), 409
     return jsonify({'ok': True})
 
 
@@ -2491,11 +2629,15 @@ def api_liquidacion_resumen(lid, uid):
 @require_auth(allowed_roles=['admin'])
 def api_liquidacion_enviar(lid):
     """Envía resúmenes por email a todas las UFs (o las seleccionadas)."""
+    d = request.json or {}
+    unidades_ids = d.get('unidades_ids')  # None / ausente = todas
+
+    # Una lista vacía es "el admin destildó todo", no "mandale a todo el consorcio".
+    if unidades_ids is not None and not unidades_ids:
+        return jsonify({'error': 'Seleccioná al menos una unidad funcional para enviar'}), 400
+
     import resend
     resend.api_key = os.environ.get('RESEND_API_KEY', '')
-
-    d = request.json or {}
-    unidades_ids = d.get('unidades_ids')  # None = todas
 
     liq = supabase.table('liquidaciones').select('*, consorcios(nombre, direccion, banco_nombre, banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago)') \
         .eq('id', lid).single().execute().data
