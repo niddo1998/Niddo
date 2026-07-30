@@ -1,0 +1,269 @@
+/* ==========================================================================
+   Niddo — Lenguaje mobile
+
+   Todo lo de este archivo vive dentro del @media. El escritorio no se toca:
+   si algo sale mal, se saca el <link> del template y el sitio vuelve exacto.
+
+   Color, tipografía y forma salen de niddo-brand.css (Ruta Barrio).
+   No definir hex sueltos acá.
+   ========================================================================== */
+
+@media (max-width: 900px) {
+
+    /* Las safe areas del sistema, disponibles como tokens. Devuelven 0 si el
+       dispositivo no tiene notch ni barra de gestos, así que se pueden sumar
+       sin condicionales. Requieren viewport-fit=cover en el meta. */
+    :root {
+        --safe-top:    env(safe-area-inset-top, 0px);
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-left:   env(safe-area-inset-left, 0px);
+        --safe-right:  env(safe-area-inset-right, 0px);
+        --tabbar-h: 54px;
+    }
+
+    /* En un teléfono no existe :hover, y el resaltado gris que Android e iOS
+       ponen al tocar pelea con nuestros propios estados :active.
+       touch-action:manipulation mata el retardo de 300ms y el doble-tap-zoom. */
+    * { -webkit-tap-highlight-color: transparent; }
+    button, a, .row, .tab { touch-action: manipulation; }
+
+    /* ── Tab bar ─────────────────────────────────────────────────────────
+       El fondo esmerilado deja entrever el contenido que pasa por debajo,
+       que es lo que hace que se lea como barra del sistema y no como franja
+       pegada. El padding inferior es lo que la despega del home indicator. */
+    /* Va con el id porque el <style> inline del template declara
+       .bottom-nav{height:60px} y se carga después que esta hoja. Con
+       box-sizing:border-box, esos 60px fijos harían que el padding del home
+       indicator se comiera el contenido de la barra en vez de despegarla. */
+    #nd-tabbar.bottom-nav {
+        height: auto;
+        padding-bottom: var(--safe-bottom);
+        background: rgba(255, 255, 255, .9);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+    }
+    /* Con el id por lo mismo: el inline declara .bottom-btn{height:100%},
+       que sobre un padre de altura automática colapsaba a 46px. */
+    #nd-tabbar .bottom-btn {
+        height: var(--tabbar-h);
+        min-height: 44px;
+        position: relative;
+        gap: 3px;
+    }
+    .bottom-btn span:not(.bottom-btn-icon) { font-size: .63rem; font-weight: 700; }
+    .bottom-btn .ic {
+        width: 25px; height: 25px;
+        transition: transform .18s cubic-bezier(.34, 1.56, .64, 1);
+    }
+    .bottom-btn:active .ic { transform: scale(.88); }
+    .bottom-btn.active .ic { transform: translateY(-1px) scale(1.06); }
+
+    .nd-tab-badge {
+        position: absolute; top: 4px; left: calc(50% + 6px);
+        min-width: 17px; height: 17px; padding: 0 4px;
+        border-radius: 9px;
+        background: var(--nd-terracota-hondo); color: #fff;
+        font-size: .6rem; font-weight: 800; font-style: normal;
+        display: flex; align-items: center; justify-content: center;
+        border: 2px solid #fff;
+    }
+
+    /* El contenido tiene que despejar la tab bar más la safe area. */
+    .app-main {
+        padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
+    }
+
+    /* ── Bottom sheets ───────────────────────────────────────────────────
+       Mismo DOM que en escritorio, reposicionado: el drawer venía de la
+       derecha y el modal del centro; acá los dos suben desde abajo, que es
+       donde llega el pulgar. */
+    .drawer-overlay { align-items: flex-end; justify-content: center; }
+    .modal-overlay  { align-items: flex-end; justify-content: center; padding: 0; }
+
+    .drawer-overlay .drawer,
+    .modal-overlay .modal-box {
+        width: 100%; max-width: 100%;
+        height: auto; max-height: 88dvh;
+        border: none; border-radius: 26px 26px 0 0;
+        box-shadow: 0 -8px 40px rgba(42, 33, 28, .22);
+        transform: translateY(100%);
+        transition: transform .34s cubic-bezier(.32, .72, 0, 1);
+        padding-bottom: var(--safe-bottom);
+        display: flex; flex-direction: column;
+    }
+    .drawer-overlay.open .drawer,
+    .modal-overlay.open .modal-box { transform: translateY(0); }
+
+    /* Durante el arrastre el transform lo manda el JS, sin transición. */
+    .drawer.nd-dragging,
+    .modal-box.nd-dragging { transition: none; }
+
+    .nd-grabber {
+        padding: 10px 0 4px;
+        display: flex; justify-content: center;
+        cursor: grab; touch-action: none; flex-shrink: 0;
+    }
+    .nd-grabber::after {
+        content: ''; width: 38px; height: 5px;
+        border-radius: 3px; background: #D8C9B8;
+    }
+
+    .drawer-body, .mb { overflow-y: auto; flex: 1; }
+    .drawer-footer, .mf { position: static; flex-shrink: 0; }
+
+    /* Por debajo de 16px, iOS zoomea la pantalla al enfocar un input y el
+       usuario queda con la vista corrida sin saber por qué.
+       Va con .nd-mobile —la clase que el JS pone en <html>— porque el
+       <style> inline declara .fc{font-size:0.83rem} y se carga después. */
+    .nd-mobile .fc,
+    .nd-mobile input,
+    .nd-mobile select,
+    .nd-mobile textarea { font-size: 16px; }
+
+    /* ── Top app bar ─────────────────────────────────────────────────────
+       En escritorio el header muestra el logo y los badges de consorcio/UF.
+       En el teléfono ese espacio vale más como título de la pantalla. */
+    .nd-mobile .app-header {
+        height: auto;
+        padding: var(--safe-top) 12px 0;
+        flex-direction: column;
+        align-items: stretch;
+        transition: box-shadow .2s, background .2s;
+    }
+    .nd-mobile .app-header.nd-scrolled {
+        background: rgba(251, 246, 239, .86);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+    }
+    .nd-mobile .header-brand { display: none; }
+    .nd-mobile .header-center { padding: 0; }
+
+    .nd-titlerow { display: flex; align-items: center; min-height: 44px; }
+    .nd-compacttitle {
+        flex: 1; text-align: center;
+        font-family: 'Fredoka', var(--font);
+        font-weight: 600; font-size: 1rem;
+        opacity: 0; transform: translateY(6px);
+        transition: opacity .2s, transform .2s;
+    }
+    .app-header.nd-scrolled .nd-compacttitle { opacity: 1; transform: none; }
+
+    .nd-largetitle {
+        font-family: 'Fredoka', var(--font);
+        font-weight: 600; font-size: 1.7rem;
+        letter-spacing: -.025em; line-height: 1.15;
+        padding: 0 4px 10px;
+        transition: opacity .18s, transform .18s;
+    }
+    .app-header.nd-scrolled .nd-largetitle {
+        opacity: 0; transform: translateY(-8px) scale(.94);
+        height: 0; padding: 0; overflow: hidden;
+    }
+
+    /* ── Hoja de "Más" ───────────────────────────────────────────────────
+       Reusa el aspecto de las sheets: es la misma idea, con contenido
+       propio en vez de un formulario. */
+    #nd-mas-sheet {
+        width: 100%;
+        background: var(--surface);
+        border-radius: 26px 26px 0 0;
+        padding-bottom: calc(var(--safe-bottom) + 8px);
+        transform: translateY(100%);
+        transition: transform .34s cubic-bezier(.32, .72, 0, 1);
+    }
+    #nd-mas-overlay.open #nd-mas-sheet { transform: translateY(0); }
+
+    .nd-mas-item {
+        display: flex; align-items: center; gap: 12px;
+        width: 100%; min-height: 52px; padding: 14px 20px;
+        background: none; border: none;
+        border-bottom: 1px solid var(--border2);
+        font-family: var(--font); font-size: .95rem; font-weight: 700;
+        color: var(--text); text-align: left; cursor: pointer;
+        text-decoration: none;
+    }
+    .nd-mas-item:last-child { border-bottom: none; }
+    .nd-mas-item:active { background: var(--surface2); }
+    .nd-mas-item.danger { color: var(--nd-terracota-hondo); }
+
+    /* ── Listas que reemplazan tablas ────────────────────────────────────
+       Una tabla de 7 o más columnas en 360px obliga a scroll horizontal, que
+       en un teléfono es la peor lectura posible. La fila-tarjeta muestra el
+       dato principal grande y manda el resto al detalle. */
+    .nd-mobile .table-wrap .table { display: none; }
+    .nd-mobile .table-wrap .table-filters { padding: 12px; }
+
+    .nd-list { display: block; }
+    .nd-row {
+        display: flex; align-items: center; gap: 12px;
+        width: 100%; min-height: 60px; padding: 14px 16px;
+        background: var(--surface); border: none;
+        border-bottom: 1px solid var(--border2);
+        font-family: var(--font); text-align: left; cursor: pointer;
+    }
+    .nd-row:last-child { border-bottom: none; }
+    .nd-row:active { background: var(--surface2); }
+    .nd-row-ic {
+        width: 40px; height: 40px; flex-shrink: 0; border-radius: 13px;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo);
+    }
+    .nd-row-ic.ok { background: var(--nd-verde-dim); color: var(--nd-verde); }
+    .nd-row-main { flex: 1; min-width: 0; }
+    .nd-row-t {
+        display: block;
+        font-size: .93rem; font-weight: 700; letter-spacing: -.01em;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .nd-row-s {
+        display: flex; align-items: center; gap: 6px;
+        font-size: .79rem; color: var(--muted); font-weight: 600;
+        margin-top: 2px;
+    }
+    .nd-row-amt {
+        font-size: .93rem; font-weight: 800;
+        letter-spacing: -.01em; flex-shrink: 0;
+    }
+
+    /* ── Snackbars ───────────────────────────────────────────────────────
+       En escritorio los toasts van abajo a la derecha; acá eso los mete
+       debajo de la tab bar, donde no se ven. */
+    .nd-mobile .toast-container {
+        left: 12px; right: 12px;
+        bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 12px);
+    }
+    .nd-mobile .toast { max-width: 100%; }
+
+    /* ── Targets táctiles ────────────────────────────────────────────────
+       44px es el mínimo por debajo del cual el dedo empieza a errar. */
+    .nd-mobile .btn { min-height: 44px; padding: 12px 18px; }
+    /* btn-sm y btn-xs existen para apretar la densidad en escritorio; en un
+       teléfono ese ahorro no compensa errarle al botón. Van a 44 también. */
+    .nd-mobile .btn-sm, .nd-mobile .btn-xs { min-height: 44px; padding: 10px 14px; }
+    .nd-mobile .hbtn, .nd-mobile .mc, .nd-mobile .dropzone-remove {
+        min-width: 44px; min-height: 44px;
+    }
+
+    /* 100vh no descuenta la barra de URL de Safari y deja contenido cortado
+       debajo del borde. 100dvh sí la sigue. */
+    .nd-mobile .app-main { min-height: 100dvh; }
+
+    /* Donde antes había :hover, que en un teléfono no existe. */
+    .nd-mobile .btn:active,
+    .nd-mobile .nav-btn:active,
+    .nd-mobile .dd-item:active { transform: scale(.97); }
+
+    /* El calendario de reservas tiene que poder scrollearse con el dedo sin
+       comerse la pantalla entera. */
+    .nd-mobile .cal-grid { max-height: 60dvh; }
+
+    /* Las grillas de escritorio a una columna. */
+    .nd-mobile .f-row,
+    .nd-mobile .stats-grid { grid-template-columns: 1fr; }
+
+}
+
+/* En escritorio manda la tabla: las filas de mobile no se muestran nunca. */
+@media (min-width: 901px) {
+    .nd-list { display: none; }
+}

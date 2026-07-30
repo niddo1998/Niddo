@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Niddo · Prototipo mobile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════════
+   NIDDO · Prototipo de lenguaje mobile
+   Un solo sistema de diseño, mostrado en dos contextos de SO.
+   Tokens tomados de static/css/niddo-brand.css (Ruta Barrio).
+   ══════════════════════════════════════════════════════════════ */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+
+:root{
+  --nd-terracota:#E8734A; --nd-terracota-hondo:#C4502B;
+  --nd-verde:#2F6F5E; --nd-verde-bosque:#1E4A3E;
+  --nd-amarillo:#F2B705; --nd-crema:#F6EFE7; --nd-crema-claro:#FBF6EF;
+  --nd-tinta:#2A211C; --nd-gris:#574C42; --nd-borde:#E2D6C8;
+  --terra-dim:rgba(232,115,74,.14); --verde-dim:rgba(47,111,94,.13); --ama-dim:rgba(242,183,5,.18);
+  --bg:var(--nd-crema-claro); --surface:#fff; --surface2:var(--nd-crema); --surface3:#F1E7DA;
+  --text:var(--nd-tinta); --text2:var(--nd-gris); --muted:var(--nd-gris); --border:var(--nd-borde);
+  --font:'Nunito Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --font-d:'Fredoka','Nunito Sans',-apple-system,sans-serif;
+}
+
+/* ── Página contenedora (esto NO es parte del diseño mobile) ── */
+body{
+  font-family:var(--font); background:#191410; color:#EDE4DA;
+  min-height:100vh; padding:32px 20px 64px;
+  -webkit-font-smoothing:antialiased;
+}
+.page-head{max-width:1000px;margin:0 auto 30px;text-align:center}
+.page-head h1{font-family:var(--font-d);font-size:1.7rem;font-weight:600;letter-spacing:-.02em;margin-bottom:8px}
+.page-head h1 .o{color:var(--nd-terracota)}
+.page-head p{color:#A79684;font-size:.9rem;line-height:1.6;max-width:600px;margin:0 auto}
+.stage{display:flex;gap:56px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+.device-col{display:flex;flex-direction:column;align-items:center;gap:14px}
+.device-label{font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#8A7867}
+.device-label b{color:#EDE4DA;font-weight:700}
+
+/* ── Marcos de dispositivo ── */
+.device{position:relative;border-radius:44px;padding:11px;background:linear-gradient(160deg,#3a322c,#1d1815);box-shadow:0 30px 70px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.07)}
+.device.android{border-radius:34px;padding:9px}
+.screen{position:relative;width:390px;height:812px;border-radius:34px;overflow:hidden;background:var(--bg);isolation:isolate}
+.device.android .screen{width:400px;height:830px;border-radius:26px}
+
+/* Status bar */
+.statusbar{position:absolute;top:0;left:0;right:0;z-index:60;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:.78rem;font-weight:700;color:var(--nd-tinta);pointer-events:none}
+.ios .statusbar{height:54px;padding-top:14px}
+.android .statusbar{height:34px;padding:0 18px;font-size:.74rem;font-weight:600}
+.notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:122px;height:33px;border-radius:20px;background:#000;z-index:61}
+.punchhole{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:#000;z-index:61}
+.sb-icons{display:flex;gap:5px;align-items:center}
+.sb-icons svg{width:16px;height:12px}
+
+/* Home indicator / barra de gestos */
+.homebar{position:absolute;bottom:0;left:0;right:0;z-index:70;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.ios .homebar{height:34px}
+.ios .homebar::after{content:'';width:140px;height:5px;border-radius:3px;background:var(--nd-tinta);opacity:.85}
+.android .homebar{height:22px}
+.android .homebar::after{content:'';width:110px;height:3px;border-radius:2px;background:var(--nd-tinta);opacity:.5}
+
+/* ══════════════════════════════════════════════════════════════
+   EL LENGUAJE MOBILE — todo lo de acá abajo es el diseño propuesto
+   ══════════════════════════════════════════════════════════════ */
+.app{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;color:var(--text);font-family:var(--font)}
+
+/* Safe areas: mismo diseño, insets distintos por SO */
+.ios  .app{--safe-top:54px;--safe-bottom:34px}
+.android .app{--safe-top:34px;--safe-bottom:22px}
+
+/* ── Top app bar ── */
+.appbar{position:relative;z-index:40;flex-shrink:0;padding-top:var(--safe-top);background:var(--bg);transition:box-shadow .2s,background .2s}
+.appbar.scrolled{background:rgba(251,246,239,.86);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:0 1px 0 rgba(226,214,200,.9)}
+.appbar-row{height:48px;display:flex;align-items:center;gap:6px;padding:0 8px}
+.appbar-compact{flex:1;text-align:center;font-family:var(--font-d);font-weight:600;font-size:1rem;opacity:0;transform:translateY(6px);transition:opacity .2s,transform .2s;pointer-events:none}
+.appbar.scrolled .appbar-compact{opacity:1;transform:translateY(0)}
+.appbar.sub .appbar-compact{opacity:1;transform:none}
+.bar-btn{width:40px;height:40px;flex-shrink:0;border:none;background:none;color:var(--nd-terracota-hondo);display:flex;align-items:center;justify-content:center;border-radius:20px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .15s,transform .1s}
+.bar-btn:active{background:var(--terra-dim);transform:scale(.92)}
+.bar-btn.ghost{visibility:hidden}
+.largetitle{padding:2px 20px 12px;font-family:var(--font-d);font-weight:600;font-size:1.85rem;letter-spacing:-.025em;line-height:1.15;transition:opacity .18s,transform .18s;transform-origin:left center}
+.appbar.scrolled .largetitle{opacity:0;transform:translateY(-8px) scale(.94);height:0;padding-top:0;padding-bottom:0;overflow:hidden}
+.largetitle small{display:block;font-family:var(--font);font-size:.82rem;font-weight:600;color:var(--muted);letter-spacing:0;margin-top:3px}
+
+/* ── Contenedor de pantallas + navegación push ── */
+.stack{position:relative;flex:1;overflow:hidden}
+.screenview{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--bg);display:none}
+.screenview.active{display:block}
+.screenview.sub{z-index:30;box-shadow:-8px 0 30px rgba(42,33,28,.16);transform:translateX(100%)}
+.screenview.sub.in{transform:translateX(0);transition:transform .3s cubic-bezier(.32,.72,0,1)}
+.screenview.sub.out{transform:translateX(100%);transition:transform .26s cubic-bezier(.32,.72,0,1)}
+.pad{padding:4px 16px 24px}
+
+/* ── Tab bar ── */
+.tabbar{position:relative;z-index:50;flex-shrink:0;display:flex;background:rgba(255,255,255,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);padding-bottom:var(--safe-bottom)}
+.tab{flex:1;border:none;background:none;font-family:var(--font);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;height:54px;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent;position:relative;transition:color .15s}
+.tab span{font-size:.63rem;font-weight:700;letter-spacing:.01em}
+.tab svg{width:25px;height:25px;transition:transform .18s cubic-bezier(.34,1.56,.64,1)}
+.tab .ic-fill{fill:currentColor;fill-opacity:0;transition:fill-opacity .18s}
+.tab.active{color:var(--nd-terracota-hondo)}
+.tab.active svg{transform:translateY(-1px) scale(1.06)}
+.tab.active .ic-fill{fill-opacity:.2}
+.tab:active svg{transform:scale(.88)}
+.tab-badge{position:absolute;top:5px;left:calc(50% + 6px);min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--nd-terracota-hondo);color:#fff;font-size:.6rem;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff}
+
+/* ── Tarjetas y listas ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:16px;margin-bottom:12px}
+.hero{background:linear-gradient(145deg,var(--nd-verde),var(--nd-verde-bosque));color:#fff;border:none;padding:20px;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;right:-34px;top:-34px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.07)}
+.hero .lbl{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.78}
+.hero .amount{font-family:var(--font-d);font-size:2.3rem;font-weight:600;letter-spacing:-.03em;margin:5px 0 3px}
+.hero .meta{font-size:.83rem;opacity:.88;font-weight:600}
+.hero .chip{display:inline-flex;align-items:center;gap:5px;margin-top:14px;background:var(--nd-amarillo);color:#3A2A08;font-size:.76rem;font-weight:800;padding:6px 12px;border-radius:20px}
+
+.section-label{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:20px 4px 9px;display:flex;align-items:center;justify-content:space-between}
+.section-label a{color:var(--nd-terracota-hondo);font-size:.76rem;font-weight:700;text-decoration:none;text-transform:none;letter-spacing:0}
+
+/* Fila de lista — el reemplazo de <table> */
+.list{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #F1E9DE;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .12s;background:var(--surface);width:100%;border-left:none;border-right:none;border-top:none;font-family:var(--font);text-align:left}
+.row:last-child{border-bottom:none}
+.row:active{background:var(--surface2)}
+.row-ic{width:40px;height:40px;flex-shrink:0;border-radius:13px;display:flex;align-items:center;justify-content:center;background:var(--terra-dim);color:var(--nd-terracota-hondo)}
+.row-ic.verde{background:var(--verde-dim);color:var(--nd-verde)}
+.row-ic.ama{background:var(--ama-dim);color:#8A6800}
+.row-ic svg{width:21px;height:21px}
+.row-main{flex:1;min-width:0}
+.row-t{font-size:.93rem;font-weight:700;letter-spacing:-.01em;margin-bottom:2px}
+.row-s{font-size:.79rem;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.row-end{text-align:right;flex-shrink:0;display:flex;align-items:center;gap:7px}
+.row-amt{font-size:.93rem;font-weight:800;letter-spacing:-.01em}
+.chev{width:17px;height:17px;color:#BFAF9C;flex-shrink:0}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot.ok{background:var(--nd-verde)}.dot.warn{background:var(--nd-amarillo)}.dot.bad{background:var(--nd-terracota-hondo)}
+.pill{font-size:.68rem;font-weight:800;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.pill.ok{background:var(--verde-dim);color:var(--nd-verde)}
+.pill.warn{background:var(--ama-dim);color:#8A6800}
+.pill.bad{background:var(--terra-dim);color:var(--nd-terracota-hondo)}
+.pill.info{background:rgba(47,111,94,.1);color:var(--nd-verde)}
+.unread{width:9px;height:9px;border-radius:50%;background:var(--nd-terracota);flex-shrink:0}
+
+/* Acciones rápidas */
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px}
+.qa{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:12px 4px 10px;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;-webkit-tap-highlight-color:transparent;font-family:var(--font);transition:transform .12s,background .12s}
+.qa:active{transform:scale(.94);background:var(--surface2)}
+.qa svg{width:23px;height:23px;color:var(--nd-terracota-hondo)}
+.qa span{font-size:.68rem;font-weight:700;color:var(--text2);line-height:1.2;text-align:center}
+
+/* Segmented control */
+.segmented{display:flex;background:var(--surface3);border-radius:13px;padding:3px;margin:2px 0 14px;position:relative}
+.seg{flex:1;border:none;background:none;font-family:var(--font);font-size:.82rem;font-weight:700;color:var(--text2);padding:8px 4px;border-radius:10px;cursor:pointer;-webkit-tap-highlight-color:transparent;position:relative;z-index:2;transition:color .18s;display:flex;align-items:center;justify-content:center;gap:5px}
+.seg.active{color:var(--nd-tinta)}
+.seg-dot{width:6px;height:6px;border-radius:50%;background:var(--nd-terracota)}
+.seg-thumb{position:absolute;top:3px;bottom:3px;border-radius:10px;background:var(--surface);box-shadow:0 1px 4px rgba(42,33,28,.14);transition:left .26s cubic-bezier(.32,.72,0,1),width .26s cubic-bezier(.32,.72,0,1);z-index:1}
+
+/* Chips de filtro */
+.chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-family:var(--font);font-size:.79rem;font-weight:700;padding:7px 14px;border-radius:20px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:all .15s}
+.chip.active{background:var(--nd-verde);border-color:var(--nd-verde);color:#fff}
+.chip:active{transform:scale(.95)}
+
+/* Votación */
+.vote-bar{height:7px;border-radius:4px;background:var(--surface3);overflow:hidden;margin:4px 0 9px}
+.vote-bar i{display:block;height:100%;border-radius:4px}
+.vb-lbl{display:flex;justify-content:space-between;font-size:.75rem;font-weight:700;color:var(--text2)}
+.vote-btns{display:flex;gap:8px;margin-top:14px}
+.vbtn{flex:1;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-family:var(--font);font-weight:800;font-size:.84rem;padding:11px 4px;border-radius:13px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:all .15s}
+.vbtn:active{transform:scale(.95)}
+.vbtn.yes.on{background:var(--verde-dim);border-color:var(--nd-verde);color:var(--nd-verde)}
+.vbtn.no.on{background:var(--terra-dim);border-color:var(--nd-terracota-hondo);color:var(--nd-terracota-hondo)}
+.vbtn.abs.on{background:var(--surface3);border-color:var(--muted);color:var(--text2)}
+
+/* Reservas */
+.days{display:flex;gap:7px;overflow-x:auto;padding:2px 0 14px;scrollbar-width:none}
+.days::-webkit-scrollbar{display:none}
+.day{flex-shrink:0;width:52px;border:1px solid var(--border);background:var(--surface);border-radius:15px;padding:9px 0;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;-webkit-tap-highlight-color:transparent;font-family:var(--font);transition:all .15s}
+.day b{font-size:1.05rem;font-weight:800;letter-spacing:-.02em}
+.day span{font-size:.65rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.05em}
+.day.active{background:var(--nd-verde);border-color:var(--nd-verde);color:#fff}
+.day.active span{color:rgba(255,255,255,.82)}
+.day:active{transform:scale(.94)}
+.slot{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #F1E9DE;font-family:var(--font);width:100%;background:var(--surface);border-left:none;border-right:none;border-top:none;cursor:pointer;-webkit-tap-highlight-color:transparent;text-align:left}
+.slot:last-child{border-bottom:none}
+.slot:active{background:var(--surface2)}
+.slot.taken{opacity:.5;cursor:default}
+.slot b{font-size:.93rem;font-weight:800;letter-spacing:-.01em}
+
+/* Botones */
+.btn{border:none;border-radius:14px;font-family:var(--font);font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent;display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:transform .12s,filter .15s}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--nd-amarillo);color:#3A2A08;padding:15px 20px;font-size:.94rem;width:100%}
+.btn-ghost{background:var(--surface2);color:var(--text2);padding:13px 20px;font-size:.9rem;width:100%;border:1px solid var(--border)}
+.btn svg{width:19px;height:19px}
+
+/* ── Bottom sheet ── */
+.scrim{position:absolute;inset:0;z-index:80;background:rgba(42,33,28,.42);opacity:0;pointer-events:none;transition:opacity .28s}
+.scrim.open{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:90;background:var(--surface);border-radius:26px 26px 0 0;box-shadow:0 -8px 40px rgba(42,33,28,.22);transform:translateY(100%);transition:transform .34s cubic-bezier(.32,.72,0,1);max-height:88%;display:flex;flex-direction:column;padding-bottom:var(--safe-bottom)}
+.sheet.open{transform:translateY(0)}
+.sheet.dragging{transition:none}
+.grabber{padding:10px 0 4px;display:flex;justify-content:center;cursor:grab;touch-action:none;flex-shrink:0}
+.grabber::after{content:'';width:38px;height:5px;border-radius:3px;background:#D8C9B8}
+.sheet-head{padding:6px 20px 12px;flex-shrink:0}
+.sheet-head h3{font-family:var(--font-d);font-size:1.28rem;font-weight:600;letter-spacing:-.02em}
+.sheet-head p{font-size:.83rem;color:var(--muted);font-weight:600;margin-top:3px}
+.sheet-body{padding:0 20px 8px;overflow-y:auto;flex:1}
+.sheet-foot{padding:12px 20px 14px;flex-shrink:0;border-top:1px solid #F1E9DE;display:flex;gap:9px}
+
+.kv{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #F4EDE4;font-size:.89rem}
+.kv:last-child{border-bottom:none}
+.kv span{color:var(--muted);font-weight:600}
+.kv b{font-weight:800;letter-spacing:-.01em}
+.kv.total{font-size:1.05rem;padding-top:14px}
+.kv.total b{color:var(--nd-terracota-hondo);font-size:1.2rem;font-family:var(--font-d);font-weight:600}
+
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.79rem;font-weight:800;color:var(--text2);margin-bottom:6px}
+.field input,.field select,.field textarea{width:100%;font-family:var(--font);font-size:16px;font-weight:600;padding:13px 14px;border:1.5px solid var(--border);border-radius:13px;background:var(--surface2);color:var(--text);outline:none;transition:border-color .15s,background .15s}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--nd-verde);background:var(--surface)}
+.field textarea{resize:none;height:88px;line-height:1.5}
+
+.prose{font-size:.91rem;line-height:1.62;color:var(--text2);font-weight:500}
+.prose p{margin-bottom:11px}
+
+/* Snackbar */
+.snack{position:absolute;left:14px;right:14px;z-index:95;background:var(--nd-tinta);color:var(--nd-crema);font-size:.86rem;font-weight:700;padding:14px 16px;border-radius:15px;box-shadow:0 8px 26px rgba(42,33,28,.3);display:flex;align-items:center;gap:9px;opacity:0;transform:translateY(16px);pointer-events:none;transition:opacity .26s,transform .26s}
+.snack.show{opacity:1;transform:translateY(0)}
+.snack svg{width:19px;height:19px;color:var(--nd-amarillo);flex-shrink:0}
+
+/* Pull to refresh */
+.ptr{position:absolute;top:0;left:0;right:0;display:flex;justify-content:center;padding-top:8px;z-index:5;pointer-events:none;opacity:0;transition:opacity .2s}
+.ptr svg{width:22px;height:22px;color:var(--nd-terracota-hondo)}
+
+.empty{text-align:center;padding:44px 20px;color:var(--muted)}
+.empty svg{width:44px;height:44px;opacity:.35;margin-bottom:12px}
+.empty p{font-size:.88rem;font-weight:600}
+
+/* ── Notas al pie ── */
+.notes{max-width:1000px;margin:52px auto 0;background:#221C17;border:1px solid #3A312A;border-radius:20px;padding:26px 30px}
+.notes h2{font-family:var(--font-d);font-size:1.12rem;font-weight:600;margin-bottom:6px;color:#F6EFE7}
+.notes .sub{color:#A79684;font-size:.85rem;margin-bottom:20px}
+.notes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:11px}
+.note{background:#191410;border:1px solid #332B24;border-radius:14px;padding:14px 16px}
+.note b{display:block;font-size:.85rem;color:#F6EFE7;margin-bottom:5px;font-weight:800}
+.note p{font-size:.81rem;color:#A79684;line-height:1.55}
+.note em{color:var(--nd-amarillo);font-style:normal;font-weight:700}
+@media(max-width:920px){.stage{gap:36px}.screen{transform:scale(.9)}}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>nidd<span class="o">o</span> · prototipo mobile</h1>
+  <p>Un solo lenguaje de diseño, mostrado en los dos contextos de SO. Es interactivo: tocá los tabs, abrí una expensa, arrastrá la sheet hacia abajo para cerrarla, entrá a "Gastos del consorcio" y volvé.</p>
+</div>
+
+<div class="stage">
+  <div class="device-col">
+    <div class="device-label">iOS · <b>iPhone</b></div>
+    <div class="device ios"><div class="screen ios" data-platform="ios"></div></div>
+  </div>
+  <div class="device-col">
+    <div class="device-label">Android · <b>Pixel</b></div>
+    <div class="device android"><div class="screen android" data-platform="android"></div></div>
+  </div>
+</div>
+
+<div class="notes">
+  <h2>Qué mirar</h2>
+  <div class="sub">El diseño es idéntico en ambos. Lo que cambia es sólo lo que impone el SO.</div>
+  <div class="notes-grid">
+    <div class="note"><b>Safe areas</b><p>Mismo diseño, insets distintos: la tab bar respira <em>34px</em> sobre el home indicator de iOS y <em>22px</em> sobre la barra de gestos de Android. Hoy el sitio no contempla ninguno de los dos.</p></div>
+    <div class="note"><b>Tabs con ícono relleno</b><p>El ícono activo se rellena, como manda el manual de marca (línea por defecto, relleno sólo en activo). Los badges de Comunidad suben al tab.</p></div>
+    <div class="note"><b>Título grande que colapsa</b><p>Scrolleá: el título grande se desvanece y aparece el compacto centrado sobre fondo esmerilado.</p></div>
+    <div class="note"><b>Tablas → listas</b><p>La cuenta corriente tenía <em>7 columnas</em>. Acá es una fila por período con el dato principal grande; el detalle completo vive en la sheet.</p></div>
+    <div class="note"><b>Bottom sheets arrastrables</b><p>Reemplazan los drawers de 460px y los modales de 540px. Arrastralas del grabber hacia abajo para cerrarlas.</p></div>
+    <div class="note"><b>Navegación push</b><p>En Expensas tocá "Ver gastos del consorcio": entra desde la derecha con botón atrás, como una pila nativa.</p></div>
+    <div class="note"><b>Las tres huérfanas</b><p>Gastos, Votaciones y Archivos —hoy inalcanzables en el teléfono— ya tienen camino: sub-pantalla, segmento y Más.</p></div>
+    <div class="note"><b>Feedback táctil</b><p>Todo lo tocable responde al toque con escala; nada depende de <em>:hover</em>, que en un teléfono no existe.</p></div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════ Íconos ══════════════════ */
+const I = {
+  casa:'<path class="ic-fill" d="M3 10.2 12 3.5l9 6.7V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9.2 21v-5.6a1 1 0 0 1 1-1h3.6a1 1 0 0 1 1 1V21"/>',
+  recibo:'<path class="ic-fill" d="M5 3.5h14v17l-2.3-1.5-2.35 1.5L12 19l-2.35 1.5L7.3 19 5 20.5z"/><path d="M9 8.5h6M9 12.5h6"/>',
+  gente:'<path class="ic-fill" d="M12 12.2a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2Z"/><path d="M4.6 20.2c0-3.3 3.3-5.4 7.4-5.4s7.4 2.1 7.4 5.4"/>',
+  calendario:'<path class="ic-fill" d="M4 6.4a1.4 1.4 0 0 1 1.4-1.4h13.2A1.4 1.4 0 0 1 20 6.4v13.2a1.4 1.4 0 0 1-1.4 1.4H5.4A1.4 1.4 0 0 1 4 19.6z"/><path d="M8 3v4M16 3v4M4 10h16"/>',
+  mas:'<path class="ic-fill" d="M4.2 5.6h15.6M4.2 12h15.6M4.2 18.4h15.6" stroke-width="2.2"/>',
+  megafono:'<path d="M4 9.5v5a1 1 0 0 0 1 1h2.2L14 20V4L7.2 8.5H5a1 1 0 0 0-1 1Z"/><path d="M17.5 9a4.2 4.2 0 0 1 0 6"/>',
+  urna:'<path d="M4.5 10.5h15v9a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1z"/><path d="M7.5 10.5 9 3.8l7.2 1.9-1.3 4.8M11 15h2"/>',
+  alerta:'<path d="M12 4.2 21 19.5H3z"/><path d="M12 10v4M12 17h.01"/>',
+  balance:'<path d="M4 20V11M9.6 20V6M15.3 20v-7M21 20V4"/>',
+  carpeta:'<path d="M3.5 6.6a1 1 0 0 1 1-1h4.2l2 2.4h7.8a1 1 0 0 1 1 1v9.4a1 1 0 0 1-1 1h-14a1 1 0 0 1-1-1z"/>',
+  vecino:'<path d="M12 11.6a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8Z"/><path d="M5.2 20c0-3.1 3-5.1 6.8-5.1s6.8 2 6.8 5.1"/>',
+  salir:'<path d="M14 7.5V5.4a1 1 0 0 0-1-1H5.2a1 1 0 0 0-1 1v13.2a1 1 0 0 0 1 1H13a1 1 0 0 0 1-1v-2.1"/><path d="M9.8 12h10M16.8 8.8 20 12l-3.2 3.2"/>',
+  cobro:'<path d="M3.6 8.2a1 1 0 0 1 1-1h14.8a1 1 0 0 1 1 1v7.6a1 1 0 0 1-1 1H4.6a1 1 0 0 1-1-1z"/><path d="M12 14.4a2.4 2.4 0 1 0 0-4.8 2.4 1 0 0 0 0 4.8Z"/>',
+  chev:'<path d="m9 5 7 7-7 7"/>',
+  atras:'<path d="m15 5-7 7 7 7"/>',
+  cerrar:'<path d="M6 6l12 12M18 6 6 18"/>',
+  check:'<path d="m5 12.5 4.6 4.6L19 7.4"/>',
+  reloj:'<circle cx="12" cy="12" r="8.4"/><path d="M12 7.4V12l3 2"/>',
+  llave:'<path d="M14.6 9.4a3.6 3.6 0 1 1-5.1 5.1l-5.3 5.3H2v-2.2l6.4-6.4a3.6 3.6 0 0 1 6.2-1.8Z"/>',
+  doc:'<path d="M6 3.6h7.4L18.6 9v11.4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.6a1 1 0 0 1 1-1Z"/><path d="M13.2 3.8V9h5"/>',
+  refrescar:'<path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v4h-4"/>',
+  wifi:'<path d="M2 6.5 8 1l6 5.5"/>',
+  bateria:'<rect x="1" y="2" width="12" height="8" rx="2"/><path d="M14.5 4.6v2.8"/>',
+  senal:'<path d="M1 11h2v-3H1zM5 11h2V6H5zM9 11h2V3.5H9zM13 11h2V1h-2z" stroke="none" fill="currentColor"/>'
+};
+const svg = (n,cls='') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
+
+/* ══════════════════ Datos (realistas, de mentira) ══════════════════ */
+const D = {
+  consorcio:'Av. Rivadavia 4820', uf:'3º B',
+  expensas:[
+    {per:'Julio 2026', base:171200, int:16250, total:187450, vence:'10/08/2026', estado:'vencida'},
+    {per:'Junio 2026', base:172300, int:0, total:172300, vence:'10/07/2026', estado:'pagada'},
+    {per:'Mayo 2026', base:168900, int:0, total:168900, vence:'10/06/2026', estado:'pagada'},
+    {per:'Abril 2026', base:161200, int:0, total:161200, vence:'10/05/2026', estado:'pagada'},
+    {per:'Marzo 2026', base:158400, int:0, total:158400, vence:'10/04/2026', estado:'pagada'}
+  ],
+  gastos:[
+    {desc:'Limpieza y portería', prov:'Servicios Bru SRL', cat:'Personal', monto:452000, fecha:'28/07'},
+    {desc:'Mantenimiento ascensor', prov:'Ascensores Otis', cat:'Mantenimiento', monto:238500, fecha:'24/07'},
+    {desc:'Luz de espacios comunes', prov:'Edesur', cat:'Servicios', monto:186400, fecha:'21/07'},
+    {desc:'Seguro integral', prov:'La Segunda', cat:'Seguros', monto:131000, fecha:'15/07'},
+    {desc:'Honorarios administración', prov:'Niddo', cat:'Administración', monto:128000, fecha:'05/07'},
+    {desc:'Reparación bomba de agua', prov:'Plomería Sur', cat:'Reparaciones', monto:94200, fecha:'03/07'}
+  ],
+  comunicados:[
+    {t:'Corte de agua programado', f:'Hoy · 09:14', leido:false, cuerpo:'Aguas Argentinas nos informó que el jueves 6/08 habrá corte de agua entre las 9 y las 15 hs por trabajos en la red troncal de Rivadavia.\n\nRecomendamos llenar recipientes la noche anterior. El tanque del edificio tiene reserva para unas 4 horas de uso normal.'},
+    {t:'Nueva empresa de limpieza', f:'Ayer · 18:30', leido:false, cuerpo:'A partir del 1º de agosto, Servicios Bru SRL toma la limpieza del edificio. Mantienen los horarios: lunes a viernes de 7 a 11 hs.\n\nCualquier observación sobre el servicio, cárguenla como reclamo así queda registro.'},
+    {t:'Reunión de consorcio — 12/08', f:'28 jul', leido:true, cuerpo:'Convocamos a asamblea ordinaria el martes 12 de agosto a las 19 hs en el SUM.\n\nOrden del día: rendición del primer semestre, presupuesto de pintura del frente y renovación del contrato de ascensores.'},
+    {t:'Recordatorio: no dejar bolsas en el pasillo', f:'22 jul', leido:true, cuerpo:'Recibimos varios reclamos por bolsas de residuos dejadas fuera de horario en los pasillos.\n\nEl horario de bajada es de 20 a 22 hs. Gracias por la colaboración.'}
+  ],
+  votaciones:[
+    {t:'¿Aprobamos pintar el frente del edificio?', d:'Presupuesto de Pinturería Callao por $4.850.000, a cubrir en 3 cuotas dentro de la expensa de sep/oct/nov.', si:14, no:3, abs:2, cierra:'Cierra en 4 días', voto:null},
+    {t:'¿Renovamos el contrato con Ascensores Otis?', d:'Renovación por 24 meses con un aumento del 18% sobre el abono actual.', si:9, no:8, abs:1, cierra:'Cierra en 11 días', voto:null}
+  ],
+  reclamos:[
+    {t:'Luz quemada en el pasillo del 3º', f:'Abierto hace 2 días', estado:'en proceso', cls:'warn', cuerpo:'El tubo del pasillo entre el 3ºA y el 3ºB está quemado hace una semana. De noche no se ve el ojo de la escalera.', resp:'La administración respondió: ya pedimos el service para el jueves 7/08.'},
+    {t:'Filtración en la cochera 12', f:'Cerrado el 18 jul', estado:'resuelto', cls:'ok', cuerpo:'Cae agua desde el techo de la cochera cuando llueve fuerte. Ya manchó el capó del auto.', resp:'Resuelto: se selló la junta de dilatación el 17/07. Se pidió al vecino que confirme tras la próxima lluvia.'},
+    {t:'Ruidos molestos los fines de semana', f:'Cerrado el 2 jul', estado:'cerrado', cls:'', cuerpo:'Desde el 5ºC hay música fuerte los sábados después de las 2 AM.', resp:'Cerrado: se labró acta y se notificó al propietario. Sin reincidencias en 30 días.'}
+  ],
+  amenities:['SUM','Parrilla','Gimnasio'],
+  slots:[
+    {h:'09:00 – 12:00', libre:true},{h:'12:00 – 15:00', libre:false, quien:'Reservado · 5ºA'},
+    {h:'15:00 – 18:00', libre:true},{h:'18:00 – 21:00', libre:true},{h:'21:00 – 00:00', libre:false, quien:'Reservado · 2ºC'}
+  ]
+};
+const money = n => '$' + n.toLocaleString('es-AR');
+
+/* ══════════════════ Montaje de la app ══════════════════ */
+function mountApp(screen){
+  const ios = screen.dataset.platform === 'ios';
+
+  screen.innerHTML = `
+    ${ios ? '<div class="notch"></div>' : '<div class="punchhole"></div>'}
+    <div class="statusbar">
+      <span>9:41</span>
+      <div class="sb-icons">${svg('senal')}${svg('wifi')}${svg('bateria')}</div>
+    </div>
+    <div class="app">
+      <header class="appbar">
+        <div class="appbar-row">
+          <button class="bar-btn ghost" data-back>${svg('atras')}</button>
+          <div class="appbar-compact"></div>
+          <button class="bar-btn ghost">${svg('cerrar')}</button>
+        </div>
+        <div class="largetitle"></div>
+      </header>
+      <div class="stack"></div>
+      <nav class="tabbar"></nav>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="grabber"></div>
+        <div class="sheet-head"></div>
+        <div class="sheet-body"></div>
+        <div class="sheet-foot"></div>
+      </div>
+      <div class="snack"></div>
+    </div>
+    <div class="homebar"></div>`;
+
+  const $  = s => screen.querySelector(s);
+  const appbar = $('.appbar'), stack = $('.stack'), tabbar = $('.tabbar');
+  const sheet = $('.sheet'), scrim = $('.scrim'), snack = $('.snack');
+  const compact = $('.appbar-compact'), large = $('.largetitle'), backBtn = $('[data-back]');
+
+  const TABS = [
+    {id:'inicio',    ic:'casa',        lbl:'Inicio',    t:'Hola, Santiago', sub:`${D.consorcio} · UF ${D.uf}`},
+    {id:'expensas',  ic:'recibo',      lbl:'Expensas',  t:'Mis expensas',   sub:'Cuenta corriente y pagos'},
+    {id:'comunidad', ic:'gente',       lbl:'Comunidad', t:'Comunidad',      sub:'Avisos, votaciones y reclamos', badge:3},
+    {id:'reservas',  ic:'calendario',  lbl:'Reservas',  t:'Reservas',       sub:'Amenities del consorcio'},
+    {id:'mas',       ic:'mas',         lbl:'Más',       t:'Más',            sub:'Archivos, perfil y ajustes'}
+  ];
+
+  let tab = 'inicio', seg = 'avisos', dia = 1, amenity = 'SUM', votos = {};
+
+  /* ── Tab bar ── */
+  tabbar.innerHTML = TABS.map(t=>`
+    <button class="tab${t.id===tab?' active':''}" data-tab="${t.id}">
+      ${svg(t.ic)}<span>${t.lbl}</span>
+      ${t.badge?`<i class="tab-badge">${t.badge}</i>`:''}
+    </button>`).join('');
+
+  tabbar.addEventListener('click', e=>{
+    const b = e.target.closest('[data-tab]'); if(!b) return;
+    closeSub(true); go(b.dataset.tab);
+  });
+
+  function go(id){
+    tab = id;
+    tabbar.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===id));
+    const meta = TABS.find(t=>t.id===id);
+    large.innerHTML = `${meta.t}<small>${meta.sub}</small>`;
+    compact.textContent = meta.t;
+    appbar.classList.remove('scrolled');
+    stack.querySelectorAll('.screenview:not(.sub)').forEach(v=>v.classList.toggle('active', v.dataset.view===id));
+    const v = stack.querySelector(`.screenview[data-view="${id}"]`);
+    if(v) v.scrollTop = 0;
+  }
+
+  /* ── Colapso del título al scrollear ── */
+  function watchScroll(v){
+    v.addEventListener('scroll', ()=>{
+      if(v.classList.contains('sub')) return;
+      appbar.classList.toggle('scrolled', v.scrollTop > 26);
+    }, {passive:true});
+  }
+
+  /* ══════════════════ Pantallas ══════════════════ */
+  function view(id, html, sub){
+    const d = document.createElement('div');
+    d.className = 'screenview' + (sub?' sub':'');
+    d.dataset.view = id;
+    d.innerHTML = `<div class="pad">${html}</div>`;
+    stack.appendChild(d); watchScroll(d); return d;
+  }
+
+  const rowChev = svg('chev','chev');
+
+  /* — INICIO — */
+  const vencida = D.expensas[0];
+  view('inicio', `
+    <div class="card hero">
+      <div class="lbl">Saldo pendiente</div>
+      <div class="amount">${money(vencida.total)}</div>
+      <div class="meta">${vencida.per} · venció el ${vencida.vence}</div>
+      <div class="chip">${svg('alerta')} Con ${money(vencida.int)} de interés</div>
+    </div>
+
+    <div class="quick">
+      <button class="qa" data-sheet="pago">${svg('cobro')}<span>Informar pago</span></button>
+      <button class="qa" data-sheet="reclamo">${svg('alerta')}<span>Nuevo reclamo</span></button>
+      <button class="qa" data-goto="reservas">${svg('calendario')}<span>Reservar</span></button>
+      <button class="qa" data-goto="comunidad" data-seg="votaciones">${svg('urna')}<span>Votar</span></button>
+    </div>
+
+    <div class="section-label">Requiere tu atención</div>
+    <div class="list">
+      <button class="row" data-goto="comunidad" data-seg="votaciones">
+        <div class="row-ic ama">${svg('urna')}</div>
+        <div class="row-main">
+          <div class="row-t">Votación abierta</div>
+          <div class="row-s">Pintura del frente · cierra en 4 días</div>
+        </div>
+        <div class="row-end">${rowChev}</div>
+      </button>
+      <button class="row" data-reclamo="0">
+        <div class="row-ic">${svg('alerta')}</div>
+        <div class="row-main">
+          <div class="row-t">Tu reclamo tuvo respuesta</div>
+          <div class="row-s">Luz quemada en el pasillo del 3º</div>
+        </div>
+        <div class="row-end"><span class="unread"></span>${rowChev}</div>
+      </button>
+    </div>
+
+    <div class="section-label">Últimos avisos <a data-goto="comunidad">Ver todos</a></div>
+    <div class="list">
+      ${D.comunicados.slice(0,3).map((c,i)=>`
+        <button class="row" data-com="${i}">
+          <div class="row-ic verde">${svg('megafono')}</div>
+          <div class="row-main">
+            <div class="row-t">${c.t}</div>
+            <div class="row-s">${c.f}</div>
+          </div>
+          <div class="row-end">${c.leido?'':'<span class="unread"></span>'}${rowChev}</div>
+        </button>`).join('')}
+    </div>`);
+
+  /* — EXPENSAS — */
+  view('expensas', `
+    <div class="card hero">
+      <div class="lbl">A pagar ahora</div>
+      <div class="amount">${money(vencida.total)}</div>
+      <div class="meta">${vencida.per} · venció el ${vencida.vence}</div>
+    </div>
+    <button class="btn btn-primary" data-sheet="pago" style="margin-bottom:6px">${svg('cobro')} Informar un pago</button>
+
+    <div class="section-label">Cuenta corriente</div>
+    <div class="list">
+      ${D.expensas.map((e,i)=>`
+        <button class="row" data-exp="${i}">
+          <div class="row-ic ${e.estado==='pagada'?'verde':''}">${svg('recibo')}</div>
+          <div class="row-main">
+            <div class="row-t">${e.per}</div>
+            <div class="row-s"><span class="dot ${e.estado==='pagada'?'ok':'bad'}"></span>${e.estado==='pagada'?'Pagada':'Vencida el '+e.vence}</div>
+          </div>
+          <div class="row-end"><span class="row-amt">${money(e.total)}</span>${rowChev}</div>
+        </button>`).join('')}
+    </div>
+
+    <div class="section-label">Transparencia</div>
+    <div class="list">
+      <button class="row" data-push="gastos">
+        <div class="row-ic verde">${svg('balance')}</div>
+        <div class="row-main">
+          <div class="row-t">Gastos del consorcio</div>
+          <div class="row-s">En qué se fue la expensa de julio</div>
+        </div>
+        <div class="row-end">${rowChev}</div>
+      </button>
+    </div>`);
+
+  /* — GASTOS (sub-pantalla) — */
+  const totalGastos = D.gastos.reduce((a,g)=>a+g.monto,0);
+  view('gastos', `
+    <div class="card" style="text-align:center;padding:20px">
+      <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Total julio 2026</div>
+      <div style="font-family:var(--font-d);font-size:2.1rem;font-weight:600;letter-spacing:-.03em;margin-top:4px">${money(totalGastos)}</div>
+      <div style="font-size:.82rem;color:var(--muted);font-weight:600;margin-top:2px">Repartido entre 24 unidades</div>
+    </div>
+    <div class="section-label">Detalle por gasto</div>
+    <div class="list">
+      ${D.gastos.map(g=>`
+        <div class="row" style="cursor:default">
+          <div class="row-ic verde">${svg('doc')}</div>
+          <div class="row-main">
+            <div class="row-t">${g.desc}</div>
+            <div class="row-s">${g.prov} · ${g.fecha}</div>
+          </div>
+          <div class="row-end"><span class="row-amt">${money(g.monto)}</span></div>
+        </div>`).join('')}
+    </div>`, true);
+
+  /* — COMUNIDAD — */
+  view('comunidad', `
+    <div class="segmented">
+      <div class="seg-thumb"></div>
+      <button class="seg active" data-seg="avisos">Avisos <i class="seg-dot"></i></button>
+      <button class="seg" data-seg="votaciones">Votaciones <i class="seg-dot"></i></button>
+      <button class="seg" data-seg="reclamos">Reclamos</button>
+    </div>
+    <div data-panel="avisos">
+      <div class="list">
+        ${D.comunicados.map((c,i)=>`
+          <button class="row" data-com="${i}">
+            <div class="row-ic verde">${svg('megafono')}</div>
+            <div class="row-main">
+              <div class="row-t">${c.t}</div>
+              <div class="row-s">${c.f}</div>
+            </div>
+            <div class="row-end">${c.leido?'':'<span class="unread"></span>'}${rowChev}</div>
+          </button>`).join('')}
+      </div>
+    </div>
+    <div data-panel="votaciones" style="display:none">
+      ${D.votaciones.map((v,i)=>{
+        const tot = v.si+v.no+v.abs, p = n => Math.round(n/tot*100);
+        return `<div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px">
+            <div class="row-t" style="font-size:1rem;line-height:1.35">${v.t}</div>
+            <span class="pill warn">${v.cierra.replace('Cierra en ','')}</span>
+          </div>
+          <div class="prose" style="font-size:.85rem;margin-bottom:14px">${v.d}</div>
+          <div class="vb-lbl"><span>Sí</span><span>${p(v.si)}% · ${v.si}</span></div>
+          <div class="vote-bar"><i style="width:${p(v.si)}%;background:var(--nd-verde)"></i></div>
+          <div class="vb-lbl"><span>No</span><span>${p(v.no)}% · ${v.no}</span></div>
+          <div class="vote-bar"><i style="width:${p(v.no)}%;background:var(--nd-terracota)"></i></div>
+          <div class="vb-lbl"><span>Abstención</span><span>${p(v.abs)}% · ${v.abs}</span></div>
+          <div class="vote-bar"><i style="width:${p(v.abs)}%;background:#C4B6A5"></i></div>
+          <div class="vote-btns" data-vot="${i}">
+            <button class="vbtn yes" data-v="si">Sí</button>
+            <button class="vbtn no" data-v="no">No</button>
+            <button class="vbtn abs" data-v="abs">Me abstengo</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div data-panel="reclamos" style="display:none">
+      <button class="btn btn-primary" data-sheet="reclamo" style="margin-bottom:14px">${svg('alerta')} Nuevo reclamo</button>
+      <div class="list">
+        ${D.reclamos.map((r,i)=>`
+          <button class="row" data-reclamo="${i}">
+            <div class="row-ic ${r.cls==='ok'?'verde':r.cls==='warn'?'ama':''}">${svg('alerta')}</div>
+            <div class="row-main">
+              <div class="row-t">${r.t}</div>
+              <div class="row-s">${r.f}</div>
+            </div>
+            <div class="row-end"><span class="pill ${r.cls||'info'}">${r.estado}</span>${rowChev}</div>
+          </button>`).join('')}
+      </div>
+    </div>`);
+
+  /* — RESERVAS — */
+  const DIAS = [['Lun',4],['Mar',5],['Mié',6],['Jue',7],['Vie',8],['Sáb',9],['Dom',10]];
+  view('reservas', `
+    <div class="chips" data-amenities>
+      ${D.amenities.map((a,i)=>`<button class="chip${i===0?' active':''}" data-am="${a}">${a}</button>`).join('')}
+    </div>
+    <div class="days" data-days>
+      ${DIAS.map((d,i)=>`<button class="day${i===1?' active':''}" data-dia="${i}"><span>${d[0]}</span><b>${d[1]}</b></button>`).join('')}
+    </div>
+    <div class="section-label">Turnos disponibles</div>
+    <div class="list">
+      ${D.slots.map((s,i)=>`
+        <button class="slot${s.libre?'':' taken'}" ${s.libre?`data-slot="${i}"`:'disabled'}>
+          <div>
+            <b>${s.h}</b>
+            <div class="row-s" style="margin-top:2px">${s.libre?'Disponible':s.quien}</div>
+          </div>
+          ${s.libre?'<span class="pill ok">Reservar</span>':'<span class="pill">Ocupado</span>'}
+        </button>`).join('')}
+    </div>`);
+
+  /* — MÁS — */
+  view('mas', `
+    <div class="section-label">Consorcio</div>
+    <div class="list">
+      <button class="row" data-push="archivos">
+        <div class="row-ic verde">${svg('carpeta')}</div>
+        <div class="row-main"><div class="row-t">Archivos</div><div class="row-s">Reglamento, actas y comprobantes</div></div>
+        <div class="row-end">${rowChev}</div>
+      </button>
+      <button class="row" data-push="gastos">
+        <div class="row-ic verde">${svg('balance')}</div>
+        <div class="row-main"><div class="row-t">Gastos del consorcio</div><div class="row-s">Transparencia mensual</div></div>
+        <div class="row-end">${rowChev}</div>
+      </button>
+    </div>
+    <div class="section-label">Cuenta</div>
+    <div class="list">
+      <button class="row" data-sheet="perfil">
+        <div class="row-ic">${svg('vecino')}</div>
+        <div class="row-main"><div class="row-t">Mi perfil</div><div class="row-s">Santiago D. · UF ${D.uf}</div></div>
+        <div class="row-end">${rowChev}</div>
+      </button>
+      <button class="row" data-snack="Todavía no implementado en el prototipo">
+        <div class="row-ic">${svg('llave')}</div>
+        <div class="row-main"><div class="row-t">Notificaciones</div><div class="row-s">Avisos, vencimientos y votaciones</div></div>
+        <div class="row-end">${rowChev}</div>
+      </button>
+    </div>
+    <div class="section-label">Sesión</div>
+    <div class="list">
+      <button class="row" data-snack="Cerrando sesión…">
+        <div class="row-ic">${svg('salir')}</div>
+        <div class="row-main"><div class="row-t" style="color:var(--nd-terracota-hondo)">Cerrar sesión</div></div>
+      </button>
+    </div>
+    <div style="text-align:center;padding:26px 0 10px;color:#BFAF9C;font-size:.76rem;font-weight:700">niddo · v2.4.0</div>`);
+
+  /* — ARCHIVOS (sub-pantalla) — */
+  view('archivos', `
+    <div class="section-label">Documentos</div>
+    <div class="list">
+      ${[['Reglamento de copropiedad','PDF · 1,2 MB'],['Acta de asamblea — mar 2026','PDF · 340 KB'],['Balance primer semestre','PDF · 780 KB'],['Póliza de seguro integral','PDF · 2,1 MB'],['Contrato — Servicios Bru SRL','PDF · 460 KB']]
+      .map(([t,s])=>`
+        <button class="row" data-snack="Descargando ${t}…">
+          <div class="row-ic">${svg('doc')}</div>
+          <div class="row-main"><div class="row-t">${t}</div><div class="row-s">${s}</div></div>
+          <div class="row-end">${rowChev}</div>
+        </button>`).join('')}
+    </div>`, true);
+
+  /* ══════════════════ Navegación push ══════════════════ */
+  let subOpen = null;
+  const SUBTITLES = {gastos:'Gastos del consorcio', archivos:'Archivos'};
+
+  function push(id){
+    const v = stack.querySelector(`.screenview[data-view="${id}"]`);
+    if(!v) return;
+    subOpen = v;
+    v.classList.add('active'); v.scrollTop = 0;
+    void v.offsetWidth;
+    v.classList.remove('out'); v.classList.add('in');
+    appbar.classList.add('sub','scrolled');
+    compact.textContent = SUBTITLES[id] || '';
+    backBtn.classList.remove('ghost');
+  }
+  function closeSub(instant){
+    if(!subOpen) return;
+    const v = subOpen; subOpen = null;
+    backBtn.classList.add('ghost');
+    appbar.classList.remove('sub');
+    const meta = TABS.find(t=>t.id===tab);
+    compact.textContent = meta.t;
+    const active = stack.querySelector(`.screenview[data-view="${tab}"]`);
+    appbar.classList.toggle('scrolled', !!active && active.scrollTop > 26);
+    if(instant){ v.classList.remove('active','in','out'); return; }
+    v.classList.remove('in'); v.classList.add('out');
+    setTimeout(()=>{ if(subOpen!==v) v.classList.remove('active','out'); }, 270);
+  }
+  backBtn.addEventListener('click', ()=>closeSub());
+
+  /* Back-swipe desde el borde izquierdo */
+  stack.addEventListener('pointerdown', e=>{
+    if(!subOpen) return;
+    const r = stack.getBoundingClientRect();
+    if(e.clientX - r.left > 26) return;
+    const v = subOpen, x0 = e.clientX;
+    v.style.transition = 'none';
+    const move = ev => { v.style.transform = `translateX(${Math.max(0, ev.clientX - x0)}px)`; };
+    const up = ev => {
+      stack.removeEventListener('pointermove', move);
+      stack.removeEventListener('pointerup', up);
+      v.style.transition = ''; v.style.transform = '';
+      if(ev.clientX - x0 > 70) closeSub();
+    };
+    stack.addEventListener('pointermove', move);
+    stack.addEventListener('pointerup', up);
+  });
+
+  /* ══════════════════ Bottom sheet ══════════════════ */
+  function openSheet({title, sub, body, foot}){
+    $('.sheet-head').innerHTML = `<h3>${title}</h3>${sub?`<p>${sub}</p>`:''}`;
+    $('.sheet-body').innerHTML = body;
+    $('.sheet-foot').innerHTML = foot || '';
+    $('.sheet-foot').style.display = foot ? 'flex' : 'none';
+    $('.sheet-body').scrollTop = 0;
+    sheet.classList.add('open'); scrim.classList.add('open');
+  }
+  function closeSheet(){ sheet.classList.remove('open'); scrim.classList.remove('open'); }
+  scrim.addEventListener('click', closeSheet);
+
+  /* Arrastrar para cerrar */
+  $('.grabber').addEventListener('pointerdown', e=>{
+    const y0 = e.clientY, h = sheet.offsetHeight;
+    sheet.classList.add('dragging');
+    e.target.setPointerCapture(e.pointerId);
+    const move = ev => {
+      const dy = Math.max(0, ev.clientY - y0);
+      sheet.style.transform = `translateY(${dy}px)`;
+      scrim.style.opacity = String(Math.max(0, 1 - dy/h*1.4));
+    };
+    const up = ev => {
+      e.target.removeEventListener('pointermove', move);
+      e.target.removeEventListener('pointerup', up);
+      sheet.classList.remove('dragging');
+      sheet.style.transform = ''; scrim.style.opacity = '';
+      if(ev.clientY - y0 > 90) closeSheet();
+    };
+    e.target.addEventListener('pointermove', move);
+    e.target.addEventListener('pointerup', up);
+  });
+
+  /* ══════════════════ Snackbar ══════════════════ */
+  let snackT;
+  function toast(msg){
+    snack.innerHTML = `${svg('check')}<span>${msg}</span>`;
+    const tb = tabbar.offsetHeight;
+    snack.style.bottom = (tb + 12) + 'px';
+    snack.classList.add('show');
+    clearTimeout(snackT);
+    snackT = setTimeout(()=>snack.classList.remove('show'), 2600);
+  }
+
+  /* ══════════════════ Segmented control ══════════════════ */
+  const segmented = stack.querySelector('.segmented');
+  function moveThumb(){
+    const btn = segmented.querySelector('.seg.active');
+    const thumb = segmented.querySelector('.seg-thumb');
+    thumb.style.left = btn.offsetLeft + 'px';
+    thumb.style.width = btn.offsetWidth + 'px';
+  }
+  function setSeg(id){
+    seg = id;
+    segmented.querySelectorAll('.seg').forEach(s=>s.classList.toggle('active', s.dataset.seg===id));
+    stack.querySelectorAll('[data-panel]').forEach(p=>p.style.display = p.dataset.panel===id?'':'none');
+    moveThumb();
+  }
+  segmented.addEventListener('click', e=>{
+    const b = e.target.closest('.seg'); if(b) setSeg(b.dataset.seg);
+  });
+
+  /* ══════════════════ Delegación de eventos ══════════════════ */
+  stack.addEventListener('click', e=>{
+    const t = e.target;
+
+    const goto = t.closest('[data-goto]');
+    if(goto){ go(goto.dataset.goto); if(goto.dataset.seg) setSeg(goto.dataset.seg); return; }
+
+    const pushEl = t.closest('[data-push]');
+    if(pushEl){ push(pushEl.dataset.push); return; }
+
+    const sn = t.closest('[data-snack]');
+    if(sn){ toast(sn.dataset.snack); return; }
+
+    /* Expensa → sheet de detalle */
+    const exp = t.closest('[data-exp]');
+    if(exp){
+      const e0 = D.expensas[+exp.dataset.exp];
+      openSheet({
+        title: e0.per, sub: e0.estado==='pagada' ? 'Pagada' : 'Vencida el ' + e0.vence,
+        body: `
+          <div class="kv"><span>Monto base</span><b>${money(e0.base)}</b></div>
+          <div class="kv"><span>Intereses por mora</span><b>${e0.int?money(e0.int):'—'}</b></div>
+          <div class="kv"><span>Vencimiento</span><b>${e0.vence}</b></div>
+          <div class="kv"><span>Estado</span><b>${e0.estado==='pagada'?'Pagada':'Vencida'}</b></div>
+          <div class="kv total"><span>Total</span><b>${money(e0.total)}</b></div>`,
+        foot: e0.estado==='pagada'
+          ? `<button class="btn btn-ghost" data-snack="Descargando el comprobante…">${svg('doc')} Ver comprobante</button>`
+          : `<button class="btn btn-primary" data-sheet="pago">${svg('cobro')} Informar un pago</button>`
+      });
+      return;
+    }
+
+    /* Comunicado → sheet */
+    const com = t.closest('[data-com]');
+    if(com){
+      const c = D.comunicados[+com.dataset.com];
+      openSheet({title:c.t, sub:c.f, body:`<div class="prose">${c.cuerpo.split('\n\n').map(p=>`<p>${p}</p>`).join('')}</div>`});
+      const u = com.querySelector('.unread'); if(u) u.remove();
+      return;
+    }
+
+    /* Reclamo → sheet */
+    const rec = t.closest('[data-reclamo]');
+    if(rec){
+      const r = D.reclamos[+rec.dataset.reclamo];
+      openSheet({
+        title:r.t, sub:r.f,
+        body:`<div class="prose"><p>${r.cuerpo}</p></div>
+              <div class="card" style="background:var(--verde-dim);border-color:transparent;margin-top:6px">
+                <div class="row-s" style="font-weight:800;color:var(--nd-verde);margin-bottom:5px">${svg('megafono')} Administración</div>
+                <div class="prose" style="font-size:.87rem">${r.resp}</div>
+              </div>`
+      });
+      return;
+    }
+
+    /* Turno de reserva */
+    const slot = t.closest('[data-slot]');
+    if(slot){
+      const s = D.slots[+slot.dataset.slot];
+      openSheet({
+        title:`Reservar ${amenity}`, sub:`${DIAS[dia][0]} ${DIAS[dia][1]} de agosto · ${s.h}`,
+        body:`
+          <div class="kv"><span>Amenity</span><b>${amenity}</b></div>
+          <div class="kv"><span>Día</span><b>${DIAS[dia][0]} ${DIAS[dia][1]}/08/2026</b></div>
+          <div class="kv"><span>Horario</span><b>${s.h}</b></div>
+          <div class="kv"><span>Unidad</span><b>${D.uf}</b></div>
+          <div class="field" style="margin-top:14px"><label>Cantidad de invitados</label><input type="number" inputmode="numeric" value="8"></div>`,
+        foot:`<button class="btn btn-primary" data-confirm="Reserva confirmada">${svg('check')} Confirmar reserva</button>`
+      });
+      return;
+    }
+
+    /* Votar */
+    const vb = t.closest('.vbtn');
+    if(vb){
+      const wrap = vb.closest('[data-vot]'), i = wrap.dataset.vot;
+      const already = votos[i] === vb.dataset.v;
+      wrap.querySelectorAll('.vbtn').forEach(b=>b.classList.remove('on'));
+      if(already){ delete votos[i]; toast('Voto retirado'); }
+      else { vb.classList.add('on'); votos[i] = vb.dataset.v; toast('Tu voto quedó registrado'); }
+      return;
+    }
+
+    /* Chips de amenity */
+    const am = t.closest('[data-am]');
+    if(am){
+      amenity = am.dataset.am;
+      stack.querySelectorAll('[data-am]').forEach(c=>c.classList.toggle('active', c===am));
+      return;
+    }
+
+    /* Días */
+    const dd = t.closest('[data-dia]');
+    if(dd){
+      dia = +dd.dataset.dia;
+      stack.querySelectorAll('[data-dia]').forEach(c=>c.classList.toggle('active', c===dd));
+      return;
+    }
+
+    const sh = t.closest('[data-sheet]');
+    if(sh){ sheets[sh.dataset.sheet](); return; }
+  });
+
+  /* Clicks dentro de la sheet */
+  sheet.addEventListener('click', e=>{
+    const sn = e.target.closest('[data-snack]');
+    if(sn){ closeSheet(); toast(sn.dataset.snack); return; }
+    const cf = e.target.closest('[data-confirm]');
+    if(cf){ closeSheet(); toast(cf.dataset.confirm); return; }
+    const sh = e.target.closest('[data-sheet]');
+    if(sh){ sheets[sh.dataset.sheet](); return; }
+  });
+
+  /* ══════════════════ Sheets de formulario ══════════════════ */
+  const sheets = {
+    pago(){
+      openSheet({
+        title:'Informar un pago', sub:`${vencida.per} · ${money(vencida.total)}`,
+        body:`
+          <div class="field"><label>Monto transferido</label><input inputmode="decimal" value="${money(vencida.total)}"></div>
+          <div class="field"><label>Fecha del pago</label><input type="date" value="2026-07-30"></div>
+          <div class="field"><label>Medio</label><select><option>Transferencia bancaria</option><option>Mercado Pago</option><option>Efectivo en administración</option></select></div>
+          <div class="field"><label>Comprobante</label><input type="file"></div>
+          <div class="field"><label>Comentario (opcional)</label><textarea placeholder="Algo que la administración deba saber…"></textarea></div>`,
+        foot:`<button class="btn btn-primary" data-confirm="Pago informado — queda en revisión">${svg('check')} Informar pago</button>`
+      });
+    },
+    reclamo(){
+      openSheet({
+        title:'Nuevo reclamo', sub:`${D.consorcio} · UF ${D.uf}`,
+        body:`
+          <div class="field"><label>Asunto</label><input placeholder="Ej: pérdida de agua en el 4ºB"></div>
+          <div class="field"><label>Categoría</label><select><option>Plomería</option><option>Electricidad</option><option>Ascensores</option><option>Limpieza</option><option>Ruidos molestos</option><option>Otro</option></select></div>
+          <div class="field"><label>Ubicación</label><select><option>Mi unidad</option><option>Pasillo / palier</option><option>Cochera</option><option>Terraza</option><option>Espacios comunes</option></select></div>
+          <div class="field"><label>Descripción</label><textarea placeholder="Contanos qué pasó, desde cuándo y qué viste…"></textarea></div>
+          <div class="field"><label>Foto (opcional)</label><input type="file" accept="image/*"></div>`,
+        foot:`<button class="btn btn-primary" data-confirm="Reclamo enviado a la administración">${svg('check')} Enviar reclamo</button>`
+      });
+    },
+    perfil(){
+      openSheet({
+        title:'Mi perfil', sub:'Tus datos y unidades',
+        body:`
+          <div class="field"><label>Nombre</label><input value="Santiago Despontin"></div>
+          <div class="field"><label>Email</label><input value="santiagodespontin@gmail.com"></div>
+          <div class="field"><label>Teléfono</label><input inputmode="tel" value="+54 9 11 5555-1234"></div>
+          <div class="section-label" style="padding-left:0">Mis unidades</div>
+          <div class="list">
+            <div class="row" style="cursor:default">
+              <div class="row-ic verde">${svg('casa')}</div>
+              <div class="row-main"><div class="row-t">${D.consorcio}</div><div class="row-s">UF ${D.uf} · Propietario</div></div>
+            </div>
+          </div>`,
+        foot:`<button class="btn btn-primary" data-confirm="Perfil actualizado">${svg('check')} Guardar cambios</button>`
+      });
+    }
+  };
+
+  /* ══════════════════ Arranque ══════════════════ */
+  go('inicio');
+  requestAnimationFrame(moveThumb);
+}
+
+document.querySelectorAll('.screen').forEach(mountApp);
+</script>
+</body>
+</html>
