@@ -120,4 +120,70 @@
     .nd-mobile select,
     .nd-mobile textarea { font-size: 16px; }
 
+    /* ── Top app bar ─────────────────────────────────────────────────────
+       En escritorio el header muestra el logo y los badges de consorcio/UF.
+       En el teléfono ese espacio vale más como título de la pantalla. */
+    .nd-mobile .app-header {
+        height: auto;
+        padding: var(--safe-top) 12px 0;
+        flex-direction: column;
+        align-items: stretch;
+        transition: box-shadow .2s, background .2s;
+    }
+    .nd-mobile .app-header.nd-scrolled {
+        background: rgba(251, 246, 239, .86);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+    }
+    .nd-mobile .header-brand { display: none; }
+    .nd-mobile .header-center { padding: 0; }
+
+    .nd-titlerow { display: flex; align-items: center; min-height: 44px; }
+    .nd-compacttitle {
+        flex: 1; text-align: center;
+        font-family: 'Fredoka', var(--font);
+        font-weight: 600; font-size: 1rem;
+        opacity: 0; transform: translateY(6px);
+        transition: opacity .2s, transform .2s;
+    }
+    .app-header.nd-scrolled .nd-compacttitle { opacity: 1; transform: none; }
+
+    .nd-largetitle {
+        font-family: 'Fredoka', var(--font);
+        font-weight: 600; font-size: 1.7rem;
+        letter-spacing: -.025em; line-height: 1.15;
+        padding: 0 4px 10px;
+        transition: opacity .18s, transform .18s;
+    }
+    .app-header.nd-scrolled .nd-largetitle {
+        opacity: 0; transform: translateY(-8px) scale(.94);
+        height: 0; padding: 0; overflow: hidden;
+    }
+
+    /* ── Hoja de "Más" ───────────────────────────────────────────────────
+       Reusa el aspecto de las sheets: es la misma idea, con contenido
+       propio en vez de un formulario. */
+    #nd-mas-sheet {
+        width: 100%;
+        background: var(--surface);
+        border-radius: 26px 26px 0 0;
+        padding-bottom: calc(var(--safe-bottom) + 8px);
+        transform: translateY(100%);
+        transition: transform .34s cubic-bezier(.32, .72, 0, 1);
+    }
+    #nd-mas-overlay.open #nd-mas-sheet { transform: translateY(0); }
+
+    .nd-mas-item {
+        display: flex; align-items: center; gap: 12px;
+        width: 100%; min-height: 52px; padding: 14px 20px;
+        background: none; border: none;
+        border-bottom: 1px solid var(--border2);
+        font-family: var(--font); font-size: .95rem; font-weight: 700;
+        color: var(--text); text-align: left; cursor: pointer;
+        text-decoration: none;
+    }
+    .nd-mas-item:last-child { border-bottom: none; }
+    .nd-mas-item:active { background: var(--surface2); }
+    .nd-mas-item.danger { color: var(--nd-terracota-hondo); }
+
 }

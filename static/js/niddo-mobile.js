@@ -61,6 +61,7 @@
         window.showSection = function (name) {
             original.apply(this, arguments);
             setTab(TAB_OF[name] || name);
+            setTitle(name);
             if (!restoring) {
                 history.pushState({ ndSection: name }, '', '#' + name);
             }
@@ -80,11 +81,132 @@
     NiddoMobile.TAB_OF = TAB_OF;
     NiddoMobile.setTab = setTab;
 
-    /* La hoja de "Más" llega en la Task 5. Hasta entonces, atajo a perfil
-       para que el tab no quede muerto. */
     NiddoMobile.openMas = function () {
-        window.showSection('perfil');
+        var o = document.getElementById('nd-mas-overlay');
+        if (!o) return;
+        o.classList.add('open');
+        setTab('mas');
     };
+
+    /* ── Top app bar ─────────────────────────────────────────────────────── */
+
+    var TITLES = {
+        inicio: 'Inicio', expensas: 'Mis expensas', gastos: 'Gastos del consorcio',
+        comunicados: 'Comunicados', votaciones: 'Votaciones', reclamos: 'Reclamos',
+        reservas: 'Reservas', archivos: 'Archivos', perfil: 'Mi perfil'
+    };
+
+    function buildHeader() {
+        var header = document.querySelector('.app-header');
+        if (!header || header.querySelector('.nd-largetitle')) return;
+
+        var row = document.createElement('div');
+        row.className = 'nd-titlerow';
+        var compact = document.createElement('div');
+        compact.className = 'nd-compacttitle';
+        row.appendChild(compact);
+
+        var large = document.createElement('div');
+        large.className = 'nd-largetitle';
+
+        header.insertBefore(row, header.firstChild);
+        header.appendChild(large);
+    }
+
+    function setTitle(name) {
+        var t = TITLES[name] || '';
+        var large = document.querySelector('.nd-largetitle');
+        var compact = document.querySelector('.nd-compacttitle');
+        if (large) large.textContent = t;
+        if (compact) compact.textContent = t;
+    }
+
+    function watchScroll() {
+        var header = document.querySelector('.app-header');
+        if (!header) return;
+        window.addEventListener('scroll', function () {
+            header.classList.toggle('nd-scrolled', window.scrollY > 26);
+        }, { passive: true });
+    }
+
+    /* ── Hoja de "Más" ───────────────────────────────────────────────────── */
+
+    var MAS_ITEMS = [
+        { section: 'archivos', label: 'Archivos', icon: 'ic-carpeta' },
+        { section: 'gastos', label: 'Gastos del consorcio', icon: 'ic-balance' },
+        { section: 'perfil', label: 'Mi perfil', icon: 'ic-vecino' }
+    ];
+
+    function buildMas() {
+        if (document.getElementById('nd-mas-overlay')) return;
+
+        var overlay = document.createElement('div');
+        overlay.className = 'drawer-overlay';
+        overlay.id = 'nd-mas-overlay';
+
+        var sheet = document.createElement('div');
+        sheet.id = 'nd-mas-sheet';
+
+        var grabber = document.createElement('div');
+        grabber.className = 'nd-grabber';
+        sheet.appendChild(grabber);
+
+        MAS_ITEMS.forEach(function (item) {
+            var b = document.createElement('button');
+            b.className = 'nd-mas-item';
+            b.innerHTML = '<svg class="ic"><use href="#' + item.icon + '"></use></svg>' + item.label;
+            b.addEventListener('click', function () {
+                closeMas();
+                window.showSection(item.section);
+            });
+            sheet.appendChild(b);
+        });
+
+        var out = document.createElement('a');
+        out.className = 'nd-mas-item danger';
+        out.href = '/auth/logout';
+        out.innerHTML = '<svg class="ic"><use href="#ic-salir"></use></svg>Cerrar sesión';
+        sheet.appendChild(out);
+
+        overlay.appendChild(sheet);
+        document.body.appendChild(overlay);
+
+        overlay.addEventListener('click', function (ev) {
+            if (ev.target === overlay) closeMas();
+        });
+
+        /* El mismo arrastre que las otras hojas. */
+        makeDraggableMas(sheet, overlay);
+    }
+
+    function makeDraggableMas(sheet, overlay) {
+        var grabber = sheet.querySelector('.nd-grabber');
+        grabber.addEventListener('pointerdown', function (e) {
+            var y0 = e.clientY, h = sheet.offsetHeight;
+            sheet.style.transition = 'none';
+            grabber.setPointerCapture(e.pointerId);
+            function move(ev) {
+                var dy = Math.max(0, ev.clientY - y0);
+                sheet.style.transform = 'translateY(' + dy + 'px)';
+                overlay.style.background = 'rgba(42,33,28,' + Math.max(0, 0.5 - dy / h * 0.7) + ')';
+            }
+            function up(ev) {
+                grabber.removeEventListener('pointermove', move);
+                grabber.removeEventListener('pointerup', up);
+                sheet.style.transition = '';
+                sheet.style.transform = '';
+                overlay.style.background = '';
+                if (ev.clientY - y0 > 90) closeMas();
+            }
+            grabber.addEventListener('pointermove', move);
+            grabber.addEventListener('pointerup', up);
+        });
+    }
+
+    function closeMas() {
+        var o = document.getElementById('nd-mas-overlay');
+        if (o) o.classList.remove('open');
+    }
 
     /* ── Bottom sheets ────────────────────────────────────────────────────
        El arrastre se ata sólo al grabber, nunca al cuerpo scrolleable: si
@@ -150,6 +272,9 @@
     document.addEventListener('DOMContentLoaded', function () {
         wrapShowSection();
         initSheets();
+        buildHeader();
+        buildMas();
+        watchScroll();
 
         /* La entrada inicial del historial, para que el primer "atrás" tenga
            adónde volver en vez de sacarte del sitio. De paso habilita deep
