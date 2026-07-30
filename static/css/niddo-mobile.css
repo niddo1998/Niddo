@@ -27,4 +27,50 @@
     * { -webkit-tap-highlight-color: transparent; }
     button, a, .row, .tab { touch-action: manipulation; }
 
+    /* ── Tab bar ─────────────────────────────────────────────────────────
+       El fondo esmerilado deja entrever el contenido que pasa por debajo,
+       que es lo que hace que se lea como barra del sistema y no como franja
+       pegada. El padding inferior es lo que la despega del home indicator. */
+    /* Va con el id porque el <style> inline del template declara
+       .bottom-nav{height:60px} y se carga después que esta hoja. Con
+       box-sizing:border-box, esos 60px fijos harían que el padding del home
+       indicator se comiera el contenido de la barra en vez de despegarla. */
+    #nd-tabbar.bottom-nav {
+        height: auto;
+        padding-bottom: var(--safe-bottom);
+        background: rgba(255, 255, 255, .9);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+    }
+    /* Con el id por lo mismo: el inline declara .bottom-btn{height:100%},
+       que sobre un padre de altura automática colapsaba a 46px. */
+    #nd-tabbar .bottom-btn {
+        height: var(--tabbar-h);
+        min-height: 44px;
+        position: relative;
+        gap: 3px;
+    }
+    .bottom-btn span:not(.bottom-btn-icon) { font-size: .63rem; font-weight: 700; }
+    .bottom-btn .ic {
+        width: 25px; height: 25px;
+        transition: transform .18s cubic-bezier(.34, 1.56, .64, 1);
+    }
+    .bottom-btn:active .ic { transform: scale(.88); }
+    .bottom-btn.active .ic { transform: translateY(-1px) scale(1.06); }
+
+    .nd-tab-badge {
+        position: absolute; top: 4px; left: calc(50% + 6px);
+        min-width: 17px; height: 17px; padding: 0 4px;
+        border-radius: 9px;
+        background: var(--nd-terracota-hondo); color: #fff;
+        font-size: .6rem; font-weight: 800; font-style: normal;
+        display: flex; align-items: center; justify-content: center;
+        border: 2px solid #fff;
+    }
+
+    /* El contenido tiene que despejar la tab bar más la safe area. */
+    .app-main {
+        padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
+    }
+
 }

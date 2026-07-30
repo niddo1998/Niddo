@@ -300,12 +300,12 @@
     </div>
 </aside>
 
-<nav class="bottom-nav">
-    <button class="bottom-btn active" id="bnav-inicio" onclick="showSection('inicio')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-edificio"></use></svg></span><span>Inicio</span></button>
-    <button class="bottom-btn" id="bnav-comunicados" onclick="showSection('comunicados')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-megafono"></use></svg></span><span>Avisos</span></button>
-    <button class="bottom-btn" id="bnav-expensas" onclick="showSection('expensas')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-expensa"></use></svg></span><span>Expensas</span></button>
-    <button class="bottom-btn" id="bnav-reclamos" onclick="showSection('reclamos')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-alerta"></use></svg></span><span>Reclamos</span></button>
-    <button class="bottom-btn" id="bnav-reservas" onclick="showSection('reservas')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-reserva"></use></svg></span><span>Reservas</span></button>
+<nav class="bottom-nav" id="nd-tabbar">
+    <button class="bottom-btn active" data-tab="inicio" onclick="showSection('inicio')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-edificio"></use></svg></span><span>Inicio</span></button>
+    <button class="bottom-btn" data-tab="expensas" onclick="showSection('expensas')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-expensa"></use></svg></span><span>Expensas</span></button>
+    <button class="bottom-btn" data-tab="comunidad" onclick="showSection('comunicados')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-megafono"></use></svg></span><span>Comunidad</span><i class="nd-tab-badge" id="nd-badge-comunidad" style="display:none">0</i></button>
+    <button class="bottom-btn" data-tab="reservas" onclick="showSection('reservas')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-reserva"></use></svg></span><span>Reservas</span></button>
+    <button class="bottom-btn" data-tab="mas" onclick="NiddoMobile.openMas()"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-mas"></use></svg></span><span>Más</span></button>
 </nav>
 
 <main class="app-main">
