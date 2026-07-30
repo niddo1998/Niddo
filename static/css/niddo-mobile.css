@@ -263,9 +263,76 @@
     .nd-mobile .f-row,
     .nd-mobile .stats-grid { grid-template-columns: 1fr; }
 
+    /* ══════════════════════════════════════════════════════════════════════
+       PANEL DE ADMINISTRADOR
+       Este template no tenía ninguna media query: el layout de escritorio se
+       servía tal cual. Con margin-left:220px sobre 360px de viewport, el
+       contenido vivía en una franja de 140px.
+       ══════════════════════════════════════════════════════════════════════ */
+
+    .nd-mobile .sidebar { display: none; }
+
+    .nd-mobile .topbar {
+        left: 0;
+        height: auto;
+        padding: var(--safe-top) 12px 0;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        transition: box-shadow .2s, background .2s;
+    }
+    .nd-mobile .topbar.nd-scrolled {
+        background: rgba(251, 246, 239, .86);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+    }
+    /* Los botones de la topbar se van al ángulo, sobre la fila del título. */
+    .nd-mobile .topbar-btn {
+        position: absolute; top: var(--safe-top); right: 8px;
+        min-width: 44px; min-height: 44px;
+    }
+    .nd-mobile .topbar-btn + .topbar-btn { right: 56px; }
+
+    .nd-mobile .main {
+        margin-left: 0;
+        padding: calc(var(--safe-top) + 96px) 16px
+                 calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
+        min-height: 100dvh;
+    }
+
+    /* La bottom-nav no existe en el CSS de admin: se declara acá porque sólo
+       tiene sentido en mobile. */
+    .nd-mobile .bottom-nav.nd-tabbar {
+        position: fixed; bottom: 0; left: 0; right: 0;
+        display: flex; justify-content: space-around; align-items: center;
+        z-index: 800;
+        border-top: 1px solid var(--border);
+        box-shadow: 0 -4px 16px rgba(42, 33, 28, .15);
+    }
+    .nd-mobile .nd-tabbar .bottom-btn {
+        flex: 1; display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        background: none; border: none; cursor: pointer;
+        font-family: var(--font); color: var(--text2);
+        transition: color .15s;
+    }
+    .nd-mobile .nd-tabbar .bottom-btn.active {
+        color: var(--nd-terracota-hondo); font-weight: 700;
+    }
+
+    /* .kpi-row es flex con wrap, así que a 360px ya se acomoda sola en 2+1.
+       No se fuerza una columna: tres KPIs apilados alargan la pantalla sin
+       ganar legibilidad. */
+    .nd-mobile .page-header { flex-direction: column; align-items: stretch; }
+
 }
 
 /* En escritorio manda la tabla: las filas de mobile no se muestran nunca. */
 @media (min-width: 901px) {
     .nd-list { display: none; }
+
+    /* El vecino oculta su .bottom-nav desde el <style> inline del template.
+       Admin no declara ninguna regla .bottom-nav, así que sin esto el
+       elemento cae en display:block y la tab bar aparece en escritorio. */
+    .nd-tabbar { display: none; }
 }

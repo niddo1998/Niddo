@@ -2,12 +2,49 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Panel Administrador | Niddo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-mobile.css') }}">
+    <script>
+    /* Configuración de la fundación mobile para este template. Los defaults
+       de niddo-mobile.js son los del vecino, así que acá hay que declarar
+       todo lo que difiere. */
+    window.NIDDO_MOBILE_CONFIG = {
+        navFn: 'show',                 /* el vecino usa showSection */
+        sectionPrefix: 'sec-',         /* el vecino usa section-    */
+        headerSelector: '.topbar',     /* el vecino usa .app-header */
+        navPassesElement: true,        /* show(id, el) toma dos parámetros */
+        usesHash: true,                /* show() ya escribe location.hash  */
+        defaultSection: 'dashboard',   /* el vecino arranca en 'inicio'    */
+        tabOf: {
+            dashboard: 'hoy',
+            cobros: 'cobros',
+            gastos: 'gastos',
+            consorcios: 'edificios',
+            liquidaciones: 'mas', proveedores: 'mas', amenities: 'mas',
+            balance: 'mas', mensajeria: 'mas', config: 'mas'
+        },
+        titles: {
+            dashboard: 'Hoy', cobros: 'Cobros', gastos: 'Gastos',
+            consorcios: 'Edificios', liquidaciones: 'Liquidaciones',
+            proveedores: 'Proveedores', amenities: 'Amenities',
+            balance: 'Balance', mensajeria: 'Mensajería', config: 'Configuración'
+        },
+        masItems: [
+            { section: 'liquidaciones', label: 'Liquidaciones', icon: 'ic-liquidacion' },
+            { section: 'proveedores',   label: 'Proveedores',   icon: 'ic-proveedor' },
+            { section: 'amenities',     label: 'Amenities',     icon: 'ic-reserva' },
+            { section: 'balance',       label: 'Balance',       icon: 'ic-balance' },
+            { section: 'mensajeria',    label: 'Mensajería',    icon: 'ic-mensaje' },
+            { section: 'config',        label: 'Configuración', icon: 'ic-config' }
+        ]
+    };
+    </script>
+    <script src="{{ url_for('static', filename='js/niddo-mobile.js') }}" defer></script>
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -282,6 +319,14 @@
     <button class="topbar-btn" onclick="openModal('modal-ayuda')" title="Ayuda" aria-label="Ayuda"><svg class="ic"><use href="#ic-ayuda"></use></svg></button>
     <button class="topbar-btn profile-circle" id="topbar-perfil-btn" onclick="openModal('modal-perfil')" title="Mi Perfil">—</button>
 </div>
+
+<nav class="bottom-nav nd-tabbar">
+    <button class="bottom-btn active" data-tab="hoy" onclick="show('dashboard')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-panel"></use></svg></span><span>Hoy</span></button>
+    <button class="bottom-btn" data-tab="cobros" onclick="show('cobros')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-cobro"></use></svg></span><span>Cobros</span></button>
+    <button class="bottom-btn" data-tab="gastos" onclick="show('gastos')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-expensa"></use></svg></span><span>Gastos</span></button>
+    <button class="bottom-btn" data-tab="edificios" onclick="show('consorcios')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-edificio"></use></svg></span><span>Edificios</span></button>
+    <button class="bottom-btn" data-tab="mas" onclick="NiddoMobile.openMas()"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-mas"></use></svg></span><span>Más</span></button>
+</nav>
 
 <div class="main">
 

@@ -40,6 +40,7 @@
     var headerSelector = CFG.headerSelector || '.app-header';
     var navPassesEl    = CFG.navPassesElement === true;
     var usesHash       = CFG.usesHash === true;
+    var defaultSection = CFG.defaultSection || 'inicio';
 
     /* ── Tab bar ──────────────────────────────────────────────────────────
        Qué tab se ilumina para cada sección. En el vecino, Comunidad agrupa
@@ -300,20 +301,47 @@
         buildMas();
         watchScroll();
 
-        /* La entrada inicial del historial, para que el primer "atrás" tenga
-           adónde volver en vez de sacarte del sitio. De paso habilita deep
-           links: /vecino#reservas abre reservas directo. */
-        var initial = (location.hash || '#inicio').slice(1);
-        if (!TAB_OF[initial]) initial = 'inicio';
-        history.replaceState({ ndSection: initial }, '', '#' + initial);
+        if (!usesHash) {
+            /* El template no toca el historial: lo manejamos nosotros. La
+               entrada inicial hace que el primer "atrás" tenga adónde volver
+               en vez de sacarte del sitio, y habilita deep links por hash. */
+            var initial = (location.hash || '#' + defaultSection).slice(1);
+            if (!TAB_OF[initial]) initial = defaultSection;
+            history.replaceState({ ndSection: initial }, '', '#' + initial);
+            window.addEventListener('popstate', onPopState);
 
-        window.addEventListener('popstate', onPopState);
+            restoring = true;
+            try {
+                window[navFn](initial);
+            } finally {
+                restoring = false;
+            }
+        } else {
+            /* El template ya escribe el hash dentro de su función de
+               navegación, pero nadie escucha cuando el hash cambia solo: al
+               volver, la URL retrocede y la vista se queda quieta.
 
-        restoring = true;
-        try {
-            window[navFn](initial);
-        } finally {
-            restoring = false;
+               La guarda `restoring` es obligatoria: la función escribe el
+               hash, lo que dispara hashchange, que la llamaría otra vez.
+               La comparación con la sección activa es la segunda defensa. */
+            window.addEventListener('hashchange', function () {
+                var name = location.hash.slice(1);
+                if (!name || !TAB_OF[name]) return;
+                var actual = document.querySelector('.section.active');
+                if (actual && actual.id === sectionPrefix + name) return;
+                restoring = true;
+                try { window[navFn](name); } finally { restoring = false; }
+            });
+
+            /* El template ya restauró la sección desde el hash al cargar, así
+               que no navegamos: sólo sincronizamos el tab y el título con lo
+               que ya está activo. Navegar acá dejaría la sección equivocada. */
+            var activa = document.querySelector('.section.active');
+            var nombre = activa && activa.id.indexOf(sectionPrefix) === 0
+                ? activa.id.slice(sectionPrefix.length)
+                : defaultSection;
+            setTab(TAB_OF[nombre] || nombre);
+            setTitle(nombre);
         }
     });
 })();
