@@ -2489,6 +2489,12 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
     except:
         pass
 
+    # Una revisión > 1 es una liquidación complementaria: se emitió después de haber
+    # mandado la del mes y factura sólo los gastos que se cargaron más tarde. El mail
+    # tiene que decirlo, porque si no el vecino recibe dos veces "Tu expensa este mes"
+    # y no puede saber si el segundo reemplaza al primero o se suma.
+    es_complementaria = int(liq.get('numero_revision') or 1) > 1
+
     total_unidad = float(prorrateo.get('total_unidad', 0))
     total_egresos = float(liq.get('total_egresos', 0)) or 1
 
@@ -2542,6 +2548,24 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
         </div>'''
 
     saldo_final = float(liq.get('saldo_final', 0))
+
+    aviso_complementaria = ''
+    if es_complementaria:
+        aviso_complementaria = (
+            '<p style="margin:14px 0 0;padding:10px 12px;background:#FEF3C7;border-radius:8px;'
+            'font-size:12px;color:#92400E;line-height:1.5;">Este importe <strong>se suma</strong> '
+            f'a la expensa de {periodo_display} que ya recibiste: corresponde a gastos del mismo '
+            'período que se cargaron después de ese envío. No reemplaza al resumen anterior.</p>'
+        )
+
+    # El bloque del fondo se omite en una complementaria: saldo_final se calcula sobre
+    # saldo_inicial/total_ingresos propios de esta revisión, que arrancan en cero, así que
+    # daría un negativo igual a sus egresos y no el fondo real del consorcio.
+    fondo_html = '' if es_complementaria else f'''
+<div style="background:#f8f7ff;border-radius:12px;margin-top:16px;padding:18px;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#888;text-transform:uppercase;font-weight:600;">Saldo del fondo del consorcio</p>
+    <p style="margin:6px 0 0;font-size:22px;font-weight:800;color:#7C3AED;">${saldo_final:,.2f}</p>
+</div>'''
     vto1 = liq.get('fecha_vencimiento_1', '—')
     vto2 = liq.get('fecha_vencimiento_2', '—')
     interes_2 = float(liq.get('interes_2_vto', 0))
@@ -2567,9 +2591,10 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 
 <!-- Tu expensa -->
 <div style="background:#fff;border-radius:12px;margin-top:16px;padding:24px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.05);">
-    <p style="margin:0;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">Tu expensa este mes</p>
+    <p style="margin:0;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">{'Expensa complementaria' if es_complementaria else 'Tu expensa este mes'}</p>
     <p style="margin:8px 0 0;font-size:38px;font-weight:800;color:#111;">${total_unidad:,.2f}</p>
     <p style="margin:6px 0 0;font-size:12px;color:#888;">UF {uf.get('numero', '')} — Piso {uf.get('piso', '—')} — {uf.get('vecino_nombre', '')}</p>
+    {aviso_complementaria}
 </div>
 
 <!-- Desglose por categoría -->
@@ -2615,11 +2640,8 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
     <p style="margin:12px 0 0;font-size:12px;color:#888;text-align:center;">📧 Recordá enviar tu comprobante de pago por email o por la plataforma.</p>
 </div>
 
-<!-- Fondo del consorcio -->
-<div style="background:#f8f7ff;border-radius:12px;margin-top:16px;padding:18px;text-align:center;">
-    <p style="margin:0;font-size:12px;color:#888;text-transform:uppercase;font-weight:600;">Saldo del fondo del consorcio</p>
-    <p style="margin:6px 0 0;font-size:22px;font-weight:800;color:#7C3AED;">${saldo_final:,.2f}</p>
-</div>
+<!-- Fondo del consorcio (se omite en una liquidación complementaria) -->
+{fondo_html}
 
 {obras_html}
 
@@ -2716,7 +2738,13 @@ def api_liquidacion_enviar(lid):
                 resend.Emails.send({
                     'from': from_email,
                     'to': [email_destino],
-                    'subject': f'📋 Resumen de expensas — {consorcio.get("nombre", "")} — {periodo_display}',
+                    'subject': (
+                        # El asunto distingue la complementaria: es lo primero que ve el
+                        # vecino y con el mismo texto los dos mails se confunden entre sí.
+                        f'📋 Expensa complementaria — {consorcio.get("nombre", "")} — {periodo_display}'
+                        if int(liq.get('numero_revision') or 1) > 1 else
+                        f'📋 Resumen de expensas — {consorcio.get("nombre", "")} — {periodo_display}'
+                    ),
                     'html': html,
                 })
                 enviados += 1
