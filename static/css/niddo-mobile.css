@@ -421,6 +421,51 @@
        Cuando hay una .nd-list al lado, la tabla no se muestra. */
     .nd-mobile .card:has(> .nd-list) .tbl { display: none; }
 
+    /* Las tablas que NO se convirtieron —rubros, envíos, resultados de
+       extracción, errores de importación— viven dentro de flujos que no son
+       para el teléfono. No se rediseñan: sólo se evita que desborden la
+       página. Scrollean dentro de su propia caja.
+       Decisión registrada en el spec §7.4. */
+    .nd-mobile .card > .tbl,
+    .nd-mobile .card > div > .tbl { min-width: max-content; }
+    .nd-mobile .card:not(:has(> .nd-list)) {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* ── Barrido final ───────────────────────────────────────────────────── */
+
+    /* Los toasts van abajo a la derecha en escritorio, donde la tab bar los
+       taparía. A lo ancho y por encima de ella. */
+    .nd-mobile .toast-container,
+    .nd-mobile #toast-container {
+        left: 12px; right: 12px;
+        bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 12px);
+    }
+    .nd-mobile .toast { max-width: 100%; }
+
+    /* Targets: nada por debajo de 44px, tampoco las variantes .btn-sm.
+       Un botón de 40px se falla al tocarlo con el pulgar lo suficiente como
+       para que no valga la pena ahorrar esos 4px. */
+    .nd-mobile .btn-p,
+    .nd-mobile .btn-s,
+    .nd-mobile .btn-p.btn-sm,
+    .nd-mobile .btn-s.btn-sm { min-height: 44px; }
+    .nd-mobile .modal-close { min-width: 44px; min-height: 44px; }
+
+    /* Las sub-pestañas internas (Morosidad, Listado de Reservas…) median
+       30px de alto. Además la fila entera desborda a 360px, así que se
+       scrollea en horizontal dentro de su caja en vez de apretarse. */
+    .nd-mobile .tabs {
+        overflow-x: auto; -webkit-overflow-scrolling: touch;
+        flex-wrap: nowrap; scrollbar-width: none;
+    }
+    .nd-mobile .tabs::-webkit-scrollbar { display: none; }
+    .nd-mobile .tab-btn { min-height: 44px; white-space: nowrap; flex-shrink: 0; }
+
+    /* Los filtros en fila desbordan; que se apilen. */
+    .nd-mobile .page-header > div { flex-wrap: wrap; }
+
     /* .kpi-row es flex con wrap, así que a 360px ya se acomoda sola en 2+1.
        No se fuerza una columna: tres KPIs apilados alargan la pantalla sin
        ganar legibilidad. */
