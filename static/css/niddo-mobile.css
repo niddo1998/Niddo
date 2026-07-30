@@ -1,0 +1,30 @@
+/* ==========================================================================
+   Niddo — Lenguaje mobile
+
+   Todo lo de este archivo vive dentro del @media. El escritorio no se toca:
+   si algo sale mal, se saca el <link> del template y el sitio vuelve exacto.
+
+   Color, tipografía y forma salen de niddo-brand.css (Ruta Barrio).
+   No definir hex sueltos acá.
+   ========================================================================== */
+
+@media (max-width: 900px) {
+
+    /* Las safe areas del sistema, disponibles como tokens. Devuelven 0 si el
+       dispositivo no tiene notch ni barra de gestos, así que se pueden sumar
+       sin condicionales. Requieren viewport-fit=cover en el meta. */
+    :root {
+        --safe-top:    env(safe-area-inset-top, 0px);
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-left:   env(safe-area-inset-left, 0px);
+        --safe-right:  env(safe-area-inset-right, 0px);
+        --tabbar-h: 54px;
+    }
+
+    /* En un teléfono no existe :hover, y el resaltado gris que Android e iOS
+       ponen al tocar pelea con nuestros propios estados :active.
+       touch-action:manipulation mata el retardo de 300ms y el doble-tap-zoom. */
+    * { -webkit-tap-highlight-color: transparent; }
+    button, a, .row, .tab { touch-action: manipulation; }
+
+}
