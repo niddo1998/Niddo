@@ -73,4 +73,51 @@
         padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
     }
 
+    /* ── Bottom sheets ───────────────────────────────────────────────────
+       Mismo DOM que en escritorio, reposicionado: el drawer venía de la
+       derecha y el modal del centro; acá los dos suben desde abajo, que es
+       donde llega el pulgar. */
+    .drawer-overlay { align-items: flex-end; justify-content: center; }
+    .modal-overlay  { align-items: flex-end; justify-content: center; padding: 0; }
+
+    .drawer-overlay .drawer,
+    .modal-overlay .modal-box {
+        width: 100%; max-width: 100%;
+        height: auto; max-height: 88dvh;
+        border: none; border-radius: 26px 26px 0 0;
+        box-shadow: 0 -8px 40px rgba(42, 33, 28, .22);
+        transform: translateY(100%);
+        transition: transform .34s cubic-bezier(.32, .72, 0, 1);
+        padding-bottom: var(--safe-bottom);
+        display: flex; flex-direction: column;
+    }
+    .drawer-overlay.open .drawer,
+    .modal-overlay.open .modal-box { transform: translateY(0); }
+
+    /* Durante el arrastre el transform lo manda el JS, sin transición. */
+    .drawer.nd-dragging,
+    .modal-box.nd-dragging { transition: none; }
+
+    .nd-grabber {
+        padding: 10px 0 4px;
+        display: flex; justify-content: center;
+        cursor: grab; touch-action: none; flex-shrink: 0;
+    }
+    .nd-grabber::after {
+        content: ''; width: 38px; height: 5px;
+        border-radius: 3px; background: #D8C9B8;
+    }
+
+    .drawer-body, .mb { overflow-y: auto; flex: 1; }
+    .drawer-footer, .mf { position: static; flex-shrink: 0; }
+
+    /* Por debajo de 16px, iOS zoomea la pantalla al enfocar un input y el
+       usuario queda con la vista corrida sin saber por qué.
+       Va con .nd-mobile —la clase que el JS pone en <html>— porque el
+       <style> inline declara .fc{font-size:0.83rem} y se carga después. */
+    .nd-mobile .fc,
+    .nd-mobile input,
+    .nd-mobile select,
+    .nd-mobile textarea { font-size: 16px; }
+
 }

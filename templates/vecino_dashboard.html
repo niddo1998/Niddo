@@ -375,7 +375,7 @@
             <div style="display:flex;gap:8px"><button class="btn btn-secondary btn-xs" onclick="dlCobros('excel')">⬇ Excel</button></div>
         </div>
         <div class="table-filters">
-            <input type="text" id="cob-search" class="fc" style="width:220px;padding:6px 12px;font-size:0.8rem" placeholder="Buscar período o estado..." oninput="filterTable('tb-cobros', 'cob-search')">
+            <input type="text" id="cob-search" class="fc" style="width:100%;max-width:220px;padding:6px 12px" placeholder="Buscar período o estado..." oninput="filterTable('tb-cobros', 'cob-search')">
         </div>
         <table class="table" id="table-cobros">
             <thead>
@@ -410,7 +410,7 @@
     
     <div class="table-wrap">
         <div class="table-filters">
-            <input type="text" id="gas-search" class="fc" style="width:240px;padding:6px 12px;font-size:0.8rem" placeholder="Filtrar por descripción o proveedor..." oninput="filterTable('tb-gastos', 'gas-search')">
+            <input type="text" id="gas-search" class="fc" style="width:100%;max-width:240px;padding:6px 12px" placeholder="Filtrar por descripción o proveedor..." oninput="filterTable('tb-gastos', 'gas-search')">
         </div>
         <table class="table" id="table-gastos">
             <thead>

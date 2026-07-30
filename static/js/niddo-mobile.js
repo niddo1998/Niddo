@@ -86,8 +86,70 @@
         window.showSection('perfil');
     };
 
+    /* ── Bottom sheets ────────────────────────────────────────────────────
+       El arrastre se ata sólo al grabber, nunca al cuerpo scrolleable: si
+       no, arrastrar para leer cerraría la hoja. */
+
+    function closeOverlay(overlay) {
+        /* Usamos las funciones del template si existen, para no saltearnos
+           la limpieza de formularios que puedan hacer. */
+        if (overlay.classList.contains('drawer-overlay') && typeof window.closeDrawer === 'function') {
+            window.closeDrawer(overlay.id);
+        } else if (typeof window.closeModal === 'function') {
+            window.closeModal(overlay.id);
+        } else {
+            overlay.classList.remove('open');
+        }
+    }
+
+    function makeDraggable(panel, overlay) {
+        var grabber = document.createElement('div');
+        grabber.className = 'nd-grabber';
+        panel.insertBefore(grabber, panel.firstChild);
+
+        grabber.addEventListener('pointerdown', function (e) {
+            var y0 = e.clientY;
+            var h = panel.offsetHeight;
+            panel.classList.add('nd-dragging');
+            grabber.setPointerCapture(e.pointerId);
+
+            function move(ev) {
+                var dy = Math.max(0, ev.clientY - y0);
+                panel.style.transform = 'translateY(' + dy + 'px)';
+                overlay.style.background = 'rgba(42,33,28,' + Math.max(0, 0.5 - dy / h * 0.7) + ')';
+            }
+            function up(ev) {
+                grabber.removeEventListener('pointermove', move);
+                grabber.removeEventListener('pointerup', up);
+                panel.classList.remove('nd-dragging');
+                panel.style.transform = '';
+                overlay.style.background = '';
+                /* 90px es suficiente para que un roce no cierre la hoja, y
+                   poco como para que el gesto no se sienta pesado. */
+                if (ev.clientY - y0 > 90) closeOverlay(overlay);
+            }
+            grabber.addEventListener('pointermove', move);
+            grabber.addEventListener('pointerup', up);
+        });
+    }
+
+    function initSheets() {
+        var overlays = document.querySelectorAll('.drawer-overlay, .modal-overlay');
+        for (var i = 0; i < overlays.length; i++) {
+            var overlay = overlays[i];
+            var panel = overlay.querySelector('.drawer, .modal-box');
+            if (!panel || panel.querySelector(':scope > .nd-grabber')) continue;
+            makeDraggable(panel, overlay);
+
+            overlay.addEventListener('click', function (ev) {
+                if (ev.target === this) closeOverlay(this);
+            });
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         wrapShowSection();
+        initSheets();
 
         /* La entrada inicial del historial, para que el primer "atrás" tenga
            adónde volver en vez de sacarte del sitio. De paso habilita deep
