@@ -347,6 +347,76 @@
     .nd-camera b { display: block; color: #fff; font-size: 1rem; font-weight: 800; }
     .nd-camera > span > span { display: block; color: rgba(255,255,255,.86); font-size: .79rem; font-weight: 600; }
 
+    /* ── Prorrateo ───────────────────────────────────────────────────────
+       Las 14 columnas agrupadas en identidad · arrastre · expensa del
+       período · extras. Ninguna se pierde: los porcentajes van como chip al
+       lado del monto que generan, que es la relación que en la grilla
+       quedaba a seis columnas de distancia. */
+    .nd-pro-head {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 18px; padding: 14px 16px; margin-bottom: 12px;
+    }
+    .nd-pro-t { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 9px; }
+    .nd-pro-t b { font-family: 'Fredoka', var(--font); font-size: 1.45rem; font-weight: 600; letter-spacing: -.03em; }
+    .nd-pro-t span { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+    .nd-pro-check { display: flex; gap: 7px; flex-wrap: wrap; }
+    .nd-pro-check i {
+        font-style: normal; font-size: .71rem; font-weight: 800;
+        padding: 4px 9px; border-radius: 20px;
+        background: var(--nd-verde-dim); color: var(--nd-verde);
+    }
+    /* Un prorrateo que no cierra tiene que verse sin desplegar nada. */
+    .nd-pro-check i.bad { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
+
+    .nd-pcard {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 18px; margin-bottom: 10px; overflow: hidden;
+    }
+    .nd-pcard.mora { border-color: rgba(196, 80, 43, .4); }
+    .nd-pcard-h {
+        display: flex; align-items: center; gap: 11px;
+        width: 100%; min-height: 60px; padding: 13px 15px;
+        background: none; border: none; cursor: pointer;
+        font-family: var(--font); text-align: left;
+    }
+    .nd-pcard-h:active { background: var(--surface2); }
+    .nd-pcard-uf {
+        width: 44px; height: 44px; flex-shrink: 0; border-radius: 14px;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--nd-verde-dim); color: var(--nd-verde);
+        font-family: 'Fredoka', var(--font); font-size: .98rem; font-weight: 600;
+    }
+    .nd-pcard.mora .nd-pcard-uf { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
+    .nd-pcard-n { flex: 1; min-width: 0; }
+    .nd-pcard-n b { display: block; font-size: .92rem; font-weight: 800; letter-spacing: -.01em;
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nd-pcard-n span { display: block; font-size: .75rem; color: var(--muted); font-weight: 600; }
+    .nd-pcard-tot { text-align: right; flex-shrink: 0; }
+    .nd-pcard-tot b { display: block; font-size: 1.02rem; font-weight: 800; letter-spacing: -.02em; }
+    .nd-pcard-tot span { display: block; font-size: .68rem; color: var(--muted); font-weight: 700;
+                         text-transform: uppercase; letter-spacing: .04em; }
+    .nd-pcard-arr { width: 17px; height: 17px; color: #BFAF9C; flex-shrink: 0; transition: transform .25s; }
+    .nd-pcard.open .nd-pcard-arr { transform: rotate(90deg); }
+
+    .nd-pcard-body { display: none; padding: 0 15px 14px; border-top: 1px solid var(--border2); }
+    .nd-pcard.open .nd-pcard-body { display: block; }
+    .nd-pgroup { padding-top: 12px; }
+    .nd-pgroup > h5 { font-size: .67rem; font-weight: 800; text-transform: uppercase;
+                      letter-spacing: .08em; color: var(--muted); margin-bottom: 5px; }
+    .nd-pline { display: flex; justify-content: space-between; align-items: center;
+                padding: 6px 0; font-size: .85rem; font-weight: 600; }
+    .nd-pline span { color: var(--text2); display: flex; align-items: center; gap: 6px; }
+    .nd-pline b { font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .nd-pct { font-size: .68rem; font-weight: 800; background: var(--surface3); color: var(--muted);
+              padding: 2px 6px; border-radius: 5px; font-style: normal; }
+    .nd-pline.neg b { color: var(--nd-verde); }
+    .nd-pline.debt b { color: var(--nd-terracota-hondo); }
+    .nd-pline.sum { border-top: 1.5px solid var(--border); margin-top: 7px; padding-top: 11px; font-size: 1rem; }
+    .nd-pline.sum b { font-family: 'Fredoka', var(--font); font-weight: 600; font-size: 1.2rem;
+                      color: var(--nd-terracota-hondo); }
+    .nd-pcard-foot { margin-top: 13px; }
+    .nd-pcard-foot .btn-s { width: 100%; justify-content: center; min-height: 44px; }
+
     /* Las tablas de admin se llaman .tbl, no .table como en el vecino.
        Cuando hay una .nd-list al lado, la tabla no se muestra. */
     .nd-mobile .card:has(> .nd-list) .tbl { display: none; }
@@ -369,4 +439,8 @@
 
     /* Cargar con foto sólo tiene sentido con una cámara en la mano. */
     .nd-camera { display: none; }
+
+    /* En escritorio manda la grilla de prorrateo: las tarjetas y su
+       encabezado de control no se muestran. */
+    .nd-pro-head, .nd-pcard { display: none; }
 }

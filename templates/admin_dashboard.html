@@ -2862,6 +2862,67 @@ async function loadProrrateo() {
                 <td><strong>${fmt(p.total_unidad)}</strong></td>
                 <td><button class="btn-s btn-sm" onclick="openPreviewUF('${p.unidad_id}')" aria-label="Previsualizar" title="Previsualizar"><svg class="ic ic-sm"><use href="#ic-ojo"></use></svg></button></td>
             </tr>`;}).join('');
+
+        /* ── Las 14 columnas, en tarjetas ──────────────────────────────────
+           La grilla existe para barrer todas las UFs de un vistazo: cazar el
+           outlier y confirmar que los porcentajes cierran en 100%. Una
+           tarjeta por vez no hace eso, así que el encabezado precalcula ese
+           chequeo. Si una suma no da 100,00% se muestra en terracota: un
+           prorrateo mal calculado tiene que verse sin desplegar nada. */
+        const sumaA = data.reduce((a,p) => a + (p.porcentaje_a || 0), 0);
+        const sumaC = data.reduce((a,p) => a + (p.porcentaje_c || 0), 0);
+        const totalP = data.reduce((a,p) => a + (p.total_unidad || 0), 0);
+        const enMora = data.filter(p => (p.saldo_pendiente || 0) > 0).length;
+        const pct = n => n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '%';
+        const cierra = n => Math.abs(n - 100) < 0.01;
+
+        const cont = tb.closest('.card');
+        let head = cont.querySelector('.nd-pro-head');
+        if (!head) { head = document.createElement('div'); head.className = 'nd-pro-head'; cont.appendChild(head); }
+        head.innerHTML = `
+            <div class="nd-pro-t"><b>${fmt(totalP)}</b><span>${data.length} unidades</span></div>
+            <div class="nd-pro-check">
+                <i class="${cierra(sumaA) ? '' : 'bad'}">%A suma ${pct(sumaA)}</i>
+                <i class="${cierra(sumaC) ? '' : 'bad'}">%C suma ${pct(sumaC)}</i>
+                ${enMora ? `<i class="bad">${enMora} en mora</i>` : ''}
+            </div>`;
+
+        NiddoMobile.renderList('tbody-prorrateo', data, p => {
+            const uf = p.unidades_funcionales || {};
+            const mora = (p.saldo_pendiente || 0) > 0;
+            return `<div class="nd-pcard${mora ? ' mora' : ''}">
+                <button class="nd-pcard-h" onclick="this.parentNode.classList.toggle('open')">
+                    <span class="nd-pcard-uf">${uf.numero || '–'}</span>
+                    <span class="nd-pcard-n">
+                        <b>${uf.vecino_nombre || 'Sin copropietario'}</b>
+                        <span>Piso ${uf.piso || '–'} · ${pct(p.porcentaje_a || 0)} ord.</span>
+                    </span>
+                    <span class="nd-pcard-tot"><b>${fmt(p.total_unidad)}</b><span>Total</span></span>
+                    <svg class="ic nd-pcard-arr"><use href="#ic-chevron"></use></svg>
+                </button>
+                <div class="nd-pcard-body">
+                    <div class="nd-pgroup"><h5>Arrastre del período anterior</h5>
+                        <div class="nd-pline"><span>Saldo anterior</span><b>${fmt(p.saldo_anterior)}</b></div>
+                        <div class="nd-pline neg"><span>Pago realizado</span><b>${p.pago_realizado ? '−' + fmt(p.pago_realizado) : '—'}</b></div>
+                        <div class="nd-pline${mora ? ' debt' : ''}"><span>Saldo pendiente</span><b>${fmt(p.saldo_pendiente)}</b></div>
+                        <div class="nd-pline${(p.interes_mora||0) > 0 ? ' debt' : ''}"><span>Interés por mora</span><b>${p.interes_mora ? fmt(p.interes_mora) : '—'}</b></div>
+                    </div>
+                    <div class="nd-pgroup"><h5>Expensa del período</h5>
+                        <div class="nd-pline"><span>Ordinaria <i class="nd-pct">${pct(p.porcentaje_a || 0)}</i></span><b>${fmt(p.expensa_a)}</b></div>
+                        <div class="nd-pline"><span>Adicional ordinaria <i class="nd-pct">${pct(p.porcentaje_c || 0)}</i></span><b>${fmt(p.adicional_ordinaria)}</b></div>
+                    </div>
+                    <div class="nd-pgroup"><h5>Extras</h5>
+                        <div class="nd-pline"><span>Gastos particulares</span><b>${p.gastos_particulares ? fmt(p.gastos_particulares) : '—'}</b></div>
+                        <div class="nd-pline sum"><span>Total de la unidad</span><b>${fmt(p.total_unidad)}</b></div>
+                    </div>
+                    <div class="nd-pcard-foot">
+                        <button class="btn-s btn-sm" onclick="openPreviewUF('${p.unidad_id}')">
+                            <svg class="ic ic-sm"><use href="#ic-ojo"></use></svg>Previsualizar
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+        });
     } catch(e) { toast(e.message,'err'); }
 }
 
