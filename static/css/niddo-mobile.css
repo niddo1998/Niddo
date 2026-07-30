@@ -225,6 +225,42 @@
         letter-spacing: -.01em; flex-shrink: 0;
     }
 
+    /* ── Snackbars ───────────────────────────────────────────────────────
+       En escritorio los toasts van abajo a la derecha; acá eso los mete
+       debajo de la tab bar, donde no se ven. */
+    .nd-mobile .toast-container {
+        left: 12px; right: 12px;
+        bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 12px);
+    }
+    .nd-mobile .toast { max-width: 100%; }
+
+    /* ── Targets táctiles ────────────────────────────────────────────────
+       44px es el mínimo por debajo del cual el dedo empieza a errar. */
+    .nd-mobile .btn { min-height: 44px; padding: 12px 18px; }
+    /* btn-sm y btn-xs existen para apretar la densidad en escritorio; en un
+       teléfono ese ahorro no compensa errarle al botón. Van a 44 también. */
+    .nd-mobile .btn-sm, .nd-mobile .btn-xs { min-height: 44px; padding: 10px 14px; }
+    .nd-mobile .hbtn, .nd-mobile .mc, .nd-mobile .dropzone-remove {
+        min-width: 44px; min-height: 44px;
+    }
+
+    /* 100vh no descuenta la barra de URL de Safari y deja contenido cortado
+       debajo del borde. 100dvh sí la sigue. */
+    .nd-mobile .app-main { min-height: 100dvh; }
+
+    /* Donde antes había :hover, que en un teléfono no existe. */
+    .nd-mobile .btn:active,
+    .nd-mobile .nav-btn:active,
+    .nd-mobile .dd-item:active { transform: scale(.97); }
+
+    /* El calendario de reservas tiene que poder scrollearse con el dedo sin
+       comerse la pantalla entera. */
+    .nd-mobile .cal-grid { max-height: 60dvh; }
+
+    /* Las grillas de escritorio a una columna. */
+    .nd-mobile .f-row,
+    .nd-mobile .stats-grid { grid-template-columns: 1fr; }
+
 }
 
 /* En escritorio manda la tabla: las filas de mobile no se muestran nunca. */
