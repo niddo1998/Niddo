@@ -240,10 +240,10 @@
         .modal-overlay.open { display: flex; animation: fadeIn .15s ease; }
         .modal-box {
             background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-            width: 560px; max-width: 94vw; max-height: 88vh; overflow-y: auto;
+            width:100%;max-width:560px; max-width: 94vw; max-height: 88vh; overflow-y: auto;
             box-shadow: 0 24px 60px rgba(42,33,28,.45); animation: modalIn .2s ease;
         }
-        .modal-box.wide { width: 720px; }
+        .modal-box.wide { width:100%;max-width:720px; }
         .modal-head { padding: 14px 18px; border-bottom: 1px solid var(--border);
                       display: flex; justify-content: space-between; align-items: center; }
         .modal-head h3 { font-size: .93rem; font-weight: 700; margin: 0; }
@@ -660,7 +660,7 @@
 
         <!-- Tab: Config -->
         <div id="tab-liq-config-liq" style="display:none;">
-            <div class="card card-p" style="max-width:600px;">
+            <div class="card card-p" style="max-width:100%;max-width:600px;">
                 <h3 style="font-size:.9rem;font-weight:700;margin-bottom:14px;">Datos de la liquidación</h3>
                 <div class="form-row">
                     <div class="form-group"><label class="form-label">1er Vencimiento</label><input type="date" class="form-ctrl" id="liq-vto1"></div>
@@ -832,7 +832,7 @@
 
 <!-- Modal Elección tipo de carga -->
 <div class="modal-overlay" id="modal-gasto-choice">
-    <div class="modal-box" style="max-width:480px;">
+    <div class="modal-box" style="max-width:100%;max-width:480px;">
         <div class="modal-head"><h3>Nuevo gasto</h3><button class="modal-close" onclick="closeModal('modal-gasto-choice')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body" style="padding:28px;">
             <p style="text-align:center;font-size:.88rem;color:var(--muted);margin:0 0 24px;">¿Cómo querés cargar el gasto?</p>
@@ -854,7 +854,7 @@
 
 <!-- Modal Carga Automática (OCR/AI) -->
 <div class="modal-overlay" id="modal-auto-extract">
-    <div class="modal-box" style="width:940px;max-width:94vw;">
+    <div class="modal-box" style="width:100%;max-width:940px;max-width:94vw;">
         <div class="modal-head"><h3>Carga automática con IA</h3><button class="modal-close" onclick="closeModal('modal-auto-extract')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body" style="padding:24px;">
             <!-- Step 1: Upload -->
@@ -1077,7 +1077,7 @@
 
 <!-- Modal Nueva Liquidación -->
 <div class="modal-overlay" id="modal-nueva-liq">
-    <div class="modal-box" style="width:620px;max-width:96vw;">
+    <div class="modal-box" style="width:100%;max-width:620px;max-width:96vw;">
         <div class="modal-head"><h3>Nueva liquidación</h3><button class="modal-close" onclick="closeModal('modal-nueva-liq')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <div class="section-info" id="m-liq-info">Elegí el consorcio y el período para ver los gastos que se pueden liquidar.</div>
@@ -1107,7 +1107,7 @@
 
 <!-- Modal Preview Resumen -->
 <div class="modal-overlay" id="modal-preview">
-    <div class="modal-box" style="width:680px;max-width:96vw;">
+    <div class="modal-box" style="width:100%;max-width:680px;max-width:96vw;">
         <div class="modal-head">
             <h3><svg class="ic"><use href="#ic-ojo"></use></svg>Previsualización del resumen</h3>
             <button class="modal-close" onclick="closeModal('modal-preview')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
@@ -1124,7 +1124,7 @@
 
 <!-- Modal Enviar Resúmenes -->
 <div class="modal-overlay" id="modal-enviar">
-    <div class="modal-box" style="width:560px;max-width:96vw;">
+    <div class="modal-box" style="width:100%;max-width:560px;max-width:96vw;">
         <div class="modal-head"><h3><svg class="ic ic-sm"><use href="#ic-subir"></use></svg>Enviar resúmenes por email</h3><button class="modal-close" onclick="closeModal('modal-enviar')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <!-- El texto va dentro de un <span>: .section-info es flex y cada nodo suelto
@@ -1191,7 +1191,7 @@
 
 <!-- Modal Perfil -->
 <div class="modal-overlay" id="modal-perfil">
-    <div class="modal-box" style="max-width:440px;">
+    <div class="modal-box" style="max-width:100%;max-width:440px;">
         <div class="modal-head"><h3><svg class="ic"><use href="#ic-vecino"></use></svg>Mi perfil</h3><button class="modal-close" onclick="closeModal('modal-perfil')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body" style="padding:28px;">
             <div style="text-align:center;margin-bottom:20px;">
@@ -1215,7 +1215,7 @@
 
 <!-- Modal Ayuda -->
 <div class="modal-overlay" id="modal-ayuda">
-    <div class="modal-box" style="max-width:500px;">
+    <div class="modal-box" style="max-width:100%;max-width:500px;">
         <div class="modal-head"><h3><svg class="ic"><use href="#ic-ayuda"></use></svg>Centro de ayuda</h3><button class="modal-close" onclick="closeModal('modal-ayuda')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body" style="padding:24px;">
             <div class="section-info" style="margin-bottom:18px;"><svg class="ic ic-sm"><use href="#ic-info"></use></svg>¡Bienvenido a Niddo! Acá podés encontrar información útil para usar la plataforma.</div>

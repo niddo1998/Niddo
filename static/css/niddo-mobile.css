@@ -79,11 +79,11 @@
        Mismo DOM que en escritorio, reposicionado: el drawer venía de la
        derecha y el modal del centro; acá los dos suben desde abajo, que es
        donde llega el pulgar. */
-    .drawer-overlay { align-items: flex-end; justify-content: center; }
-    .modal-overlay  { align-items: flex-end; justify-content: center; padding: 0; }
+    .nd-mobile .drawer-overlay { align-items: flex-end; justify-content: center; }
+    .nd-mobile .modal-overlay  { align-items: flex-end; justify-content: center; padding: 0; }
 
-    .drawer-overlay .drawer,
-    .modal-overlay .modal-box {
+    .nd-mobile .drawer-overlay .drawer,
+    .nd-mobile .modal-overlay .modal-box {
         width: 100%; max-width: 100%;
         height: auto; max-height: 88dvh;
         border: none; border-radius: 26px 26px 0 0;
@@ -93,8 +93,13 @@
         padding-bottom: var(--safe-bottom);
         display: flex; flex-direction: column;
     }
-    .drawer-overlay.open .drawer,
-    .modal-overlay.open .modal-box { transform: translateY(0); }
+    .nd-mobile .drawer-overlay.open .drawer,
+    .nd-mobile .modal-overlay.open .modal-box { transform: translateY(0); }
+
+    /* Los templates animan la entrada del modal con un scale(.95) desde el
+       centro. Para una sheet eso está mal: tiene que deslizar desde abajo, y
+       el scale además pelea con el translateY del arrastre. */
+    .nd-mobile .modal-overlay .modal-box { animation: none; }
 
     /* Durante el arrastre el transform lo manda el JS, sin transición. */
     .drawer.nd-dragging,
