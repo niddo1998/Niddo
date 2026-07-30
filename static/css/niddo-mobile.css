@@ -325,6 +325,10 @@
         color: var(--nd-terracota-hondo); font-weight: 700;
     }
 
+    /* Las tablas de admin se llaman .tbl, no .table como en el vecino.
+       Cuando hay una .nd-list al lado, la tabla no se muestra. */
+    .nd-mobile .card:has(> .nd-list) .tbl { display: none; }
+
     /* .kpi-row es flex con wrap, así que a 360px ya se acomoda sola en 2+1.
        No se fuerza una columna: tres KPIs apilados alargan la pantalla sin
        ganar legibilidad. */

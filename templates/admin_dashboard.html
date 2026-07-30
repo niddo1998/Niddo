@@ -1691,6 +1691,19 @@ async function loadGastos() {
                     <button class="btn-danger btn-sm" onclick="deleteGasto('${g.id}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
                 </div></td>
             </tr>`).join('');
+
+        /* Ídem para gastos: la tabla tiene 9 columnas. */
+        NiddoMobile.renderList('tbody-gastos', data, g => {
+            const prov = (g.proveedores && g.proveedores.nombre) || 'Sin proveedor';
+            return `<div class="nd-row" style="cursor:default">
+                <span class="nd-row-ic ${g.pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-expensa"></use></svg></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">${g.descripcion || '–'}</span>
+                    <span class="nd-row-s">${prov} · ${g.fecha_gasto || '—'}${g.pagado ? '' : ' · sin aprobar'}</span>
+                </span>
+                <span class="nd-row-amt">${fmt(g.monto)}</span>
+            </div>`;
+        });
     } catch(e) { toast(e.message,'err'); }
 }
 
@@ -2198,6 +2211,21 @@ async function loadCobros() {
                 <td class="text-muted">${c.fecha_vencimiento||'—'}</td>
                 <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${c.interes_mora||0}','${c.notas||''}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button></td>
             </tr>`;}).join('');
+
+        /* La misma fuente de datos, en la forma que se lee en un teléfono.
+           La tabla tiene 10 columnas. */
+        NiddoMobile.renderList('tbody-cobros', data, c => {
+            const uf = c.unidades_funcionales || {};
+            const pagado = c.estado === 'pagado';
+            return `<div class="nd-row" style="cursor:default">
+                <span class="nd-row-ic ${pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-cobro"></use></svg></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">${uf.numero || '–'} · ${uf.vecino_nombre || 'Sin vecino'}</span>
+                    <span class="nd-row-s"><span class="dot ${pagado ? 'ok' : 'danger'}"></span>${c.periodo || '–'} · ${pagado ? 'Pagada' : 'Vence ' + (c.fecha_vencimiento || '—')}</span>
+                </span>
+                <span class="nd-row-amt">${fmt(c.total)}</span>
+            </div>`;
+        });
     } catch(e) { toast(e.message,'err'); }
 }
 

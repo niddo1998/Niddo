@@ -21,6 +21,29 @@
         isMobile: isMobile
     };
 
+    /* Construye la lista que reemplaza a una tabla en mobile, a partir de la
+       misma fuente de datos que llenó el <tbody>. Se declara antes del early
+       return para que en escritorio sea un no-op y el template pueda llamarla
+       sin condicionales.
+
+       La duplicación es de forma, no de lógica: una función, un objeto, dos
+       markups. La alternativa —transformar el DOM tras cada respuesta de la
+       API— es frágil por timing. */
+    window.NiddoMobile.renderList = function (tbodyId, data, mapper) {
+        if (!isMobile()) return;
+        var tb = document.getElementById(tbodyId);
+        if (!tb || !data) return;
+        var wrap = tb.closest('.card') || tb.closest('.table-wrap') || tb.parentNode.parentNode;
+        if (!wrap) return;
+        var list = wrap.querySelector('.nd-list');
+        if (!list) {
+            list = document.createElement('div');
+            list.className = 'nd-list';
+            wrap.appendChild(list);
+        }
+        list.innerHTML = data.map(mapper).join('');
+    };
+
     if (!isMobile()) return;
 
     document.documentElement.classList.add('nd-mobile');
