@@ -690,7 +690,9 @@ def api_proveedores_gastos(pid):
 @require_auth(allowed_roles=['admin'])
 def api_gastos_list():
     admin_id = get_admin_id()
-    q = supabase.table('gastos').select('*, consorcios(nombre), proveedores(nombre)').eq('admin_id', admin_id)
+    q = supabase.table('gastos') \
+        .select('*, consorcios(nombre), proveedores(nombre), unidades_funcionales(numero, piso)') \
+        .eq('admin_id', admin_id)
     if request.args.get('consorcio_id'):
         q = q.eq('consorcio_id', request.args['consorcio_id'])
     if request.args.get('desde'):
@@ -699,6 +701,39 @@ def api_gastos_list():
         q = q.lte('fecha_gasto', request.args['hasta'])
     res = q.order('fecha_gasto', desc=True).execute()
     return jsonify(res.data)
+
+
+def _falta_schema_v9(msg):
+    """¿El error de Supabase es "no existe la columna" de las que agrega v9?
+
+    Las tres columnas nuevas (gastos.unidad_id, liquidacion_items.unidad_id y
+    liquidacion_prorrateo.gastos_particulares) llegan todas juntas en esa
+    migración, así que un fallo por cualquiera de ellas se responde igual: hay
+    que correr el SQL. Sin este chequeo el admin ve un 500 genérico y no tiene
+    forma de saber que le falta un paso de setup.
+    """
+    return (('unidad_id' in msg or 'gastos_particulares' in msg)
+            and ('does not exist' in msg or '42703' in msg
+                 or 'PGRST204' in msg or 'schema cache' in msg))
+
+
+ERROR_FALTA_V9 = ('Falta correr supabase_schema_v9.sql en Supabase: la base todavía no '
+                  'tiene las columnas que separan los gastos generales de los '
+                  'específicos de una UF.')
+
+
+def _unidad_es_del_consorcio(unidad_id, consorcio_id):
+    """La UF a la que se imputa un gasto tiene que ser de ese mismo consorcio.
+
+    Si no, el gasto se prorratearía sobre un edificio y se cobraría en otro: la
+    liquidación del consorcio dueño del gasto nunca lo repartiría y la unidad
+    ajena aparecería con un cargo que nadie puede explicar.
+    """
+    if not unidad_id or not consorcio_id:
+        return True
+    res = supabase.table('unidades_funcionales').select('id') \
+        .eq('id', unidad_id).eq('consorcio_id', consorcio_id).execute()
+    return bool(res.data)
 
 
 @app.route('/api/gastos', methods=['POST'])
@@ -710,6 +745,9 @@ def api_gastos_create():
     payload = {
         'consorcio_id': d.get('consorcio_id') or d.get('consorcio_id', ''),
         'proveedor_id': d.get('proveedor_id') or None,
+        # NULL = gasto general del consorcio (el caso normal). Con unidad_id el
+        # gasto no se prorratea: se le carga entero a esa UF.
+        'unidad_id': d.get('unidad_id') or None,
         'descripcion': (d.get('descripcion') or '').strip(),
         'categoria': d.get('categoria', ''),
         'monto': float(d.get('monto', 0)),
@@ -723,7 +761,15 @@ def api_gastos_create():
         'notas': d.get('notas', ''),
         'admin_id': admin_id,
     }
-    res = supabase.table('gastos').insert(payload).execute()
+    if not _unidad_es_del_consorcio(payload['unidad_id'], payload['consorcio_id']):
+        return jsonify({'error': 'La unidad funcional elegida no pertenece a ese consorcio'}), 400
+
+    try:
+        res = supabase.table('gastos').insert(payload).execute()
+    except Exception as e:
+        if _falta_schema_v9(str(e)):
+            return jsonify({'error': f'{ERROR_FALTA_V9} [{e}]'}), 409
+        raise
     gasto = res.data[0] if res.data else {}
 
     # Guardar comprobante si se adjuntó
@@ -749,7 +795,7 @@ def api_gastos_create():
 def api_gastos_update(gid):
     admin_id = get_admin_id()
     d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
-    allowed = ('consorcio_id','proveedor_id','descripcion','categoria','monto','fecha_gasto',
+    allowed = ('consorcio_id','proveedor_id','unidad_id','descripcion','categoria','monto','fecha_gasto',
                 'fecha_vencimiento','pagado','fecha_pago','metodo_pago','recurrente','frecuencia','notas')
     payload = {}
     for k in allowed:
@@ -759,10 +805,27 @@ def api_gastos_update(gid):
                 v = float(v)
             elif k in ('pagado', 'recurrente'):
                 v = v in (True, 'true', 'on', '1')
-            elif k in ('proveedor_id', 'fecha_vencimiento', 'fecha_pago'):
+            elif k in ('proveedor_id', 'unidad_id', 'fecha_vencimiento', 'fecha_pago'):
                 v = v or None
             payload[k] = v
-    res = supabase.table('gastos').update(payload).eq('id', gid).eq('admin_id', admin_id).execute()
+
+    # El consorcio puede no venir en un PUT parcial; se lee el guardado para poder
+    # validar igual que en el alta.
+    if payload.get('unidad_id'):
+        cid = payload.get('consorcio_id')
+        if not cid:
+            actual = supabase.table('gastos').select('consorcio_id') \
+                .eq('id', gid).eq('admin_id', admin_id).execute().data
+            cid = actual[0]['consorcio_id'] if actual else None
+        if not _unidad_es_del_consorcio(payload['unidad_id'], cid):
+            return jsonify({'error': 'La unidad funcional elegida no pertenece a ese consorcio'}), 400
+
+    try:
+        res = supabase.table('gastos').update(payload).eq('id', gid).eq('admin_id', admin_id).execute()
+    except Exception as e:
+        if _falta_schema_v9(str(e)):
+            return jsonify({'error': f'{ERROR_FALTA_V9} [{e}]'}), 409
+        raise
     gasto = res.data[0] if res.data else {}
 
     # Guardar/reemplazar comprobante si se adjuntó
@@ -2145,7 +2208,8 @@ def api_liquidacion_gastos_disponibles():
 
     desde, hasta = _periodo_rango(periodo)
     gastos = supabase.table('gastos') \
-        .select('id, descripcion, categoria, monto, fecha_gasto, pagado, proveedores(nombre)') \
+        .select('id, descripcion, categoria, monto, fecha_gasto, pagado, unidad_id, '
+                'proveedores(nombre), unidades_funcionales(numero)') \
         .eq('consorcio_id', consorcio_id) \
         .eq('admin_id', admin_id) \
         .gte('fecha_gasto', desde) \
@@ -2242,6 +2306,8 @@ def api_liquidaciones_create():
             _recalcular_totales(liq_id)
         except Exception as e:
             supabase.table('liquidaciones').delete().eq('id', liq_id).execute()
+            if _falta_schema_v9(str(e)):
+                return jsonify({'error': f'{ERROR_FALTA_V9} [{e}]'}), 409
             return jsonify({'error':
                 f'La liquidación se creó pero falló al generar rubros/prorrateo: {e}'
             }), 500
@@ -2271,7 +2337,7 @@ def _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id, gastos
         gastos = [g for g in gastos if g.get('id') in elegidos]
 
     # Agrupar por rubro
-    rubros_dict = {}  # {numero_rubro: {nombre, items: [{descripcion, monto, gasto_id}]}}
+    rubros_dict = {}  # {numero_rubro: {nombre, items: [{descripcion, monto, gasto_id, unidad_id}]}}
     for g in gastos:
         cat = (g.get('categoria') or 'otro').lower()
         num, nombre = CATEGORIA_A_RUBRO.get(cat, (10, 'Otros gastos'))
@@ -2281,6 +2347,9 @@ def _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id, gastos
             'descripcion': g.get('descripcion', ''),
             'monto': float(g.get('monto', 0)),
             'gasto_id': g.get('id'),
+            # El alcance se congela acá: el prorrateo se calcula sobre los ítems,
+            # así que editar el gasto después no cambia una liquidación emitida.
+            'unidad_id': g.get('unidad_id'),
         })
 
     total_general = sum(
@@ -2309,13 +2378,77 @@ def _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id, gastos
                 'descripcion': it['descripcion'],
                 'monto': it['monto'],
                 'gasto_id': it['gasto_id'],
+                'unidad_id': it['unidad_id'],
             } for it in r['items']]
             if items_payload:
                 supabase.table('liquidacion_items').insert(items_payload).execute()
 
 
+def _egresos_por_alcance(liq_id):
+    """Separa los egresos de la liquidación en generales y particulares por UF.
+
+    Devuelve (total_general, {unidad_id: monto}). Sólo el total general se
+    prorratea; lo particular se le carga entero a su unidad.
+    """
+    rubros = supabase.table('liquidacion_rubros').select('id') \
+        .eq('liquidacion_id', liq_id).execute().data
+    rubro_ids = [r['id'] for r in rubros]
+    if not rubro_ids:
+        return 0.0, {}
+
+    items = supabase.table('liquidacion_items').select('monto, unidad_id') \
+        .in_('rubro_id', rubro_ids).execute().data
+
+    total_general = 0.0
+    particulares = {}
+    for it in items:
+        monto = float(it.get('monto') or 0)
+        unidad_id = it.get('unidad_id')
+        if unidad_id:
+            particulares[unidad_id] = round(particulares.get(unidad_id, 0.0) + monto, 2)
+        else:
+            total_general += monto
+    return round(total_general, 2), particulares
+
+
+def _repartir(total, pesos):
+    """Reparte `total` entre n partes según `pesos`, cerrando los centavos.
+
+    Redondear cada parte por separado casi nunca suma el total (100 entre 3 da
+    33.33 tres veces = 99.99). La diferencia se ajusta en la primera parte y se
+    devuelve aparte para poder registrarla como `redondeo` en el prorrateo: la
+    suma de lo que se le cobra a las UFs tiene que dar exactamente lo gastado.
+
+    Devuelve (partes, ajustes) — ajustes es 0 en todas menos la primera.
+    """
+    n = len(pesos)
+    if n == 0:
+        return [], []
+    suma_pesos = sum(pesos)
+    if suma_pesos <= 0:
+        return [0.0] * n, [0.0] * n
+
+    partes = [round(total * p / suma_pesos, 2) for p in pesos]
+    ajustes = [0.0] * n
+    dif = round(total - sum(partes), 2)
+    if dif:
+        partes[0] = round(partes[0] + dif, 2)
+        ajustes[0] = dif
+    return partes, ajustes
+
+
 def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
     """Genera la tabla de prorrateo para cada UF del consorcio.
+
+    El gasto general del consorcio se reparte en partes iguales entre todas las
+    UFs (prorrateo lineal). Si en algún momento se cargan los porcentajes de
+    `unidades_funcionales.porcentaje_a` y suman 100, se usan esos en su lugar;
+    mientras estén todos en 0 —que es como vienen— el reparto lineal es el que
+    manda. Antes se multiplicaba directo por ese porcentaje, así que sin cargar
+    daba $0 a cada unidad.
+
+    Los gastos específicos de una UF (el juego de llaves que pidió sólo ella) no
+    entran en el reparto: se le suman enteros a esa unidad en `gastos_particulares`.
 
     En una reliquidación del mismo período (numero_revision > 1) NO se vuelve a
     arrastrar el saldo del mes anterior: ya se le cobró al vecino en la revisión 1
@@ -2324,11 +2457,24 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
     """
     ufs = supabase.table('unidades_funcionales').select('*') \
         .eq('consorcio_id', consorcio_id).order('numero').execute().data
+    if not ufs:
+        return
 
-    # Calcular total de egresos de esta liquidación
-    rubros = supabase.table('liquidacion_rubros').select('subtotal') \
-        .eq('liquidacion_id', liq_id).execute().data
-    total_egresos = sum(float(r.get('subtotal', 0)) for r in rubros)
+    total_general, particulares = _egresos_por_alcance(liq_id)
+
+    # Base del reparto: porcentajes cargados si cierran en 100, lineal si no.
+    # La tolerancia de 0.5 absorbe el redondeo de cargar 33.333 tres veces.
+    pcts_cargados = [float(uf.get('porcentaje_a') or 0) for uf in ufs]
+    usar_porcentajes = abs(sum(pcts_cargados) - 100) <= 0.5
+
+    if usar_porcentajes:
+        pesos = pcts_cargados
+        pcts_efectivos = pcts_cargados
+    else:
+        pesos = [1.0] * len(ufs)
+        pcts_efectivos = [round(100 / len(ufs), 3)] * len(ufs)
+
+    expensas, ajustes = _repartir(total_general, pesos)
 
     # Buscar cobros del período anterior para saldos
     year, month = periodo.split('-')[:2]
@@ -2346,11 +2492,12 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
             cobros_ant_por_uf.setdefault(c['unidad_id'], c)
 
     prorrateo_rows = []
-    for uf in ufs:
-        pct_a = float(uf.get('porcentaje_a', 0))
-        pct_c = float(uf.get('porcentaje_c', 0))
-        expensa_a = round(total_egresos * pct_a / 100, 2) if pct_a > 0 else 0
-        adicional = round(total_egresos * pct_c / 100, 2) if pct_c > 0 else 0
+    for i, uf in enumerate(ufs):
+        pct_a = pcts_efectivos[i]
+        pct_c = float(uf.get('porcentaje_c') or 0)
+        expensa_a = expensas[i]
+        adicional = round(total_general * pct_c / 100, 2) if pct_c > 0 else 0
+        particular = particulares.get(uf['id'], 0.0)
 
         # Buscar saldo anterior (cobro del período anterior)
         c = cobros_ant_por_uf.get(uf['id'])
@@ -2363,7 +2510,7 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
                 saldo_ant = float(c.get('total', 0))
 
         saldo_pend = round(saldo_ant - pago, 2) if saldo_ant > 0 else 0
-        total_unidad = round(expensa_a + adicional + saldo_pend, 2)
+        total_unidad = round(expensa_a + adicional + particular + saldo_pend, 2)
 
         prorrateo_rows.append({
             'liquidacion_id': liq_id,
@@ -2376,8 +2523,9 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
             'expensa_a': expensa_a,
             'porcentaje_c': pct_c,
             'adicional_ordinaria': adicional,
+            'gastos_particulares': particular,
             'extraordinaria': 0,
-            'redondeo': 0,
+            'redondeo': ajustes[i],
             'total_unidad': total_unidad,
         })
 
@@ -2440,7 +2588,8 @@ def _rubros_con_items(liq_id):
     rubro_ids = [r['id'] for r in rubros]
     items_por_rubro = {}
     if rubro_ids:
-        todos_items = supabase.table('liquidacion_items').select('*') \
+        todos_items = supabase.table('liquidacion_items') \
+            .select('*, unidades_funcionales(numero)') \
             .in_('rubro_id', rubro_ids).execute().data
         for it in todos_items:
             items_por_rubro.setdefault(it['rubro_id'], []).append(it)
@@ -2470,7 +2619,7 @@ def api_liquidacion_prorrateo_update(lid, pid):
     d = request.json
     allowed = ('saldo_anterior', 'pago_realizado', 'saldo_pendiente', 'interes_mora',
                'porcentaje_a', 'expensa_a', 'porcentaje_c', 'adicional_ordinaria',
-               'extraordinaria', 'redondeo', 'total_unidad')
+               'gastos_particulares', 'extraordinaria', 'redondeo', 'total_unidad')
     payload = {k: v for k, v in d.items() if k in allowed}
     res = supabase.table('liquidacion_prorrateo').update(payload).eq('id', pid).execute()
     return jsonify(res.data[0] if res.data else {})
@@ -2496,20 +2645,27 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
     es_complementaria = int(liq.get('numero_revision') or 1) > 1
 
     total_unidad = float(prorrateo.get('total_unidad', 0))
-    total_egresos = float(liq.get('total_egresos', 0)) or 1
+    uf_id = prorrateo.get('unidad_id')
 
-    # Agrupar rubros en categorías simples
+    # Agrupar rubros en categorías simples. Sólo entran los gastos generales del
+    # consorcio: los específicos de una UF no se prorratean, así que mezclarlos
+    # acá le mostraría al vecino un desglose que no coincide con lo que paga.
     categorias = {}
+    particulares_uf = []
     obras_en_curso = []
     for r in rubros:
         cat_simple = RUBRO_A_CATEGORIA_SIMPLE.get(r.get('numero_rubro', 10), 'Otros')
-        monto = float(r.get('subtotal', 0))
-        if cat_simple not in categorias:
-            categorias[cat_simple] = 0
-        categorias[cat_simple] += monto
 
-        # Buscar items con cuotas (obras en curso)
         for it in r.get('items', []):
+            monto_item = float(it.get('monto') or 0)
+            unidad_item = it.get('unidad_id')
+            if unidad_item:
+                if unidad_item == uf_id:
+                    particulares_uf.append({'desc': it.get('descripcion', ''), 'monto': monto_item})
+                continue  # gasto particular de otra UF: no es asunto de ésta
+            categorias[cat_simple] = categorias.get(cat_simple, 0) + monto_item
+
+            # Buscar items con cuotas (obras en curso)
             if it.get('es_cuota') and it.get('cuota_actual') and it.get('cuota_total'):
                 obras_en_curso.append({
                     'desc': it['descripcion'],
@@ -2517,14 +2673,16 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
                     'total': it['cuota_total'],
                 })
 
+    total_general = sum(categorias.values())
     pct_a = float(prorrateo.get('porcentaje_a', 0))
+    gastos_particulares = float(prorrateo.get('gastos_particulares', 0) or 0)
     cat_icons = {'Personal': '👤', 'Servicios': '⚡', 'Mantenimiento': '🔧',
                  'Administración': '📋', 'Seguros': '🛡️', 'Otros': '📦'}
 
     # Build category rows
     cat_rows = ''
     for cat, monto in sorted(categorias.items(), key=lambda x: -x[1]):
-        pct = (monto / total_egresos * 100) if total_egresos > 0 else 0
+        pct = (monto / total_general * 100) if total_general > 0 else 0
         monto_uf = round(monto * pct_a / 100, 2) if pct_a > 0 else monto
         icon = cat_icons.get(cat, '📦')
         cat_rows += f'''
@@ -2533,6 +2691,31 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
             <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;text-align:right;font-size:14px;font-weight:600;">${monto_uf:,.2f}</td>
             <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;text-align:right;font-size:13px;color:#888;">{pct:.1f}%</td>
         </tr>'''
+
+    # Gastos que no se prorratean: se le cobran enteros a esta UF y punto. Van en
+    # su propio bloque y con el detalle ítem por ítem porque es lo primero que el
+    # vecino va a querer discutir si no lo reconoce.
+    particulares_html = ''
+    if particulares_uf:
+        particulares_rows = ''.join(f'''
+        <tr>
+            <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;font-size:14px;">{p["desc"]}</td>
+            <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;text-align:right;font-size:14px;font-weight:600;">${p["monto"]:,.2f}</td>
+        </tr>''' for p in particulares_uf)
+        particulares_html = f'''
+<div style="background:#fff;border-radius:12px;margin-top:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+    <h3 style="margin:0 0 6px;font-size:15px;font-weight:700;color:#111;">🔑 Gastos de tu unidad</h3>
+    <p style="margin:0 0 12px;font-size:12px;color:#888;">Estos gastos no se reparten entre el edificio: corresponden sólo a tu UF.</p>
+    <table style="width:100%;border-collapse:collapse;">
+        <tbody>{particulares_rows}</tbody>
+        <tfoot>
+            <tr>
+                <td style="padding:10px 14px;font-size:14px;font-weight:700;">Total</td>
+                <td style="padding:10px 14px;text-align:right;font-size:14px;font-weight:700;">${gastos_particulares:,.2f}</td>
+            </tr>
+        </tfoot>
+    </table>
+</div>'''
 
     # Build obras rows
     obras_html = ''
@@ -2599,18 +2782,20 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 
 <!-- Desglose por categoría -->
 <div style="background:#fff;border-radius:12px;margin-top:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
-    <h3 style="margin:0 0 14px;font-size:15px;font-weight:700;color:#111;">📊 Desglose por categoría</h3>
+    <h3 style="margin:0 0 6px;font-size:15px;font-weight:700;color:#111;">📊 Desglose por categoría</h3>
+    <p style="margin:0 0 12px;font-size:12px;color:#888;">Los montos son la parte que te toca a vos ({pct_a:.3f}% de los gastos comunes del edificio).</p>
     <table style="width:100%;border-collapse:collapse;">
         <thead>
             <tr style="border-bottom:2px solid #7C3AED;">
                 <th style="padding:8px 14px;text-align:left;font-size:11px;color:#888;text-transform:uppercase;">Categoría</th>
-                <th style="padding:8px 14px;text-align:right;font-size:11px;color:#888;text-transform:uppercase;">Monto</th>
-                <th style="padding:8px 14px;text-align:right;font-size:11px;color:#888;text-transform:uppercase;">%</th>
+                <th style="padding:8px 14px;text-align:right;font-size:11px;color:#888;text-transform:uppercase;">Tu parte</th>
+                <th style="padding:8px 14px;text-align:right;font-size:11px;color:#888;text-transform:uppercase;">% del total</th>
             </tr>
         </thead>
         <tbody>{cat_rows}</tbody>
     </table>
 </div>
+{particulares_html}
 
 <!-- Estado de cuenta -->
 <div style="background:#fff;border-radius:12px;margin-top:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
@@ -2625,6 +2810,11 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
             <td style="text-align:right;font-weight:700;">${float(prorrateo.get('expensa_a',0)):,.2f}</td>
         </tr>
         <tr><td style="padding:6px 0;color:#666;">Adicional ordinaria</td><td style="text-align:right;font-weight:600;">${float(prorrateo.get('adicional_ordinaria',0)):,.2f}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Gastos de tu unidad</td><td style="text-align:right;font-weight:600;">${gastos_particulares:,.2f}</td></tr>
+        <tr style="border-top:2px solid #eee;">
+            <td style="padding:10px 0;font-weight:700;">Total a pagar</td>
+            <td style="text-align:right;font-weight:800;">${total_unidad:,.2f}</td>
+        </tr>
     </table>
 </div>
 

@@ -595,8 +595,8 @@
                 <div class="card-h"><span class="card-t">Tabla de prorrateo por unidad funcional</span></div>
                 <div style="overflow-x:auto;">
                 <table class="tbl">
-                    <thead><tr><th>UF</th><th>Piso</th><th>Copropietario</th><th>Sdo.Ant.</th><th>Pago</th><th>Sdo.Pend.</th><th>Int.</th><th>%A</th><th>Exp.A</th><th>%C</th><th>Adic.Ord.</th><th>Total</th><th>Acción</th></tr></thead>
-                    <tbody id="tbody-prorrateo"><tr><td colspan="13" class="tbl-empty">Cargando...</td></tr></tbody>
+                    <thead><tr><th>UF</th><th>Piso</th><th>Copropietario</th><th>Sdo.Ant.</th><th>Pago</th><th>Sdo.Pend.</th><th>Int.</th><th>%A</th><th>Exp.A</th><th>%C</th><th>Adic.Ord.</th><th title="Gastos específicos de la UF, no prorrateados">Particulares</th><th>Total</th><th>Acción</th></tr></thead>
+                    <tbody id="tbody-prorrateo"><tr><td colspan="14" class="tbl-empty">Cargando...</td></tr></tbody>
                 </table>
                 </div>
             </div>
@@ -869,8 +869,21 @@
         <div class="modal-body">
             <input type="hidden" id="m-gasto-id">
             <div class="form-row">
-                <div class="form-group"><label class="form-label">Consorcio *</label><select class="form-ctrl" id="m-gasto-consorcio"></select></div>
+                <div class="form-group"><label class="form-label">Consorcio *</label><select class="form-ctrl" id="m-gasto-consorcio" onchange="onGastoConsorcioChange()"></select></div>
                 <div class="form-group"><label class="form-label">Proveedor</label><select class="form-ctrl" id="m-gasto-proveedor"><option value="">Sin proveedor</option></select></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Alcance del gasto</label>
+                    <select class="form-ctrl" id="m-gasto-alcance" onchange="toggleGastoAlcance()">
+                        <option value="general">General del consorcio (se prorratea entre todas las UFs)</option>
+                        <option value="uf">Específico de una UF (se le cobra sólo a esa unidad)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="gasto-uf-group" style="display:none">
+                    <label class="form-label">Unidad funcional *</label>
+                    <select class="form-ctrl" id="m-gasto-uf"><option value="">Elegí primero el consorcio</option></select>
+                </div>
             </div>
             <div class="form-group"><label class="form-label">Descripción *</label><input class="form-ctrl" id="m-gasto-desc" placeholder="Factura Edesur mayo"></div>
             <div class="form-row3">
@@ -1621,7 +1634,7 @@ async function loadGastos() {
             <tr>
                 <td>${g.fecha_gasto||'—'}</td>
                 <td>${(g.consorcios||{}).nombre||'—'}</td>
-                <td><strong>${g.descripcion}</strong>${g.notas?`<div class="text-muted text-sm">${g.notas}</div>`:''}</td>
+                <td><strong>${g.descripcion}</strong>${g.unidad_id?`<span class="b b-b" style="margin-left:6px;">UF ${escHtml((g.unidades_funcionales||{}).numero||'—')}</span>`:''}${g.notas?`<div class="text-muted text-sm">${g.notas}</div>`:''}</td>
                 <td>${categoriaBadge(g.categoria)}</td>
                 <td>${(g.proveedores||{}).nombre||'—'}</td>
                 <td><strong>${fmt(g.monto)}</strong></td>
@@ -1943,6 +1956,48 @@ async function confirmBatchExtract() {
     resetAutoExtract();
 }
 
+// Las UFs se piden por consorcio y se cachean: el modal de gasto se abre y cierra
+// muchas veces seguidas cargando facturas y no tiene sentido repetir el fetch.
+const ufsPorConsorcio = {};
+
+async function cargarUFsConsorcio(cid) {
+    if (!cid) return [];
+    if (!ufsPorConsorcio[cid]) {
+        try {
+            ufsPorConsorcio[cid] = await api(`/api/consorcios/${cid}/unidades`);
+        } catch(e) {
+            toast('No se pudieron cargar las unidades: ' + e.message, 'err');
+            return [];
+        }
+    }
+    return ufsPorConsorcio[cid];
+}
+
+function toggleGastoAlcance() {
+    const esUF = $('m-gasto-alcance').value === 'uf';
+    $('gasto-uf-group').style.display = esUF ? 'block' : 'none';
+    if (!esUF) $('m-gasto-uf').value = '';
+}
+
+async function onGastoConsorcioChange(unidadSeleccionada) {
+    const cid = $('m-gasto-consorcio').value;
+    const sel = $('m-gasto-uf');
+    if (!cid) {
+        sel.innerHTML = '<option value="">Elegí primero el consorcio</option>';
+        return;
+    }
+    sel.innerHTML = '<option value="">Cargando unidades...</option>';
+    const ufs = await cargarUFsConsorcio(cid);
+    if (!ufs.length) {
+        sel.innerHTML = '<option value="">Este consorcio no tiene UFs cargadas</option>';
+        return;
+    }
+    sel.innerHTML = '<option value="">Seleccionar...</option>' + ufs.map(u =>
+        `<option value="${u.id}">UF ${escHtml(u.numero)}${u.piso ? ' — Piso ' + escHtml(u.piso) : ''}${u.vecino_nombre ? ' — ' + escHtml(u.vecino_nombre) : ''}</option>`
+    ).join('');
+    if (unidadSeleccionada) sel.value = unidadSeleccionada;
+}
+
 function openGastoModal(id) {
     $('m-gasto-id').value = id||'';
     $('m-gasto-title').textContent = id ? 'Editar gasto' : 'Nuevo gasto';
@@ -1954,6 +2009,11 @@ function openGastoModal(id) {
     // Populate consorcio select antes de setear su valor
     const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
     $('m-gasto-consorcio').innerHTML = opts2;
+
+    // Un gasto es general del consorcio salvo que el admin diga lo contrario.
+    $('m-gasto-alcance').value = 'general';
+    $('m-gasto-uf').innerHTML = '<option value="">Elegí primero el consorcio</option>';
+    toggleGastoAlcance();
 
     if (!id) {
         $('m-gasto-consorcio').value = '';
@@ -1981,6 +2041,11 @@ function openGastoModal(id) {
             $('m-gasto-frecuencia').value = g.frecuencia || '';
             $('frecuencia-group').style.display = g.recurrente ? 'block' : 'none';
             $('m-gasto-notas').value = g.notas || '';
+            if (g.unidad_id) {
+                $('m-gasto-alcance').value = 'uf';
+                toggleGastoAlcance();
+            }
+            onGastoConsorcioChange(g.unidad_id || '');
             if (g.archivo_nombre) {
                 infoEl.innerHTML = `Comprobante actual adjunto (<a href="/api/gastos/${id}/comprobante" target="_blank">ver</a>). Seleccione un archivo para reemplazarlo.`;
                 infoEl.style.display = 'block';
@@ -1995,9 +2060,16 @@ async function saveGasto() {
     const monto = $('m-gasto-monto').value;
     if (!consorcio_id || !monto) { toast('Consorcio y monto requeridos','warn'); return; }
 
+    // Sin UF elegida, un gasto "específico" se guardaría como general y se
+    // prorratearía entre todos: mejor frenar que cobrarle al edificio equivocado.
+    const esUF = $('m-gasto-alcance').value === 'uf';
+    const unidad_id = esUF ? $('m-gasto-uf').value : '';
+    if (esUF && !unidad_id) { toast('Elegí la unidad funcional a la que se le cobra el gasto','warn'); return; }
+
     const fd = new FormData();
     fd.append('consorcio_id', consorcio_id);
     fd.append('monto', monto);
+    fd.append('unidad_id', unidad_id);
     fd.append('proveedor_id', $('m-gasto-proveedor').value || '');
     fd.append('descripcion', $('m-gasto-desc').value.trim());
     fd.append('categoria', $('m-gasto-cat').value);
@@ -2525,8 +2597,10 @@ function renderGastosDisponibles() {
     cont.innerHTML = liqGastos.map(g => {
         const on = liqGastosSel.has(g.id);
         const prov = (g.proveedores||{}).nombre;
-        const sub = [g.fecha_gasto, g.categoria, prov].filter(Boolean).join(' · ');
-        const badge = g.ya_enviado ? '<span class="b b-gr">Ya enviado</span>' : '';
+        const uf = g.unidad_id ? `UF ${(g.unidades_funcionales||{}).numero||'—'}` : null;
+        const sub = [g.fecha_gasto, g.categoria, prov, uf && `sólo ${uf}`].filter(Boolean).join(' · ');
+        const badge = (g.ya_enviado ? '<span class="b b-gr">Ya enviado</span>' : '')
+                    + (uf ? `<span class="b b-b">${escHtml(uf)}</span>` : '');
         return `<label class="pick-row ${on?'':'is-off'}">
             <input type="checkbox" ${on?'checked':''} onchange="liqGastoToggle('${g.id}',this.checked)">
             <span class="pick-main">
@@ -2656,7 +2730,10 @@ async function loadRubros() {
         const tb = $('tbody-rubros');
         if (!rubros.length) { tb.innerHTML = '<tr><td colspan="5" class="tbl-empty">Sin rubros. ¿Hay gastos cargados para este período?</td></tr>'; return; }
         tb.innerHTML = rubros.map(r => {
-            const itemsList = (r.items||[]).map(it => it.descripcion + ': ' + fmt(it.monto)).join('<br>');
+            const itemsList = (r.items||[]).map(it => {
+                const uf = it.unidad_id ? ` <span class="b b-b">sólo UF ${escHtml((it.unidades_funcionales||{}).numero||'—')}</span>` : '';
+                return escHtml(it.descripcion) + ': ' + fmt(it.monto) + uf;
+            }).join('<br>');
             return `<tr>
                 <td><strong>${r.numero_rubro}</strong></td>
                 <td><strong>${r.nombre}</strong></td>
@@ -2672,7 +2749,7 @@ async function loadProrrateo() {
     try {
         const data = await api(`/api/liquidaciones/${currentLiqId}/prorrateo`);
         const tb = $('tbody-prorrateo');
-        if (!data.length) { tb.innerHTML = '<tr><td colspan="13" class="tbl-empty">Sin datos de prorrateo</td></tr>'; return; }
+        if (!data.length) { tb.innerHTML = '<tr><td colspan="14" class="tbl-empty">Sin datos de prorrateo</td></tr>'; return; }
         tb.innerHTML = data.map(p => {
             const uf = p.unidades_funcionales || {};
             return `<tr>
@@ -2687,6 +2764,7 @@ async function loadProrrateo() {
                 <td>${fmt(p.expensa_a)}</td>
                 <td class="text-muted">${p.porcentaje_c}%</td>
                 <td>${fmt(p.adicional_ordinaria)}</td>
+                <td${p.gastos_particulares>0?' style="color:var(--nd-tinta-calida);font-weight:600;"':' class="text-muted"'}>${fmt(p.gastos_particulares||0)}</td>
                 <td><strong>${fmt(p.total_unidad)}</strong></td>
                 <td><button class="btn-s btn-sm" onclick="openPreviewUF('${p.unidad_id}')" aria-label="Previsualizar" title="Previsualizar"><svg class="ic ic-sm"><use href="#ic-ojo"></use></svg></button></td>
             </tr>`;}).join('');
