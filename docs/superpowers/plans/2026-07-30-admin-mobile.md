@@ -192,7 +192,7 @@ JSON.stringify({
 ```
 
 Esperado, **idéntico a antes de esta tarea**:
-`tabs` = `["inicio","expensas","comunidad","reservas","mas"]` · `alcanzables` = `true` · `titulo` = `"Mis expensas"` · `masItems` = `["Archivos","Gastos del consorcio","Mi perfil","Cerrar sesión"]` · `grabbers` = `3`.
+`tabs` = `["inicio","expensas","comunidad","reservas","mas"]` · `alcanzables` = `true` · `titulo` = `"Mis expensas"` · `masItems` = `["Archivos","Gastos del consorcio","Mi perfil","Cerrar sesión"]` · `grabbers` = `4` (los 3 overlays del template más la hoja de Más, que también lleva grabber).
 
 Probar el atrás: `showSection('reservas'); showSection('archivos'); history.back();` → vuelve a `#reservas`.
 

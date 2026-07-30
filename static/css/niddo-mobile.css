@@ -35,7 +35,8 @@
        .bottom-nav{height:60px} y se carga después que esta hoja. Con
        box-sizing:border-box, esos 60px fijos harían que el padding del home
        indicator se comiera el contenido de la barra en vez de despegarla. */
-    #nd-tabbar.bottom-nav {
+    #nd-tabbar.bottom-nav,
+    .bottom-nav.nd-tabbar {
         height: auto;
         padding-bottom: var(--safe-bottom);
         background: rgba(255, 255, 255, .9);
@@ -44,7 +45,8 @@
     }
     /* Con el id por lo mismo: el inline declara .bottom-btn{height:100%},
        que sobre un padre de altura automática colapsaba a 46px. */
-    #nd-tabbar .bottom-btn {
+    #nd-tabbar .bottom-btn,
+    .nd-tabbar .bottom-btn {
         height: var(--tabbar-h);
         min-height: 44px;
         position: relative;

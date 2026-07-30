@@ -5,7 +5,7 @@
    absolutamente nada, así el dashboard de escritorio queda intacto.
 
    Se carga con defer, así que corre después de que el <script> inline del
-   template definió showSection() y las demás globales que envolvemos.
+   template definió su función de navegación y las globales que envolvemos.
    ========================================================================== */
 (function () {
     'use strict';
@@ -25,11 +25,27 @@
 
     document.documentElement.classList.add('nd-mobile');
 
+    /* ── Configuración ────────────────────────────────────────────────────
+       Los valores por defecto son los del vecino, que fue el primer
+       consumidor. Así ese template no necesita declarar nada y no hubo que
+       tocarlo para que admin entrara — y lo que está en producción no puede
+       romperse por esta parametrización.
+
+       Si aparece un tercer consumidor, conviene mover estos defaults a su
+       propio template y dejar este archivo sin ninguno. */
+    var CFG = window.NIDDO_MOBILE_CONFIG || {};
+
+    var navFn          = CFG.navFn || 'showSection';
+    var sectionPrefix  = CFG.sectionPrefix || 'section-';
+    var headerSelector = CFG.headerSelector || '.app-header';
+    var navPassesEl    = CFG.navPassesElement === true;
+    var usesHash       = CFG.usesHash === true;
+
     /* ── Tab bar ──────────────────────────────────────────────────────────
-       Cinco tabs para nueve secciones. Comunidad agrupa comunicados,
-       votaciones y reclamos; Más agrupa las que viven en la hoja. Este mapa
-       dice qué tab se ilumina para cada sección. */
-    var TAB_OF = {
+       Qué tab se ilumina para cada sección. En el vecino, Comunidad agrupa
+       comunicados, votaciones y reclamos; Más agrupa las que viven en la
+       hoja. */
+    var TAB_OF = CFG.tabOf || {
         inicio: 'inicio',
         expensas: 'expensas',
         gastos: 'expensas',
@@ -42,7 +58,7 @@
     };
 
     function setTab(tabId) {
-        var tabs = document.querySelectorAll('#nd-tabbar .bottom-btn');
+        var tabs = document.querySelectorAll('#nd-tabbar .bottom-btn, .nd-tabbar .bottom-btn');
         for (var i = 0; i < tabs.length; i++) {
             tabs[i].classList.toggle('active', tabs[i].dataset.tab === tabId);
         }
@@ -53,16 +69,24 @@
        o se duplicaría la entrada y el atrás dejaría de avanzar. */
     var restoring = false;
 
-    /* showSection() la define el <script> inline del template. La envolvemos
-       en vez de tocarla para que el escritorio siga usando la original. */
-    function wrapShowSection() {
-        var original = window.showSection;
+    /* La función de navegación la define el <script> inline del template:
+       showSection(name) en el vecino, show(id, el) en admin. La envolvemos
+       en vez de tocarla, para que el escritorio siga usando la original. */
+    function wrapNav() {
+        var original = window[navFn];
         if (typeof original !== 'function') return;
-        window.showSection = function (name) {
-            original.apply(this, arguments);
+        window[navFn] = function (name) {
+            /* show(id, el) usa el segundo argumento para marcar el nav-link
+               del sidebar. Desde la tab bar no hay elemento; la función ya
+               hace `if (el)`, así que pasar undefined es seguro, y en mobile
+               el sidebar está oculto igual. */
+            original.call(this, name, navPassesEl ? arguments[1] : undefined);
             setTab(TAB_OF[name] || name);
             setTitle(name);
-            if (!restoring) {
+            /* Si el template ya escribe el hash por su cuenta —admin lo
+               hace dentro de show()— empujar además duplicaría entradas y el
+               atrás necesitaría dos toques. */
+            if (!restoring && !usesHash) {
                 history.pushState({ ndSection: name }, '', '#' + name);
             }
         };
@@ -72,7 +96,7 @@
         var name = (e.state && e.state.ndSection) || 'inicio';
         restoring = true;
         try {
-            window.showSection(name);
+            window[navFn](name);
         } finally {
             restoring = false;
         }
@@ -90,14 +114,14 @@
 
     /* ── Top app bar ─────────────────────────────────────────────────────── */
 
-    var TITLES = {
+    var TITLES = CFG.titles || {
         inicio: 'Inicio', expensas: 'Mis expensas', gastos: 'Gastos del consorcio',
         comunicados: 'Comunicados', votaciones: 'Votaciones', reclamos: 'Reclamos',
         reservas: 'Reservas', archivos: 'Archivos', perfil: 'Mi perfil'
     };
 
     function buildHeader() {
-        var header = document.querySelector('.app-header');
+        var header = document.querySelector(headerSelector);
         if (!header || header.querySelector('.nd-largetitle')) return;
 
         var row = document.createElement('div');
@@ -122,7 +146,7 @@
     }
 
     function watchScroll() {
-        var header = document.querySelector('.app-header');
+        var header = document.querySelector(headerSelector);
         if (!header) return;
         window.addEventListener('scroll', function () {
             header.classList.toggle('nd-scrolled', window.scrollY > 26);
@@ -131,7 +155,7 @@
 
     /* ── Hoja de "Más" ───────────────────────────────────────────────────── */
 
-    var MAS_ITEMS = [
+    var MAS_ITEMS = CFG.masItems || [
         { section: 'archivos', label: 'Archivos', icon: 'ic-carpeta' },
         { section: 'gastos', label: 'Gastos del consorcio', icon: 'ic-balance' },
         { section: 'perfil', label: 'Mi perfil', icon: 'ic-vecino' }
@@ -157,7 +181,7 @@
             b.innerHTML = '<svg class="ic"><use href="#' + item.icon + '"></use></svg>' + item.label;
             b.addEventListener('click', function () {
                 closeMas();
-                window.showSection(item.section);
+                window[navFn](item.section);
             });
             sheet.appendChild(b);
         });
@@ -270,7 +294,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        wrapShowSection();
+        wrapNav();
         initSheets();
         buildHeader();
         buildMas();
@@ -287,7 +311,7 @@
 
         restoring = true;
         try {
-            window.showSection(initial);
+            window[navFn](initial);
         } finally {
             restoring = false;
         }
