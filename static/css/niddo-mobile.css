@@ -186,4 +186,48 @@
     .nd-mas-item:active { background: var(--surface2); }
     .nd-mas-item.danger { color: var(--nd-terracota-hondo); }
 
+    /* ── Listas que reemplazan tablas ────────────────────────────────────
+       Una tabla de 7 o más columnas en 360px obliga a scroll horizontal, que
+       en un teléfono es la peor lectura posible. La fila-tarjeta muestra el
+       dato principal grande y manda el resto al detalle. */
+    .nd-mobile .table-wrap .table { display: none; }
+    .nd-mobile .table-wrap .table-filters { padding: 12px; }
+
+    .nd-list { display: block; }
+    .nd-row {
+        display: flex; align-items: center; gap: 12px;
+        width: 100%; min-height: 60px; padding: 14px 16px;
+        background: var(--surface); border: none;
+        border-bottom: 1px solid var(--border2);
+        font-family: var(--font); text-align: left; cursor: pointer;
+    }
+    .nd-row:last-child { border-bottom: none; }
+    .nd-row:active { background: var(--surface2); }
+    .nd-row-ic {
+        width: 40px; height: 40px; flex-shrink: 0; border-radius: 13px;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo);
+    }
+    .nd-row-ic.ok { background: var(--nd-verde-dim); color: var(--nd-verde); }
+    .nd-row-main { flex: 1; min-width: 0; }
+    .nd-row-t {
+        display: block;
+        font-size: .93rem; font-weight: 700; letter-spacing: -.01em;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .nd-row-s {
+        display: flex; align-items: center; gap: 6px;
+        font-size: .79rem; color: var(--muted); font-weight: 600;
+        margin-top: 2px;
+    }
+    .nd-row-amt {
+        font-size: .93rem; font-weight: 800;
+        letter-spacing: -.01em; flex-shrink: 0;
+    }
+
+}
+
+/* En escritorio manda la tabla: las filas de mobile no se muestran nunca. */
+@media (min-width: 901px) {
+    .nd-list { display: none; }
 }

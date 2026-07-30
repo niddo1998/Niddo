@@ -933,6 +933,25 @@ function renderCobrosTable(){
     </tr>`);
     
     tb.innerHTML = rows.join('');
+
+    /* Misma fuente de datos, otra forma. En mobile la tabla de 7 columnas
+       está oculta por CSS y se lee esta lista en su lugar. La fila de
+       totales no se replica: acá el total ya vive en el KPI de arriba y
+       repetirlo como una fila más confundiría. */
+    const wrap = tb.closest('.table-wrap');
+    let list = wrap.querySelector('.nd-list');
+    if (!list) { list = document.createElement('div'); list.className = 'nd-list'; wrap.appendChild(list); }
+    list.innerHTML = S.cobros.map(c => {
+        const pagado = c.estado === 'pagado';
+        return `<button class="nd-row" onclick="openPagoForCobro('${c.id}')">
+            <span class="nd-row-ic ${pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-expensa"></use></svg></span>
+            <span class="nd-row-main">
+                <span class="nd-row-t">${c.periodo || '–'}</span>
+                <span class="nd-row-s"><span class="dot ${pagado ? 'ok' : 'danger'}"></span>${pagado ? 'Pagada' : 'Vence el ' + fmtD(c.fecha_vencimiento)}</span>
+            </span>
+            <span class="nd-row-amt">${fmt$(c.total)}</span>
+        </button>`;
+    }).join('');
 }
 function updateExpKpis(cobros){
     const pend=cobros.filter(c=>['pendiente','vencido','en_mora'].includes(c.estado));
@@ -1044,6 +1063,19 @@ async function loadGastos(){
         </tr>`);
         
         tb.innerHTML=rows.join('');
+
+        /* La lista que se lee en mobile, del mismo `data` que arma los <tr>. */
+        const wrapG = tb.closest('.table-wrap');
+        let listG = wrapG.querySelector('.nd-list');
+        if (!listG) { listG = document.createElement('div'); listG.className = 'nd-list'; wrapG.appendChild(listG); }
+        listG.innerHTML = data.map(g => `<div class="nd-row" style="cursor:default">
+            <span class="nd-row-ic ok"><svg class="ic"><use href="#ic-balance"></use></svg></span>
+            <span class="nd-row-main">
+                <span class="nd-row-t">${g.descripcion || '–'}</span>
+                <span class="nd-row-s">${g.proveedores?.nombre || 'Sin proveedor'} · ${fmtD(g.fecha_gasto)}</span>
+            </span>
+            <span class="nd-row-amt">${fmt$(g.monto)}</span>
+        </div>`).join('');
     }catch(e){tb.innerHTML='<tr><td colspan="8" class="tbl-empty">Error al cargar gastos</td></tr>'}
 }
 
@@ -1148,7 +1180,23 @@ async function loadReservas(){
 }
 async function loadMisReservas(){
     const tb=document.getElementById('tb-reservas');tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Cargando...</td></tr>';
-    try{const d=await api('/api/reservas_amenities?only_mine=true');if(!d.length){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Sin reservas registradas</td></tr>';return}tb.innerHTML=d.map(r=>`<tr><td>${r.amenities?.nombre||'–'}</td><td>${fmtD(r.fecha)}</td><td>${r.hora_inicio?.substring(0,5)} – ${r.hora_fin?.substring(0,5)}</td><td>${ebadge(r.estado)}</td><td>${r.estado==='confirmada'?`<button class="btn btn-danger btn-xs" onclick="cancelarReserva('${r.id}')">Cancelar</button>`:'–'}</td></tr>`).join('')}catch(e){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Error al cargar</td></tr>'}
+    try{const d=await api('/api/reservas_amenities?only_mine=true');if(!d.length){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Sin reservas registradas</td></tr>';return}tb.innerHTML=d.map(r=>`<tr><td>${r.amenities?.nombre||'–'}</td><td>${fmtD(r.fecha)}</td><td>${r.hora_inicio?.substring(0,5)} – ${r.hora_fin?.substring(0,5)}</td><td>${ebadge(r.estado)}</td><td>${r.estado==='confirmada'?`<button class="btn btn-danger btn-xs" onclick="cancelarReserva('${r.id}')">Cancelar</button>`:'–'}</td></tr>`).join('');
+
+        /* La lista que se lee en mobile, del mismo `d` que arma los <tr>. */
+        const wrapR = tb.closest('.table-wrap');
+        let listR = wrapR.querySelector('.nd-list');
+        if (!listR) { listR = document.createElement('div'); listR.className = 'nd-list'; wrapR.appendChild(listR); }
+        listR.innerHTML = d.map(r => {
+            const activa = r.estado === 'confirmada';
+            return `<div class="nd-row" style="cursor:default">
+                <span class="nd-row-ic ${activa ? 'ok' : ''}"><svg class="ic"><use href="#ic-reserva"></use></svg></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">${r.amenities?.nombre || 'Amenity'}</span>
+                    <span class="nd-row-s"><span class="dot ${activa ? 'ok' : 'muted'}"></span>${fmtD(r.fecha)} · ${r.hora_inicio?.substring(0,5) || ''}–${r.hora_fin?.substring(0,5) || ''}</span>
+                </span>
+                ${activa ? `<button class="btn btn-danger btn-xs" onclick="cancelarReserva('${r.id}')">Cancelar</button>` : ''}
+            </div>`;
+        }).join('')}catch(e){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Error al cargar</td></tr>'}
 }
 function shiftResDate(delta){
     const fEl=document.getElementById('res-fecha');
