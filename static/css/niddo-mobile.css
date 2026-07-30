@@ -325,6 +325,28 @@
         color: var(--nd-terracota-hondo); font-weight: 700;
     }
 
+    /* ── Cargar gasto con foto ───────────────────────────────────────────
+       Deliberadamente el elemento más pesado de la pantalla: es la única
+       tarea de administración donde el teléfono le gana a la computadora. */
+    .nd-camera {
+        display: flex; align-items: center; gap: 14px;
+        width: 100%; padding: 19px; margin-bottom: 14px;
+        border: none; border-radius: 20px;
+        background: linear-gradient(145deg, var(--nd-terracota), var(--nd-terracota-hondo));
+        box-shadow: 0 5px 18px rgba(196, 80, 43, .28);
+        font-family: var(--font); text-align: left; cursor: pointer;
+        transition: transform .12s;
+    }
+    .nd-camera:active { transform: scale(.97); }
+    .nd-camera-ic {
+        width: 46px; height: 46px; flex-shrink: 0; border-radius: 15px;
+        background: rgba(255, 255, 255, .2);
+        display: flex; align-items: center; justify-content: center;
+    }
+    .nd-camera-ic .ic { width: 25px; height: 25px; color: #fff; }
+    .nd-camera b { display: block; color: #fff; font-size: 1rem; font-weight: 800; }
+    .nd-camera > span > span { display: block; color: rgba(255,255,255,.86); font-size: .79rem; font-weight: 600; }
+
     /* Las tablas de admin se llaman .tbl, no .table como en el vecino.
        Cuando hay una .nd-list al lado, la tabla no se muestra. */
     .nd-mobile .card:has(> .nd-list) .tbl { display: none; }
@@ -344,4 +366,7 @@
        Admin no declara ninguna regla .bottom-nav, así que sin esto el
        elemento cae en display:block y la tab bar aparece en escritorio. */
     .nd-tabbar { display: none; }
+
+    /* Cargar con foto sólo tiene sentido con una cámara en la mano. */
+    .nd-camera { display: none; }
 }

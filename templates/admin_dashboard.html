@@ -402,6 +402,15 @@
             <button class="btn-p btn-sm" onclick="openGastoChoice()">+ Nuevo gasto</button>
         </div>
     </div>
+
+    <!-- Sólo visible en mobile: la única tarea de admin donde el teléfono le
+         gana a la computadora, porque estás parado frente al proveedor. -->
+    <button class="nd-camera" onclick="document.getElementById('nd-gasto-foto').click()">
+        <span class="nd-camera-ic"><svg class="ic"><use href="#ic-subir"></use></svg></span>
+        <span><b>Cargar gasto con foto</b><span>Sacale una foto a la factura</span></span>
+    </button>
+    <input type="file" id="nd-gasto-foto" accept="image/*" capture="environment"
+           style="display:none" onchange="ndGastoConFoto(this)">
     <div class="filters">
         <select class="form-ctrl" id="filter-gastos-consorcio" onchange="loadGastos()">
             <option value="">Todos los consorcios</option>
@@ -1762,6 +1771,18 @@ function openAutoExtract() {
         dz.style.borderColor='var(--border)'; dz.style.background='var(--card)';
         if (e.dataTransfer.files.length) addAutoFiles(e.dataTransfer.files);
     };
+}
+
+/* La foto entra por el mismo pipeline que el drag & drop: openAutoExtract()
+   resetea el estado, arma el selector de consorcio y abre el modal; después
+   addAutoFiles() hace exactamente lo que haría soltar el archivo encima. */
+function ndGastoConFoto(input) {
+    if (!input.files || !input.files.length) return;
+    const foto = input.files;
+    openAutoExtract();
+    if (autoExtractRunning) { input.value = ''; return; }
+    if (typeof addAutoFiles === 'function') addAutoFiles(foto);
+    input.value = '';
 }
 
 function handleAutoFiles(input) {
