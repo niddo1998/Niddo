@@ -2,12 +2,49 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Panel Administrador | Niddo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-mobile.css') }}">
+    <script>
+    /* Configuración de la fundación mobile para este template. Los defaults
+       de niddo-mobile.js son los del vecino, así que acá hay que declarar
+       todo lo que difiere. */
+    window.NIDDO_MOBILE_CONFIG = {
+        navFn: 'show',                 /* el vecino usa showSection */
+        sectionPrefix: 'sec-',         /* el vecino usa section-    */
+        headerSelector: '.topbar',     /* el vecino usa .app-header */
+        navPassesElement: true,        /* show(id, el) toma dos parámetros */
+        usesHash: true,                /* show() ya escribe location.hash  */
+        defaultSection: 'dashboard',   /* el vecino arranca en 'inicio'    */
+        tabOf: {
+            dashboard: 'hoy',
+            cobros: 'cobros',
+            gastos: 'gastos',
+            consorcios: 'edificios',
+            liquidaciones: 'mas', proveedores: 'mas', amenities: 'mas',
+            balance: 'mas', mensajeria: 'mas', config: 'mas'
+        },
+        titles: {
+            dashboard: 'Hoy', cobros: 'Cobros', gastos: 'Gastos',
+            consorcios: 'Edificios', liquidaciones: 'Liquidaciones',
+            proveedores: 'Proveedores', amenities: 'Amenities',
+            balance: 'Balance', mensajeria: 'Mensajería', config: 'Configuración'
+        },
+        masItems: [
+            { section: 'liquidaciones', label: 'Liquidaciones', icon: 'ic-liquidacion' },
+            { section: 'proveedores',   label: 'Proveedores',   icon: 'ic-proveedor' },
+            { section: 'amenities',     label: 'Amenities',     icon: 'ic-reserva' },
+            { section: 'balance',       label: 'Balance',       icon: 'ic-balance' },
+            { section: 'mensajeria',    label: 'Mensajería',    icon: 'ic-mensaje' },
+            { section: 'config',        label: 'Configuración', icon: 'ic-config' }
+        ]
+    };
+    </script>
+    <script src="{{ url_for('static', filename='js/niddo-mobile.js') }}" defer></script>
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -203,10 +240,10 @@
         .modal-overlay.open { display: flex; animation: fadeIn .15s ease; }
         .modal-box {
             background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-            width: 560px; max-width: 94vw; max-height: 88vh; overflow-y: auto;
+            width:100%;max-width:560px; max-width: 94vw; max-height: 88vh; overflow-y: auto;
             box-shadow: 0 24px 60px rgba(42,33,28,.45); animation: modalIn .2s ease;
         }
-        .modal-box.wide { width: 720px; }
+        .modal-box.wide { width:100%;max-width:720px; }
         .modal-head { padding: 14px 18px; border-bottom: 1px solid var(--border);
                       display: flex; justify-content: space-between; align-items: center; }
         .modal-head h3 { font-size: .93rem; font-weight: 700; margin: 0; }
@@ -283,6 +320,14 @@
     <button class="topbar-btn profile-circle" id="topbar-perfil-btn" onclick="openModal('modal-perfil')" title="Mi Perfil">—</button>
 </div>
 
+<nav class="bottom-nav nd-tabbar">
+    <button class="bottom-btn active" data-tab="hoy" onclick="show('dashboard')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-panel"></use></svg></span><span>Hoy</span></button>
+    <button class="bottom-btn" data-tab="cobros" onclick="show('cobros')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-cobro"></use></svg></span><span>Cobros</span></button>
+    <button class="bottom-btn" data-tab="gastos" onclick="show('gastos')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-expensa"></use></svg></span><span>Gastos</span></button>
+    <button class="bottom-btn" data-tab="edificios" onclick="show('consorcios')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-edificio"></use></svg></span><span>Edificios</span></button>
+    <button class="bottom-btn" data-tab="mas" onclick="NiddoMobile.openMas()"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-mas"></use></svg></span><span>Más</span></button>
+</nav>
+
 <div class="main">
 
 <!-- ═══ DASHBOARD ═══ -->
@@ -357,6 +402,15 @@
             <button class="btn-p btn-sm" onclick="openGastoChoice()">+ Nuevo gasto</button>
         </div>
     </div>
+
+    <!-- Sólo visible en mobile: la única tarea de admin donde el teléfono le
+         gana a la computadora, porque estás parado frente al proveedor. -->
+    <button class="nd-camera" onclick="document.getElementById('nd-gasto-foto').click()">
+        <span class="nd-camera-ic"><svg class="ic"><use href="#ic-subir"></use></svg></span>
+        <span><b>Cargar gasto con foto</b><span>Sacale una foto a la factura</span></span>
+    </button>
+    <input type="file" id="nd-gasto-foto" accept="image/*" capture="environment"
+           style="display:none" onchange="ndGastoConFoto(this)">
     <div class="filters">
         <select class="form-ctrl" id="filter-gastos-consorcio" onchange="loadGastos()">
             <option value="">Todos los consorcios</option>
@@ -615,7 +669,7 @@
 
         <!-- Tab: Config -->
         <div id="tab-liq-config-liq" style="display:none;">
-            <div class="card card-p" style="max-width:600px;">
+            <div class="card card-p" style="max-width:100%;max-width:600px;">
                 <h3 style="font-size:.9rem;font-weight:700;margin-bottom:14px;">Datos de la liquidación</h3>
                 <div class="form-row">
                     <div class="form-group"><label class="form-label">1er Vencimiento</label><input type="date" class="form-ctrl" id="liq-vto1"></div>
@@ -787,7 +841,7 @@
 
 <!-- Modal Elección tipo de carga -->
 <div class="modal-overlay" id="modal-gasto-choice">
-    <div class="modal-box" style="max-width:480px;">
+    <div class="modal-box" style="max-width:100%;max-width:480px;">
         <div class="modal-head"><h3>Nuevo gasto</h3><button class="modal-close" onclick="closeModal('modal-gasto-choice')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body" style="padding:28px;">
             <p style="text-align:center;font-size:.88rem;color:var(--muted);margin:0 0 24px;">¿Cómo querés cargar el gasto?</p>
@@ -809,7 +863,7 @@
 
 <!-- Modal Carga Automática (OCR/AI) -->
 <div class="modal-overlay" id="modal-auto-extract">
-    <div class="modal-box" style="width:940px;max-width:94vw;">
+    <div class="modal-box" style="width:100%;max-width:940px;max-width:94vw;">
         <div class="modal-head"><h3>Carga automática con IA</h3><button class="modal-close" onclick="closeModal('modal-auto-extract')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body" style="padding:24px;">
             <!-- Step 1: Upload -->
@@ -1032,7 +1086,7 @@
 
 <!-- Modal Nueva Liquidación -->
 <div class="modal-overlay" id="modal-nueva-liq">
-    <div class="modal-box" style="width:620px;max-width:96vw;">
+    <div class="modal-box" style="width:100%;max-width:620px;max-width:96vw;">
         <div class="modal-head"><h3>Nueva liquidación</h3><button class="modal-close" onclick="closeModal('modal-nueva-liq')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <div class="section-info" id="m-liq-info">Elegí el consorcio y el período para ver los gastos que se pueden liquidar.</div>
@@ -1062,7 +1116,7 @@
 
 <!-- Modal Preview Resumen -->
 <div class="modal-overlay" id="modal-preview">
-    <div class="modal-box" style="width:680px;max-width:96vw;">
+    <div class="modal-box" style="width:100%;max-width:680px;max-width:96vw;">
         <div class="modal-head">
             <h3><svg class="ic"><use href="#ic-ojo"></use></svg>Previsualización del resumen</h3>
             <button class="modal-close" onclick="closeModal('modal-preview')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
@@ -1079,7 +1133,7 @@
 
 <!-- Modal Enviar Resúmenes -->
 <div class="modal-overlay" id="modal-enviar">
-    <div class="modal-box" style="width:560px;max-width:96vw;">
+    <div class="modal-box" style="width:100%;max-width:560px;max-width:96vw;">
         <div class="modal-head"><h3><svg class="ic ic-sm"><use href="#ic-subir"></use></svg>Enviar resúmenes por email</h3><button class="modal-close" onclick="closeModal('modal-enviar')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <!-- El texto va dentro de un <span>: .section-info es flex y cada nodo suelto
@@ -1146,7 +1200,7 @@
 
 <!-- Modal Perfil -->
 <div class="modal-overlay" id="modal-perfil">
-    <div class="modal-box" style="max-width:440px;">
+    <div class="modal-box" style="max-width:100%;max-width:440px;">
         <div class="modal-head"><h3><svg class="ic"><use href="#ic-vecino"></use></svg>Mi perfil</h3><button class="modal-close" onclick="closeModal('modal-perfil')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body" style="padding:28px;">
             <div style="text-align:center;margin-bottom:20px;">
@@ -1170,7 +1224,7 @@
 
 <!-- Modal Ayuda -->
 <div class="modal-overlay" id="modal-ayuda">
-    <div class="modal-box" style="max-width:500px;">
+    <div class="modal-box" style="max-width:100%;max-width:500px;">
         <div class="modal-head"><h3><svg class="ic"><use href="#ic-ayuda"></use></svg>Centro de ayuda</h3><button class="modal-close" onclick="closeModal('modal-ayuda')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body" style="padding:24px;">
             <div class="section-info" style="margin-bottom:18px;"><svg class="ic ic-sm"><use href="#ic-info"></use></svg>¡Bienvenido a Niddo! Acá podés encontrar información útil para usar la plataforma.</div>
@@ -1646,6 +1700,19 @@ async function loadGastos() {
                     <button class="btn-danger btn-sm" onclick="deleteGasto('${g.id}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
                 </div></td>
             </tr>`).join('');
+
+        /* Ídem para gastos: la tabla tiene 9 columnas. */
+        NiddoMobile.renderList('tbody-gastos', data, g => {
+            const prov = (g.proveedores && g.proveedores.nombre) || 'Sin proveedor';
+            return `<div class="nd-row" style="cursor:default">
+                <span class="nd-row-ic ${g.pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-expensa"></use></svg></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">${g.descripcion || '–'}</span>
+                    <span class="nd-row-s">${prov} · ${g.fecha_gasto || '—'}${g.pagado ? '' : ' · sin aprobar'}</span>
+                </span>
+                <span class="nd-row-amt">${fmt(g.monto)}</span>
+            </div>`;
+        });
     } catch(e) { toast(e.message,'err'); }
 }
 
@@ -1704,6 +1771,18 @@ function openAutoExtract() {
         dz.style.borderColor='var(--border)'; dz.style.background='var(--card)';
         if (e.dataTransfer.files.length) addAutoFiles(e.dataTransfer.files);
     };
+}
+
+/* La foto entra por el mismo pipeline que el drag & drop: openAutoExtract()
+   resetea el estado, arma el selector de consorcio y abre el modal; después
+   addAutoFiles() hace exactamente lo que haría soltar el archivo encima. */
+function ndGastoConFoto(input) {
+    if (!input.files || !input.files.length) return;
+    const foto = input.files;
+    openAutoExtract();
+    if (autoExtractRunning) { input.value = ''; return; }
+    if (typeof addAutoFiles === 'function') addAutoFiles(foto);
+    input.value = '';
 }
 
 function handleAutoFiles(input) {
@@ -2153,6 +2232,21 @@ async function loadCobros() {
                 <td class="text-muted">${c.fecha_vencimiento||'—'}</td>
                 <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${c.interes_mora||0}','${c.notas||''}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button></td>
             </tr>`;}).join('');
+
+        /* La misma fuente de datos, en la forma que se lee en un teléfono.
+           La tabla tiene 10 columnas. */
+        NiddoMobile.renderList('tbody-cobros', data, c => {
+            const uf = c.unidades_funcionales || {};
+            const pagado = c.estado === 'pagado';
+            return `<div class="nd-row" style="cursor:default">
+                <span class="nd-row-ic ${pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-cobro"></use></svg></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">${uf.numero || '–'} · ${uf.vecino_nombre || 'Sin vecino'}</span>
+                    <span class="nd-row-s"><span class="dot ${pagado ? 'ok' : 'danger'}"></span>${c.periodo || '–'} · ${pagado ? 'Pagada' : 'Vence ' + (c.fecha_vencimiento || '—')}</span>
+                </span>
+                <span class="nd-row-amt">${fmt(c.total)}</span>
+            </div>`;
+        });
     } catch(e) { toast(e.message,'err'); }
 }
 
@@ -2768,6 +2862,67 @@ async function loadProrrateo() {
                 <td><strong>${fmt(p.total_unidad)}</strong></td>
                 <td><button class="btn-s btn-sm" onclick="openPreviewUF('${p.unidad_id}')" aria-label="Previsualizar" title="Previsualizar"><svg class="ic ic-sm"><use href="#ic-ojo"></use></svg></button></td>
             </tr>`;}).join('');
+
+        /* ── Las 14 columnas, en tarjetas ──────────────────────────────────
+           La grilla existe para barrer todas las UFs de un vistazo: cazar el
+           outlier y confirmar que los porcentajes cierran en 100%. Una
+           tarjeta por vez no hace eso, así que el encabezado precalcula ese
+           chequeo. Si una suma no da 100,00% se muestra en terracota: un
+           prorrateo mal calculado tiene que verse sin desplegar nada. */
+        const sumaA = data.reduce((a,p) => a + (p.porcentaje_a || 0), 0);
+        const sumaC = data.reduce((a,p) => a + (p.porcentaje_c || 0), 0);
+        const totalP = data.reduce((a,p) => a + (p.total_unidad || 0), 0);
+        const enMora = data.filter(p => (p.saldo_pendiente || 0) > 0).length;
+        const pct = n => n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '%';
+        const cierra = n => Math.abs(n - 100) < 0.01;
+
+        const cont = tb.closest('.card');
+        let head = cont.querySelector('.nd-pro-head');
+        if (!head) { head = document.createElement('div'); head.className = 'nd-pro-head'; cont.appendChild(head); }
+        head.innerHTML = `
+            <div class="nd-pro-t"><b>${fmt(totalP)}</b><span>${data.length} unidades</span></div>
+            <div class="nd-pro-check">
+                <i class="${cierra(sumaA) ? '' : 'bad'}">%A suma ${pct(sumaA)}</i>
+                <i class="${cierra(sumaC) ? '' : 'bad'}">%C suma ${pct(sumaC)}</i>
+                ${enMora ? `<i class="bad">${enMora} en mora</i>` : ''}
+            </div>`;
+
+        NiddoMobile.renderList('tbody-prorrateo', data, p => {
+            const uf = p.unidades_funcionales || {};
+            const mora = (p.saldo_pendiente || 0) > 0;
+            return `<div class="nd-pcard${mora ? ' mora' : ''}">
+                <button class="nd-pcard-h" onclick="this.parentNode.classList.toggle('open')">
+                    <span class="nd-pcard-uf">${uf.numero || '–'}</span>
+                    <span class="nd-pcard-n">
+                        <b>${uf.vecino_nombre || 'Sin copropietario'}</b>
+                        <span>Piso ${uf.piso || '–'} · ${pct(p.porcentaje_a || 0)} ord.</span>
+                    </span>
+                    <span class="nd-pcard-tot"><b>${fmt(p.total_unidad)}</b><span>Total</span></span>
+                    <svg class="ic nd-pcard-arr"><use href="#ic-chevron"></use></svg>
+                </button>
+                <div class="nd-pcard-body">
+                    <div class="nd-pgroup"><h5>Arrastre del período anterior</h5>
+                        <div class="nd-pline"><span>Saldo anterior</span><b>${fmt(p.saldo_anterior)}</b></div>
+                        <div class="nd-pline neg"><span>Pago realizado</span><b>${p.pago_realizado ? '−' + fmt(p.pago_realizado) : '—'}</b></div>
+                        <div class="nd-pline${mora ? ' debt' : ''}"><span>Saldo pendiente</span><b>${fmt(p.saldo_pendiente)}</b></div>
+                        <div class="nd-pline${(p.interes_mora||0) > 0 ? ' debt' : ''}"><span>Interés por mora</span><b>${p.interes_mora ? fmt(p.interes_mora) : '—'}</b></div>
+                    </div>
+                    <div class="nd-pgroup"><h5>Expensa del período</h5>
+                        <div class="nd-pline"><span>Ordinaria <i class="nd-pct">${pct(p.porcentaje_a || 0)}</i></span><b>${fmt(p.expensa_a)}</b></div>
+                        <div class="nd-pline"><span>Adicional ordinaria <i class="nd-pct">${pct(p.porcentaje_c || 0)}</i></span><b>${fmt(p.adicional_ordinaria)}</b></div>
+                    </div>
+                    <div class="nd-pgroup"><h5>Extras</h5>
+                        <div class="nd-pline"><span>Gastos particulares</span><b>${p.gastos_particulares ? fmt(p.gastos_particulares) : '—'}</b></div>
+                        <div class="nd-pline sum"><span>Total de la unidad</span><b>${fmt(p.total_unidad)}</b></div>
+                    </div>
+                    <div class="nd-pcard-foot">
+                        <button class="btn-s btn-sm" onclick="openPreviewUF('${p.unidad_id}')">
+                            <svg class="ic ic-sm"><use href="#ic-ojo"></use></svg>Previsualizar
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+        });
     } catch(e) { toast(e.message,'err'); }
 }
 

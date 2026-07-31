@@ -5,7 +5,7 @@
    absolutamente nada, así el dashboard de escritorio queda intacto.
 
    Se carga con defer, así que corre después de que el <script> inline del
-   template definió showSection() y las demás globales que envolvemos.
+   template definió su función de navegación y las globales que envolvemos.
    ========================================================================== */
 (function () {
     'use strict';
@@ -21,15 +21,55 @@
         isMobile: isMobile
     };
 
+    /* Construye la lista que reemplaza a una tabla en mobile, a partir de la
+       misma fuente de datos que llenó el <tbody>. Se declara antes del early
+       return para que en escritorio sea un no-op y el template pueda llamarla
+       sin condicionales.
+
+       La duplicación es de forma, no de lógica: una función, un objeto, dos
+       markups. La alternativa —transformar el DOM tras cada respuesta de la
+       API— es frágil por timing. */
+    window.NiddoMobile.renderList = function (tbodyId, data, mapper) {
+        if (!isMobile()) return;
+        var tb = document.getElementById(tbodyId);
+        if (!tb || !data) return;
+        var wrap = tb.closest('.card') || tb.closest('.table-wrap') || tb.parentNode.parentNode;
+        if (!wrap) return;
+        var list = wrap.querySelector('.nd-list');
+        if (!list) {
+            list = document.createElement('div');
+            list.className = 'nd-list';
+            wrap.appendChild(list);
+        }
+        list.innerHTML = data.map(mapper).join('');
+    };
+
     if (!isMobile()) return;
 
     document.documentElement.classList.add('nd-mobile');
 
+    /* ── Configuración ────────────────────────────────────────────────────
+       Los valores por defecto son los del vecino, que fue el primer
+       consumidor. Así ese template no necesita declarar nada y no hubo que
+       tocarlo para que admin entrara — y lo que está en producción no puede
+       romperse por esta parametrización.
+
+       Si aparece un tercer consumidor, conviene mover estos defaults a su
+       propio template y dejar este archivo sin ninguno. */
+    var CFG = window.NIDDO_MOBILE_CONFIG || {};
+
+    var navFn          = CFG.navFn || 'showSection';
+    var sectionPrefix  = CFG.sectionPrefix || 'section-';
+    var headerSelector = CFG.headerSelector || '.app-header';
+    var navPassesEl    = CFG.navPassesElement === true;
+    var usesHash       = CFG.usesHash === true;
+    var defaultSection = CFG.defaultSection || 'inicio';
+
     /* ── Tab bar ──────────────────────────────────────────────────────────
-       Cinco tabs para nueve secciones. Comunidad agrupa comunicados,
-       votaciones y reclamos; Más agrupa las que viven en la hoja. Este mapa
-       dice qué tab se ilumina para cada sección. */
-    var TAB_OF = {
+       Qué tab se ilumina para cada sección. En el vecino, Comunidad agrupa
+       comunicados, votaciones y reclamos; Más agrupa las que viven en la
+       hoja. */
+    var TAB_OF = CFG.tabOf || {
         inicio: 'inicio',
         expensas: 'expensas',
         gastos: 'expensas',
@@ -42,7 +82,7 @@
     };
 
     function setTab(tabId) {
-        var tabs = document.querySelectorAll('#nd-tabbar .bottom-btn');
+        var tabs = document.querySelectorAll('#nd-tabbar .bottom-btn, .nd-tabbar .bottom-btn');
         for (var i = 0; i < tabs.length; i++) {
             tabs[i].classList.toggle('active', tabs[i].dataset.tab === tabId);
         }
@@ -53,16 +93,24 @@
        o se duplicaría la entrada y el atrás dejaría de avanzar. */
     var restoring = false;
 
-    /* showSection() la define el <script> inline del template. La envolvemos
-       en vez de tocarla para que el escritorio siga usando la original. */
-    function wrapShowSection() {
-        var original = window.showSection;
+    /* La función de navegación la define el <script> inline del template:
+       showSection(name) en el vecino, show(id, el) en admin. La envolvemos
+       en vez de tocarla, para que el escritorio siga usando la original. */
+    function wrapNav() {
+        var original = window[navFn];
         if (typeof original !== 'function') return;
-        window.showSection = function (name) {
-            original.apply(this, arguments);
+        window[navFn] = function (name) {
+            /* show(id, el) usa el segundo argumento para marcar el nav-link
+               del sidebar. Desde la tab bar no hay elemento; la función ya
+               hace `if (el)`, así que pasar undefined es seguro, y en mobile
+               el sidebar está oculto igual. */
+            original.call(this, name, navPassesEl ? arguments[1] : undefined);
             setTab(TAB_OF[name] || name);
             setTitle(name);
-            if (!restoring) {
+            /* Si el template ya escribe el hash por su cuenta —admin lo
+               hace dentro de show()— empujar además duplicaría entradas y el
+               atrás necesitaría dos toques. */
+            if (!restoring && !usesHash) {
                 history.pushState({ ndSection: name }, '', '#' + name);
             }
         };
@@ -72,7 +120,7 @@
         var name = (e.state && e.state.ndSection) || 'inicio';
         restoring = true;
         try {
-            window.showSection(name);
+            window[navFn](name);
         } finally {
             restoring = false;
         }
@@ -90,14 +138,14 @@
 
     /* ── Top app bar ─────────────────────────────────────────────────────── */
 
-    var TITLES = {
+    var TITLES = CFG.titles || {
         inicio: 'Inicio', expensas: 'Mis expensas', gastos: 'Gastos del consorcio',
         comunicados: 'Comunicados', votaciones: 'Votaciones', reclamos: 'Reclamos',
         reservas: 'Reservas', archivos: 'Archivos', perfil: 'Mi perfil'
     };
 
     function buildHeader() {
-        var header = document.querySelector('.app-header');
+        var header = document.querySelector(headerSelector);
         if (!header || header.querySelector('.nd-largetitle')) return;
 
         var row = document.createElement('div');
@@ -122,7 +170,7 @@
     }
 
     function watchScroll() {
-        var header = document.querySelector('.app-header');
+        var header = document.querySelector(headerSelector);
         if (!header) return;
         window.addEventListener('scroll', function () {
             header.classList.toggle('nd-scrolled', window.scrollY > 26);
@@ -131,7 +179,7 @@
 
     /* ── Hoja de "Más" ───────────────────────────────────────────────────── */
 
-    var MAS_ITEMS = [
+    var MAS_ITEMS = CFG.masItems || [
         { section: 'archivos', label: 'Archivos', icon: 'ic-carpeta' },
         { section: 'gastos', label: 'Gastos del consorcio', icon: 'ic-balance' },
         { section: 'perfil', label: 'Mi perfil', icon: 'ic-vecino' }
@@ -157,7 +205,7 @@
             b.innerHTML = '<svg class="ic"><use href="#' + item.icon + '"></use></svg>' + item.label;
             b.addEventListener('click', function () {
                 closeMas();
-                window.showSection(item.section);
+                window[navFn](item.section);
             });
             sheet.appendChild(b);
         });
@@ -270,26 +318,53 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        wrapShowSection();
+        wrapNav();
         initSheets();
         buildHeader();
         buildMas();
         watchScroll();
 
-        /* La entrada inicial del historial, para que el primer "atrás" tenga
-           adónde volver en vez de sacarte del sitio. De paso habilita deep
-           links: /vecino#reservas abre reservas directo. */
-        var initial = (location.hash || '#inicio').slice(1);
-        if (!TAB_OF[initial]) initial = 'inicio';
-        history.replaceState({ ndSection: initial }, '', '#' + initial);
+        if (!usesHash) {
+            /* El template no toca el historial: lo manejamos nosotros. La
+               entrada inicial hace que el primer "atrás" tenga adónde volver
+               en vez de sacarte del sitio, y habilita deep links por hash. */
+            var initial = (location.hash || '#' + defaultSection).slice(1);
+            if (!TAB_OF[initial]) initial = defaultSection;
+            history.replaceState({ ndSection: initial }, '', '#' + initial);
+            window.addEventListener('popstate', onPopState);
 
-        window.addEventListener('popstate', onPopState);
+            restoring = true;
+            try {
+                window[navFn](initial);
+            } finally {
+                restoring = false;
+            }
+        } else {
+            /* El template ya escribe el hash dentro de su función de
+               navegación, pero nadie escucha cuando el hash cambia solo: al
+               volver, la URL retrocede y la vista se queda quieta.
 
-        restoring = true;
-        try {
-            window.showSection(initial);
-        } finally {
-            restoring = false;
+               La guarda `restoring` es obligatoria: la función escribe el
+               hash, lo que dispara hashchange, que la llamaría otra vez.
+               La comparación con la sección activa es la segunda defensa. */
+            window.addEventListener('hashchange', function () {
+                var name = location.hash.slice(1);
+                if (!name || !TAB_OF[name]) return;
+                var actual = document.querySelector('.section.active');
+                if (actual && actual.id === sectionPrefix + name) return;
+                restoring = true;
+                try { window[navFn](name); } finally { restoring = false; }
+            });
+
+            /* El template ya restauró la sección desde el hash al cargar, así
+               que no navegamos: sólo sincronizamos el tab y el título con lo
+               que ya está activo. Navegar acá dejaría la sección equivocada. */
+            var activa = document.querySelector('.section.active');
+            var nombre = activa && activa.id.indexOf(sectionPrefix) === 0
+                ? activa.id.slice(sectionPrefix.length)
+                : defaultSection;
+            setTab(TAB_OF[nombre] || nombre);
+            setTitle(nombre);
         }
     });
 })();

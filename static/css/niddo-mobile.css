@@ -35,7 +35,8 @@
        .bottom-nav{height:60px} y se carga después que esta hoja. Con
        box-sizing:border-box, esos 60px fijos harían que el padding del home
        indicator se comiera el contenido de la barra en vez de despegarla. */
-    #nd-tabbar.bottom-nav {
+    #nd-tabbar.bottom-nav,
+    .bottom-nav.nd-tabbar {
         height: auto;
         padding-bottom: var(--safe-bottom);
         background: rgba(255, 255, 255, .9);
@@ -44,7 +45,8 @@
     }
     /* Con el id por lo mismo: el inline declara .bottom-btn{height:100%},
        que sobre un padre de altura automática colapsaba a 46px. */
-    #nd-tabbar .bottom-btn {
+    #nd-tabbar .bottom-btn,
+    .nd-tabbar .bottom-btn {
         height: var(--tabbar-h);
         min-height: 44px;
         position: relative;
@@ -77,11 +79,11 @@
        Mismo DOM que en escritorio, reposicionado: el drawer venía de la
        derecha y el modal del centro; acá los dos suben desde abajo, que es
        donde llega el pulgar. */
-    .drawer-overlay { align-items: flex-end; justify-content: center; }
-    .modal-overlay  { align-items: flex-end; justify-content: center; padding: 0; }
+    .nd-mobile .drawer-overlay { align-items: flex-end; justify-content: center; }
+    .nd-mobile .modal-overlay  { align-items: flex-end; justify-content: center; padding: 0; }
 
-    .drawer-overlay .drawer,
-    .modal-overlay .modal-box {
+    .nd-mobile .drawer-overlay .drawer,
+    .nd-mobile .modal-overlay .modal-box {
         width: 100%; max-width: 100%;
         height: auto; max-height: 88dvh;
         border: none; border-radius: 26px 26px 0 0;
@@ -91,8 +93,13 @@
         padding-bottom: var(--safe-bottom);
         display: flex; flex-direction: column;
     }
-    .drawer-overlay.open .drawer,
-    .modal-overlay.open .modal-box { transform: translateY(0); }
+    .nd-mobile .drawer-overlay.open .drawer,
+    .nd-mobile .modal-overlay.open .modal-box { transform: translateY(0); }
+
+    /* Los templates animan la entrada del modal con un scale(.95) desde el
+       centro. Para una sheet eso está mal: tiene que deslizar desde abajo, y
+       el scale además pelea con el translateY del arrastre. */
+    .nd-mobile .modal-overlay .modal-box { animation: none; }
 
     /* Durante el arrastre el transform lo manda el JS, sin transición. */
     .drawer.nd-dragging,
@@ -261,9 +268,224 @@
     .nd-mobile .f-row,
     .nd-mobile .stats-grid { grid-template-columns: 1fr; }
 
+    /* ══════════════════════════════════════════════════════════════════════
+       PANEL DE ADMINISTRADOR
+       Este template no tenía ninguna media query: el layout de escritorio se
+       servía tal cual. Con margin-left:220px sobre 360px de viewport, el
+       contenido vivía en una franja de 140px.
+       ══════════════════════════════════════════════════════════════════════ */
+
+    .nd-mobile .sidebar { display: none; }
+
+    .nd-mobile .topbar {
+        left: 0;
+        height: auto;
+        padding: var(--safe-top) 12px 0;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        transition: box-shadow .2s, background .2s;
+    }
+    .nd-mobile .topbar.nd-scrolled {
+        background: rgba(251, 246, 239, .86);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+    }
+    /* Los botones de la topbar se van al ángulo, sobre la fila del título. */
+    .nd-mobile .topbar-btn {
+        position: absolute; top: var(--safe-top); right: 8px;
+        min-width: 44px; min-height: 44px;
+    }
+    .nd-mobile .topbar-btn + .topbar-btn { right: 56px; }
+
+    .nd-mobile .main {
+        margin-left: 0;
+        padding: calc(var(--safe-top) + 96px) 16px
+                 calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
+        min-height: 100dvh;
+    }
+
+    /* La bottom-nav no existe en el CSS de admin: se declara acá porque sólo
+       tiene sentido en mobile. */
+    .nd-mobile .bottom-nav.nd-tabbar {
+        position: fixed; bottom: 0; left: 0; right: 0;
+        display: flex; justify-content: space-around; align-items: center;
+        z-index: 800;
+        border-top: 1px solid var(--border);
+        box-shadow: 0 -4px 16px rgba(42, 33, 28, .15);
+    }
+    .nd-mobile .nd-tabbar .bottom-btn {
+        flex: 1; display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        background: none; border: none; cursor: pointer;
+        font-family: var(--font); color: var(--text2);
+        transition: color .15s;
+    }
+    .nd-mobile .nd-tabbar .bottom-btn.active {
+        color: var(--nd-terracota-hondo); font-weight: 700;
+    }
+
+    /* ── Cargar gasto con foto ───────────────────────────────────────────
+       Deliberadamente el elemento más pesado de la pantalla: es la única
+       tarea de administración donde el teléfono le gana a la computadora. */
+    .nd-camera {
+        display: flex; align-items: center; gap: 14px;
+        width: 100%; padding: 19px; margin-bottom: 14px;
+        border: none; border-radius: 20px;
+        background: linear-gradient(145deg, var(--nd-terracota), var(--nd-terracota-hondo));
+        box-shadow: 0 5px 18px rgba(196, 80, 43, .28);
+        font-family: var(--font); text-align: left; cursor: pointer;
+        transition: transform .12s;
+    }
+    .nd-camera:active { transform: scale(.97); }
+    .nd-camera-ic {
+        width: 46px; height: 46px; flex-shrink: 0; border-radius: 15px;
+        background: rgba(255, 255, 255, .2);
+        display: flex; align-items: center; justify-content: center;
+    }
+    .nd-camera-ic .ic { width: 25px; height: 25px; color: #fff; }
+    .nd-camera b { display: block; color: #fff; font-size: 1rem; font-weight: 800; }
+    .nd-camera > span > span { display: block; color: rgba(255,255,255,.86); font-size: .79rem; font-weight: 600; }
+
+    /* ── Prorrateo ───────────────────────────────────────────────────────
+       Las 14 columnas agrupadas en identidad · arrastre · expensa del
+       período · extras. Ninguna se pierde: los porcentajes van como chip al
+       lado del monto que generan, que es la relación que en la grilla
+       quedaba a seis columnas de distancia. */
+    .nd-pro-head {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 18px; padding: 14px 16px; margin-bottom: 12px;
+    }
+    .nd-pro-t { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 9px; }
+    .nd-pro-t b { font-family: 'Fredoka', var(--font); font-size: 1.45rem; font-weight: 600; letter-spacing: -.03em; }
+    .nd-pro-t span { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+    .nd-pro-check { display: flex; gap: 7px; flex-wrap: wrap; }
+    .nd-pro-check i {
+        font-style: normal; font-size: .71rem; font-weight: 800;
+        padding: 4px 9px; border-radius: 20px;
+        background: var(--nd-verde-dim); color: var(--nd-verde);
+    }
+    /* Un prorrateo que no cierra tiene que verse sin desplegar nada. */
+    .nd-pro-check i.bad { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
+
+    .nd-pcard {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 18px; margin-bottom: 10px; overflow: hidden;
+    }
+    .nd-pcard.mora { border-color: rgba(196, 80, 43, .4); }
+    .nd-pcard-h {
+        display: flex; align-items: center; gap: 11px;
+        width: 100%; min-height: 60px; padding: 13px 15px;
+        background: none; border: none; cursor: pointer;
+        font-family: var(--font); text-align: left;
+    }
+    .nd-pcard-h:active { background: var(--surface2); }
+    .nd-pcard-uf {
+        width: 44px; height: 44px; flex-shrink: 0; border-radius: 14px;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--nd-verde-dim); color: var(--nd-verde);
+        font-family: 'Fredoka', var(--font); font-size: .98rem; font-weight: 600;
+    }
+    .nd-pcard.mora .nd-pcard-uf { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
+    .nd-pcard-n { flex: 1; min-width: 0; }
+    .nd-pcard-n b { display: block; font-size: .92rem; font-weight: 800; letter-spacing: -.01em;
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nd-pcard-n span { display: block; font-size: .75rem; color: var(--muted); font-weight: 600; }
+    .nd-pcard-tot { text-align: right; flex-shrink: 0; }
+    .nd-pcard-tot b { display: block; font-size: 1.02rem; font-weight: 800; letter-spacing: -.02em; }
+    .nd-pcard-tot span { display: block; font-size: .68rem; color: var(--muted); font-weight: 700;
+                         text-transform: uppercase; letter-spacing: .04em; }
+    .nd-pcard-arr { width: 17px; height: 17px; color: #BFAF9C; flex-shrink: 0; transition: transform .25s; }
+    .nd-pcard.open .nd-pcard-arr { transform: rotate(90deg); }
+
+    .nd-pcard-body { display: none; padding: 0 15px 14px; border-top: 1px solid var(--border2); }
+    .nd-pcard.open .nd-pcard-body { display: block; }
+    .nd-pgroup { padding-top: 12px; }
+    .nd-pgroup > h5 { font-size: .67rem; font-weight: 800; text-transform: uppercase;
+                      letter-spacing: .08em; color: var(--muted); margin-bottom: 5px; }
+    .nd-pline { display: flex; justify-content: space-between; align-items: center;
+                padding: 6px 0; font-size: .85rem; font-weight: 600; }
+    .nd-pline span { color: var(--text2); display: flex; align-items: center; gap: 6px; }
+    .nd-pline b { font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+    .nd-pct { font-size: .68rem; font-weight: 800; background: var(--surface3); color: var(--muted);
+              padding: 2px 6px; border-radius: 5px; font-style: normal; }
+    .nd-pline.neg b { color: var(--nd-verde); }
+    .nd-pline.debt b { color: var(--nd-terracota-hondo); }
+    .nd-pline.sum { border-top: 1.5px solid var(--border); margin-top: 7px; padding-top: 11px; font-size: 1rem; }
+    .nd-pline.sum b { font-family: 'Fredoka', var(--font); font-weight: 600; font-size: 1.2rem;
+                      color: var(--nd-terracota-hondo); }
+    .nd-pcard-foot { margin-top: 13px; }
+    .nd-pcard-foot .btn-s { width: 100%; justify-content: center; min-height: 44px; }
+
+    /* Las tablas de admin se llaman .tbl, no .table como en el vecino.
+       Cuando hay una .nd-list al lado, la tabla no se muestra. */
+    .nd-mobile .card:has(> .nd-list) .tbl { display: none; }
+
+    /* Las tablas que NO se convirtieron —rubros, envíos, resultados de
+       extracción, errores de importación— viven dentro de flujos que no son
+       para el teléfono. No se rediseñan: sólo se evita que desborden la
+       página. Scrollean dentro de su propia caja.
+       Decisión registrada en el spec §7.4. */
+    .nd-mobile .card > .tbl,
+    .nd-mobile .card > div > .tbl { min-width: max-content; }
+    .nd-mobile .card:not(:has(> .nd-list)) {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* ── Barrido final ───────────────────────────────────────────────────── */
+
+    /* Los toasts van abajo a la derecha en escritorio, donde la tab bar los
+       taparía. A lo ancho y por encima de ella. */
+    .nd-mobile .toast-container,
+    .nd-mobile #toast-container {
+        left: 12px; right: 12px;
+        bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 12px);
+    }
+    .nd-mobile .toast { max-width: 100%; }
+
+    /* Targets: nada por debajo de 44px, tampoco las variantes .btn-sm.
+       Un botón de 40px se falla al tocarlo con el pulgar lo suficiente como
+       para que no valga la pena ahorrar esos 4px. */
+    .nd-mobile .btn-p,
+    .nd-mobile .btn-s,
+    .nd-mobile .btn-p.btn-sm,
+    .nd-mobile .btn-s.btn-sm { min-height: 44px; }
+    .nd-mobile .modal-close { min-width: 44px; min-height: 44px; }
+
+    /* Las sub-pestañas internas (Morosidad, Listado de Reservas…) median
+       30px de alto. Además la fila entera desborda a 360px, así que se
+       scrollea en horizontal dentro de su caja en vez de apretarse. */
+    .nd-mobile .tabs {
+        overflow-x: auto; -webkit-overflow-scrolling: touch;
+        flex-wrap: nowrap; scrollbar-width: none;
+    }
+    .nd-mobile .tabs::-webkit-scrollbar { display: none; }
+    .nd-mobile .tab-btn { min-height: 44px; white-space: nowrap; flex-shrink: 0; }
+
+    /* Los filtros en fila desbordan; que se apilen. */
+    .nd-mobile .page-header > div { flex-wrap: wrap; }
+
+    /* .kpi-row es flex con wrap, así que a 360px ya se acomoda sola en 2+1.
+       No se fuerza una columna: tres KPIs apilados alargan la pantalla sin
+       ganar legibilidad. */
+    .nd-mobile .page-header { flex-direction: column; align-items: stretch; }
+
 }
 
 /* En escritorio manda la tabla: las filas de mobile no se muestran nunca. */
 @media (min-width: 901px) {
     .nd-list { display: none; }
+
+    /* El vecino oculta su .bottom-nav desde el <style> inline del template.
+       Admin no declara ninguna regla .bottom-nav, así que sin esto el
+       elemento cae en display:block y la tab bar aparece en escritorio. */
+    .nd-tabbar { display: none; }
+
+    /* Cargar con foto sólo tiene sentido con una cámara en la mano. */
+    .nd-camera { display: none; }
+
+    /* En escritorio manda la grilla de prorrateo: las tarjetas y su
+       encabezado de control no se muestran. */
+    .nd-pro-head, .nd-pcard { display: none; }
 }
