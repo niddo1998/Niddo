@@ -200,14 +200,24 @@
         sheet.appendChild(grabber);
 
         MAS_ITEMS.forEach(function (item) {
-            var b = document.createElement('button');
-            b.className = 'nd-mas-item';
-            b.innerHTML = '<svg class="ic"><use href="#' + item.icon + '"></use></svg>' + item.label;
-            b.addEventListener('click', function () {
-                closeMas();
-                window[navFn](item.section);
-            });
-            sheet.appendChild(b);
+            /* Un item puede apuntar a una sección del dashboard o a una página
+               propia. El panel de aprobaciones es lo segundo: vive en su propia
+               ruta para que quien no sea superadmin reciba un 404, y sin este
+               caso quedaba inalcanzable desde el teléfono. */
+            var el;
+            if (item.href) {
+                el = document.createElement('a');
+                el.href = item.href;
+            } else {
+                el = document.createElement('button');
+                el.addEventListener('click', function () {
+                    closeMas();
+                    window[navFn](item.section);
+                });
+            }
+            el.className = 'nd-mas-item';
+            el.innerHTML = '<svg class="ic"><use href="#' + item.icon + '"></use></svg>' + item.label;
+            sheet.appendChild(el);
         });
 
         var out = document.createElement('a');

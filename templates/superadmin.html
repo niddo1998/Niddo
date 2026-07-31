@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plataforma | Niddo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--nd-crema); min-height: 100vh; }
+
+        /* ── Cabecera y navegación ── */
+        .topbar {
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            padding: .9rem 1.25rem; display: flex; align-items: center; gap: .9rem;
+            position: sticky; top: 0; z-index: 20;
+        }
+        .topbar .mark {
+            width: 38px; height: 38px; border-radius: var(--r-md);
+            background: var(--nd-terracota-dim); display: flex; align-items: center;
+            justify-content: center; padding: 7px; flex-shrink: 0; text-decoration: none;
+        }
+        .topbar h1 { font-size: 1.02rem; flex: 1; }
+        .topbar .sub { display: block; font-size: .74rem; color: var(--muted); font-weight: 400; }
+        .topbar a.accion {
+            color: var(--nd-terracota-hondo); text-decoration: none;
+            font-size: .84rem; font-weight: 700; white-space: nowrap;
+        }
+        .topbar a.accion:hover { text-decoration: underline; }
+
+        .tabs {
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            display: flex; gap: .2rem; padding: 0 1.25rem;
+            overflow-x: auto; position: sticky; top: 61px; z-index: 19;
+            scrollbar-width: none;
+        }
+        .tabs::-webkit-scrollbar { display: none; }
+        .tab {
+            background: none; border: none; border-bottom: 2px solid transparent;
+            padding: .75rem .85rem; font-family: var(--font); font-size: .87rem;
+            font-weight: 700; color: var(--muted); cursor: pointer; white-space: nowrap;
+            display: flex; align-items: center; gap: .4rem;
+        }
+        .tab:hover { color: var(--text); }
+        .tab.activa { color: var(--nd-terracota-hondo); border-bottom-color: var(--nd-terracota); }
+        .badge {
+            background: var(--nd-terracota); color: #fff; border-radius: var(--r-pill);
+            padding: .02rem .42rem; font-size: .7rem;
+        }
+        .badge.cero { display: none; }
+
+        .contenido { max-width: 900px; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
+        .seccion[hidden] { display: none; }
+
+        h2.titulo {
+            font-size: .78rem; text-transform: uppercase; letter-spacing: .06em;
+            color: var(--muted); margin: 1.8rem 0 .85rem;
+            display: flex; align-items: center; gap: .5rem;
+        }
+        h2.titulo:first-child { margin-top: 0; }
+
+        /* ── Indicadores ── */
+        .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .7rem; }
+        .kpi {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--r-lg); padding: .95rem 1.05rem;
+        }
+        .kpi .valor { font-family: var(--font-display); font-size: 1.7rem; line-height: 1.1; }
+        .kpi .etiqueta { font-size: .78rem; color: var(--muted); margin-top: .25rem; }
+        .kpi .delta { font-size: .74rem; font-weight: 700; margin-top: .35rem; }
+        .delta.sube { color: var(--nd-verde-bosque); }
+        .delta.baja { color: var(--nd-terracota-hondo); }
+        .delta.neutro { color: var(--muted); }
+
+        /* ── Gráficos ── */
+        .panel {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--r-lg); padding: 1.15rem;
+        }
+        .leyenda { display: flex; flex-wrap: wrap; gap: .9rem; margin-bottom: .9rem; font-size: .78rem; }
+        .leyenda span { display: inline-flex; align-items: center; gap: .35rem; color: var(--muted); }
+        .punto { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+        .grafico { width: 100%; height: 170px; display: block; overflow: visible; }
+        .grafico text { font-size: 9px; fill: var(--muted); font-family: var(--font); }
+
+        /* ── Embudo ── */
+        .paso { margin-bottom: .7rem; }
+        .paso-cab { display: flex; justify-content: space-between; align-items: baseline;
+                    font-size: .85rem; margin-bottom: .3rem; }
+        .paso-cab .n { font-weight: 700; }
+        .paso-caida { font-size: .74rem; color: var(--nd-terracota-hondo); font-weight: 700; }
+        .barra { height: 26px; background: var(--nd-crema-claro); border-radius: var(--r-sm); overflow: hidden; }
+        .barra > i { display: block; height: 100%; background: var(--nd-terracota); border-radius: var(--r-sm); }
+
+        /* ── Fichas de persona ── */
+        .ficha {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--r-lg); padding: .9rem 1rem; margin-bottom: .6rem;
+            display: flex; align-items: center; gap: .85rem; flex-wrap: wrap;
+        }
+        .ficha .quien { flex: 1; min-width: 180px; }
+        .ficha .nombre { font-weight: 700; font-size: .93rem; }
+        .ficha .detalle { font-size: .78rem; color: var(--muted); word-break: break-word; }
+        .ficha .motivo { font-size: .8rem; color: var(--nd-terracota-hondo); margin-top: .2rem; }
+        .cifras { display: flex; gap: 1.1rem; font-size: .78rem; color: var(--muted); }
+        .cifras b { display: block; font-size: .98rem; color: var(--text); font-weight: 700; }
+
+        .acciones { display: flex; gap: .5rem; flex-wrap: wrap; }
+        .btn {
+            padding: .5rem .85rem; border: 1px solid transparent; border-radius: var(--r-md);
+            font-family: var(--font); font-size: .83rem; font-weight: 700;
+            cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: .35rem;
+            transition: background .15s, transform .15s;
+        }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
+        .btn-aprobar { background: var(--nd-verde); color: #fff; }
+        .btn-aprobar:hover:not(:disabled) { background: var(--nd-verde-bosque); transform: translateY(-1px); }
+        .btn-rechazar, .btn-fantasma {
+            background: transparent; color: var(--nd-terracota-hondo); border-color: var(--border);
+        }
+        .btn-rechazar:hover:not(:disabled), .btn-fantasma:hover:not(:disabled) {
+            background: var(--nd-terracota-dim); border-color: var(--nd-terracota);
+        }
+        .chip {
+            display: inline-flex; align-items: center; gap: .35rem;
+            background: var(--nd-crema-claro); border: 1px solid var(--border);
+            border-radius: var(--r-pill); padding: .32rem .7rem; font-size: .8rem;
+            font-weight: 600; color: var(--nd-terracota-hondo); text-decoration: none;
+        }
+        .chip:hover { background: var(--nd-terracota-dim); border-color: var(--nd-terracota); }
+        .contacto { display: flex; flex-wrap: wrap; gap: .45rem; margin: .5rem 0 .8rem; }
+
+        .pill { font-size: .71rem; font-weight: 700; padding: .16rem .55rem;
+                border-radius: var(--r-pill); white-space: nowrap; }
+        .pill.aprobado  { background: var(--nd-verde-dim); color: var(--nd-verde-bosque); }
+        .pill.rechazado { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
+        .pill.pendiente { background: var(--nd-amarillo-dim); color: var(--nd-tinta-calida); }
+        .pill.inactivo  { background: var(--nd-crema-claro); color: var(--muted); }
+
+        .buscador {
+            width: 100%; padding: .65rem .9rem; margin-bottom: .9rem;
+            border: 1px solid var(--border); border-radius: var(--r-md);
+            background: var(--surface); font-family: var(--font); font-size: .9rem; color: var(--text);
+        }
+        .buscador:focus { outline: none; border-color: var(--nd-terracota); }
+
+        .vacio {
+            text-align: center; padding: 1.8rem 1rem; color: var(--muted); font-size: .87rem;
+            background: var(--surface); border: 1px dashed var(--border); border-radius: var(--r-lg);
+        }
+        .vacio.ok { border-style: solid; border-color: var(--nd-verde-dim); }
+
+        .fila {
+            display: flex; align-items: center; gap: .7rem; padding: .65rem .9rem;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--r-md); margin-bottom: .4rem; font-size: .85rem;
+        }
+        .fila .quien { flex: 1; min-width: 0; }
+        .fila .nombre { font-weight: 600; }
+        .fila .detalle { font-size: .75rem; color: var(--muted); word-break: break-all; }
+        .cuando { font-size: .74rem; color: var(--muted); white-space: nowrap; }
+
+        /* ── Modal ── */
+        .overlay {
+            position: fixed; inset: 0; background: rgba(42,33,28,.55);
+            display: none; align-items: center; justify-content: center;
+            padding: 1.25rem; z-index: 50;
+        }
+        .overlay.visible { display: flex; }
+        .modal {
+            background: var(--surface); border-radius: var(--r-xl); padding: 1.5rem;
+            width: 100%; max-width: 430px; box-shadow: var(--shadow-window);
+        }
+        .modal h3 { font-size: 1.05rem; margin-bottom: .4rem; }
+        .modal p { font-size: .85rem; color: var(--muted); line-height: 1.6; margin-bottom: 1rem; }
+        .modal textarea {
+            width: 100%; min-height: 96px; resize: vertical; padding: .7rem .85rem;
+            border: 1px solid var(--border); border-radius: var(--r-md);
+            background: var(--nd-crema-claro); font-family: var(--font); font-size: .9rem; color: var(--text);
+        }
+        .modal textarea:focus { outline: none; border-color: var(--nd-terracota); background: var(--surface); }
+        .modal .acciones { margin-top: 1.1rem; }
+        .modal .btn { flex: 1; justify-content: center; padding: .65rem 1rem; }
+        .btn-cancelar { background: transparent; color: var(--muted); border-color: var(--border); }
+        .btn-cancelar:hover:not(:disabled) { background: var(--nd-crema-claro); }
+        .btn-confirmar { background: var(--nd-terracota); color: #fff; }
+        .btn-confirmar:hover:not(:disabled) { background: var(--nd-terracota-hondo); }
+        .btn-confirmar.ok { background: var(--nd-verde); }
+        .btn-confirmar.ok:hover:not(:disabled) { background: var(--nd-verde-bosque); }
+
+        /* ── Toast ── */
+        .toast {
+            position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%) translateY(150%);
+            background: var(--nd-tinta); color: #fff; padding: .75rem 1.25rem;
+            border-radius: var(--r-pill); font-size: .87rem; font-weight: 600;
+            box-shadow: var(--shadow-window); transition: transform .25s ease, opacity .25s ease;
+            z-index: 60; max-width: calc(100vw - 2.5rem); opacity: 0; pointer-events: none;
+        }
+        .toast.visible { transform: translateX(-50%) translateY(0); opacity: 1; }
+        .toast.error { background: var(--nd-terracota-hondo); }
+
+        .cargando { text-align: center; padding: 2rem; color: var(--muted); font-size: .87rem; }
+
+        @media (max-width: 560px) {
+            .contenido { padding: 1.15rem .9rem 3rem; }
+            .ficha { align-items: flex-start; }
+            .acciones { width: 100%; }
+            .acciones .btn { flex: 1; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+{% include '_icons.html' %}
+
+    <div class="topbar">
+        <a href="/dashboard/admin" class="mark" aria-label="Volver a mi panel">
+            <svg class="nd-iso" style="width:100%;height:100%"><use href="#nd-isotipo"></use></svg>
+        </a>
+        <h1>Plataforma<span class="sub">Panel de dueños</span></h1>
+        <a href="/dashboard/admin" class="accion">Mi panel</a>
+    </div>
+
+    <nav class="tabs">
+        <button class="tab activa" data-sec="hoy">Hoy</button>
+        <button class="tab" data-sec="aprobaciones">Aprobaciones <span class="badge cero" id="badge-aprob">0</span></button>
+        <button class="tab" data-sec="administradores">Administradores</button>
+        <button class="tab" data-sec="vecinos">Vecinos</button>
+        <button class="tab" data-sec="auditoria">Auditoría</button>
+    </nav>
+
+    <div class="contenido">
+        <!-- ══ HOY ══ -->
+        <section class="seccion" id="sec-hoy">
+            <div class="kpis" id="kpis"><div class="cargando">Cargando…</div></div>
+
+            <h2 class="titulo">Últimos 12 meses</h2>
+            <div class="panel">
+                <div class="leyenda">
+                    <span><i class="punto" style="background:var(--nd-terracota)"></i>Administradores nuevos</span>
+                    <span><i class="punto" style="background:var(--nd-verde)"></i>Consorcios nuevos</span>
+                    <span><i class="punto" style="background:var(--nd-amarillo)"></i>Liquidaciones</span>
+                </div>
+                <svg class="grafico" id="grafico" viewBox="0 0 720 170" preserveAspectRatio="none"></svg>
+            </div>
+
+            <h2 class="titulo">Embudo de activación</h2>
+            <div class="panel" id="embudo"></div>
+
+            <h2 class="titulo">Requiere atención</h2>
+            <div id="atencion"></div>
+        </section>
+
+        <!-- ══ APROBACIONES ══ -->
+        <section class="seccion" id="sec-aprobaciones" hidden>
+            <h2 class="titulo">Esperando respuesta <span class="badge cero" id="c-esperando">0</span></h2>
+            <div id="lista-esperando"></div>
+
+            <div id="bloque-incompletas" hidden>
+                <h2 class="titulo">Se registraron sin completar datos <span class="badge cero" id="c-incompletas">0</span></h2>
+                <div id="lista-incompletas"></div>
+            </div>
+
+            <h2 class="titulo">Resueltas recientemente</h2>
+            <div id="lista-resueltas"></div>
+        </section>
+
+        <!-- ══ ADMINISTRADORES ══ -->
+        <section class="seccion" id="sec-administradores" hidden>
+            <input class="buscador" id="q-admins" type="search" placeholder="Buscar por nombre o email…">
+            <div id="lista-admins"><div class="cargando">Cargando…</div></div>
+        </section>
+
+        <!-- ══ VECINOS ══ -->
+        <section class="seccion" id="sec-vecinos" hidden>
+            <input class="buscador" id="q-vecinos" type="search" placeholder="Buscar por nombre o email…">
+            <div id="lista-vecinos"><div class="cargando">Cargando…</div></div>
+        </section>
+
+        <!-- ══ AUDITORÍA ══ -->
+        <section class="seccion" id="sec-auditoria" hidden>
+            <p style="font-size:.83rem;color:var(--muted);line-height:1.6;margin-bottom:1rem">
+                Registro de todo lo que dio o quitó acceso, y de cada vez que alguien entró
+                a ver la plataforma como un administrador.
+            </p>
+            <div id="lista-auditoria"><div class="cargando">Cargando…</div></div>
+        </section>
+    </div>
+
+    <div class="overlay" id="overlay">
+        <div class="modal">
+            <h3 id="modal-titulo"></h3>
+            <p id="modal-texto"></p>
+            <textarea id="modal-motivo" maxlength="1000"
+                      placeholder="Por ejemplo: no pudimos verificar que administres consorcios. Escribinos si creés que hay un error."></textarea>
+            <div class="acciones">
+                <button class="btn btn-cancelar" id="btn-cancelar">Cancelar</button>
+                <button class="btn btn-confirmar" id="btn-confirmar"></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+<script>
+    const $ = (id) => document.getElementById(id);
+    let objetivo = null;
+    const cargado = {};
+
+    const escapar = (s) => { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; };
+
+    const desde = (iso) => {
+        if (!iso) return '—';
+        const dias = Math.floor((Date.now() - new Date(iso)) / 86400000);
+        if (dias <= 0) return 'hoy';
+        if (dias === 1) return 'ayer';
+        if (dias < 30) return `hace ${dias} días`;
+        return new Date(iso).toLocaleDateString('es-AR');
+    };
+
+    const toast = (mensaje, esError = false) => {
+        const t = $('toast');
+        t.textContent = mensaje;
+        t.classList.toggle('error', esError);
+        t.classList.add('visible');
+        setTimeout(() => t.classList.remove('visible'), 3800);
+    };
+
+    async function traer(url) {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'No pudimos cargar los datos');
+        return r.json();
+    }
+
+    /* ══ Navegación ══ */
+    document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('activa', x === t));
+        document.querySelectorAll('.seccion').forEach((s) => { s.hidden = s.id !== 'sec-' + t.dataset.sec; });
+        // Cada sección se trae la primera vez que se abre: el tablero pide cinco
+        // tablas y no tiene sentido pagarlas para mirar el registro de auditoría.
+        if (!cargado[t.dataset.sec]) { cargado[t.dataset.sec] = true; CARGAR[t.dataset.sec](); }
+    }));
+
+    /* ══ HOY ══ */
+    function delta(n, etiqueta) {
+        if (n === undefined || n === null) return '';
+        const clase = n > 0 ? 'sube' : (n < 0 ? 'baja' : 'neutro');
+        const signo = n > 0 ? '+' : '';
+        return `<div class="delta ${clase}">${signo}${n} ${etiqueta}</div>`;
+    }
+
+    function pintarKpis(i) {
+        $('kpis').innerHTML = `
+            <div class="kpi"><div class="valor">${i.activos.valor}<span style="font-size:.9rem;color:var(--muted)">/${i.activos.total}</span></div>
+                <div class="etiqueta">Administradores activos</div>
+                <div class="delta neutro">usaron Niddo en 30 días</div></div>
+            <div class="kpi"><div class="valor">${i.consorcios.valor}</div>
+                <div class="etiqueta">Consorcios</div>${delta(i.consorcios.nuevos, 'este mes')}</div>
+            <div class="kpi"><div class="valor">${i.unidades.valor}</div>
+                <div class="etiqueta">Unidades funcionales</div>
+                <div class="delta neutro">alcance real</div></div>
+            <div class="kpi"><div class="valor">${i.vecinos.valor}</div>
+                <div class="etiqueta">Vecinos registrados</div>${delta(i.vecinos.nuevos, 'este mes')}</div>
+            <div class="kpi"><div class="valor">${i.liquidaciones.valor}</div>
+                <div class="etiqueta">Liquidaciones del mes</div>
+                ${delta(i.liquidaciones.valor - i.liquidaciones.previo, 'vs mes pasado')}</div>`;
+    }
+
+    function pintarGrafico(t) {
+        const W = 720, H = 170, base = H - 22, tope = 10;
+        const max = Math.max(1, ...t.flatMap((m) => [m.administradores, m.consorcios, m.liquidaciones]));
+        const paso = W / t.length, ancho = Math.min(9, paso / 4.2);
+        const alto = (v) => (v / max) * (base - tope);
+        const series = [['administradores', 'var(--nd-terracota)'], ['consorcios', 'var(--nd-verde)'], ['liquidaciones', 'var(--nd-amarillo)']];
+
+        let svg = `<line x1="0" y1="${base}" x2="${W}" y2="${base}" stroke="var(--border)" stroke-width="1"/>`;
+        t.forEach((m, i) => {
+            const centro = i * paso + paso / 2;
+            series.forEach(([clave, color], s) => {
+                const h = alto(m[clave]);
+                const x = centro + (s - 1) * (ancho + 2) - ancho / 2;
+                if (h > 0) svg += `<rect x="${x}" y="${base - h}" width="${ancho}" height="${h}" fill="${color}" rx="1.5"><title>${m.mes}: ${m[clave]}</title></rect>`;
+            });
+            svg += `<text x="${centro}" y="${H - 6}" text-anchor="middle">${m.mes.slice(5)}</text>`;
+        });
+        $('grafico').innerHTML = svg;
+    }
+
+    function pintarEmbudo(e) {
+        const tope = Math.max(1, e[0].valor);
+        $('embudo').innerHTML = e.map((p, i) => {
+            const previo = i ? e[i - 1].valor : null;
+            const caida = previo && previo > p.valor ? Math.round((1 - p.valor / previo) * 100) : 0;
+            return `<div class="paso">
+                <div class="paso-cab">
+                    <span>${p.paso}</span>
+                    <span><span class="n">${p.valor}</span>${caida ? ` <span class="paso-caida">−${caida}%</span>` : ''}</span>
+                </div>
+                <div class="barra"><i style="width:${(p.valor / tope) * 100}%"></i></div>
+            </div>`;
+        }).join('');
+    }
+
+    function personaAtencion(p, extra = '') {
+        return `<div class="ficha">
+            <div class="quien">
+                <div class="nombre">${escapar(p.nombre)}</div>
+                <div class="motivo">${escapar(p.motivo)}</div>
+                <div class="detalle">${escapar(p.email || '')}</div>
+            </div>
+            <div class="acciones">
+                ${p.telefono ? `<a class="chip" href="tel:${escapar(p.telefono)}">${escapar(p.telefono)}</a>` : ''}
+                <a class="chip" href="mailto:${escapar(p.email || '')}">Escribir</a>
+                ${extra}
+            </div>
+        </div>`;
+    }
+
+    function pintarAtencion(a) {
+        let html = '';
+        if (a.trabados.length) {
+            html += `<h2 class="titulo">Trabados en el arranque <span class="badge">${a.trabados.length}</span></h2>`;
+            html += a.trabados.map((p) => personaAtencion(p)).join('');
+        }
+        if (a.en_fuga.length) {
+            html += `<h2 class="titulo">Se están yendo <span class="badge">${a.en_fuga.length}</span></h2>`;
+            html += a.en_fuga.map((p) => personaAtencion(p)).join('');
+        }
+
+        const roto = [];
+        if (a.envios_fallidos.length) roto.push(`${a.envios_fallidos.length} envíos de expensas que rebotaron`);
+        if (a.consorcios_sin_cbu.length) roto.push(`${a.consorcios_sin_cbu.length} consorcios sin CBU cargado, no pueden cobrar`);
+        if (a.unidades_sin_email) roto.push(`${a.unidades_sin_email} unidades sin email de vecino, nunca reciben la expensa`);
+        if (roto.length) {
+            html += `<h2 class="titulo">Cosas rotas</h2><div class="panel"><ul style="margin-left:1.1rem;font-size:.87rem;line-height:1.9">`
+                 + roto.map((r) => `<li>${escapar(r)}</li>`).join('') + `</ul></div>`;
+        }
+        $('atencion').innerHTML = html || '<div class="vacio ok">Nada pendiente. Todo el mundo avanzando.</div>';
+    }
+
+    /* ══ APROBACIONES ══ */
+    function tarjetaSolicitud(s, conContacto) {
+        const nombre = s.nombre_contacto || s.nombre || s.email;
+        const email = s.email_contacto || s.email;
+        return `<div class="ficha" data-id="${s.id}" style="flex-direction:column;align-items:stretch">
+            <div style="display:flex;align-items:baseline;gap:.6rem">
+                <div class="quien">
+                    <div class="nombre">${escapar(nombre)}</div>
+                    <div class="detalle">${escapar(s.email)}</div>
+                </div>
+                <span class="cuando">${desde(s.solicitud_completada_at || s.created_at)}</span>
+            </div>
+            <div class="contacto">
+                ${conContacto ? `
+                    ${s.telefono ? `<a class="chip" href="tel:${escapar(s.telefono)}">${escapar(s.telefono)}</a>` : ''}
+                    <a class="chip" href="mailto:${escapar(email)}">${escapar(email)}</a>`
+                  : `<span class="chip" style="color:var(--muted)">Todavía no completó sus datos</span>`}
+            </div>
+            <div class="acciones">
+                <button class="btn btn-aprobar" data-accion="aprobar" data-id="${s.id}" data-nombre="${escapar(nombre)}">Aprobar</button>
+                <button class="btn btn-rechazar" data-accion="rechazar" data-id="${s.id}" data-nombre="${escapar(nombre)}">Rechazar</button>
+            </div>
+        </div>`;
+    }
+
+    async function cargarAprobaciones() {
+        let d;
+        try { d = await traer('/api/superadmin/solicitudes'); }
+        catch (e) { return toast(e.message, true); }
+
+        const n = d.esperando.length;
+        [$('c-esperando'), $('badge-aprob')].forEach((b) => {
+            b.textContent = n; b.classList.toggle('cero', n === 0);
+        });
+        $('lista-esperando').innerHTML = n
+            ? d.esperando.map((s) => tarjetaSolicitud(s, true)).join('')
+            : '<div class="vacio ok">No hay solicitudes esperando.</div>';
+
+        $('bloque-incompletas').hidden = !d.incompletas.length;
+        $('c-incompletas').textContent = d.incompletas.length;
+        $('c-incompletas').classList.toggle('cero', !d.incompletas.length);
+        $('lista-incompletas').innerHTML = d.incompletas.map((s) => tarjetaSolicitud(s, false)).join('');
+
+        $('lista-resueltas').innerHTML = d.resueltas.length
+            ? d.resueltas.map((s) => `<div class="fila">
+                <div class="quien"><div class="nombre">${escapar(s.nombre_contacto || s.nombre || s.email)}</div>
+                    <div class="detalle">${escapar(s.email)}</div></div>
+                <span class="pill ${s.estado}">${s.estado === 'aprobado' ? 'Aprobado' : 'Rechazado'}</span>
+                <span class="cuando">${desde(s.resuelto_at)}</span></div>`).join('')
+            : '<div class="vacio">Todavía no resolviste ninguna solicitud.</div>';
+    }
+
+    /* ══ ADMINISTRADORES ══ */
+    async function cargarAdmins() {
+        const q = $('q-admins').value.trim();
+        let d;
+        try { d = await traer('/api/superadmin/administradores?q=' + encodeURIComponent(q)); }
+        catch (e) { return toast(e.message, true); }
+
+        $('lista-admins').innerHTML = d.administradores.length ? d.administradores.map((a) => `
+            <div class="ficha">
+                <div class="quien">
+                    <div class="nombre">${escapar(a.nombre)}
+                        <span class="pill ${a.estado}">${a.estado}</span></div>
+                    <div class="detalle">${escapar(a.email)} · última actividad ${desde(a.ultima_actividad)}</div>
+                </div>
+                <div class="cifras">
+                    <span><b>${a.consorcios}</b>consorcios</span>
+                    <span><b>${a.unidades}</b>unidades</span>
+                    <span><b>${a.liquidaciones}</b>liquidaciones</span>
+                </div>
+                <div class="acciones">
+                    ${a.telefono ? `<a class="chip" href="tel:${escapar(a.telefono)}">Llamar</a>` : ''}
+                    ${a.estado === 'aprobado'
+                        ? `<button class="btn btn-fantasma" data-impersonar="${a.id}" data-nombre="${escapar(a.nombre)}">Ver su cuenta</button>`
+                        : ''}
+                </div>
+            </div>`).join('') : '<div class="vacio">Ningún administrador coincide.</div>';
+    }
+
+    /* ══ VECINOS ══ */
+    async function cargarVecinos() {
+        const q = $('q-vecinos').value.trim();
+        let d;
+        try { d = await traer('/api/superadmin/vecinos?q=' + encodeURIComponent(q)); }
+        catch (e) { return toast(e.message, true); }
+
+        $('lista-vecinos').innerHTML = d.vecinos.length ? d.vecinos.map((v) => `
+            <div class="fila">
+                <div class="quien">
+                    <div class="nombre">${escapar(v.nombre || v.email)}</div>
+                    <div class="detalle">${escapar(v.email)}${v.unidad ? ' · unidad ' + escapar(v.unidad) : ''}</div>
+                </div>
+                ${v.huerfano
+                    ? '<span class="pill pendiente">sin consorcio</span>'
+                    : `<span class="cuando">${escapar(v.consorcio || '')}</span>`}
+                <span class="cuando">${v.dias_inactivo === null ? 'nunca entró' : desde(new Date(Date.now() - v.dias_inactivo * 86400000).toISOString())}</span>
+            </div>`).join('') : '<div class="vacio">Ningún vecino coincide.</div>';
+    }
+
+    /* ══ AUDITORÍA ══ */
+    const TEXTO_ACCION = {
+        aprobar: 'aprobó a', rechazar: 'rechazó a',
+        impersonar_inicio: 'entró a ver la cuenta de', impersonar_fin: 'salió de la cuenta de',
+    };
+
+    async function cargarAuditoria() {
+        let d;
+        try { d = await traer('/api/superadmin/auditoria'); }
+        catch (e) { return toast(e.message, true); }
+
+        $('lista-auditoria').innerHTML = d.auditoria.length ? d.auditoria.map((r) => {
+            const actor = r.actor?.nombre || r.actor?.email || 'alguien';
+            const obj = r.objetivo?.nombre || r.objetivo?.email || '—';
+            return `<div class="fila">
+                <div class="quien">
+                    <div class="nombre">${escapar(actor)} ${TEXTO_ACCION[r.accion] || r.accion} ${escapar(obj)}</div>
+                    ${r.motivo ? `<div class="detalle">${escapar(r.motivo)}</div>` : ''}
+                </div>
+                <span class="cuando">${desde(r.created_at)}</span>
+            </div>`;
+        }).join('') : '<div class="vacio">Sin movimientos registrados.</div>';
+    }
+
+    const CARGAR = {
+        hoy: async () => {
+            let d;
+            try { d = await traer('/api/superadmin/metricas'); }
+            catch (e) { $('kpis').innerHTML = ''; return toast(e.message, true); }
+            pintarKpis(d.indicadores);
+            pintarGrafico(d.tendencia);
+            pintarEmbudo(d.embudo);
+            pintarAtencion(d.atencion);
+        },
+        aprobaciones: cargarAprobaciones,
+        administradores: cargarAdmins,
+        vecinos: cargarVecinos,
+        auditoria: cargarAuditoria,
+    };
+
+    /* ══ Búsquedas ══ */
+    let reloj;
+    const buscar = (fn) => { clearTimeout(reloj); reloj = setTimeout(fn, 300); };
+    $('q-admins').addEventListener('input', () => buscar(cargarAdmins));
+    $('q-vecinos').addEventListener('input', () => buscar(cargarVecinos));
+
+    /* ══ Aprobar / rechazar / impersonar ══ */
+    function abrirModal(accion, id, nombre) {
+        objetivo = { accion, id };
+        const esRechazo = accion === 'rechazar';
+        const textos = {
+            aprobar:    ['Habilitar administrador', `<strong>${escapar(nombre)}</strong> va a tener acceso completo a Niddo y le llega el mail de bienvenida.`, 'Habilitar'],
+            rechazar:   ['Rechazar solicitud', `El motivo que escribas le llega por mail a <strong>${escapar(nombre)}</strong>, así que redactalo pensando en que lo va a leer.`, 'Rechazar y avisar'],
+            impersonar: ['Ver la cuenta de ' + escapar(nombre), `Vas a ver la plataforma con los datos reales de <strong>${escapar(nombre)}</strong>, incluidos los de sus vecinos. Es solo lectura: no vas a poder crear ni enviar nada. Queda registrado en la auditoría.`, 'Entrar'],
+        }[accion];
+        $('modal-titulo').textContent = textos[0];
+        $('modal-texto').innerHTML = textos[1];
+        $('btn-confirmar').textContent = textos[2];
+        $('btn-confirmar').classList.toggle('ok', accion === 'aprobar');
+        $('modal-motivo').value = '';
+        $('modal-motivo').style.display = esRechazo ? '' : 'none';
+        $('overlay').classList.add('visible');
+        (esRechazo ? $('modal-motivo') : $('btn-confirmar')).focus();
+    }
+
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-accion], button[data-impersonar]');
+        if (!btn) return;
+        if (btn.dataset.impersonar) abrirModal('impersonar', btn.dataset.impersonar, btn.dataset.nombre);
+        else abrirModal(btn.dataset.accion, btn.dataset.id, btn.dataset.nombre);
+    });
+
+    const cerrarModal = () => { $('overlay').classList.remove('visible'); objetivo = null; };
+    $('btn-cancelar').addEventListener('click', cerrarModal);
+    $('overlay').addEventListener('click', (e) => { if (e.target === $('overlay')) cerrarModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrarModal(); });
+
+    async function resolver(id, accion, motivo) {
+        const ficha = document.querySelector(`.ficha[data-id="${id}"]`);
+        ficha?.querySelectorAll('button').forEach((b) => (b.disabled = true));
+        try {
+            const url = accion === 'impersonar'
+                ? `/api/superadmin/impersonar/${id}`
+                : `/api/superadmin/solicitudes/${id}/${accion}`;
+            const r = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(motivo ? { motivo } : {}),
+            });
+            const j = await r.json().catch(() => ({ error: 'Error inesperado' }));
+            if (!r.ok) throw new Error(j.error || 'Error inesperado');
+            if (accion === 'impersonar') { window.location.href = j.destino; return; }
+            toast(accion === 'aprobar' ? 'Aprobado. Le avisamos por mail.' : 'Rechazado. Le avisamos por mail.');
+            await cargarAprobaciones();
+        } catch (e) {
+            toast(e.message, true);
+            ficha?.querySelectorAll('button').forEach((b) => (b.disabled = false));
+        }
+    }
+
+    $('btn-confirmar').addEventListener('click', () => {
+        if (!objetivo) return;
+        const { accion, id } = objetivo;
+        let motivo = '';
+        if (accion === 'rechazar') {
+            motivo = $('modal-motivo').value.trim();
+            if (!motivo) { toast('Escribí un motivo: se lo mandamos por mail.', true); return; }
+        }
+        cerrarModal();
+        resolver(id, accion, motivo);
+    });
+
+    /* Arranque: el tablero, y la cola aparte para tener el contador en la pestaña. */
+    cargado.hoy = true; CARGAR.hoy();
+    cargado.aprobaciones = true; cargarAprobaciones();
+</script>
+</body>
+</html>
