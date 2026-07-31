@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tu solicitud | Niddo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--nd-crema);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: -10%;
+            background: radial-gradient(55% 55% at 50% 12%, var(--nd-terracota-dim), transparent 70%);
+            pointer-events: none;
+        }
+
+        .wrap { position: relative; width: 100%; max-width: 440px; }
+
+        .brand { text-align: center; margin-bottom: 1.75rem; }
+        .brand .mark {
+            width: 60px; height: 60px; border-radius: var(--r-lg);
+            background: var(--surface); border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 16px; padding: 12px;
+            box-shadow: var(--shadow-card);
+            text-decoration: none;
+        }
+        .brand h1 { font-size: 1.4rem; }
+        .brand p { color: var(--muted); font-size: .88rem; margin-top: 5px; }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r-xl);
+            padding: 1.6rem;
+            box-shadow: var(--shadow-window);
+        }
+
+        /* ── Estado (espera / rechazo) ── */
+        .estado { text-align: center; }
+        .estado-icon {
+            width: 62px; height: 62px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 1.1rem;
+            background: var(--nd-amarillo-dim); color: var(--nd-tinta-calida);
+        }
+        .estado-icon.rechazo { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
+        .estado h2 { font-size: 1.15rem; margin-bottom: .55rem; }
+        .estado p { color: var(--muted); font-size: .9rem; line-height: 1.6; }
+
+        .motivo {
+            background: var(--nd-crema-claro);
+            border-left: 3px solid var(--nd-terracota);
+            border-radius: var(--r-md);
+            padding: .85rem 1rem;
+            margin: 1.1rem 0;
+            text-align: left;
+            font-size: .88rem;
+            line-height: 1.6;
+        }
+        .motivo strong { display: block; font-size: .74rem; text-transform: uppercase;
+                         letter-spacing: .05em; color: var(--muted); margin-bottom: .3rem; }
+
+        .datos-enviados {
+            margin-top: 1.3rem; padding-top: 1.1rem;
+            border-top: 1px solid var(--border);
+            text-align: left;
+        }
+        .datos-enviados dl { display: grid; grid-template-columns: auto 1fr; gap: .45rem 1rem; font-size: .85rem; }
+        .datos-enviados dt { color: var(--muted); }
+        .datos-enviados dd { font-weight: 600; word-break: break-word; }
+
+        /* ── Formulario ── */
+        .campo { margin-bottom: 1rem; }
+        .campo label { display: block; font-size: .82rem; font-weight: 700; margin-bottom: .35rem; }
+        .campo .ayuda { display: block; font-size: .76rem; color: var(--muted); font-weight: 400; margin-top: .2rem; }
+        .campo input {
+            width: 100%;
+            padding: .7rem .85rem;
+            border: 1px solid var(--border);
+            border-radius: var(--r-md);
+            background: var(--nd-crema-claro);
+            font-family: var(--font);
+            font-size: .92rem;
+            color: var(--text);
+            transition: border-color .15s, background .15s;
+        }
+        .campo input:focus {
+            outline: none;
+            border-color: var(--nd-terracota);
+            background: var(--surface);
+        }
+
+        .btn {
+            width: 100%;
+            padding: .8rem 1rem;
+            border: none;
+            border-radius: var(--r-lg);
+            background: var(--nd-terracota);
+            color: #fff;
+            font-family: var(--font);
+            font-size: .95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background .15s, transform .15s;
+        }
+        .btn:hover:not(:disabled) { background: var(--nd-terracota-hondo); transform: translateY(-1px); }
+        .btn:disabled { opacity: .55; cursor: not-allowed; }
+
+        .btn-secundario {
+            background: transparent;
+            color: var(--nd-terracota-hondo);
+            border: 1px solid var(--border);
+            margin-top: .6rem;
+        }
+        .btn-secundario:hover:not(:disabled) { background: var(--nd-terracota-dim); }
+
+        .error {
+            display: none;
+            background: var(--nd-terracota-dim);
+            color: var(--nd-terracota-hondo);
+            border-radius: var(--r-md);
+            padding: .65rem .85rem;
+            font-size: .85rem;
+            font-weight: 600;
+            margin-bottom: .9rem;
+        }
+        .error.visible { display: block; }
+
+        .salir { text-align: center; margin-top: 1.5rem; font-size: .85rem; }
+        .salir a { color: var(--nd-terracota-hondo); text-decoration: none; font-weight: 700; }
+        .salir a:hover { text-decoration: underline; }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+{% include '_icons.html' %}
+
+{% set rechazado = solicitud.estado == 'rechazado' %}
+{% set esperando  = solicitud.estado == 'pendiente' and solicitud.solicitud_completada_at %}
+
+    <div class="wrap">
+        <div class="brand">
+            <a href="/" class="mark" aria-label="Niddo — ir al inicio">
+                <svg class="nd-iso" style="width:100%;height:100%"><use href="#nd-isotipo"></use></svg>
+            </a>
+            <h1>Hola, {{ (solicitud.nombre_contacto or user.name or user.email).split(' ')[0] }}</h1>
+            <p>Ya casi estás dentro de Niddo</p>
+        </div>
+
+        <div class="card">
+            <!-- ── Esperando respuesta ── -->
+            <div class="estado {% if not esperando %}hidden{% endif %}" id="vista-espera">
+                <div class="estado-icon">
+                    <svg class="ic ic-lg"><use href="#ic-pendiente"></use></svg>
+                </div>
+                <h2>Estamos validando tu cuenta</h2>
+                <p>
+                    Recibimos tus datos. Te contactamos dentro de las próximas 24&nbsp;horas
+                    hábiles para acompañarte en los primeros pasos y dejarte todo listo
+                    para arrancar.
+                </p>
+
+                <div class="datos-enviados">
+                    <dl>
+                        <dt>Nombre</dt><dd>{{ solicitud.nombre_contacto or '—' }}</dd>
+                        <dt>Teléfono</dt><dd>{{ solicitud.telefono or '—' }}</dd>
+                        <dt>Email</dt><dd>{{ solicitud.email_contacto or solicitud.email or '—' }}</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- ── Rechazada ── -->
+            <div class="estado {% if not rechazado %}hidden{% endif %}" id="vista-rechazo">
+                <div class="estado-icon rechazo">
+                    <svg class="ic ic-lg"><use href="#ic-info"></use></svg>
+                </div>
+                <h2>No pudimos habilitar tu cuenta</h2>
+                {% if solicitud.motivo_rechazo %}
+                <div class="motivo">
+                    <strong>Motivo</strong>
+                    {{ solicitud.motivo_rechazo }}
+                </div>
+                {% endif %}
+                <p>Si creés que hubo un error o querés corregir tus datos, podés reenviar la solicitud.</p>
+                <button class="btn btn-secundario" id="btn-corregir" style="margin-top:1.1rem">
+                    Corregir y reenviar
+                </button>
+            </div>
+
+            <!-- ── Formulario ── -->
+            <div id="vista-form" class="{% if esperando or rechazado %}hidden{% endif %}">
+                <p style="color:var(--muted);font-size:.88rem;line-height:1.6;margin-bottom:1.3rem">
+                    Validamos cada cuenta de administrador para poder acompañarte en los primeros
+                    pasos dentro del sistema. Dejanos cómo contactarte y te escribimos para
+                    arrancar juntos.
+                </p>
+
+                <div class="error" id="error"></div>
+
+                <form id="form-solicitud" novalidate>
+                    <div class="campo">
+                        <label for="nombre_contacto">Nombre y apellido</label>
+                        <input type="text" id="nombre_contacto" name="nombre_contacto" maxlength="120"
+                               autocomplete="name" required
+                               value="{{ solicitud.nombre_contacto or user.name or '' }}">
+                    </div>
+
+                    <div class="campo">
+                        <label for="telefono">Teléfono / WhatsApp</label>
+                        <input type="tel" id="telefono" name="telefono" maxlength="40"
+                               autocomplete="tel" required placeholder="+54 9 11 5555 5555"
+                               value="{{ solicitud.telefono or '' }}">
+                    </div>
+
+                    <div class="campo">
+                        <label for="email_contacto">
+                            Email de contacto
+                            <span class="ayuda">Dejalo vacío si querés que usemos {{ solicitud.email or user.email }}</span>
+                        </label>
+                        <input type="email" id="email_contacto" name="email_contacto" maxlength="200"
+                               autocomplete="email" value="{{ solicitud.email_contacto or '' }}">
+                    </div>
+
+                    <button type="submit" class="btn" id="btn-enviar">Enviar solicitud</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="salir">
+            <a href="/auth/logout">Cerrar sesión</a>
+        </div>
+    </div>
+
+<script>
+    const $ = (id) => document.getElementById(id);
+
+    // El rechazado abre el formulario con sus datos ya cargados: casi siempre el
+    // rechazo es por un dato mal puesto y reescribir todo de cero sobra.
+    $('btn-corregir')?.addEventListener('click', () => {
+        $('vista-rechazo').classList.add('hidden');
+        $('vista-form').classList.remove('hidden');
+        $('nombre_contacto').focus();
+    });
+
+    $('form-solicitud').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const error = $('error');
+        const btn = $('btn-enviar');
+        error.classList.remove('visible');
+
+        const datos = {
+            nombre_contacto: $('nombre_contacto').value.trim(),
+            telefono:        $('telefono').value.trim(),
+            email_contacto:  $('email_contacto').value.trim(),
+        };
+
+        if (!datos.nombre_contacto || !datos.telefono) {
+            error.textContent = 'Completá tu nombre y un teléfono para que podamos contactarte.';
+            error.classList.add('visible');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Enviando…';
+        try {
+            const r = await fetch('/api/solicitud', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datos),
+            });
+            const j = await r.json().catch(() => ({ error: 'No pudimos enviar la solicitud' }));
+            if (!r.ok) throw new Error(j.error || 'No pudimos enviar la solicitud');
+            // Recargar y no ocultar a mano: el servidor decide qué vista corresponde
+            // y así la pantalla nunca miente sobre el estado real.
+            window.location.reload();
+        } catch (err) {
+            error.textContent = err.message;
+            error.classList.add('visible');
+            btn.disabled = false;
+            btn.textContent = 'Enviar solicitud';
+        }
+    });
+</script>
+</body>
+</html>

@@ -8,7 +8,7 @@ from functools import wraps
 
 from flask import (
     Flask, render_template, redirect, url_for,
-    session, request, jsonify, send_file, Response
+    session, request, jsonify, send_file, Response, g, abort
 )
 from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
@@ -28,7 +28,11 @@ app = Flask(
     static_folder=os.path.join(_HERE, 'static'),
 )
 app.secret_key = os.environ['SECRET_KEY']
-app.config['SESSION_COOKIE_SECURE'] = False   # True en producción (HTTPS)
+# Solo en desarrollo la cookie viaja por HTTP. En producción va marcada Secure:
+# con el panel de superadmin la sesión de una de esas cuentas es la credencial
+# más sensible del sistema y no puede salir en claro.
+_ES_LOCAL = os.environ.get('FLASK_ENV') == 'development' or os.environ.get('NIDDO_LOCAL') == '1'
+app.config['SESSION_COOKIE_SECURE'] = not _ES_LOCAL
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
@@ -60,7 +64,14 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def upsert_user(role: str, auth0_id: str, email: str, nombre: str) -> None:
+def upsert_user(role: str, auth0_id: str, email: str, nombre: str) -> Optional[dict]:
+    """Crea o refresca la fila del usuario y la devuelve.
+
+    El payload no incluye `estado` ni `es_superadmin` a propósito: en un
+    ON CONFLICT solo se pisan las columnas que van en el payload, así que el
+    estado de aprobación sobrevive a cada login. Si se mandaran, cada vez que un
+    administrador aprobado volviera a entrar se le reiniciaría el estado.
+    """
     table = 'administradores' if role == 'admin' else 'vecinos'
     res = supabase.table(table).upsert(
         {'auth0_id': auth0_id, 'email': email, 'nombre': nombre, 'last_login': now_iso()},
@@ -85,14 +96,44 @@ def upsert_user(role: str, auth0_id: str, email: str, nombre: str) -> None:
                     'vecino_id': vecino_id
                 }).eq('id', uf['id']).execute()
 
+    return res.data[0] if res.data else None
+
+
+# ── Estado del administrador en sesión ────────────────────────────────────────
+# Campos de `administradores` que necesita cualquier request de un admin. Se
+# piden juntos para que el gate de aprobación no cueste una query extra: antes
+# `get_admin_id()` ya hacía este mismo SELECT en cada ruta.
+_CAMPOS_ADMIN = (
+    'id, estado, es_superadmin, nombre, email, nombre_contacto, telefono, '
+    'email_contacto, motivo_rechazo, solicitud_completada_at'
+)
+
+
+def cargar_admin_actual() -> Optional[dict]:
+    """Fila de `administradores` del usuario en sesión, cacheada por request.
+
+    El estado de aprobación se lee siempre de la base y nunca de la sesión: si
+    se guardara en la cookie, revocarle el acceso a alguien no tendría efecto
+    hasta que cerrara sesión, y a quien acabamos de aprobar habría que pedirle
+    que se deslogueara para entrar.
+    """
+    if 'admin_row' in g:
+        return g.admin_row
+
+    g.admin_row = None
+    user = session.get('user')
+    if user and user.get('role') == 'admin':
+        res = supabase.table('administradores').select(_CAMPOS_ADMIN) \
+            .eq('auth0_id', user['sub']).execute()
+        if res.data:
+            g.admin_row = res.data[0]
+    return g.admin_row
+
 
 def get_admin_id() -> Optional[str]:
     """Devuelve el UUID de la fila en `administradores` para el usuario en sesión."""
-    user = session.get('user')
-    if not user:
-        return None
-    result = supabase.table('administradores').select('id').eq('auth0_id', user['sub']).execute()
-    return result.data[0]['id'] if result.data else None
+    row = cargar_admin_actual()
+    return row['id'] if row else None
 
 
 def get_vecino_id() -> Optional[str]:
@@ -248,7 +289,13 @@ def make_pdf(title: str, headers: list, rows: list) -> io.BytesIO:
 
 
 # ── Auth decorator ─────────────────────────────────────────────────────────────
-def require_auth(allowed_roles=None):
+def require_auth(allowed_roles=None, permitir_pendiente=False):
+    """Exige sesión y, para administradores, que la cuenta esté aprobada.
+
+    `permitir_pendiente=True` es solo para las rutas de la propia solicitud: si
+    también exigieran aprobación, el pendiente no tendría dónde completar sus
+    datos y quedaría rebotando entre el gate y el formulario.
+    """
     def decorator(f):
         @wraps(f)
         def decorated(*args, **kwargs):
@@ -261,9 +308,38 @@ def require_auth(allowed_roles=None):
                 if request.is_json or request.path.startswith('/api/'):
                     return jsonify({'error': 'Sin permiso'}), 403
                 return redirect(url_for('login'))
+
+            # El gate es solo para administradores: los vecinos entran directo.
+            if user.get('role') == 'admin' and not permitir_pendiente:
+                if (cargar_admin_actual() or {}).get('estado') != 'aprobado':
+                    if request.is_json or request.path.startswith('/api/'):
+                        return jsonify({'error': 'Tu cuenta todavía no fue aprobada'}), 403
+                    return redirect(url_for('solicitud'))
             return f(*args, **kwargs)
         return decorated
     return decorator
+
+
+def require_superadmin(f):
+    """Restringe una ruta a las cuentas dueñas del sitio.
+
+    Responde 404 y no 403 a quien esté logueado sin el permiso: un 403 le
+    confirmaría a un administrador común que la ruta existe. A quien no tiene
+    sesión se lo manda al login como a cualquier otra página, porque el aviso
+    por mail apunta acá y un 404 dejaría a los superadmins sin poder entrar.
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        user = session.get('user')
+        if not user:
+            return redirect(url_for('login'))
+        if user.get('role') != 'admin':
+            abort(404)
+        row = cargar_admin_actual()
+        if not row or not row.get('es_superadmin') or row.get('estado') != 'aprobado':
+            abort(404)
+        return f(*args, **kwargs)
+    return decorated
 
 
 @app.errorhandler(Exception)
@@ -321,8 +397,13 @@ def auth_callback():
     email    = userinfo.get('email', '')
     nombre   = userinfo.get('name', email)
     role     = session.pop('pending_role', 'vecino')
-    upsert_user(role, auth0_id, email, nombre)
+    fila     = upsert_user(role, auth0_id, email, nombre)
     session['user'] = {'sub': auth0_id, 'email': email, 'name': nombre, 'role': role}
+
+    # El administrador que todavía no fue aprobado no ve el dashboard: va a
+    # completar sus datos de contacto o a esperar respuesta.
+    if role == 'admin' and (fila or {}).get('estado') != 'aprobado':
+        return redirect(url_for('solicitud'))
     return redirect(url_for('dashboard', role=role))
 
 
@@ -344,10 +425,288 @@ def dashboard(role):
     if user['role'] != role:
         return redirect(url_for('dashboard', role=user['role']))
     if role == 'admin':
-        return render_template('admin_dashboard.html', user=user)
+        return render_template('admin_dashboard.html', user=user,
+                               es_superadmin=(cargar_admin_actual() or {}).get('es_superadmin', False))
     elif role == 'vecino':
         return render_template('vecino_dashboard.html', user=user)
     return redirect(url_for('login'))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ALTA DE ADMINISTRADORES — SOLICITUD Y APROBACIÓN
+# ══════════════════════════════════════════════════════════════════════════════
+LARGO_MAXIMO = {'nombre_contacto': 120, 'telefono': 40, 'email_contacto': 200}
+
+
+def _campo_texto(datos: dict, campo: str, obligatorio: bool = True) -> str:
+    """Valida y normaliza un campo del formulario de solicitud."""
+    valor = (datos.get(campo) or '').strip()
+    if obligatorio and not valor:
+        raise ValueError(f'Falta completar {campo.replace("_", " ")}')
+    if len(valor) > LARGO_MAXIMO[campo]:
+        raise ValueError(f'El campo {campo.replace("_", " ")} es demasiado largo')
+    return valor
+
+
+def _superadmins() -> list:
+    """Los dueños del sitio, para avisarles de cada solicitud nueva."""
+    res = supabase.table('administradores').select('email, email_contacto, nombre') \
+        .eq('es_superadmin', True).execute()
+    return res.data or []
+
+
+def _auditar(accion: str, target_id: str, motivo: Optional[str] = None) -> None:
+    """Registra quién dio o quitó acceso a quién. Nunca interrumpe la acción.
+
+    Si la auditoría fallara (tabla sin migrar, por ejemplo) preferimos que la
+    aprobación igual ocurra: dejar al solicitante colgado es peor que perder una
+    fila de log, y el error queda en el log de la aplicación.
+    """
+    try:
+        supabase.table('superadmin_auditoria').insert({
+            'actor_id':   get_admin_id(),
+            'target_id':  target_id,
+            'accion':     accion,
+            'motivo':     motivo,
+            'ip':         request.remote_addr,
+            'user_agent': (request.headers.get('User-Agent') or '')[:500],
+        }).execute()
+    except Exception:
+        app.logger.exception('No se pudo auditar %s sobre %s', accion, target_id)
+
+
+def _enviar_mail(destinatarios: list, asunto: str, html: str) -> None:
+    """Manda un mail por Resend sin frenar la request si falla.
+
+    Los avisos son notificaciones, no la fuente de verdad: la solicitud ya quedó
+    guardada y el panel la muestra igual. Si Resend está caído, que se pierda el
+    mail es preferible a devolverle un error al usuario por algo ya hecho.
+    """
+    destinatarios = [d for d in destinatarios if d]
+    if not destinatarios:
+        return
+    try:
+        import resend
+        resend.api_key = os.environ.get('RESEND_API_KEY', '')
+        if not resend.api_key:
+            app.logger.warning('RESEND_API_KEY no configurada: no se envió "%s"', asunto)
+            return
+        resend.Emails.send({
+            'from': os.environ.get('RESEND_FROM_EMAIL', 'Niddo <noreply@niddo.app>'),
+            'to': destinatarios,
+            'subject': asunto,
+            'html': html,
+        })
+    except Exception:
+        app.logger.exception('Falló el envío de "%s"', asunto)
+
+
+def _mail_shell(titulo: str, cuerpo: str) -> str:
+    """Envoltorio con la marca. Estilos en línea: Gmail descarta el <style>."""
+    return f"""
+    <div style="background:#F6EFE7;padding:32px 16px;font-family:'Nunito Sans',Helvetica,Arial,sans-serif">
+      <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #E2D6C8;border-radius:18px;overflow:hidden">
+        <div style="background:#E8734A;padding:20px 28px">
+          <h1 style="margin:0;color:#fff;font-size:19px;font-weight:600">{titulo}</h1>
+        </div>
+        <div style="padding:28px;color:#2A211C;font-size:15px;line-height:1.65">{cuerpo}</div>
+        <div style="padding:16px 28px;border-top:1px solid #E2D6C8;color:#574C42;font-size:12px">
+          Niddo — administración de consorcios
+        </div>
+      </div>
+    </div>"""
+
+
+def _mail_aviso_solicitud(fila: dict) -> None:
+    """Avisa a los superadmins, con todo lo necesario para levantar el teléfono."""
+    panel = url_for('superadmin_panel', _external=True)
+    nombre = fila.get('nombre_contacto') or fila.get('nombre') or fila.get('email')
+    contacto = fila.get('email_contacto') or fila.get('email') or ''
+    telefono = fila.get('telefono') or ''
+    cuerpo = f"""
+      <p style="margin:0 0 18px"><strong>{nombre}</strong> pidió acceso como administrador.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:22px">
+        <tr><td style="padding:7px 0;color:#574C42;width:130px">Nombre</td><td style="padding:7px 0"><strong>{nombre}</strong></td></tr>
+        <tr><td style="padding:7px 0;color:#574C42">Teléfono</td><td style="padding:7px 0"><a href="tel:{telefono}" style="color:#C4502B;font-weight:700">{telefono}</a></td></tr>
+        <tr><td style="padding:7px 0;color:#574C42">Email</td><td style="padding:7px 0"><a href="mailto:{contacto}" style="color:#C4502B;font-weight:700">{contacto}</a></td></tr>
+        <tr><td style="padding:7px 0;color:#574C42">Cuenta</td><td style="padding:7px 0">{fila.get('email','')}</td></tr>
+      </table>
+      <a href="{panel}" style="display:inline-block;background:#E8734A;color:#fff;text-decoration:none;
+         padding:12px 24px;border-radius:12px;font-weight:700">Ver en el panel</a>
+      <p style="margin:20px 0 0;color:#574C42;font-size:13px">
+        Aprobar o rechazar se hace desde el panel, con tu sesión iniciada. Este mail solo avisa.
+      </p>"""
+    _enviar_mail([s.get('email_contacto') or s.get('email') for s in _superadmins()],
+                 f'Nueva solicitud de administrador — {nombre}',
+                 _mail_shell('Alguien pidió acceso a Niddo', cuerpo))
+
+
+def _mail_resultado(fila: dict, aprobado: bool, motivo: str = '') -> None:
+    """Le avisa al solicitante cómo salió, y en el rechazo le dice por qué."""
+    nombre = (fila.get('nombre_contacto') or fila.get('nombre') or '').split(' ')[0]
+    saludo = f'Hola {nombre},' if nombre else 'Hola,'
+    if aprobado:
+        cuerpo = f"""
+          <p style="margin:0 0 16px">{saludo}</p>
+          <p style="margin:0 0 22px">Tu cuenta de administrador ya está habilitada. Podés entrar
+          cuando quieras y empezar a cargar tus consorcios.</p>
+          <a href="{url_for('dashboard', role='admin', _external=True)}"
+             style="display:inline-block;background:#E8734A;color:#fff;text-decoration:none;
+             padding:12px 24px;border-radius:12px;font-weight:700">Entrar a Niddo</a>
+          <p style="margin:22px 0 0;color:#574C42;font-size:13px">
+            Si necesitás una mano para arrancar, respondé este mail y te acompañamos.
+          </p>"""
+        asunto, titulo = 'Tu cuenta de Niddo ya está activa', '¡Bienvenido a Niddo!'
+    else:
+        cuerpo = f"""
+          <p style="margin:0 0 16px">{saludo}</p>
+          <p style="margin:0 0 18px">Por ahora no pudimos habilitar tu cuenta de administrador.</p>
+          <div style="background:#F6EFE7;border-left:3px solid #E8734A;padding:14px 18px;border-radius:8px;margin-bottom:20px">
+            {motivo}
+          </div>
+          <p style="margin:0 0 22px">Si creés que hubo un error o querés corregir los datos,
+          entrá de nuevo y reenviá la solicitud.</p>
+          <a href="{url_for('solicitud', _external=True)}"
+             style="display:inline-block;background:#E8734A;color:#fff;text-decoration:none;
+             padding:12px 24px;border-radius:12px;font-weight:700">Revisar mi solicitud</a>"""
+        asunto, titulo = 'Sobre tu solicitud en Niddo', 'Tu solicitud de acceso'
+    _enviar_mail([fila.get('email_contacto') or fila.get('email')], asunto,
+                 _mail_shell(titulo, cuerpo))
+
+
+@app.route('/solicitud')
+@require_auth(allowed_roles=['admin'], permitir_pendiente=True)
+def solicitud():
+    """Formulario de contacto, sala de espera y aviso de rechazo, en una pantalla."""
+    fila = cargar_admin_actual() or {}
+    if fila.get('estado') == 'aprobado':
+        return redirect(url_for('dashboard', role='admin'))
+    return render_template('solicitud.html', user=session['user'], solicitud=fila)
+
+
+@app.route('/api/solicitud', methods=['POST'])
+@require_auth(allowed_roles=['admin'], permitir_pendiente=True)
+def api_solicitud_enviar():
+    fila = cargar_admin_actual()
+    if not fila:
+        return jsonify({'error': 'No encontramos tu cuenta'}), 404
+    if fila.get('estado') == 'aprobado':
+        return jsonify({'error': 'Tu cuenta ya está aprobada'}), 400
+
+    # Un pendiente que ya mandó sus datos no puede reenviar: sin esto el
+    # formulario sería un disparador de mails a los superadmins.
+    if fila.get('estado') == 'pendiente' and fila.get('solicitud_completada_at'):
+        return jsonify({'error': 'Ya recibimos tu solicitud, está en revisión'}), 409
+
+    datos = request.json or {}
+    try:
+        nombre_contacto = _campo_texto(datos, 'nombre_contacto')
+        telefono        = _campo_texto(datos, 'telefono')
+        email_contacto  = _campo_texto(datos, 'email_contacto', obligatorio=False)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+
+    supabase.table('administradores').update({
+        'nombre_contacto':         nombre_contacto,
+        'telefono':                telefono,
+        'email_contacto':          email_contacto or fila.get('email'),
+        'solicitud_completada_at': now_iso(),
+        # Un rechazado que corrige sus datos vuelve a la cola, y el motivo viejo
+        # se limpia para que no reaparezca en pantalla junto a la nueva espera.
+        'estado':                  'pendiente',
+        'motivo_rechazo':          None,
+    }).eq('id', fila['id']).execute()
+
+    _mail_aviso_solicitud({**fila, 'nombre_contacto': nombre_contacto,
+                           'telefono': telefono,
+                           'email_contacto': email_contacto or fila.get('email')})
+    return jsonify({'ok': True})
+
+
+@app.route('/superadmin')
+@require_superadmin
+def superadmin_panel():
+    return render_template('superadmin.html', user=session['user'])
+
+
+@app.route('/api/superadmin/solicitudes', methods=['GET'])
+@require_superadmin
+def api_superadmin_solicitudes():
+    """Cola de pendientes y las últimas resueltas, para tener contexto."""
+    campos = ('id, email, nombre, nombre_contacto, telefono, email_contacto, estado, '
+              'created_at, last_login, solicitud_completada_at, resuelto_at, motivo_rechazo')
+
+    pendientes = supabase.table('administradores').select(campos) \
+        .eq('estado', 'pendiente').order('solicitud_completada_at', desc=False).execute().data or []
+    resueltas = supabase.table('administradores').select(campos) \
+        .in_('estado', ['aprobado', 'rechazado']).not_.is_('resuelto_at', 'null') \
+        .order('resuelto_at', desc=True).limit(20).execute().data or []
+
+    # Sin datos de contacto es alguien que se registró y abandonó a mitad de
+    # camino: se muestra aparte para no ensuciar la cola de los que esperan.
+    return jsonify({
+        'esperando':   [s for s in pendientes if s.get('solicitud_completada_at')],
+        'incompletas': [s for s in pendientes if not s.get('solicitud_completada_at')],
+        'resueltas':   resueltas,
+    })
+
+
+@app.route('/api/superadmin/solicitudes/<sid>/aprobar', methods=['POST'])
+@require_superadmin
+def api_superadmin_aprobar(sid):
+    # email_contacto va en el SELECT porque _mail_resultado lo prefiere sobre el
+    # email de Auth0: si la persona dio otro para que la contactemos, el aviso
+    # tiene que ir ahí y no a la cuenta con la que se registró.
+    fila = supabase.table('administradores') \
+        .select('id, email, email_contacto, nombre, nombre_contacto, estado') \
+        .eq('id', sid).execute().data
+    if not fila:
+        return jsonify({'error': 'Solicitud no encontrada'}), 404
+    fila = fila[0]
+    if fila['estado'] == 'aprobado':
+        return jsonify({'error': 'Esa cuenta ya estaba aprobada'}), 409
+
+    supabase.table('administradores').update({
+        'estado':       'aprobado',
+        'aprobado_por': get_admin_id(),
+        'resuelto_at':  now_iso(),
+        'motivo_rechazo': None,
+    }).eq('id', sid).execute()
+
+    _auditar('aprobar', sid)
+    _mail_resultado(fila, aprobado=True)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/superadmin/solicitudes/<sid>/rechazar', methods=['POST'])
+@require_superadmin
+def api_superadmin_rechazar(sid):
+    motivo = ((request.json or {}).get('motivo') or '').strip()
+    if not motivo:
+        return jsonify({'error': 'Escribí un motivo: se lo mandamos por mail'}), 400
+    if len(motivo) > 1000:
+        return jsonify({'error': 'El motivo es demasiado largo'}), 400
+
+    # email_contacto va en el SELECT porque _mail_resultado lo prefiere sobre el
+    # email de Auth0: si la persona dio otro para que la contactemos, el aviso
+    # tiene que ir ahí y no a la cuenta con la que se registró.
+    fila = supabase.table('administradores') \
+        .select('id, email, email_contacto, nombre, nombre_contacto, estado') \
+        .eq('id', sid).execute().data
+    if not fila:
+        return jsonify({'error': 'Solicitud no encontrada'}), 404
+    fila = fila[0]
+
+    supabase.table('administradores').update({
+        'estado':         'rechazado',
+        'aprobado_por':   get_admin_id(),
+        'resuelto_at':    now_iso(),
+        'motivo_rechazo': motivo,
+    }).eq('id', sid).execute()
+
+    _auditar('rechazar', sid, motivo)
+    _mail_resultado(fila, aprobado=False, motivo=motivo)
+    return jsonify({'ok': True})
 
 
 # ══════════════════════════════════════════════════════════════════════════════

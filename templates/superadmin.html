@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aprobaciones | Niddo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--nd-crema); min-height: 100vh; }
+
+        .topbar {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: .9rem 1.25rem;
+            display: flex; align-items: center; gap: .9rem;
+            position: sticky; top: 0; z-index: 10;
+        }
+        .topbar .mark {
+            width: 38px; height: 38px; border-radius: var(--r-md);
+            background: var(--nd-terracota-dim);
+            display: flex; align-items: center; justify-content: center;
+            padding: 7px; flex-shrink: 0; text-decoration: none;
+        }
+        .topbar h1 { font-size: 1.02rem; flex: 1; }
+        .topbar .sub { display: block; font-size: .74rem; color: var(--muted); font-weight: 400; }
+        .topbar a.accion {
+            color: var(--nd-terracota-hondo); text-decoration: none;
+            font-size: .84rem; font-weight: 700; white-space: nowrap;
+        }
+        .topbar a.accion:hover { text-decoration: underline; }
+
+        .contenido { max-width: 780px; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
+
+        .seccion { margin-bottom: 2.2rem; }
+        .seccion > h2 {
+            font-size: .78rem; text-transform: uppercase; letter-spacing: .06em;
+            color: var(--muted); margin-bottom: .85rem;
+            display: flex; align-items: center; gap: .5rem;
+        }
+        .contador {
+            background: var(--nd-terracota); color: #fff;
+            border-radius: var(--r-pill); padding: .05rem .5rem;
+            font-size: .72rem; letter-spacing: 0;
+        }
+        .contador.cero { background: var(--nd-borde); color: var(--muted); }
+
+        .tarjeta {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r-lg);
+            padding: 1.15rem;
+            margin-bottom: .8rem;
+            box-shadow: var(--shadow-card);
+        }
+
+        .tarjeta-cab { display: flex; align-items: flex-start; gap: .85rem; margin-bottom: .95rem; }
+        .avatar {
+            width: 42px; height: 42px; border-radius: 50%;
+            background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: .95rem; flex-shrink: 0;
+        }
+        .tarjeta-cab .quien { flex: 1; min-width: 0; }
+        .tarjeta-cab .nombre { font-weight: 700; font-size: .98rem; }
+        .tarjeta-cab .cuenta { font-size: .78rem; color: var(--muted); word-break: break-all; }
+        .antiguedad { font-size: .74rem; color: var(--muted); white-space: nowrap; }
+
+        .contacto { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+        .chip {
+            display: inline-flex; align-items: center; gap: .4rem;
+            background: var(--nd-crema-claro);
+            border: 1px solid var(--border);
+            border-radius: var(--r-pill);
+            padding: .38rem .8rem;
+            font-size: .83rem; font-weight: 600;
+            color: var(--nd-terracota-hondo); text-decoration: none;
+        }
+        .chip:hover { background: var(--nd-terracota-dim); border-color: var(--nd-terracota); }
+
+        .acciones { display: flex; gap: .55rem; }
+        .btn {
+            flex: 1;
+            padding: .62rem .9rem;
+            border: 1px solid transparent;
+            border-radius: var(--r-md);
+            font-family: var(--font); font-size: .87rem; font-weight: 700;
+            cursor: pointer; transition: background .15s, transform .15s;
+        }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
+        .btn-aprobar { background: var(--nd-verde); color: #fff; }
+        .btn-aprobar:hover:not(:disabled) { background: var(--nd-verde-bosque); transform: translateY(-1px); }
+        .btn-rechazar { background: transparent; color: var(--nd-terracota-hondo); border-color: var(--border); }
+        .btn-rechazar:hover:not(:disabled) { background: var(--nd-terracota-dim); border-color: var(--nd-terracota); }
+
+        .vacio {
+            text-align: center; padding: 2rem 1rem;
+            color: var(--muted); font-size: .88rem;
+            background: var(--surface); border: 1px dashed var(--border);
+            border-radius: var(--r-lg);
+        }
+
+        /* Resueltas: fila compacta, es solo historial */
+        .fila-resuelta {
+            display: flex; align-items: center; gap: .75rem;
+            padding: .7rem .95rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r-md);
+            margin-bottom: .45rem;
+            font-size: .86rem;
+        }
+        .fila-resuelta .quien { flex: 1; min-width: 0; }
+        .fila-resuelta .nombre { font-weight: 600; }
+        .fila-resuelta .cuenta { font-size: .76rem; color: var(--muted); word-break: break-all; }
+        .pill {
+            font-size: .72rem; font-weight: 700; padding: .18rem .6rem;
+            border-radius: var(--r-pill); white-space: nowrap;
+        }
+        .pill.aprobado  { background: var(--nd-verde-dim); color: var(--nd-verde-bosque); }
+        .pill.rechazado { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
+
+        /* ── Modal de rechazo ── */
+        .overlay {
+            position: fixed; inset: 0; background: rgba(42,33,28,.55);
+            display: none; align-items: center; justify-content: center;
+            padding: 1.25rem; z-index: 50;
+        }
+        .overlay.visible { display: flex; }
+        .modal {
+            background: var(--surface); border-radius: var(--r-xl);
+            padding: 1.5rem; width: 100%; max-width: 420px;
+            box-shadow: var(--shadow-window);
+        }
+        .modal h3 { font-size: 1.05rem; margin-bottom: .4rem; }
+        .modal p { font-size: .85rem; color: var(--muted); line-height: 1.6; margin-bottom: 1rem; }
+        .modal textarea {
+            width: 100%; min-height: 96px; resize: vertical;
+            padding: .7rem .85rem;
+            border: 1px solid var(--border); border-radius: var(--r-md);
+            background: var(--nd-crema-claro);
+            font-family: var(--font); font-size: .9rem; color: var(--text);
+        }
+        .modal textarea:focus { outline: none; border-color: var(--nd-terracota); background: var(--surface); }
+        .modal .acciones { margin-top: 1.1rem; }
+        .btn-cancelar { background: transparent; color: var(--muted); border-color: var(--border); }
+        .btn-cancelar:hover:not(:disabled) { background: var(--nd-crema-claro); }
+        .btn-confirmar { background: var(--nd-terracota); color: #fff; }
+        .btn-confirmar:hover:not(:disabled) { background: var(--nd-terracota-hondo); }
+        /* Habilitar es una acción constructiva y va en verde, igual que el botón
+           de la tarjeta: el rojo de rechazar no puede ser el mismo color con el
+           que se aprueba, o el clic se vuelve mecánico. */
+        .btn-confirmar.ok { background: var(--nd-verde); }
+        .btn-confirmar.ok:hover:not(:disabled) { background: var(--nd-verde-bosque); }
+
+        /* ── Toast ── */
+        .toast {
+            position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%) translateY(150%);
+            background: var(--nd-tinta); color: #fff;
+            padding: .75rem 1.25rem; border-radius: var(--r-pill);
+            font-size: .87rem; font-weight: 600;
+            box-shadow: var(--shadow-window);
+            transition: transform .25s ease, opacity .25s ease; z-index: 60;
+            max-width: calc(100vw - 2.5rem);
+            /* El translateY solo no alcanza: se mide sobre la altura del toast y
+               con el texto vacío queda a menos de 1.5rem, así que asomaba. */
+            opacity: 0; pointer-events: none;
+        }
+        .toast.visible { transform: translateX(-50%) translateY(0); opacity: 1; }
+        .toast.error { background: var(--nd-terracota-hondo); }
+
+        @media (max-width: 480px) {
+            .contenido { padding: 1.15rem .9rem 3rem; }
+            .topbar h1 { font-size: .95rem; }
+            .acciones { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+{% include '_icons.html' %}
+
+    <div class="topbar">
+        <a href="/dashboard/admin" class="mark" aria-label="Volver al panel">
+            <svg class="nd-iso" style="width:100%;height:100%"><use href="#nd-isotipo"></use></svg>
+        </a>
+        <h1>
+            Aprobaciones
+            <span class="sub">Altas de administradores</span>
+        </h1>
+        <a href="/dashboard/admin" class="accion">Mi panel</a>
+    </div>
+
+    <div class="contenido">
+        <div class="seccion">
+            <h2>Esperando respuesta <span class="contador cero" id="c-esperando">0</span></h2>
+            <div id="lista-esperando"></div>
+        </div>
+
+        <div class="seccion" id="seccion-incompletas" style="display:none">
+            <h2>Se registraron sin completar datos <span class="contador cero" id="c-incompletas">0</span></h2>
+            <div id="lista-incompletas"></div>
+        </div>
+
+        <div class="seccion">
+            <h2>Resueltas recientemente</h2>
+            <div id="lista-resueltas"></div>
+        </div>
+    </div>
+
+    <div class="overlay" id="overlay">
+        <div class="modal">
+            <h3 id="modal-titulo"></h3>
+            <p id="modal-texto"></p>
+            <textarea id="modal-motivo" maxlength="1000"
+                      placeholder="Por ejemplo: no pudimos verificar que administres consorcios. Escribinos si creés que hay un error."></textarea>
+            <div class="acciones">
+                <button class="btn btn-cancelar" id="btn-cancelar">Cancelar</button>
+                <button class="btn btn-confirmar" id="btn-confirmar"></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+<script>
+    const $ = (id) => document.getElementById(id);
+    let objetivo = null;   // { accion, id } de la solicitud abierta en el modal
+
+    const escapar = (s) => {
+        const d = document.createElement('div');
+        d.textContent = s ?? '';
+        return d.innerHTML;
+    };
+
+    const iniciales = (nombre, email) => {
+        const base = (nombre || email || '?').trim();
+        const partes = base.split(/\s+/).filter(Boolean);
+        return ((partes[0]?.[0] || '') + (partes[1]?.[0] || '')).toUpperCase() || '?';
+    };
+
+    const desde = (iso) => {
+        if (!iso) return '';
+        const dias = Math.floor((Date.now() - new Date(iso)) / 86400000);
+        if (dias === 0) return 'hoy';
+        if (dias === 1) return 'ayer';
+        if (dias < 30) return `hace ${dias} días`;
+        return new Date(iso).toLocaleDateString('es-AR');
+    };
+
+    const toast = (mensaje, esError = false) => {
+        const t = $('toast');
+        t.textContent = mensaje;
+        t.classList.toggle('error', esError);
+        t.classList.add('visible');
+        setTimeout(() => t.classList.remove('visible'), 3800);
+    };
+
+    function tarjeta(s, conContacto) {
+        const nombre = s.nombre_contacto || s.nombre || s.email;
+        const email = s.email_contacto || s.email;
+        const contacto = conContacto ? `
+            <div class="contacto">
+                ${s.telefono ? `<a class="chip" href="tel:${escapar(s.telefono)}">
+                    <svg class="ic ic-sm"><use href="#ic-mensaje"></use></svg>${escapar(s.telefono)}</a>` : ''}
+                <a class="chip" href="mailto:${escapar(email)}">
+                    <svg class="ic ic-sm"><use href="#ic-mail"></use></svg>${escapar(email)}</a>
+            </div>` : `
+            <div class="contacto">
+                <span class="chip" style="color:var(--muted)">Todavía no completó sus datos de contacto</span>
+            </div>`;
+
+        return `
+        <div class="tarjeta" data-id="${s.id}">
+            <div class="tarjeta-cab">
+                <div class="avatar">${escapar(iniciales(s.nombre_contacto || s.nombre, s.email))}</div>
+                <div class="quien">
+                    <div class="nombre">${escapar(nombre)}</div>
+                    <div class="cuenta">${escapar(s.email)}</div>
+                </div>
+                <div class="antiguedad">${desde(s.solicitud_completada_at || s.created_at)}</div>
+            </div>
+            ${contacto}
+            <div class="acciones">
+                <button class="btn btn-aprobar" data-accion="aprobar" data-id="${s.id}"
+                        data-nombre="${escapar(nombre)}">Aprobar</button>
+                <button class="btn btn-rechazar" data-accion="rechazar" data-id="${s.id}"
+                        data-nombre="${escapar(nombre)}">Rechazar</button>
+            </div>
+        </div>`;
+    }
+
+    function filaResuelta(s) {
+        return `
+        <div class="fila-resuelta">
+            <div class="quien">
+                <div class="nombre">${escapar(s.nombre_contacto || s.nombre || s.email)}</div>
+                <div class="cuenta">${escapar(s.email)}</div>
+            </div>
+            <span class="pill ${s.estado}">${s.estado === 'aprobado' ? 'Aprobado' : 'Rechazado'}</span>
+            <span class="antiguedad">${desde(s.resuelto_at)}</span>
+        </div>`;
+    }
+
+    async function cargar() {
+        let d;
+        try {
+            const r = await fetch('/api/superadmin/solicitudes');
+            if (!r.ok) throw new Error('No pudimos cargar las solicitudes');
+            d = await r.json();
+        } catch (e) {
+            toast(e.message, true);
+            return;
+        }
+
+        $('c-esperando').textContent = d.esperando.length;
+        $('c-esperando').classList.toggle('cero', d.esperando.length === 0);
+        $('lista-esperando').innerHTML = d.esperando.length
+            ? d.esperando.map((s) => tarjeta(s, true)).join('')
+            : '<div class="vacio">No hay solicitudes esperando. Todo al día.</div>';
+
+        $('seccion-incompletas').style.display = d.incompletas.length ? '' : 'none';
+        $('c-incompletas').textContent = d.incompletas.length;
+        $('c-incompletas').classList.toggle('cero', d.incompletas.length === 0);
+        $('lista-incompletas').innerHTML = d.incompletas.map((s) => tarjeta(s, false)).join('');
+
+        $('lista-resueltas').innerHTML = d.resueltas.length
+            ? d.resueltas.map(filaResuelta).join('')
+            : '<div class="vacio">Todavía no resolviste ninguna solicitud.</div>';
+    }
+
+    async function resolver(id, accion, motivo) {
+        // Se deshabilita toda la tarjeta: aprobar dos veces por doble clic
+        // devolvería un 409 y un error confuso.
+        const tarjetaEl = document.querySelector(`.tarjeta[data-id="${id}"]`);
+        tarjetaEl?.querySelectorAll('button').forEach((b) => (b.disabled = true));
+        try {
+            const r = await fetch(`/api/superadmin/solicitudes/${id}/${accion}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(motivo ? { motivo } : {}),
+            });
+            const j = await r.json().catch(() => ({ error: 'Error inesperado' }));
+            if (!r.ok) throw new Error(j.error || 'Error inesperado');
+            toast(accion === 'aprobar' ? 'Aprobado. Le avisamos por mail.' : 'Rechazado. Le avisamos por mail.');
+            await cargar();
+        } catch (e) {
+            toast(e.message, true);
+            tarjetaEl?.querySelectorAll('button').forEach((b) => (b.disabled = false));
+        }
+    }
+
+    // Aprobar también confirma: da acceso completo al sistema y con dos tarjetas
+    // pegadas un clic errado habilita a quien no era, mandándole el mail de
+    // bienvenida antes de que llegues a deshacerlo.
+    function abrirModal(accion, id, nombre) {
+        objetivo = { accion, id };
+        const esAprobar = accion === 'aprobar';
+        $('modal-titulo').textContent = esAprobar ? 'Habilitar administrador' : 'Rechazar solicitud';
+        $('modal-texto').innerHTML = esAprobar
+            ? `<strong>${escapar(nombre)}</strong> va a tener acceso completo a Niddo y le llega el mail de bienvenida.`
+            : `El motivo que escribas le llega por mail a <strong>${escapar(nombre)}</strong>, así que redactalo pensando en que lo va a leer.`;
+        $('modal-motivo').value = '';
+        $('modal-motivo').style.display = esAprobar ? 'none' : '';
+        $('btn-confirmar').textContent = esAprobar ? 'Habilitar' : 'Rechazar y avisar';
+        $('btn-confirmar').classList.toggle('ok', esAprobar);
+        $('overlay').classList.add('visible');
+        (esAprobar ? $('btn-confirmar') : $('modal-motivo')).focus();
+    }
+
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-accion]');
+        if (!btn) return;
+        abrirModal(btn.dataset.accion, btn.dataset.id, btn.dataset.nombre);
+    });
+
+    const cerrarModal = () => {
+        $('overlay').classList.remove('visible');
+        objetivo = null;
+    };
+
+    $('btn-cancelar').addEventListener('click', cerrarModal);
+    $('overlay').addEventListener('click', (e) => { if (e.target === $('overlay')) cerrarModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrarModal(); });
+
+    $('btn-confirmar').addEventListener('click', () => {
+        if (!objetivo) return;
+        const { accion, id } = objetivo;
+        let motivo = '';
+        if (accion === 'rechazar') {
+            motivo = $('modal-motivo').value.trim();
+            if (!motivo) { toast('Escribí un motivo: se lo mandamos por mail.', true); return; }
+        }
+        cerrarModal();
+        resolver(id, accion, motivo);
+    });
+
+    cargar();
+</script>
+</body>
+</html>
