@@ -105,12 +105,69 @@ def upsert_user(role: str, auth0_id: str, email: str, nombre: str) -> Optional[d
 # `get_admin_id()` ya hacía este mismo SELECT en cada ruta.
 _CAMPOS_ADMIN = (
     'id, estado, es_superadmin, nombre, email, nombre_contacto, telefono, '
-    'email_contacto, motivo_rechazo, solicitud_completada_at'
+    'email_contacto, motivo_rechazo, solicitud_completada_at, ultima_actividad'
 )
+
+INACTIVO_DIAS = 30          # sin usar la plataforma en este plazo = inactivo
+ACTIVIDAD_FRESCA_SEG = 3600  # cada cuánto se refresca ultima_actividad
+
+
+def _fila_admin(campo: str, valor: str) -> Optional[dict]:
+    res = supabase.table('administradores').select(_CAMPOS_ADMIN).eq(campo, valor).execute()
+    return res.data[0] if res.data else None
+
+
+def _tocar_actividad(fila: Optional[dict]) -> None:
+    """Refresca `ultima_actividad`, como mucho una vez por hora.
+
+    `last_login` solo se escribe cuando alguien pasa por Auth0, así que quien
+    trabaja con la sesión abierta figuraba inactivo hace semanas. Esto arregla
+    la señal sin pagar un UPDATE por carga de página: saber la hora exacta del
+    último uso no vale más que saberla con una hora de margen.
+    """
+    if not fila or not fila.get('id'):
+        return
+    previo = fila.get('ultima_actividad')
+    if previo:
+        try:
+            visto = datetime.fromisoformat(previo.replace('Z', '+00:00'))
+            if (datetime.now(timezone.utc) - visto).total_seconds() < ACTIVIDAD_FRESCA_SEG:
+                return
+        except ValueError:
+            pass  # valor ilegible: se reescribe y queda sano
+    ahora = now_iso()
+    try:
+        supabase.table('administradores').update({'ultima_actividad': ahora}) \
+            .eq('id', fila['id']).execute()
+        fila['ultima_actividad'] = ahora
+    except Exception:
+        app.logger.exception('No se pudo refrescar ultima_actividad de %s', fila['id'])
+
+
+def cargar_superadmin_real() -> Optional[dict]:
+    """La fila de quien está realmente logueado, ignorando la impersonación.
+
+    Es la que manda para los permisos: mientras se mira la plataforma como otro
+    administrador, los privilegios siguen siendo los de la persona detrás.
+    """
+    if 'admin_real' in g:
+        return g.admin_real
+    g.admin_real = None
+    user = session.get('user')
+    if user and user.get('role') == 'admin':
+        g.admin_real = _fila_admin('auth0_id', user['sub'])
+        # Solo se registra la actividad de la persona real: si se registrara la
+        # del impersonado, mirarlo lo haría figurar como activo.
+        _tocar_actividad(g.admin_real)
+    return g.admin_real
 
 
 def cargar_admin_actual() -> Optional[dict]:
-    """Fila de `administradores` del usuario en sesión, cacheada por request.
+    """La fila cuyos datos se están viendo, cacheada por request.
+
+    Con impersonación activa devuelve la del administrador impersonado, y con
+    eso las ~40 rutas de datos que ya existen quedan apuntando a él sin tocar
+    ninguna: todas pasan por `get_admin_id()`.
 
     El estado de aprobación se lee siempre de la base y nunca de la sesión: si
     se guardara en la cookie, revocarle el acceso a alguien no tendría efecto
@@ -120,13 +177,15 @@ def cargar_admin_actual() -> Optional[dict]:
     if 'admin_row' in g:
         return g.admin_row
 
-    g.admin_row = None
-    user = session.get('user')
-    if user and user.get('role') == 'admin':
-        res = supabase.table('administradores').select(_CAMPOS_ADMIN) \
-            .eq('auth0_id', user['sub']).execute()
-        if res.data:
-            g.admin_row = res.data[0]
+    real = cargar_superadmin_real()
+    imp = session.get('impersonar')
+    # El es_superadmin se revalida contra la base en cada request: si a alguien
+    # le revocan el privilegio con una sesión de impersonación abierta, vuelve
+    # a ver sus propios datos en el request siguiente.
+    if imp and real and real.get('es_superadmin') and real.get('estado') == 'aprobado':
+        g.admin_row = _fila_admin('id', imp['id'])
+    else:
+        g.admin_row = real
     return g.admin_row
 
 
@@ -335,11 +394,43 @@ def require_superadmin(f):
             return redirect(url_for('login'))
         if user.get('role') != 'admin':
             abort(404)
-        row = cargar_admin_actual()
+        # La fila real, no la impersonada: si se usara cargar_admin_actual(),
+        # entrar como un administrador común haría perder el acceso al portal.
+        row = cargar_superadmin_real()
         if not row or not row.get('es_superadmin') or row.get('estado') != 'aprobado':
             abort(404)
         return f(*args, **kwargs)
     return decorated
+
+
+RUTA_SALIR_IMPERSONACION = '/superadmin/impersonar/salir'
+
+
+@app.before_request
+def _impersonacion_es_solo_lectura():
+    """Un solo cerrojo para todo el modo impersonación.
+
+    Bloquear por método en un único punto es lo que hace la promesa verificable:
+    si dependiera de decorar cada endpoint, alcanzaría con olvidarse de uno para
+    que salga un mail a 40 vecinos firmado por un administrador que nunca se
+    enteró. Las rutas que escriben son todas POST/PUT/DELETE, así que dejar
+    pasar solo lectura las cubre a todas, incluidas las que se agreguen después.
+    """
+    if not session.get('impersonar'):
+        return None
+    if request.method in ('GET', 'HEAD', 'OPTIONS'):
+        return None
+    if request.path == RUTA_SALIR_IMPERSONACION:
+        return None
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Estás viendo esta cuenta en modo lectura'}), 403
+    return redirect(url_for('superadmin_panel'))
+
+
+@app.context_processor
+def _contexto_impersonacion():
+    """Expone la impersonación a todos los templates, para la barra de aviso."""
+    return {'impersonando': session.get('impersonar')}
 
 
 @app.errorhandler(Exception)
@@ -463,8 +554,11 @@ def _auditar(accion: str, target_id: str, motivo: Optional[str] = None) -> None:
     fila de log, y el error queda en el log de la aplicación.
     """
     try:
+        real = cargar_superadmin_real()
         supabase.table('superadmin_auditoria').insert({
-            'actor_id':   get_admin_id(),
+            # El actor es siempre la persona real. Con get_admin_id() una acción
+            # hecha mientras se impersona quedaría firmada por el impersonado.
+            'actor_id':   real['id'] if real else None,
             'target_id':  target_id,
             'accion':     accion,
             'motivo':     motivo,
@@ -627,6 +721,283 @@ def api_solicitud_enviar():
 @require_superadmin
 def superadmin_panel():
     return render_template('superadmin.html', user=session['user'])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SUPERADMIN — IMPERSONACIÓN (solo lectura)
+# ══════════════════════════════════════════════════════════════════════════════
+@app.route('/api/superadmin/impersonar/<aid>', methods=['POST'])
+@require_superadmin
+def api_superadmin_impersonar(aid):
+    fila = _fila_admin('id', aid)
+    if not fila:
+        return jsonify({'error': 'Administrador no encontrado'}), 404
+    if fila.get('es_superadmin'):
+        # Entre dueños no hay nada que mirar que no se pueda pedir, y permitirlo
+        # abriría la puerta a que uno actúe con la identidad del otro.
+        return jsonify({'error': 'No se puede entrar como otro superadmin'}), 403
+    if fila.get('estado') != 'aprobado':
+        return jsonify({'error': 'Esa cuenta todavía no está aprobada'}), 400
+
+    _auditar('impersonar_inicio', fila['id'])   # antes de tocar la sesión
+    session['impersonar'] = {
+        'id': fila['id'],
+        'nombre': fila.get('nombre_contacto') or fila.get('nombre') or fila.get('email'),
+    }
+    return jsonify({'ok': True, 'destino': url_for('dashboard', role='admin')})
+
+
+@app.route(RUTA_SALIR_IMPERSONACION)
+@require_superadmin
+def superadmin_impersonar_salir():
+    imp = session.pop('impersonar', None)
+    if imp:
+        _auditar('impersonar_fin', imp['id'])
+    return redirect(url_for('superadmin_panel'))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SUPERADMIN — MÉTRICAS DE LA PLATAFORMA
+# ══════════════════════════════════════════════════════════════════════════════
+def _mes(iso: Optional[str]) -> str:
+    return (iso or '')[:7]
+
+
+def _dias_desde(iso: Optional[str]) -> Optional[int]:
+    if not iso:
+        return None
+    try:
+        d = datetime.fromisoformat(iso.replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    return (datetime.now(timezone.utc) - d).days
+
+
+def _ultimos_meses(n: int) -> list:
+    """Los últimos n meses como 'YYYY-MM', del más viejo al más nuevo."""
+    hoy = datetime.now(timezone.utc)
+    meses, y, m = [], hoy.year, hoy.month
+    for _ in range(n):
+        meses.append(f'{y:04d}-{m:02d}')
+        m -= 1
+        if m == 0:
+            y, m = y - 1, 12
+    return list(reversed(meses))
+
+
+def _cargar_universo() -> dict:
+    """Trae de una vez lo que necesita el tablero.
+
+    Se traen filas y se agrega en Python en lugar de pedirle GROUP BY a la base:
+    PostgREST no expone agregaciones sin crear vistas o funciones, y a la escala
+    actual —decenas de administradores, cientos de unidades— el costo es
+    despreciable. Cuando estas tablas lleguen a decenas de miles de filas, esto
+    hay que reemplazarlo por vistas materializadas; el resto del portal no se
+    entera porque todo pasa por acá.
+    """
+    return {
+        'admins': supabase.table('administradores')
+            .select('id, estado, es_superadmin, created_at, ultima_actividad, last_login, '
+                    'nombre, email, nombre_contacto, telefono, resuelto_at, '
+                    'solicitud_completada_at').execute().data or [],
+        'consorcios': supabase.table('consorcios')
+            .select('id, admin_id, nombre, created_at, banco_cbu').execute().data or [],
+        'ufs': supabase.table('unidades_funcionales')
+            .select('id, consorcio_id, vecino_email, vecino_id').execute().data or [],
+        'vecinos': supabase.table('vecinos')
+            .select('id, created_at, consorcio_id, last_login').execute().data or [],
+        'liqs': supabase.table('liquidaciones')
+            .select('id, admin_id, periodo, estado, created_at').execute().data or [],
+    }
+
+
+def _indices(u: dict) -> dict:
+    """Relaciones derivadas que usan casi todos los cálculos."""
+    consorcios_por_admin, ufs_por_consorcio, liqs_por_admin = {}, {}, {}
+    for c in u['consorcios']:
+        consorcios_por_admin.setdefault(c.get('admin_id'), []).append(c)
+    for uf in u['ufs']:
+        ufs_por_consorcio.setdefault(uf.get('consorcio_id'), []).append(uf)
+    for l in u['liqs']:
+        liqs_por_admin.setdefault(l.get('admin_id'), []).append(l)
+    return {
+        'consorcios_por_admin': consorcios_por_admin,
+        'ufs_por_consorcio': ufs_por_consorcio,
+        'liqs_por_admin': liqs_por_admin,
+    }
+
+
+def _ufs_de_admin(aid: str, ix: dict) -> int:
+    return sum(len(ix['ufs_por_consorcio'].get(c['id'], []))
+               for c in ix['consorcios_por_admin'].get(aid, []))
+
+
+@app.route('/api/superadmin/metricas', methods=['GET'])
+@require_superadmin
+def api_superadmin_metricas():
+    u = _cargar_universo()
+    ix = _indices(u)
+    meses = _ultimos_meses(12)
+    mes_actual, mes_previo = meses[-1], meses[-2]
+
+    # Los superadmins quedan fuera de todas las métricas: son el equipo, no
+    # clientes, y con una base chica dos cuentas propias distorsionan todo.
+    clientes = [a for a in u['admins'] if not a.get('es_superadmin')]
+    aprobados = [a for a in clientes if a.get('estado') == 'aprobado']
+    activos = [a for a in aprobados
+               if (_dias_desde(a.get('ultima_actividad')) or 9999) <= INACTIVO_DIAS]
+
+    def altas_en(filas, mes):
+        return sum(1 for f in filas if _mes(f.get('created_at')) == mes)
+
+    liqs_mes = [l for l in u['liqs'] if l.get('periodo') == mes_actual]
+
+    indicadores = {
+        'activos':      {'valor': len(activos), 'total': len(aprobados)},
+        'consorcios':   {'valor': len(u['consorcios']),
+                         'nuevos': altas_en(u['consorcios'], mes_actual)},
+        'unidades':     {'valor': len(u['ufs'])},
+        'vecinos':      {'valor': len(u['vecinos']),
+                         'nuevos': altas_en(u['vecinos'], mes_actual)},
+        'liquidaciones': {'valor': len(liqs_mes),
+                          'previo': sum(1 for l in u['liqs'] if l.get('periodo') == mes_previo)},
+        'administradores': {'valor': len(aprobados), 'nuevos': altas_en(clientes, mes_actual)},
+    }
+
+    tendencia = [{
+        'mes': m,
+        'administradores': altas_en(clientes, m),
+        'consorcios':      altas_en(u['consorcios'], m),
+        'liquidaciones':   sum(1 for l in u['liqs'] if l.get('periodo') == m),
+    } for m in meses]
+
+    # Embudo: cada escalón es un subconjunto del anterior, así que la caída
+    # entre dos escalones señala qué paso del producto cuesta más.
+    con_consorcio = [a for a in aprobados if ix['consorcios_por_admin'].get(a['id'])]
+    con_unidades  = [a for a in con_consorcio if _ufs_de_admin(a['id'], ix) > 0]
+    con_liq       = [a for a in con_unidades if ix['liqs_por_admin'].get(a['id'])]
+    embudo = [
+        {'paso': 'Se registraron',        'valor': len(clientes)},
+        {'paso': 'Aprobados',             'valor': len(aprobados)},
+        {'paso': 'Cargaron un consorcio', 'valor': len(con_consorcio)},
+        {'paso': 'Cargaron unidades',     'valor': len(con_unidades)},
+        {'paso': 'Emitieron liquidación', 'valor': len(con_liq)},
+    ]
+
+    return jsonify({
+        'indicadores': indicadores,
+        'tendencia': tendencia,
+        'embudo': embudo,
+        'atencion': _lista_atencion(u, ix, aprobados),
+    })
+
+
+def _lista_atencion(u: dict, ix: dict, aprobados: list) -> dict:
+    """Lo accionable: gente trabada y cosas rotas, cada una con su motivo."""
+    def nombre(a):
+        return a.get('nombre_contacto') or a.get('nombre') or a.get('email')
+
+    def ficha(a, motivo):
+        return {'id': a['id'], 'nombre': nombre(a), 'email': a.get('email'),
+                'telefono': a.get('telefono'), 'motivo': motivo,
+                'dias': _dias_desde(a.get('ultima_actividad'))}
+
+    trabados, en_fuga = [], []
+    for a in aprobados:
+        cons = ix['consorcios_por_admin'].get(a['id'], [])
+        liqs = ix['liqs_por_admin'].get(a['id'], [])
+        desde_alta = _dias_desde(a.get('resuelto_at') or a.get('created_at'))
+        inactivo = _dias_desde(a.get('ultima_actividad'))
+
+        if not cons and (desde_alta or 0) >= 7:
+            trabados.append(ficha(a, f'Aprobado hace {desde_alta} días y todavía no cargó ningún consorcio'))
+        elif cons and _ufs_de_admin(a['id'], ix) == 0:
+            trabados.append(ficha(a, 'Cargó consorcios pero ninguna unidad funcional'))
+        elif cons and not liqs and (desde_alta or 0) >= 14:
+            trabados.append(ficha(a, 'Tiene el consorcio armado pero nunca emitió una liquidación'))
+
+        if liqs and (inactivo or 0) >= 45:
+            en_fuga.append(ficha(a, f'Emitía liquidaciones y hace {inactivo} días que no entra'))
+
+    # Salud: fallas concretas que el administrador todavía no reportó.
+    fallidos = supabase.table('resumen_envios').select('id, email_destino, error_detalle, fecha_envio') \
+        .eq('estado', 'fallido').order('fecha_envio', desc=True).limit(25).execute().data or []
+
+    sin_cbu = [{'id': c['id'], 'nombre': c.get('nombre')}
+               for c in u['consorcios'] if not (c.get('banco_cbu') or '').strip()]
+    ufs_sin_email = sum(1 for uf in u['ufs'] if not (uf.get('vecino_email') or '').strip())
+
+    return {
+        'trabados': trabados,
+        'en_fuga': en_fuga,
+        'envios_fallidos': fallidos,
+        'consorcios_sin_cbu': sin_cbu,
+        'unidades_sin_email': ufs_sin_email,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SUPERADMIN — ADMINISTRADORES, VECINOS Y AUDITORÍA
+# ══════════════════════════════════════════════════════════════════════════════
+@app.route('/api/superadmin/administradores', methods=['GET'])
+@require_superadmin
+def api_superadmin_administradores():
+    q = (request.args.get('q') or '').strip().lower()
+    u = _cargar_universo()
+    ix = _indices(u)
+
+    filas = []
+    for a in u['admins']:
+        if a.get('es_superadmin'):
+            continue
+        nombre = a.get('nombre_contacto') or a.get('nombre') or a.get('email') or ''
+        if q and q not in nombre.lower() and q not in (a.get('email') or '').lower():
+            continue
+        cons = ix['consorcios_por_admin'].get(a['id'], [])
+        filas.append({
+            'id': a['id'], 'nombre': nombre, 'email': a.get('email'),
+            'telefono': a.get('telefono'), 'estado': a.get('estado'),
+            'consorcios': len(cons), 'unidades': _ufs_de_admin(a['id'], ix),
+            'liquidaciones': len(ix['liqs_por_admin'].get(a['id'], [])),
+            'created_at': a.get('created_at'),
+            'ultima_actividad': a.get('ultima_actividad'),
+            'dias_inactivo': _dias_desde(a.get('ultima_actividad')),
+        })
+    filas.sort(key=lambda f: (f['dias_inactivo'] is None, f['dias_inactivo'] or 0))
+    return jsonify({'administradores': filas})
+
+
+@app.route('/api/superadmin/vecinos', methods=['GET'])
+@require_superadmin
+def api_superadmin_vecinos():
+    """Consulta de vecinos. Sin impersonación: para destrabar a alguien que no
+    puede entrar alcanza con ver si su cuenta quedó vinculada a una unidad."""
+    q = (request.args.get('q') or '').strip()
+    sel = supabase.table('vecinos').select(
+        'id, nombre, email, unidad, consorcio_id, created_at, last_login, consorcios(nombre)')
+    if q:
+        sel = sel.or_(f'email.ilike.%{q}%,nombre.ilike.%{q}%')
+    filas = sel.order('created_at', desc=True).limit(200).execute().data or []
+
+    return jsonify({'vecinos': [{
+        'id': v['id'], 'nombre': v.get('nombre'), 'email': v.get('email'),
+        'unidad': v.get('unidad'),
+        'consorcio': (v.get('consorcios') or {}).get('nombre'),
+        # Sin consorcio asignado es el síntoma de que el email que cargó su
+        # administrador no coincide con el que usó para registrarse.
+        'huerfano': not v.get('consorcio_id'),
+        'dias_inactivo': _dias_desde(v.get('last_login')),
+    } for v in filas]})
+
+
+@app.route('/api/superadmin/auditoria', methods=['GET'])
+@require_superadmin
+def api_superadmin_auditoria():
+    filas = supabase.table('superadmin_auditoria') \
+        .select('id, accion, motivo, ip, created_at, '
+                'actor:actor_id(nombre, email), objetivo:target_id(nombre, email)') \
+        .order('created_at', desc=True).limit(100).execute().data or []
+    return jsonify({'auditoria': filas})
 
 
 @app.route('/api/superadmin/solicitudes', methods=['GET'])

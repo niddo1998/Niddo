@@ -288,9 +288,43 @@
         .section-info { background: var(--nd-verde-dim); border: 1px solid rgba(47,111,94,.20);
                         border-radius: 8px; padding: 10px 14px; font-size: .82rem; color: var(--muted); margin-bottom: 14px; }
     </style>
+{% if impersonando %}
+    <style>
+        /* Solo existe mientras se mira la cuenta de otro. El layout normal usa
+           position:fixed contra top:0, así que la barra empuja esas tres piezas
+           en vez de taparlas. */
+        .nd-barra-impersonando {
+            position: fixed; top: 0; left: 0; right: 0; height: 44px; z-index: 200;
+            background: var(--nd-tinta); color: #fff;
+            display: flex; align-items: center; gap: .75rem; padding: 0 1rem;
+            font-size: .84rem; font-weight: 600;
+        }
+        .nd-barra-impersonando .ojo { color: var(--nd-amarillo); display: flex; flex-shrink: 0; }
+        .nd-barra-impersonando .texto {
+            flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .nd-barra-impersonando .modo { color: var(--nd-amarillo); }
+        .nd-barra-impersonando a {
+            background: #fff; color: var(--nd-tinta); text-decoration: none;
+            padding: .35rem .8rem; border-radius: var(--r-pill);
+            font-weight: 700; white-space: nowrap; flex-shrink: 0;
+        }
+        .sidebar, .topbar { top: 44px !important; }
+        .main { padding-top: calc(68px + 44px) !important; }
+        @media (max-width: 900px) { .main { padding-top: 44px !important; } }
+    </style>
+{% endif %}
 </head>
 <body>
 {% include '_icons.html' %}
+
+{% if impersonando %}
+<div class="nd-barra-impersonando">
+    <span class="ojo"><svg class="ic"><use href="#ic-ojo"></use></svg></span>
+    <span class="texto">Estás viendo la cuenta de <strong>{{ impersonando.nombre }}</strong> — <span class="modo">solo lectura</span></span>
+    <a href="/superadmin/impersonar/salir">Salir</a>
+</div>
+{% endif %}
 
 <div class="sidebar">
     <a href="/" class="nd-logo sidebar-brand">nidd<span class="o">o</span></a>
