@@ -18,7 +18,7 @@
         --safe-bottom: env(safe-area-inset-bottom, 0px);
         --safe-left:   env(safe-area-inset-left, 0px);
         --safe-right:  env(safe-area-inset-right, 0px);
-        --tabbar-h: 54px;
+        --tabbar-h: 58px;
     }
 
     /* En un teléfono no existe :hover, y el resaltado gris que Android e iOS
@@ -52,16 +52,20 @@
         position: relative;
         gap: 3px;
     }
-    .bottom-btn span:not(.bottom-btn-icon) { font-size: .63rem; font-weight: 700; }
+    /* 28px y .68rem, no 25 y .63: a los tamaños anteriores el usuario reportó
+       que los íconos "son muy chicos". Sube acá y no en el template de admin
+       para que el vecino lo herede — los dos dashboards son el mismo sistema. */
+    .bottom-btn span:not(.bottom-btn-icon) { font-size: .68rem; font-weight: 700; }
     .bottom-btn .ic {
-        width: 25px; height: 25px;
+        width: 28px; height: 28px;
+        stroke-width: 2;
         transition: transform .18s cubic-bezier(.34, 1.56, .64, 1);
     }
     .bottom-btn:active .ic { transform: scale(.88); }
     .bottom-btn.active .ic { transform: translateY(-1px) scale(1.06); }
 
     .nd-tab-badge {
-        position: absolute; top: 4px; left: calc(50% + 6px);
+        position: absolute; top: 6px; left: calc(50% + 8px);
         min-width: 17px; height: 17px; padding: 0 4px;
         border-radius: 9px;
         background: var(--nd-terracota-hondo); color: #fff;

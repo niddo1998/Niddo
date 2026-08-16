@@ -362,12 +362,13 @@
     <button class="topbar-btn profile-circle" id="topbar-perfil-btn" onclick="openModal('modal-perfil')" title="Mi Perfil">—</button>
 </div>
 
+<!-- Cuatro destinos, no cinco: "Más" dejó de ser un tab y su contenido pasó
+     al cajón lateral, que es el índice completo de secciones. -->
 <nav class="bottom-nav nd-tabbar">
     <button class="bottom-btn active" data-tab="hoy" onclick="show('dashboard')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-panel"></use></svg></span><span>Hoy</span></button>
-    <button class="bottom-btn" data-tab="cobros" onclick="show('cobros')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-cobro"></use></svg></span><span>Cobros</span></button>
     <button class="bottom-btn" data-tab="gastos" onclick="show('gastos')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-expensa"></use></svg></span><span>Gastos</span></button>
+    <button class="bottom-btn" data-tab="cobros" onclick="show('cobros')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-cobro"></use></svg></span><span>Cobros</span></button>
     <button class="bottom-btn" data-tab="edificios" onclick="show('consorcios')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-edificio"></use></svg></span><span>Edificios</span></button>
-    <button class="bottom-btn" data-tab="mas" onclick="NiddoMobile.openMas()"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-mas"></use></svg></span><span>Más</span></button>
 </nav>
 
 <div class="main">
