@@ -1952,6 +1952,16 @@ function ndGastoConFoto(input) {
     if (autoExtractRunning) { input.value = ''; return; }
     if (typeof addAutoFiles === 'function') addAutoFiles(foto);
     input.value = '';
+
+    /* El camino rápido no pregunta el consorcio: lo toma del contexto, que
+       es donde el administrador ya dijo en qué edificio está parado. Sin
+       esto había que elegirlo otra vez y apretar "Extraer" — dos pasos de
+       más en la tarea que se hace parado frente al proveedor.
+
+       El setTimeout es necesario: openAutoExtract() acaba de rellenar el
+       select, y quien le aplica el contexto es un MutationObserver, que
+       corre como microtarea. Sin diferir, el value todavía está vacío. */
+    setTimeout(() => { if ($('auto-consorcio').value) extractGastosData(); }, 0);
 }
 
 function handleAutoFiles(input) {
@@ -2030,6 +2040,7 @@ async function extractGastosData() {
     const consorcioId = $('auto-consorcio').value;
     const total = autoFilesSelected.length;
     autoExtractedResults = [];
+    ndAutoIdx = 0;
     autoBatchConsorcioId = consorcioId;
     autoExtractRunning = true;
 
@@ -2092,6 +2103,105 @@ function renderBatchResults() {
     }).join('');
 
     updateConfirmButton();
+    ndRenderAuto();
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Confirmación del gasto en mobile — una tarjeta por comprobante
+
+   Se recorre de a uno, con contador, en vez de mostrar la tabla de seis
+   columnas dentro de un overflow-x. Escribe en el mismo autoExtractedResults
+   con los mismos setResultField/setResultFlag, así confirmBatchExtract()
+   guarda igual que siempre: esto es sólo otra vista de los mismos datos.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+let ndAutoIdx = 0;
+
+function ndRenderAuto() {
+    if (!ndMobile()) return;
+
+    let cont = $('nd-auto-cards');
+    if (!cont) {
+        cont = document.createElement('div');
+        cont.id = 'nd-auto-cards';
+        const res = $('auto-step-results');
+        res.insertBefore(cont, res.querySelector('div[style*="overflow-x"]'));
+    }
+
+    const total = autoExtractedResults.length;
+    if (!total) { cont.innerHTML = ''; return; }
+    if (ndAutoIdx >= total) ndAutoIdx = total - 1;
+
+    const r = autoExtractedResults[ndAutoIdx];
+    const i = ndAutoIdx;
+
+    const nav = total > 1 ? `
+        <div class="nd-auto-nav">
+            <button onclick="ndAutoIr(${i - 1})" ${i === 0 ? 'disabled' : ''}>← Anterior</button>
+            <span>Comprobante ${i + 1} de ${total}</span>
+            <button onclick="ndAutoIr(${i + 1})" ${i === total - 1 ? 'disabled' : ''}>Siguiente →</button>
+        </div>` : '';
+
+    if (r.error) {
+        cont.innerHTML = nav + `
+            <div class="nd-auto-card error">
+                ${escHtml(r.file.name)} — ${escHtml(r.error)}
+                <div style="margin-top:12px"><button class="btn-s" onclick="retryExtraction(${i})">Reintentar</button></div>
+            </div>`;
+        return;
+    }
+
+    const d = r.data;
+    if (!AUTO_CATEGORIAS.includes(d.categoria)) d.categoria = 'otro';
+    const cats = AUTO_CATEGORIAS.map(c =>
+        `<option value="${c}"${d.categoria === c ? ' selected' : ''}>${AUTO_CAT_LABELS[c]}</option>`).join('');
+
+    cont.innerHTML = nav + `
+        <div class="nd-auto-card">
+            <div class="nd-auto-hint" style="margin-top:12px">
+                <svg class="ic"><use href="#ic-rayo"></use></svg>
+                Datos extraídos con IA · revisalos antes de guardar
+            </div>
+            <div class="nd-auto-f monto">
+                <label>Monto</label>
+                <input type="number" step="0.01" inputmode="decimal" value="${escHtml(d.monto ?? '')}"
+                       oninput="setResultField(${i},'monto',this.value)">
+            </div>
+            <div class="nd-auto-f">
+                <label>Descripción</label>
+                <input value="${escHtml(d.descripcion || '')}" oninput="setResultField(${i},'descripcion',this.value)">
+            </div>
+            <div class="nd-auto-f">
+                <label>Categoría</label>
+                <select onchange="setResultField(${i},'categoria',this.value)">${cats}</select>
+            </div>
+            <div class="nd-auto-f">
+                <label>Fecha</label>
+                <input type="date" value="${escHtml(d.fecha_gasto || '')}"
+                       oninput="setResultField(${i},'fecha_gasto',this.value)">
+            </div>
+            <div class="nd-auto-f">
+                <label>Vence</label>
+                <input type="date" value="${escHtml(d.fecha_vencimiento || '')}"
+                       oninput="setResultField(${i},'fecha_vencimiento',this.value)">
+            </div>
+            <div class="nd-auto-f">
+                <label>Ya está pagado</label>
+                <input type="checkbox" style="flex:0 0 auto;width:22px;height:22px" ${r.pagado ? 'checked' : ''}
+                       onchange="setResultFlag(${i},'pagado',this.checked)">
+            </div>
+            <div class="nd-auto-f">
+                <label>Incluir en la carga</label>
+                <input type="checkbox" style="flex:0 0 auto;width:22px;height:22px" ${r.incluir ? 'checked' : ''}
+                       onchange="setResultFlag(${i},'incluir',this.checked)">
+            </div>
+        </div>`;
+}
+
+function ndAutoIr(i) {
+    if (i < 0 || i >= autoExtractedResults.length) return;
+    ndAutoIdx = i;
+    ndRenderAuto();
 }
 
 function setResultField(idx, field, value) {

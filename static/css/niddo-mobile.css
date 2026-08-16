@@ -318,6 +318,75 @@
        Antes de eso el encabezado sólo invita a saltearse el trámite. */
     .nd-mobile #liq-detail:not(.nd-en-paso4) > .page-header { display: none; }
 
+    /* ── Confirmación del gasto extraído con IA ──────────────────────────
+       En escritorio los resultados son una tabla de seis columnas. En 360px
+       esa tabla vive dentro de un overflow-x y hay que arrastrarla para leer
+       el monto, que es justamente el dato que se viene a confirmar.
+
+       Acá es una tarjeta por comprobante, con los campos grandes y
+       editables en el lugar. La tabla sigue existiendo para escritorio. */
+    .nd-mobile #tbl-auto-results { display: none; }
+    .nd-mobile #auto-step-results > div:first-child { display: none; }
+
+    .nd-auto-card {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 18px; padding: 4px 16px 12px; margin-bottom: 12px;
+    }
+    .nd-auto-card.error {
+        border-color: var(--nd-terracota-hondo);
+        padding: 16px; font-size: .86rem; font-weight: 700;
+        color: var(--nd-terracota-hondo);
+    }
+    .nd-auto-hint {
+        display: flex; align-items: center; gap: 9px;
+        background: rgba(47, 111, 94, .13); color: var(--nd-verde);
+        border-radius: 13px; padding: 11px 13px;
+        font-size: .8rem; font-weight: 700; margin-bottom: 12px;
+    }
+    .nd-auto-hint .ic { width: 18px; height: 18px; flex-shrink: 0; }
+
+    .nd-auto-f {
+        display: flex; align-items: center; gap: 12px;
+        padding: 12px 0; border-bottom: 1px solid var(--border2);
+    }
+    .nd-auto-f:last-child { border-bottom: none; }
+    .nd-auto-f > label {
+        font-size: .73rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: .06em; color: var(--muted); flex-shrink: 0;
+    }
+    /* El :not() no es cosmético: sin él, appearance:none borra el cuadrito
+       de los checkboxes y la fila queda con la etiqueta sola. */
+    .nd-auto-f > input:not([type="checkbox"]),
+    .nd-auto-f > select {
+        flex: 1; min-width: 0; border: none; background: none;
+        font-family: var(--font); font-size: 16px; font-weight: 800;
+        color: var(--text); text-align: right; padding: 4px 0;
+        -webkit-appearance: none; appearance: none;
+    }
+    .nd-auto-f > input[type="checkbox"] {
+        margin-left: auto; accent-color: var(--nd-verde);
+    }
+    .nd-auto-f > input:focus,
+    .nd-auto-f > select:focus { outline: none; color: var(--nd-verde); }
+    /* El monto es el dato que se viene a confirmar: se lee de lejos. */
+    .nd-auto-f.monto > input {
+        font-family: 'Fredoka', var(--font); font-size: 1.9rem;
+        font-weight: 600; letter-spacing: -.03em;
+        color: var(--nd-terracota-hondo);
+    }
+
+    .nd-auto-nav {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 2px 4px 12px; font-size: .8rem; font-weight: 800;
+        color: var(--muted);
+    }
+    .nd-auto-nav button {
+        border: none; background: none; cursor: pointer;
+        font-family: var(--font); font-size: .84rem; font-weight: 800;
+        color: var(--nd-terracota-hondo); padding: 8px 4px; min-height: 44px;
+    }
+    .nd-auto-nav button[disabled] { color: var(--muted); opacity: .4; }
+
     /* ── Hoja de "Más" ───────────────────────────────────────────────────
        Reusa el aspecto de las sheets: es la misma idea, con contenido
        propio en vez de un formulario. */
