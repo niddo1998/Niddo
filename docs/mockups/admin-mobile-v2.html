@@ -1,0 +1,1643 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Niddo · Admin mobile v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════════
+   NIDDO · Admin mobile v2
+   El mismo lenguaje que vecino-mobile.html. Todo lo que se podía
+   dejar igual quedó igual: tokens, marcos, appbar, título grande,
+   listas, sheets, snackbar, navegación push y back-swipe son copia
+   literal. Lo nuevo está marcado con "── NUEVO EN ADMIN ──".
+   ══════════════════════════════════════════════════════════════ */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+
+:root{
+  --nd-terracota:#E8734A; --nd-terracota-hondo:#C4502B;
+  --nd-verde:#2F6F5E; --nd-verde-bosque:#1E4A3E;
+  --nd-amarillo:#F2B705; --nd-crema:#F6EFE7; --nd-crema-claro:#FBF6EF;
+  --nd-tinta:#2A211C; --nd-gris:#574C42; --nd-borde:#E2D6C8;
+  --terra-dim:rgba(232,115,74,.14); --verde-dim:rgba(47,111,94,.13); --ama-dim:rgba(242,183,5,.18);
+  --bg:var(--nd-crema-claro); --surface:#fff; --surface2:var(--nd-crema); --surface3:#F1E7DA;
+  --text:var(--nd-tinta); --text2:var(--nd-gris); --muted:var(--nd-gris); --border:var(--nd-borde);
+  --font:'Nunito Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --font-d:'Fredoka','Nunito Sans',-apple-system,sans-serif;
+}
+
+/* ── Página contenedora (esto NO es parte del diseño mobile) ── */
+body{
+  font-family:var(--font); background:#191410; color:#EDE4DA;
+  min-height:100vh; padding:32px 20px 64px;
+  -webkit-font-smoothing:antialiased;
+}
+.page-head{max-width:1000px;margin:0 auto 30px;text-align:center}
+.page-head h1{font-family:var(--font-d);font-size:1.7rem;font-weight:600;letter-spacing:-.02em;margin-bottom:8px}
+.page-head h1 .o{color:var(--nd-terracota)}
+.page-head p{color:#A79684;font-size:.9rem;line-height:1.6;max-width:640px;margin:0 auto}
+.stage{display:flex;gap:56px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+.device-col{display:flex;flex-direction:column;align-items:center;gap:14px}
+.device-label{font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#8A7867}
+.device-label b{color:#EDE4DA;font-weight:700}
+
+/* ── Marcos de dispositivo ── */
+.device{position:relative;border-radius:44px;padding:11px;background:linear-gradient(160deg,#3a322c,#1d1815);box-shadow:0 30px 70px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.07)}
+.device.android{border-radius:34px;padding:9px}
+.screen{position:relative;width:390px;height:812px;border-radius:34px;overflow:hidden;background:var(--bg);isolation:isolate}
+.device.android .screen{width:400px;height:830px;border-radius:26px}
+
+/* Status bar */
+.statusbar{position:absolute;top:0;left:0;right:0;z-index:60;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:.78rem;font-weight:700;color:var(--nd-tinta);pointer-events:none}
+.ios .statusbar{height:54px;padding-top:14px}
+.android .statusbar{height:34px;padding:0 18px;font-size:.74rem;font-weight:600}
+.notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:122px;height:33px;border-radius:20px;background:#000;z-index:61}
+.punchhole{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:#000;z-index:61}
+.sb-icons{display:flex;gap:5px;align-items:center}
+.sb-icons svg{width:16px;height:12px}
+
+/* Home indicator / barra de gestos */
+.homebar{position:absolute;bottom:0;left:0;right:0;z-index:70;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.ios .homebar{height:34px}
+.ios .homebar::after{content:'';width:140px;height:5px;border-radius:3px;background:var(--nd-tinta);opacity:.85}
+.android .homebar{height:22px}
+.android .homebar::after{content:'';width:110px;height:3px;border-radius:2px;background:var(--nd-tinta);opacity:.5}
+
+/* ══════════════════════════════════════════════════════════════
+   EL LENGUAJE MOBILE — idéntico al del vecino
+   ══════════════════════════════════════════════════════════════ */
+.app{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;color:var(--text);font-family:var(--font)}
+
+/* Safe areas: mismo diseño, insets distintos por SO */
+.ios  .app{--safe-top:54px;--safe-bottom:34px}
+.android .app{--safe-top:34px;--safe-bottom:22px}
+
+/* ── Top app bar ── */
+.appbar{position:relative;z-index:40;flex-shrink:0;padding-top:var(--safe-top);background:var(--bg);transition:box-shadow .2s,background .2s}
+.appbar.scrolled{background:rgba(251,246,239,.86);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:0 1px 0 rgba(226,214,200,.9)}
+.appbar-row{height:48px;display:flex;align-items:center;gap:6px;padding:0 8px}
+.appbar-compact{flex:1;text-align:center;font-family:var(--font-d);font-weight:600;font-size:1rem;opacity:0;transform:translateY(6px);transition:opacity .2s,transform .2s;pointer-events:none}
+.appbar.scrolled .appbar-compact{opacity:1;transform:translateY(0)}
+.appbar.sub .appbar-compact{opacity:1;transform:none}
+.bar-btn{width:44px;height:44px;flex-shrink:0;border:none;background:none;color:var(--nd-terracota-hondo);display:flex;align-items:center;justify-content:center;border-radius:22px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .15s,transform .1s}
+.bar-btn:active{background:var(--terra-dim);transform:scale(.92)}
+.bar-btn.ghost{visibility:hidden}
+.bar-btn svg{width:24px;height:24px}
+.largetitle{padding:2px 20px 12px;font-family:var(--font-d);font-weight:600;font-size:1.85rem;letter-spacing:-.025em;line-height:1.15;transition:opacity .18s,transform .18s;transform-origin:left center}
+.appbar.scrolled .largetitle{opacity:0;transform:translateY(-8px) scale(.94);height:0;padding-top:0;padding-bottom:0;overflow:hidden}
+.largetitle small{display:block;font-family:var(--font);font-size:.82rem;font-weight:600;color:var(--muted);letter-spacing:0;margin-top:3px}
+
+/* ── Contenedor de pantallas + navegación push ── */
+.stack{position:relative;flex:1;overflow:hidden}
+.screenview{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--bg);display:none;scrollbar-width:none}
+.screenview::-webkit-scrollbar{display:none}
+.sheet-body{scrollbar-width:none}
+.sheet-body::-webkit-scrollbar{display:none}
+.dr-scroll{scrollbar-width:none}
+.dr-scroll::-webkit-scrollbar{display:none}
+.screenview.active{display:block}
+.screenview.sub{z-index:30;box-shadow:-8px 0 30px rgba(42,33,28,.16);transform:translateX(100%)}
+.screenview.sub.in{transform:translateX(0);transition:transform .3s cubic-bezier(.32,.72,0,1)}
+.screenview.sub.out{transform:translateX(100%);transition:transform .26s cubic-bezier(.32,.72,0,1)}
+.pad{padding:4px 16px 24px}
+
+/* ── Tab bar ──
+   Único cambio respecto del vecino: los íconos pasan de 25px a 28px y
+   la etiqueta de .63rem a .68rem. Es el pedido explícito del usuario, y
+   se aplica a los dos dashboards para que sigan siendo el mismo sistema. */
+.tabbar{position:relative;z-index:50;flex-shrink:0;display:flex;background:rgba(255,255,255,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);padding-bottom:var(--safe-bottom)}
+.tab{flex:1;border:none;background:none;font-family:var(--font);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;height:58px;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent;position:relative;transition:color .15s}
+.tab span{font-size:.68rem;font-weight:700;letter-spacing:.01em}
+.tab svg{width:28px;height:28px;transition:transform .18s cubic-bezier(.34,1.56,.64,1)}
+.tab .ic-fill{fill:currentColor;fill-opacity:0;transition:fill-opacity .18s}
+.tab.active{color:var(--nd-terracota-hondo)}
+.tab.active svg{transform:translateY(-1px) scale(1.06)}
+.tab.active .ic-fill{fill-opacity:.2}
+.tab:active svg{transform:scale(.88)}
+.tab-badge{position:absolute;top:6px;left:calc(50% + 8px);min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--nd-terracota-hondo);color:#fff;font-size:.6rem;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff}
+
+/* ── Tarjetas y listas ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:16px;margin-bottom:12px}
+.hero{background:linear-gradient(145deg,var(--nd-verde),var(--nd-verde-bosque));color:#fff;border:none;padding:20px;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;right:-34px;top:-34px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.07)}
+.hero .lbl{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.78}
+.hero .amount{font-family:var(--font-d);font-size:2.3rem;font-weight:600;letter-spacing:-.03em;margin:5px 0 3px}
+.hero .meta{font-size:.83rem;opacity:.88;font-weight:600}
+.hero .chip{display:inline-flex;align-items:center;gap:5px;margin-top:14px;background:var(--nd-amarillo);color:#3A2A08;font-size:.76rem;font-weight:800;padding:6px 12px;border-radius:20px}
+.hero .chip svg{width:15px;height:15px}
+
+.section-label{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:20px 4px 9px;display:flex;align-items:center;justify-content:space-between}
+.section-label a{color:var(--nd-terracota-hondo);font-size:.76rem;font-weight:700;text-decoration:none;text-transform:none;letter-spacing:0;cursor:pointer}
+
+/* Fila de lista — el reemplazo de <table> */
+.list{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #F1E9DE;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .12s;background:var(--surface);width:100%;border-left:none;border-right:none;border-top:none;font-family:var(--font);text-align:left}
+.row:last-child{border-bottom:none}
+.row:active{background:var(--surface2)}
+.row-ic{width:42px;height:42px;flex-shrink:0;border-radius:14px;display:flex;align-items:center;justify-content:center;background:var(--terra-dim);color:var(--nd-terracota-hondo)}
+.row-ic.verde{background:var(--verde-dim);color:var(--nd-verde)}
+.row-ic.ama{background:var(--ama-dim);color:#8A6800}
+.row-ic svg{width:23px;height:23px}
+.row-main{flex:1;min-width:0}
+.row-t{font-size:.93rem;font-weight:700;letter-spacing:-.01em;margin-bottom:2px}
+.row-s{font-size:.79rem;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.row-end{text-align:right;flex-shrink:0;display:flex;align-items:center;gap:7px}
+.row-amt{font-size:.93rem;font-weight:800;letter-spacing:-.01em}
+.chev{width:17px;height:17px;color:#BFAF9C;flex-shrink:0}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot.ok{background:var(--nd-verde)}.dot.warn{background:var(--nd-amarillo)}.dot.bad{background:var(--nd-terracota-hondo)}
+.pill{font-size:.68rem;font-weight:800;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.pill.ok{background:var(--verde-dim);color:var(--nd-verde)}
+.pill.warn{background:var(--ama-dim);color:#8A6800}
+.pill.bad{background:var(--terra-dim);color:var(--nd-terracota-hondo)}
+.pill.info{background:rgba(47,111,94,.1);color:var(--nd-verde)}
+
+/* Acciones rápidas */
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px}
+.qa{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:13px 4px 10px;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;-webkit-tap-highlight-color:transparent;font-family:var(--font);transition:transform .12s,background .12s}
+.qa:active{transform:scale(.94);background:var(--surface2)}
+.qa svg{width:26px;height:26px;color:var(--nd-terracota-hondo)}
+.qa span{font-size:.68rem;font-weight:700;color:var(--text2);line-height:1.2;text-align:center}
+
+/* Segmented control */
+.segmented{display:flex;background:var(--surface3);border-radius:13px;padding:3px;margin:2px 0 14px;position:relative}
+.seg{flex:1;border:none;background:none;font-family:var(--font);font-size:.82rem;font-weight:700;color:var(--text2);padding:9px 4px;border-radius:10px;cursor:pointer;-webkit-tap-highlight-color:transparent;position:relative;z-index:2;transition:color .18s;display:flex;align-items:center;justify-content:center;gap:5px}
+.seg.active{color:var(--nd-tinta)}
+.seg-thumb{position:absolute;top:3px;bottom:3px;border-radius:10px;background:var(--surface);box-shadow:0 1px 4px rgba(42,33,28,.14);transition:left .26s cubic-bezier(.32,.72,0,1),width .26s cubic-bezier(.32,.72,0,1);z-index:1}
+
+/* Chips de filtro */
+.chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-family:var(--font);font-size:.79rem;font-weight:700;padding:8px 14px;border-radius:20px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:all .15s}
+.chip.active{background:var(--nd-verde);border-color:var(--nd-verde);color:#fff}
+.chip:active{transform:scale(.95)}
+
+/* Días y slots (amenities) */
+.days{display:flex;gap:7px;overflow-x:auto;padding:2px 0 14px;scrollbar-width:none}
+.days::-webkit-scrollbar{display:none}
+.day{flex-shrink:0;width:52px;border:1px solid var(--border);background:var(--surface);border-radius:15px;padding:9px 0;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;-webkit-tap-highlight-color:transparent;font-family:var(--font);transition:all .15s}
+.day b{font-size:1.05rem;font-weight:800;letter-spacing:-.02em}
+.day span{font-size:.65rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.05em}
+.day.active{background:var(--nd-verde);border-color:var(--nd-verde);color:#fff}
+.day.active span{color:rgba(255,255,255,.82)}
+
+/* Botones */
+.btn{border:none;border-radius:14px;font-family:var(--font);font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent;display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:transform .12s,filter .15s}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--nd-amarillo);color:#3A2A08;padding:16px 20px;font-size:.94rem;width:100%}
+.btn-ghost{background:var(--surface2);color:var(--text2);padding:14px 20px;font-size:.9rem;width:100%;border:1px solid var(--border)}
+.btn svg{width:20px;height:20px}
+
+/* ── Bottom sheet ── */
+.scrim{position:absolute;inset:0;z-index:80;background:rgba(42,33,28,.42);opacity:0;pointer-events:none;transition:opacity .28s}
+.scrim.open{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:90;background:var(--surface);border-radius:26px 26px 0 0;box-shadow:0 -8px 40px rgba(42,33,28,.22);transform:translateY(100%);transition:transform .34s cubic-bezier(.32,.72,0,1);max-height:90%;display:flex;flex-direction:column;padding-bottom:var(--safe-bottom)}
+.sheet.open{transform:translateY(0)}
+.sheet.dragging{transition:none}
+.grabber{padding:10px 0 4px;display:flex;justify-content:center;cursor:grab;touch-action:none;flex-shrink:0}
+.grabber::after{content:'';width:38px;height:5px;border-radius:3px;background:#D8C9B8}
+.sheet-head{padding:6px 20px 12px;flex-shrink:0}
+.sheet-head h3{font-family:var(--font-d);font-size:1.28rem;font-weight:600;letter-spacing:-.02em}
+.sheet-head p{font-size:.83rem;color:var(--muted);font-weight:600;margin-top:3px}
+.sheet-body{padding:0 20px 8px;overflow-y:auto;flex:1}
+.sheet-foot{padding:12px 20px 14px;flex-shrink:0;border-top:1px solid #F1E9DE;display:flex;gap:9px}
+
+.kv{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #F4EDE4;font-size:.89rem}
+.kv:last-child{border-bottom:none}
+.kv span{color:var(--muted);font-weight:600}
+.kv b{font-weight:800;letter-spacing:-.01em}
+.kv.total{font-size:1.05rem;padding-top:14px}
+.kv.total b{color:var(--nd-terracota-hondo);font-size:1.2rem;font-family:var(--font-d);font-weight:600}
+
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.79rem;font-weight:800;color:var(--text2);margin-bottom:6px}
+.field input,.field select,.field textarea{width:100%;font-family:var(--font);font-size:16px;font-weight:600;padding:14px;border:1.5px solid var(--border);border-radius:13px;background:var(--surface2);color:var(--text);outline:none;transition:border-color .15s,background .15s}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--nd-verde);background:var(--surface)}
+.field textarea{resize:none;height:88px;line-height:1.5}
+.field-row{display:flex;gap:10px}
+.field-row .field{flex:1}
+
+.prose{font-size:.91rem;line-height:1.62;color:var(--text2);font-weight:500}
+.prose p{margin-bottom:11px}
+
+/* Snackbar */
+.snack{position:absolute;left:14px;right:14px;z-index:95;background:var(--nd-tinta);color:var(--nd-crema);font-size:.86rem;font-weight:700;padding:14px 16px;border-radius:15px;box-shadow:0 8px 26px rgba(42,33,28,.3);display:flex;align-items:center;gap:9px;opacity:0;transform:translateY(16px);pointer-events:none;transition:opacity .26s,transform .26s}
+.snack.show{opacity:1;transform:translateY(0)}
+.snack svg{width:19px;height:19px;color:var(--nd-amarillo);flex-shrink:0}
+
+.empty{text-align:center;padding:44px 20px;color:var(--muted)}
+.empty svg{width:44px;height:44px;opacity:.35;margin-bottom:12px}
+.empty p{font-size:.88rem;font-weight:600}
+
+/* ══════════════════════════════════════════════════════════════
+   ── NUEVO EN ADMIN ── lo que el vecino no tiene
+   ══════════════════════════════════════════════════════════════ */
+
+/* Cajón lateral. Usa el mismo .scrim que las sheets. */
+.drawer{position:absolute;top:0;bottom:0;left:0;width:298px;z-index:88;background:var(--surface);
+  transform:translateX(-100%);transition:transform .32s cubic-bezier(.32,.72,0,1);
+  display:flex;flex-direction:column;box-shadow:8px 0 40px rgba(42,33,28,.22);
+  padding-top:var(--safe-top);padding-bottom:var(--safe-bottom)}
+.drawer.open{transform:translateX(0)}
+.drawer.dragging{transition:none}
+.dr-brand{font-family:var(--font-d);font-size:1.1rem;font-weight:600;letter-spacing:-.02em;padding:2px 20px 6px}
+.dr-brand .o{color:var(--nd-terracota)}
+.dr-cons{margin:0 14px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:16px;
+  padding:10px 13px;display:flex;align-items:center;gap:11px;width:calc(100% - 28px);
+  font-family:var(--font);text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.dr-cons:active{background:var(--surface3)}
+.dr-cons .row-ic{width:38px;height:38px;border-radius:12px}
+.dr-cons .lb{display:block;font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.dr-cons .nm{display:block;font-size:.9rem;font-weight:800;letter-spacing:-.01em;margin-top:2px}
+.dr-cons > span:not(.row-ic){display:block}
+.dr-scroll{flex:1;overflow-y:auto;padding:8px 0 4px}
+.dr-lbl{font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);padding:9px 20px 2px}
+.dr-item{display:flex;align-items:center;gap:14px;width:100%;height:46px;padding:0 20px;border:none;
+  background:none;font-family:var(--font);font-size:.92rem;font-weight:700;color:var(--text);
+  text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .12s}
+.dr-item:active{background:var(--surface2)}
+.dr-item svg{width:26px;height:26px;color:var(--nd-gris);flex-shrink:0}
+.dr-item .ic-fill{fill:currentColor;fill-opacity:0}
+.dr-item.active{color:var(--nd-terracota-hondo);background:var(--terra-dim)}
+.dr-item.active svg{color:var(--nd-terracota-hondo)}
+.dr-item.active .ic-fill{fill-opacity:.2}
+.dr-item .badge{margin-left:auto;min-width:22px;height:22px;padding:0 6px;border-radius:11px;
+  background:var(--nd-terracota-hondo);color:#fff;font-size:.7rem;font-weight:800;
+  display:flex;align-items:center;justify-content:center}
+.dr-foot{border-top:1px solid #F1E9DE;padding:6px 0 2px}
+.dr-item.danger{color:var(--nd-terracota-hondo)}
+.dr-item.danger svg{color:var(--nd-terracota-hondo)}
+
+/* Botón de cámara — la acción número uno del admin en el teléfono */
+.camerabtn{display:flex;align-items:center;gap:14px;width:100%;padding:16px;margin-bottom:14px;
+  border:none;border-radius:18px;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  background:linear-gradient(145deg,var(--nd-terracota),var(--nd-terracota-hondo));color:#fff;
+  font-family:var(--font);text-align:left;box-shadow:0 6px 18px rgba(196,80,43,.28);
+  transition:transform .12s}
+.camerabtn:active{transform:scale(.975)}
+.camerabtn .ci{width:50px;height:50px;flex-shrink:0;border-radius:16px;background:rgba(255,255,255,.19);
+  display:flex;align-items:center;justify-content:center}
+.camerabtn .ci svg{width:28px;height:28px}
+.camerabtn b{display:block;font-size:1rem;font-weight:800;letter-spacing:-.01em}
+.camerabtn i{display:block;font-style:normal;font-size:.79rem;font-weight:600;opacity:.9;margin-top:2px}
+
+/* KPIs de tres columnas */
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:13px 10px;text-align:center}
+.kpi b{display:block;font-family:var(--font-d);font-size:1.12rem;font-weight:600;letter-spacing:-.02em}
+.kpi span{display:block;font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:3px}
+.kpi.bad b{color:var(--nd-terracota-hondo)}
+.kpi.ok b{color:var(--nd-verde)}
+
+/* Stepper del cierre de mes */
+.progress{display:flex;gap:6px;padding:2px 0 16px}
+.pg{flex:1;height:6px;border-radius:3px;background:var(--surface3);transition:background .3s}
+.pg.done{background:var(--nd-verde)}
+.pg.now{background:var(--nd-terracota)}
+.steptitle{font-family:var(--font-d);font-size:1.32rem;font-weight:600;letter-spacing:-.025em}
+.stepsub{font-size:.84rem;color:var(--muted);font-weight:600;margin:3px 0 16px}
+.stepfoot{position:sticky;bottom:0;padding:14px 0 4px;margin-top:10px;
+  background:linear-gradient(to top,var(--bg) 72%,rgba(251,246,239,0))}
+
+/* Pasos del cierre listados en el hero */
+.hero .steps{display:flex;gap:5px;margin:14px 0 0}
+.hero .steps i{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.24)}
+.hero .steps i.done{background:var(--nd-amarillo)}
+.hero .steps i.now{background:#fff}
+.hero .btn-hero{margin-top:15px;width:100%;background:var(--nd-amarillo);color:#3A2A08;
+  border:none;border-radius:14px;padding:14px;font-family:var(--font);font-size:.92rem;font-weight:800;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:center;gap:7px;
+  position:relative;z-index:2;transition:transform .12s}
+.hero .btn-hero:active{transform:scale(.97)}
+.hero .btn-hero svg{width:19px;height:19px}
+
+/* Tarjeta de UF plegable — el prorrateo de 14 columnas */
+.uf{background:var(--surface);border:1px solid var(--border);border-radius:16px;margin-bottom:9px;overflow:hidden}
+.uf.mora{border-color:var(--nd-terracota);border-left-width:3px}
+.uf-h{display:flex;align-items:center;gap:12px;width:100%;padding:13px 15px;border:none;background:none;
+  font-family:var(--font);text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.uf-h:active{background:var(--surface2)}
+.uf-n{width:44px;height:44px;flex-shrink:0;border-radius:14px;background:var(--surface3);
+  display:flex;align-items:center;justify-content:center;font-family:var(--font-d);font-size:.95rem;font-weight:600}
+.uf.mora .uf-n{background:var(--terra-dim);color:var(--nd-terracota-hondo)}
+.uf-h .chev{transition:transform .22s}
+.uf.open .uf-h .chev{transform:rotate(90deg)}
+.uf-b{display:none;padding:2px 15px 14px;border-top:1px solid #F1E9DE}
+.uf.open .uf-b{display:block}
+.grp{padding-top:12px}
+.grp-l{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:4px}
+.grp .kv{padding:8px 0;font-size:.86rem}
+.pct{display:inline-flex;align-items:center;background:var(--verde-dim);color:var(--nd-verde);
+  font-size:.68rem;font-weight:800;padding:2px 7px;border-radius:10px;margin-right:7px}
+
+/* Encabezado de control del prorrateo */
+.control{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:14px 16px;margin-bottom:12px}
+.control .ctop{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.control .ctop b{font-family:var(--font-d);font-size:1.5rem;font-weight:600;letter-spacing:-.03em}
+.control .ctop span{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.control .cgrid{display:flex;gap:8px}
+.control .cg{flex:1;background:var(--surface2);border-radius:12px;padding:9px 10px}
+.control .cg em{display:block;font-style:normal;font-size:.63rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.control .cg b{display:block;font-size:.92rem;font-weight:800;margin-top:2px}
+.control .cg.ok b{color:var(--nd-verde)}
+.control .cg.bad b{color:var(--nd-terracota-hondo)}
+
+/* Tarjeta de confirmación del gasto extraído con IA */
+.aihint{display:flex;align-items:center;gap:9px;background:var(--verde-dim);color:var(--nd-verde);
+  border-radius:13px;padding:11px 13px;font-size:.8rem;font-weight:700;margin-bottom:14px}
+.aihint svg{width:18px;height:18px;flex-shrink:0}
+.shot{height:112px;border-radius:14px;margin-bottom:14px;
+  background:repeating-linear-gradient(115deg,#EFE5D8,#EFE5D8 12px,#E7DACA 12px,#E7DACA 24px);
+  display:flex;align-items:center;justify-content:center;color:#A4917C;position:relative;overflow:hidden}
+.shot svg{width:30px;height:30px}
+.shot i{position:absolute;bottom:9px;right:11px;font-style:normal;font-size:.7rem;font-weight:800;
+  background:rgba(42,33,28,.72);color:#fff;padding:3px 9px;border-radius:9px}
+.efield{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;
+  padding:14px 0;border:none;border-bottom:1px solid #F4EDE4;background:none;font-family:var(--font);
+  text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.efield:last-of-type{border-bottom:none}
+.efield:active{opacity:.6}
+.efield .lb{font-size:.73rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);flex-shrink:0}
+.efield .vl{font-size:1rem;font-weight:800;letter-spacing:-.01em;display:flex;align-items:center;gap:8px;text-align:right}
+.efield .vl svg{width:16px;height:16px;color:#BFAF9C;flex-shrink:0}
+.efield.big{padding:16px 0}
+.efield.big .vl{font-family:var(--font-d);font-size:2rem;font-weight:600;color:var(--nd-terracota-hondo)}
+
+/* Teclado numérico de la carga manual */
+.amount-big{font-family:var(--font-d);font-size:2.9rem;font-weight:600;letter-spacing:-.035em;
+  text-align:center;padding:6px 0 4px;color:var(--nd-terracota-hondo)}
+.amount-hint{text-align:center;font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:14px}
+.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.nk{height:58px;border:none;border-radius:16px;background:var(--surface2);font-family:var(--font-d);
+  font-size:1.55rem;font-weight:600;color:var(--text);cursor:pointer;-webkit-tap-highlight-color:transparent;
+  display:flex;align-items:center;justify-content:center;transition:transform .1s,background .12s}
+.nk:active{transform:scale(.94);background:var(--surface3)}
+.nk svg{width:24px;height:24px;color:var(--text2)}
+
+/* Grilla de categorías con ícono grande */
+.catgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.cat{background:var(--surface2);border:1.5px solid transparent;border-radius:16px;padding:14px 6px 11px;
+  display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;font-family:var(--font);
+  -webkit-tap-highlight-color:transparent;transition:all .14s}
+.cat svg{width:26px;height:26px;color:var(--nd-gris)}
+.cat span{font-size:.72rem;font-weight:700;color:var(--text2);text-align:center;line-height:1.2}
+.cat:active{transform:scale(.95)}
+.cat.active{background:var(--verde-dim);border-color:var(--nd-verde)}
+.cat.active svg,.cat.active span{color:var(--nd-verde)}
+
+/* Opción grande de sheet (elegir cómo cargar el gasto) */
+.opt{display:flex;align-items:center;gap:14px;width:100%;padding:15px;margin-bottom:9px;
+  border:1.5px solid var(--border);border-radius:17px;background:var(--surface);
+  font-family:var(--font);text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:transform .12s,border-color .14s,background .14s}
+.opt:active{transform:scale(.975);border-color:var(--nd-verde);background:var(--surface2)}
+.opt .oi{width:48px;height:48px;flex-shrink:0;border-radius:15px;background:var(--terra-dim);
+  color:var(--nd-terracota-hondo);display:flex;align-items:center;justify-content:center}
+.opt .oi svg{width:26px;height:26px}
+.opt .oi.verde{background:var(--verde-dim);color:var(--nd-verde)}
+.opt b{display:block;font-size:.96rem;font-weight:800;letter-spacing:-.01em}
+.opt i{display:block;font-style:normal;font-size:.79rem;font-weight:600;color:var(--muted);margin-top:2px;line-height:1.35}
+
+/* Switch */
+.switch{display:flex;align-items:center;justify-content:space-between;padding:13px 0;
+  border-bottom:1px solid #F4EDE4;font-size:.92rem;font-weight:700}
+.switch:last-child{border-bottom:none}
+.sw{width:50px;height:30px;border-radius:16px;background:var(--surface3);border:none;position:relative;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .2s;flex-shrink:0}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(42,33,28,.28);transition:transform .22s cubic-bezier(.32,.72,0,1)}
+.sw.on{background:var(--nd-verde)}
+.sw.on::after{transform:translateX(20px)}
+
+/* ── Notas al pie ── */
+.notes{max-width:1000px;margin:52px auto 0;background:#221C17;border:1px solid #3A312A;border-radius:20px;padding:26px 30px}
+.notes h2{font-family:var(--font-d);font-size:1.12rem;font-weight:600;margin-bottom:6px;color:#F6EFE7}
+.notes .sub{color:#A79684;font-size:.85rem;margin-bottom:20px}
+.notes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:11px}
+.note{background:#191410;border:1px solid #332B24;border-radius:14px;padding:14px 16px}
+.note b{display:block;font-size:.85rem;color:#F6EFE7;margin-bottom:5px;font-weight:800}
+.note p{font-size:.81rem;color:#A79684;line-height:1.55}
+.note em{color:var(--nd-amarillo);font-style:normal;font-weight:700}
+.note.same{border-color:#2F6F5E}
+.note.same b::before{content:'= ';color:var(--nd-verde)}
+@media(max-width:920px){.stage{gap:36px}.screen{transform:scale(.9)}}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>nidd<span class="o">o</span> · admin mobile <span class="o">v2</span></h1>
+  <p>Alternativa al panel de administrador actual. Mismo lenguaje que el dashboard del vecino.
+     Es interactivo: abrí el cajón con ☰ o deslizando desde el borde izquierdo, tocá "Seguir el cierre"
+     para recorrer los 4 pasos de emitir las expensas, y probá el botón naranja de cargar gasto con foto.</p>
+</div>
+
+<div class="stage">
+  <div class="device-col">
+    <div class="device-label">iOS · <b>iPhone</b></div>
+    <div class="device ios"><div class="screen ios" data-platform="ios"></div></div>
+  </div>
+  <div class="device-col">
+    <div class="device-label">Android · <b>Pixel</b></div>
+    <div class="device android"><div class="screen android" data-platform="android"></div></div>
+  </div>
+</div>
+
+<div class="notes">
+  <h2>Qué mirar</h2>
+  <div class="sub">En verde, lo que quedó idéntico al dashboard del vecino. En amarillo, lo nuevo.</div>
+  <div class="notes-grid">
+    <div class="note same"><b>Todo el sistema base</b><p>Tokens de color, marcos, status bar, safe areas, título grande que colapsa, filas de lista, sheets arrastrables, snackbar, navegación push y back-swipe: <em>copia literal</em> del mockup del vecino. No se reinventó nada.</p></div>
+    <div class="note"><b>Cajón lateral</b><p>Toque en ☰ o deslizá desde el borde izquierdo. Las <em>11 secciones</em> quedan a la vista en tres grupos, en vez de seis escondidas atrás de "Más". Se cierra arrastrando.</p></div>
+    <div class="note"><b>Íconos más grandes</b><p>Tab bar de <em>25px a 28px</em>, etiqueta de .63 a .68rem, y filas del cajón de 52px con íconos de 26px. El cambio es en el primitivo compartido, así que el vecino lo hereda y los dos siguen idénticos.</p></div>
+    <div class="note"><b>El consorcio es contexto, no filtro</b><p>Hoy el mismo <em>&lt;select&gt; de consorcio se repite 5 veces</em> (gastos, cobros, mora, liquidaciones, extracción con IA). Acá se elige una vez desde el cajón y todas las pantallas lo respetan.</p></div>
+    <div class="note"><b>Cierre de mes en 4 pasos</b><p>Reemplaza <em>Liquidaciones → detalle → 4 tabs internos</em>. Barra de progreso, un botón que siempre dice qué sigue, y podés salir y volver donde quedaste. El historial pasa a "Anteriores".</p></div>
+    <div class="note"><b>Cargar gasto: foto → confirmar</b><p>La cámara no pregunta consorcio: usa el del contexto. La IA extrae y devolvés <em>una tarjeta por comprobante</em> con campos grandes tocables, no una tabla de 6 columnas con scroll horizontal.</p></div>
+    <div class="note"><b>Varias facturas de una</b><p>Desde la misma tarjeta, "Siguiente" te lleva al comprobante 2 de 3. Cargás todo el fajo del día sin volver a entrar al flujo.</p></div>
+    <div class="note"><b>Carga manual con teclado propio</b><p>Sin factura en papel: monto con teclado numérico grande, categoría desde una grilla de íconos, proveedor de los últimos usados. <em>Tres toques.</em></p></div>
+    <div class="note same"><b>Prorrateo en tarjetas</b><p>Las 14 columnas siguen siendo tarjetas plegables con encabezado de control, igual que en la v1 — <em>esa parte funcionaba</em> y se mantiene. Lo que cambia es que ahora vive dentro del paso 2 del cierre.</p></div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════ Íconos ══════════════════
+   Trazo 2.0 en vez de 1.8 y formas más redondeadas: el pedido explícito
+   fue que se vean más amigables. El set es el mismo del vecino más los
+   que admin necesita. */
+const I = {
+  casa:'<path class="ic-fill" d="M3 10.2 12 3.5l9 6.7V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9.2 21v-5.6a1 1 0 0 1 1-1h3.6a1 1 0 0 1 1 1V21"/>',
+  factura:'<path class="ic-fill" d="M5 3.6h14v16.8l-2.3-1.5-2.35 1.5L12 18.9l-2.35 1.5-2.35-1.5L5 20.4z"/><path d="M9 8.4h6M9 12.4h4"/>',
+  cobro:'<path class="ic-fill" d="M3.6 7.6a1.4 1.4 0 0 1 1.4-1.4h14a1.4 1.4 0 0 1 1.4 1.4v8.8a1.4 1.4 0 0 1-1.4 1.4H5a1.4 1.4 0 0 1-1.4-1.4z"/><path d="M3.6 10.4h16.8M7 14.4h3.4"/>',
+  edificio:'<path class="ic-fill" d="M4.6 20.4V5.4a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v15"/><path d="M13.6 10.4h4.8a1 1 0 0 1 1 1v9M7.6 8.2h3M7.6 12h3M7.6 15.8h3M16.2 14h1M16.2 17.2h1M3 20.4h18"/>',
+  menu:'<path d="M4 6.8h16M4 12h16M4 17.2h16" stroke-width="2.3"/>',
+  camara:'<path d="M3.4 9a1.6 1.6 0 0 1 1.6-1.6h2.3l1.5-2.3h6.4l1.5 2.3H19A1.6 1.6 0 0 1 20.6 9v8.4a1.6 1.6 0 0 1-1.6 1.6H5a1.6 1.6 0 0 1-1.6-1.6z"/><circle cx="12" cy="13.1" r="3.5"/>',
+  rayo:'<path d="M13.4 2.6 5 13.4h5.5L10.6 21.4 19 10.6h-5.5z"/>',
+  liquidacion:'<path d="M6.2 3.6h7L18.4 9v11.4a1 1 0 0 1-1 1H6.2a1 1 0 0 1-1-1V4.6a1 1 0 0 1 1-1Z"/><path d="M13 3.8V9.2h5.2"/><path d="M11.9 11.9v6.6M13.6 13.4c0-.75-.76-1.2-1.7-1.2s-1.7.45-1.7 1.2.76 1.15 1.7 1.35 1.7.6 1.7 1.35-.76 1.2-1.7 1.2-1.7-.45-1.7-1.2"/>',
+  proveedor:'<path d="M3.5 9.2a1.5 1.5 0 0 1 1.5-1.5h14a1.5 1.5 0 0 1 1.5 1.5v9.3a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9 7.7V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v1.7M3.5 12.4h17"/>',
+  calendario:'<path d="M4 6.6a1.5 1.5 0 0 1 1.5-1.5h13A1.5 1.5 0 0 1 20 6.6v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.6z"/><path d="M8 3.2v3.8M16 3.2v3.8M4 10.2h16"/>',
+  balance:'<path d="M4 20V11.2M9.7 20V6.2M15.4 20v-7M21 20V3.8"/>',
+  megafono:'<path d="M4 9.6v4.8a1 1 0 0 0 1 1h2.2L14 19.9V4.1L7.2 8.6H5a1 1 0 0 0-1 1Z"/><path d="M17.4 9.2a4.2 4.2 0 0 1 0 5.6"/>',
+  config:'<circle cx="12" cy="12" r="3.2"/><path d="M12 2.6h0a1.7 1.7 0 0 1 1.7 1.7v.5a1.4 1.4 0 0 0 .85 1.28 1.4 1.4 0 0 0 1.54-.28l.35-.35a1.7 1.7 0 1 1 2.4 2.4l-.35.35a1.4 1.4 0 0 0-.28 1.54 1.4 1.4 0 0 0 1.29.86h.5a1.7 1.7 0 1 1 0 3.4h-.5a1.4 1.4 0 0 0-1.29.86 1.4 1.4 0 0 0 .28 1.54l.35.35a1.7 1.7 0 1 1-2.4 2.4l-.35-.35a1.4 1.4 0 0 0-1.54-.28 1.4 1.4 0 0 0-.85 1.29v.5a1.7 1.7 0 1 1-3.4 0v-.5a1.4 1.4 0 0 0-.9-1.29 1.4 1.4 0 0 0-1.54.28l-.35.35a1.7 1.7 0 1 1-2.4-2.4l.35-.35a1.4 1.4 0 0 0 .28-1.54 1.4 1.4 0 0 0-1.29-.86h-.5a1.7 1.7 0 1 1 0-3.4h.5a1.4 1.4 0 0 0 1.29-.86 1.4 1.4 0 0 0-.28-1.54l-.35-.35a1.7 1.7 0 1 1 2.4-2.4l.35.35a1.4 1.4 0 0 0 1.54.28h.06A1.4 1.4 0 0 0 10.3 4.8v-.5A1.7 1.7 0 0 1 12 2.6Z"/>',
+  vecino:'<path d="M12 11.7a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M5.2 20c0-3.2 3-5.2 6.8-5.2s6.8 2 6.8 5.2"/>',
+  gente:'<path d="M9.4 11.6a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8Z"/><path d="M2.8 20c0-3.1 2.9-5.1 6.6-5.1s6.6 2 6.6 5.1M16.4 5.2a3.4 3.4 0 0 1 0 6.6M18.2 14.9c2 .6 3.2 2.1 3.2 4"/>',
+  salir:'<path d="M14 7.6V5.5a1 1 0 0 0-1-1H5.4a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1H13a1 1 0 0 0 1-1v-2.1"/><path d="M9.8 12h10M16.8 8.8 20 12l-3.2 3.2"/>',
+  aprobar:'<circle cx="12" cy="12" r="8.6"/><path d="m8.2 12.2 2.6 2.6 5-5.2"/>',
+  chev:'<path d="m9 5 7 7-7 7"/>',
+  atras:'<path d="m15 5-7 7 7 7"/>',
+  cerrar:'<path d="M6 6l12 12M18 6 6 18"/>',
+  check:'<path d="m5 12.5 4.6 4.6L19 7.4"/>',
+  reloj:'<circle cx="12" cy="12" r="8.4"/><path d="M12 7.4V12l3 2"/>',
+  alerta:'<path d="M12 4.2 21 19.5H3z"/><path d="M12 10v4M12 17h.01"/>',
+  doc:'<path d="M6.2 3.6h7L18.4 9v11.4a1 1 0 0 1-1 1H6.2a1 1 0 0 1-1-1V4.6a1 1 0 0 1 1-1Z"/><path d="M13 3.8V9.2h5.2"/>',
+  carpeta:'<path d="M3.5 6.6a1 1 0 0 1 1-1h4.2l2 2.4h7.8a1 1 0 0 1 1 1v9.4a1 1 0 0 1-1 1h-14a1 1 0 0 1-1-1z"/>',
+  editar:'<path d="M4 20.2h4L18.4 9.8a2.1 2.1 0 0 0-3-3L5 17.2z"/><path d="M14.6 7.4 17 9.8"/>',
+  enviar:'<path d="M20.6 3.4 10.8 13.2M20.6 3.4l-6.2 17-3.6-7.2-7.2-3.6z"/>',
+  ojo:'<path d="M2.4 12S6 5.7 12 5.7 21.6 12 21.6 12 18 18.3 12 18.3 2.4 12 2.4 12Z"/><circle cx="12" cy="12" r="2.9"/>',
+  borrar:'<path d="M9.2 5.6h9.8a1.4 1.4 0 0 1 1.4 1.4v10a1.4 1.4 0 0 1-1.4 1.4H9.2L3.2 12z"/><path d="m13 9.8 4.2 4.4M17.2 9.8 13 14.2"/>',
+  mas:'<path d="M12 5.2v13.6M5.2 12h13.6" stroke-width="2.2"/>',
+  llave:'<path d="M14.6 9.4a3.6 3.6 0 1 1-5.1 5.1l-5.3 5.3H2v-2.2l6.4-6.4a3.6 3.6 0 0 1 6.2-1.8Z"/>',
+  wifi:'<path d="M2 6.5 8 1l6 5.5"/>',
+  bateria:'<rect x="1" y="2" width="12" height="8" rx="2"/><path d="M14.5 4.6v2.8"/>',
+  senal:'<path d="M1 11h2v-3H1zM5 11h2V6H5zM9 11h2V3.5H9zM13 11h2V1h-2z" stroke="none" fill="currentColor"/>'
+};
+const svg = (n,cls='') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
+
+/* ══════════════════ Datos (realistas, de mentira) ══════════════════ */
+const D = {
+  consorcios:[
+    {n:'Av. Rivadavia 4820', d:'Caballito', ufs:24, mora:5},
+    {n:'Bulnes 1130',        d:'Palermo',   ufs:18, mora:2},
+    {n:'Malabia 2245',       d:'Villa Crespo', ufs:32, mora:8},
+    {n:'Gorriti 4410',       d:'Palermo Soho', ufs:12, mora:0}
+  ],
+  activo:0,
+  mes:'Agosto 2026',
+  totalGastos:4284500,
+  gastos:[
+    {desc:'Limpieza y portería', prov:'Servicios Bru SRL', cat:'Personal', monto:452000, fecha:'12 ago', ok:false},
+    {desc:'Mantenimiento ascensor', prov:'Ascensores Otis', cat:'Mantenimiento', monto:238500, fecha:'11 ago', ok:false},
+    {desc:'Luz de espacios comunes', prov:'Edesur', cat:'Servicios', monto:186400, fecha:'09 ago', ok:false},
+    {desc:'Seguro integral', prov:'La Segunda', cat:'Seguros', monto:131000, fecha:'07 ago', ok:true},
+    {desc:'Honorarios administración', prov:'Niddo', cat:'Administración', monto:128000, fecha:'05 ago', ok:true},
+    {desc:'Reparación bomba de agua', prov:'Plomería Sur', cat:'Reparaciones', monto:94200, fecha:'04 ago', ok:true},
+    {desc:'Agua y saneamiento', prov:'AySA', cat:'Servicios', monto:88600, fecha:'02 ago', ok:true}
+  ],
+  cobros:[
+    {uf:'1º A', quien:'Gómez, Martín',    total:178400, estado:'pagado',   cls:'ok'},
+    {uf:'1º B', quien:'Silva, Carla',     total:171200, estado:'pagado',   cls:'ok'},
+    {uf:'2º A', quien:'Duarte, Nicolás',  total:184900, estado:'pendiente',cls:'warn'},
+    {uf:'2º C', quien:'Ferrari, Lucía',   total:196300, estado:'vencido',  cls:'bad'},
+    {uf:'3º B', quien:'Despontin, S.',    total:187450, estado:'vencido',  cls:'bad'},
+    {uf:'4º A', quien:'Ríos, Paula',      total:174800, estado:'pagado',   cls:'ok'}
+  ],
+  mora:[
+    {uf:'2º C', quien:'Ferrari, Lucía',  meses:3, deuda:568200},
+    {uf:'3º B', quien:'Despontin, S.',   meses:1, deuda:187450},
+    {uf:'5º A', quien:'Alonso, Javier',  meses:2, deuda:352100},
+    {uf:'6º B', quien:'Peralta, Ana',    meses:1, deuda:176300},
+    {uf:'PB C', quien:'Vidal, Roberto',  meses:4, deuda:721400}
+  ],
+  ufs:[
+    {n:'1º A', piso:'1', m2:78, quien:'Gómez, Martín', pct:'4,21'},
+    {n:'1º B', piso:'1', m2:64, quien:'Silva, Carla', pct:'3,46'},
+    {n:'2º A', piso:'2', m2:78, quien:'Duarte, Nicolás', pct:'4,21'},
+    {n:'2º C', piso:'2', m2:92, quien:'Ferrari, Lucía', pct:'4,97'},
+    {n:'3º B', piso:'3', m2:81, quien:'Despontin, S.', pct:'4,37'},
+    {n:'4º A', piso:'4', m2:78, quien:'Ríos, Paula', pct:'4,21'}
+  ],
+  proveedores:[
+    {n:'Servicios Bru SRL', rubro:'Limpieza y portería', cuit:'30-71234567-4'},
+    {n:'Ascensores Otis', rubro:'Mantenimiento', cuit:'30-50012345-9'},
+    {n:'Plomería Sur', rubro:'Reparaciones', cuit:'20-28456789-1'},
+    {n:'La Segunda', rubro:'Seguros', cuit:'30-50001234-2'}
+  ],
+  reservas:[
+    {am:'SUM', quien:'4º A · Ríos, Paula', cuando:'Sáb 23 ago · 18 a 23 hs'},
+    {am:'Parrilla', quien:'2º A · Duarte, N.', cuando:'Dom 24 ago · 12 a 16 hs'}
+  ],
+  prorrateo:[
+    {uf:'1º A', piso:'1', quien:'Gómez, Martín',   ant:0,      pago:0,      pend:0,      int:0,     pa:'4,21', ea:180400, pc:'4,10', ad:12300, part:0,     total:192700, mora:false},
+    {uf:'1º B', piso:'1', quien:'Silva, Carla',    ant:0,      pago:0,      pend:0,      int:0,     pa:'3,46', ea:148300, pc:'3,38', ad:10140, part:0,     total:158440, mora:false},
+    {uf:'2º A', piso:'2', quien:'Duarte, Nicolás', ant:184900, pago:184900, pend:0,      int:0,     pa:'4,21', ea:180400, pc:'4,10', ad:12300, part:8600,  total:201300, mora:false},
+    {uf:'2º C', piso:'2', quien:'Ferrari, Lucía',  ant:196300, pago:0,      pend:196300, int:18640, pa:'4,97', ea:212900, pc:'4,84', ad:14520, part:0,     total:442360, mora:true},
+    {uf:'3º B', piso:'3', quien:'Despontin, S.',   ant:187450, pago:0,      pend:187450, int:17800, pa:'4,37', ea:187200, pc:'4,26', ad:12780, part:4200,  total:409430, mora:true},
+    {uf:'4º A', piso:'4', quien:'Ríos, Paula',     ant:174800, pago:174800, pend:0,      int:0,     pa:'4,21', ea:180400, pc:'4,10', ad:12300, part:0,     total:192700, mora:false}
+  ],
+  liquidaciones:[
+    {per:'Julio 2026', total:4128300, estado:'enviada', cls:'ok'},
+    {per:'Junio 2026', total:3986100, estado:'enviada', cls:'ok'},
+    {per:'Mayo 2026',  total:3874500, estado:'enviada', cls:'ok'},
+    {per:'Abril 2026', total:3712900, estado:'cerrada', cls:'info'}
+  ],
+  categorias:[
+    {n:'Personal', ic:'gente'}, {n:'Servicios', ic:'rayo'}, {n:'Mantenim.', ic:'config'},
+    {n:'Reparac.', ic:'llave'}, {n:'Seguros', ic:'aprobar'}, {n:'Administr.', ic:'carpeta'}
+  ],
+  /* Los comprobantes que "saca" la cámara en el flujo de varias facturas */
+  lote:[
+    {prov:'Edesur', monto:186400, cat:'Servicios', fecha:'09/08/2026', vto:'22/08/2026'},
+    {prov:'Ascensores Otis', monto:238500, cat:'Mantenimiento', fecha:'11/08/2026', vto:'25/08/2026'},
+    {prov:'Servicios Bru SRL', monto:452000, cat:'Personal', fecha:'12/08/2026', vto:'20/08/2026'}
+  ]
+};
+const money = n => '$' + n.toLocaleString('es-AR');
+
+/* ══════════════════ Montaje de la app ══════════════════ */
+function mountApp(screen){
+  const ios = screen.dataset.platform === 'ios';
+
+  screen.innerHTML = `
+    ${ios ? '<div class="notch"></div>' : '<div class="punchhole"></div>'}
+    <div class="statusbar">
+      <span>9:41</span>
+      <div class="sb-icons">${svg('senal')}${svg('wifi')}${svg('bateria')}</div>
+    </div>
+    <div class="app">
+      <header class="appbar">
+        <div class="appbar-row">
+          <button class="bar-btn" data-nav>${svg('menu')}</button>
+          <div class="appbar-compact"></div>
+          <button class="bar-btn" data-sheet="consorcio">${svg('edificio')}</button>
+        </div>
+        <div class="largetitle"></div>
+      </header>
+      <div class="stack"></div>
+      <nav class="tabbar"></nav>
+      <div class="scrim"></div>
+      <aside class="drawer"></aside>
+      <div class="sheet">
+        <div class="grabber"></div>
+        <div class="sheet-head"></div>
+        <div class="sheet-body"></div>
+        <div class="sheet-foot"></div>
+      </div>
+      <div class="snack"></div>
+    </div>
+    <div class="homebar"></div>`;
+
+  const $  = s => screen.querySelector(s);
+  const appbar = $('.appbar'), stack = $('.stack'), tabbar = $('.tabbar');
+  const sheet = $('.sheet'), scrim = $('.scrim'), snack = $('.snack'), drawer = $('.drawer');
+  const compact = $('.appbar-compact'), large = $('.largetitle'), navBtn = $('[data-nav]');
+
+  const cons = () => D.consorcios[D.activo];
+
+  const TABS = [
+    {id:'hoy',       ic:'casa',     lbl:'Hoy',       t:'Hoy',       sub:()=>cons().n},
+    {id:'gastos',    ic:'factura',  lbl:'Gastos',    t:'Gastos',    sub:()=>`${D.mes} · ${D.gastos.length} cargados`, badge:3},
+    {id:'cobros',    ic:'cobro',    lbl:'Cobros',    t:'Cobros',    sub:()=>`${D.mes} · ${cons().ufs} UFs`},
+    {id:'edificios', ic:'edificio', lbl:'Edificios', t:'Edificios', sub:()=>`${D.consorcios.length} consorcios · 86 UFs`}
+  ];
+
+  /* Todo lo que el cajón indexa. Los que tienen `tab` cambian de tab;
+     los que tienen `push` abren una sub-pantalla. */
+  const DRAWER = [
+    {g:'Operación'},
+    {id:'hoy',       ic:'casa',        lbl:'Hoy',            tab:'hoy'},
+    {id:'gastos',    ic:'factura',     lbl:'Gastos',         tab:'gastos', badge:3},
+    {id:'cobros',    ic:'cobro',       lbl:'Cobros',         tab:'cobros'},
+    {id:'cierre',    ic:'rayo',        lbl:'Cierre de mes',  push:'cierre'},
+    {id:'liquidaciones', ic:'liquidacion', lbl:'Liquidaciones', push:'liquidaciones'},
+    {g:'Padrón'},
+    {id:'edificios', ic:'edificio',    lbl:'Edificios',      tab:'edificios'},
+    {id:'proveedores', ic:'proveedor', lbl:'Proveedores',    push:'proveedores'},
+    {id:'amenities', ic:'calendario',  lbl:'Amenities',      push:'amenities', badge:2},
+    {g:'Sistema'},
+    {id:'balance',   ic:'balance',     lbl:'Balance',        push:'balance'},
+    {id:'mensajeria',ic:'megafono',    lbl:'Mensajería',     push:'mensajeria'},
+    {id:'config',    ic:'config',      lbl:'Configuración',  push:'config'},
+    {id:'perfil',    ic:'vecino',      lbl:'Mi perfil',      sheet:'perfil'}
+  ];
+
+  let tab = 'hoy';
+  let cobrosSeg = 'resumen';
+  let paso = 2;           /* paso actual del cierre de mes */
+  let loteIdx = 0;        /* comprobante actual del lote */
+  let montoManual = '';
+  let catManual = null;
+
+  /* ══════════════════ Tab bar ══════════════════ */
+  tabbar.innerHTML = TABS.map(t=>`
+    <button class="tab${t.id===tab?' active':''}" data-tab="${t.id}">
+      ${svg(t.ic)}<span>${t.lbl}</span>
+      ${t.badge?`<i class="tab-badge">${t.badge}</i>`:''}
+    </button>`).join('');
+
+  tabbar.addEventListener('click', e=>{
+    const b = e.target.closest('[data-tab]'); if(!b) return;
+    closeSub(true); go(b.dataset.tab);
+  });
+
+  function go(id){
+    tab = id;
+    tabbar.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===id));
+    const meta = TABS.find(t=>t.id===id);
+    large.innerHTML = `${meta.t}<small>${meta.sub()}</small>`;
+    compact.textContent = meta.t;
+    appbar.classList.remove('scrolled');
+    stack.querySelectorAll('.screenview:not(.sub)').forEach(v=>v.classList.toggle('active', v.dataset.view===id));
+    const v = stack.querySelector(`.screenview[data-view="${id}"]`);
+    if(v) v.scrollTop = 0;
+    markDrawer();
+  }
+
+  /* ── Colapso del título al scrollear ── */
+  function watchScroll(v){
+    v.addEventListener('scroll', ()=>{
+      if(v.classList.contains('sub')) return;
+      appbar.classList.toggle('scrolled', v.scrollTop > 26);
+    }, {passive:true});
+  }
+
+  /* ══════════════════ Cajón lateral ══════════════════ */
+  function buildDrawer(){
+    drawer.innerHTML = `
+      <div class="dr-brand">nidd<span class="o">o</span></div>
+      <button class="dr-cons" data-sheet="consorcio">
+        <span class="row-ic verde">${svg('edificio')}</span>
+        <span style="flex:1;min-width:0">
+          <span class="lb">Consorcio activo</span>
+          <span class="nm">${cons().n}</span>
+        </span>
+        ${svg('chev','chev')}
+      </button>
+      <div class="dr-scroll">
+        ${DRAWER.map(d=> d.g
+          ? `<div class="dr-lbl">${d.g}</div>`
+          : `<button class="dr-item" data-dr="${d.id}">${svg(d.ic)}<span>${d.lbl}</span>${d.badge?`<i class="badge">${d.badge}</i>`:''}</button>`
+        ).join('')}
+      </div>
+      <div class="dr-foot">
+        <button class="dr-item danger" data-snack="Sesión cerrada">${svg('salir')}<span>Cerrar sesión</span></button>
+      </div>`;
+    markDrawer();
+  }
+  function markDrawer(){
+    drawer.querySelectorAll('[data-dr]').forEach(b=>{
+      const d = DRAWER.find(x=>x.id===b.dataset.dr);
+      b.classList.toggle('active', !!d && d.tab===tab && !subOpen);
+    });
+  }
+  function openDrawer(){ drawer.classList.add('open'); scrim.classList.add('open'); }
+  function closeDrawer(){ drawer.classList.remove('open'); scrim.classList.remove('open'); }
+
+  drawer.addEventListener('click', e=>{
+    const it = e.target.closest('[data-dr]');
+    if(it){
+      const d = DRAWER.find(x=>x.id===it.dataset.dr);
+      closeDrawer();
+      if(d.tab){ closeSub(true); go(d.tab); }
+      else if(d.push){ closeSub(true); push(d.push); }
+      else if(d.sheet){ setTimeout(()=>sheets[d.sheet](), 180); }
+      return;
+    }
+    const sh = e.target.closest('[data-sheet]');
+    if(sh){ closeDrawer(); setTimeout(()=>sheets[sh.dataset.sheet](), 180); return; }
+    const sn = e.target.closest('[data-snack]');
+    if(sn){ closeDrawer(); toast(sn.dataset.snack); }
+  });
+
+  /* Gesto: entrar desde el borde izquierdo abre el cajón */
+  stack.addEventListener('pointerdown', e=>{
+    if(subOpen) return;                        /* con sub-pantalla el borde es "atrás" */
+    const r = stack.getBoundingClientRect();
+    if(e.clientX - r.left > 22) return;
+    const x0 = e.clientX;
+    const move = ev => {
+      const dx = Math.min(298, Math.max(0, ev.clientX - x0));
+      drawer.classList.add('dragging');
+      drawer.style.transform = `translateX(${dx - 298}px)`;
+      scrim.classList.add('open');
+      scrim.style.opacity = String(dx/298);
+    };
+    const up = ev => {
+      stack.removeEventListener('pointermove', move);
+      stack.removeEventListener('pointerup', up);
+      drawer.classList.remove('dragging');
+      drawer.style.transform = ''; scrim.style.opacity = '';
+      if(ev.clientX - x0 > 80) openDrawer(); else closeDrawer();
+    };
+    stack.addEventListener('pointermove', move);
+    stack.addEventListener('pointerup', up);
+  });
+
+  /* Arrastrar el cajón hacia la izquierda lo cierra */
+  drawer.addEventListener('pointerdown', e=>{
+    if(e.target.closest('button')) return;
+    const x0 = e.clientX;
+    const move = ev => {
+      const dx = Math.min(0, ev.clientX - x0);
+      drawer.classList.add('dragging');
+      drawer.style.transform = `translateX(${dx}px)`;
+      scrim.style.opacity = String(Math.max(0, 1 + dx/298));
+    };
+    const up = ev => {
+      drawer.removeEventListener('pointermove', move);
+      drawer.removeEventListener('pointerup', up);
+      drawer.classList.remove('dragging');
+      drawer.style.transform = ''; scrim.style.opacity = '';
+      if(ev.clientX - x0 < -70) closeDrawer();
+    };
+    drawer.addEventListener('pointermove', move);
+    drawer.addEventListener('pointerup', up);
+  });
+
+  /* ══════════════════ Pantallas ══════════════════ */
+  function view(id, html, sub){
+    const d = document.createElement('div');
+    d.className = 'screenview' + (sub?' sub':'');
+    d.dataset.view = id;
+    d.innerHTML = `<div class="pad">${html}</div>`;
+    stack.appendChild(d); watchScroll(d); return d;
+  }
+
+  const rowChev = svg('chev','chev');
+
+  /* — HOY — */
+  const sinAprobar = D.gastos.filter(g=>!g.ok);
+  const totalSinAprobar = sinAprobar.reduce((a,g)=>a+g.monto,0);
+  const totalMora = D.mora.reduce((a,m)=>a+m.deuda,0);
+
+  view('hoy', `
+    <div class="card hero">
+      <div class="lbl">Cierre de ${D.mes.toLowerCase()}</div>
+      <div class="amount">${money(D.totalGastos)}</div>
+      <div class="meta">${D.gastos.length} gastos cargados · <span data-cn>${cons().n}</span></div>
+      <div class="steps"><i class="done"></i><i class="now"></i><i></i><i></i></div>
+      <div class="chip">${svg('alerta')} Falta revisar el prorrateo</div>
+      <button class="btn-hero" data-push="cierre">${svg('rayo')} Seguir el cierre</button>
+    </div>
+
+    <div class="quick">
+      <button class="qa" data-sheet="nuevoGasto">${svg('camara')}<span>Cargar gasto</span></button>
+      <button class="qa" data-push="cierre">${svg('liquidacion')}<span>Expensas</span></button>
+      <button class="qa" data-sheet="comunicado">${svg('megafono')}<span>Comunicado</span></button>
+      <button class="qa" data-push="amenities">${svg('calendario')}<span>Reservas</span></button>
+    </div>
+
+    <div class="section-label">Requiere tu atención</div>
+    <div class="list">
+      <button class="row" data-goto="gastos">
+        <span class="row-ic">${svg('factura')}</span>
+        <span class="row-main">
+          <span class="row-t">${sinAprobar.length} gastos sin aprobar</span>
+          <span class="row-s">${money(totalSinAprobar)} · el más viejo hace 4 días</span>
+        </span>
+        <span class="row-end">${rowChev}</span>
+      </button>
+      <button class="row" data-push="amenities">
+        <span class="row-ic ama">${svg('calendario')}</span>
+        <span class="row-main">
+          <span class="row-t">2 reservas por confirmar</span>
+          <span class="row-s">SUM y parrilla · fin de semana largo</span>
+        </span>
+        <span class="row-end">${rowChev}</span>
+      </button>
+      <button class="row" data-goto="cobros" data-seg="mora">
+        <span class="row-ic">${svg('alerta')}</span>
+        <span class="row-main">
+          <span class="row-t">${D.mora.length} UFs en mora</span>
+          <span class="row-s">${money(totalMora)} de deuda acumulada</span>
+        </span>
+        <span class="row-end">${rowChev}</span>
+      </button>
+    </div>
+
+    <div class="section-label">Tus consorcios <a data-goto="edificios">Ver todos</a></div>
+    <div class="list">
+      ${D.consorcios.slice(0,3).map((c,i)=>`
+        <button class="row" data-cons="${i}">
+          <span class="row-ic verde">${svg('edificio')}</span>
+          <span class="row-main">
+            <span class="row-t">${c.n}</span>
+            <span class="row-s">${c.ufs} UFs · ${c.mora? `${c.mora} en mora` : 'sin mora'}</span>
+          </span>
+          <span class="row-end">${c.mora?'<span class="dot bad"></span>':'<span class="dot ok"></span>'}${rowChev}</span>
+        </button>`).join('')}
+    </div>
+  `);
+
+  /* — GASTOS — */
+  view('gastos', `
+    <button class="camerabtn" data-sheet="camara">
+      <span class="ci">${svg('camara')}</span>
+      <span><b>Cargar gasto con foto</b><i>Sacale una foto a la factura · <span data-cn>${cons().n}</span></i></span>
+    </button>
+
+    <div class="chips" data-chips="gastos">
+      <button class="chip active" data-chip="todos">Todos</button>
+      <button class="chip" data-chip="pend">Sin aprobar · 3</button>
+      <button class="chip" data-chip="mes">Este mes</button>
+      <button class="chip" data-chip="rec">Recurrentes</button>
+    </div>
+
+    <div class="section-label">${D.mes} <a data-sheet="nuevoGasto">+ Otro modo</a></div>
+    <div class="list">
+      ${D.gastos.map((g,i)=>`
+        <button class="row" data-gasto="${i}">
+          <span class="row-ic${g.ok?' verde':''}">${svg(g.ok?'aprobar':'factura')}</span>
+          <span class="row-main">
+            <span class="row-t">${g.desc}</span>
+            <span class="row-s">${g.prov} · ${g.fecha}</span>
+          </span>
+          <span class="row-end">
+            <span class="row-amt">${money(g.monto)}</span>
+            ${g.ok?'':'<span class="dot warn"></span>'}
+          </span>
+        </button>`).join('')}
+    </div>
+  `);
+
+  /* — COBROS — */
+  view('cobros', `
+    <div class="segmented">
+      <div class="seg-thumb"></div>
+      <button class="seg active" data-seg="resumen">Resumen</button>
+      <button class="seg" data-seg="mora">Morosidad</button>
+    </div>
+
+    <div data-panel="resumen">
+      <div class="kpis">
+        <div class="kpi"><b>${money(4284500).replace('$','$')}</b><span>Emitido</span></div>
+        <div class="kpi ok"><b>$2.7M</b><span>Cobrado</span></div>
+        <div class="kpi bad"><b>$1.58M</b><span>Pendiente</span></div>
+      </div>
+      <div class="section-label">Detalle por UF</div>
+      <div class="list">
+        ${D.cobros.map(c=>`
+          <button class="row" data-snack="Cuenta corriente de ${c.uf}">
+            <span class="row-ic${c.cls==='ok'?' verde':''}">${svg('vecino')}</span>
+            <span class="row-main">
+              <span class="row-t">${c.uf} · ${c.quien}</span>
+              <span class="row-s"><span class="pill ${c.cls}">${c.estado}</span></span>
+            </span>
+            <span class="row-end"><span class="row-amt">${money(c.total)}</span>${rowChev}</span>
+          </button>`).join('')}
+      </div>
+    </div>
+
+    <div data-panel="mora" style="display:none">
+      <div class="card" style="border-color:var(--nd-terracota);border-left-width:3px">
+        <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)">Deuda total</div>
+        <div style="font-family:var(--font-d);font-size:1.9rem;font-weight:600;letter-spacing:-.03em;color:var(--nd-terracota-hondo);margin:3px 0">${money(totalMora)}</div>
+        <div style="font-size:.83rem;font-weight:600;color:var(--muted)">${D.mora.length} unidades · <span data-cn>${cons().n}</span></div>
+      </div>
+      <div class="list">
+        ${D.mora.map(m=>`
+          <button class="row" data-snack="Recordatorio enviado a ${m.uf}">
+            <span class="row-ic">${svg('alerta')}</span>
+            <span class="row-main">
+              <span class="row-t">${m.uf} · ${m.quien}</span>
+              <span class="row-s">${m.meses} ${m.meses===1?'mes':'meses'} de atraso</span>
+            </span>
+            <span class="row-end"><span class="row-amt">${money(m.deuda)}</span>${rowChev}</span>
+          </button>`).join('')}
+      </div>
+      <div style="margin-top:14px"><button class="btn btn-ghost" data-snack="Recordatorio enviado a las 5 UFs">${svg('enviar')} Enviar recordatorio a todos</button></div>
+    </div>
+  `);
+
+  /* — EDIFICIOS — */
+  view('edificios', `
+    <div class="list">
+      ${D.consorcios.map((c,i)=>`
+        <button class="row" data-cons="${i}">
+          <span class="row-ic verde">${svg('edificio')}</span>
+          <span class="row-main">
+            <span class="row-t">${c.n}</span>
+            <span class="row-s">${c.d} · ${c.ufs} UFs</span>
+          </span>
+          <span class="row-end">${c.mora?`<span class="pill bad">${c.mora} en mora</span>`:'<span class="pill ok">al día</span>'}${rowChev}</span>
+        </button>`).join('')}
+    </div>
+    <div class="section-label">Padrón</div>
+    <div class="list">
+      <button class="row" data-push="proveedores">
+        <span class="row-ic">${svg('proveedor')}</span>
+        <span class="row-main"><span class="row-t">Proveedores</span><span class="row-s">${D.proveedores.length} cargados</span></span>
+        <span class="row-end">${rowChev}</span>
+      </button>
+      <button class="row" data-push="amenities">
+        <span class="row-ic ama">${svg('calendario')}</span>
+        <span class="row-main"><span class="row-t">Amenities</span><span class="row-s">2 reservas por confirmar</span></span>
+        <span class="row-end">${rowChev}</span>
+      </button>
+    </div>
+  `);
+
+  /* ══════════════════ Sub-pantallas (push) ══════════════════ */
+
+  /* — CIERRE DE MES: los 4 pasos — */
+  view('cierre', '', true);
+  const cierreView = stack.querySelector('[data-view="cierre"] .pad');
+
+  const PASOS = [
+    {t:'Gastos del período', s:'Revisá que esté todo cargado antes de prorratear'},
+    {t:'Prorrateo por unidad', s:'Cómo se reparte el total entre las 24 UFs'},
+    {t:'Vencimientos', s:'Cuándo vence y cuánto recarga el segundo vencimiento'},
+    {t:'Enviar las expensas', s:'Último paso: el resumen le llega a cada copropietario'}
+  ];
+
+  function progressBar(){
+    return `<div class="progress">${[1,2,3,4].map(n=>
+      `<i class="pg ${n<paso?'done':n===paso?'now':''}"></i>`).join('')}</div>`;
+  }
+
+  function pasoUno(){
+    return `
+      <div class="card">
+        <div class="kv"><span>Gastos cargados</span><b>${D.gastos.length}</b></div>
+        <div class="kv"><span>Sin aprobar</span><b style="color:var(--nd-terracota-hondo)">${sinAprobar.length}</b></div>
+        <div class="kv total"><span>Total del período</span><b>${money(D.totalGastos)}</b></div>
+      </div>
+      <button class="camerabtn" data-sheet="camara">
+        <span class="ci">${svg('camara')}</span>
+        <span><b>Falta una factura</b><i>Cargala sin salir del cierre</i></span>
+      </button>
+      <div class="section-label">Por rubro</div>
+      <div class="list">
+        ${[['Personal',452000],['Mantenimiento',238500],['Servicios',275000],['Seguros',131000],['Administración',128000],['Reparaciones',94200]].map(([r,m])=>`
+          <button class="row" data-snack="${r}: ver los gastos del rubro">
+            <span class="row-main">
+              <span class="row-t">${r}</span>
+              <span class="row-s">${Math.round(m/D.totalGastos*100)}% del total</span>
+            </span>
+            <span class="row-end"><span class="row-amt">${money(m)}</span>${rowChev}</span>
+          </button>`).join('')}
+      </div>`;
+  }
+
+  function pasoDos(){
+    const sumA = D.prorrateo.reduce((a,p)=>a+parseFloat(p.pa.replace(',','.')),0);
+    const enMora = D.prorrateo.filter(p=>p.mora).length;
+    return `
+      <div class="control">
+        <div class="ctop"><b>${money(D.totalGastos)}</b><span>A prorratear</span></div>
+        <div class="cgrid">
+          <div class="cg ok"><em>Suma %A</em><b>100,00%</b></div>
+          <div class="cg ok"><em>Suma %C</em><b>100,00%</b></div>
+          <div class="cg bad"><em>En mora</em><b>${enMora} UFs</b></div>
+        </div>
+      </div>
+      <div class="chips">
+        <button class="chip active">Por unidad</button>
+        <button class="chip">Mayor a menor</button>
+        <button class="chip">Sólo mora</button>
+      </div>
+      ${D.prorrateo.map((p,i)=>`
+        <div class="uf${p.mora?' mora':''}" data-uf="${i}">
+          <button class="uf-h">
+            <span class="uf-n">${p.uf}</span>
+            <span class="row-main">
+              <span class="row-t">${p.quien}</span>
+              <span class="row-s"><span class="pct">${p.pa}%</span>${p.mora?'<span class="pill bad">con saldo</span>':'al día'}</span>
+            </span>
+            <span class="row-end"><span class="row-amt">${money(p.total)}</span>${rowChev}</span>
+          </button>
+          <div class="uf-b">
+            <div class="grp">
+              <div class="grp-l">Arrastre del período anterior</div>
+              <div class="kv"><span>Saldo anterior</span><b>${money(p.ant)}</b></div>
+              <div class="kv"><span>Pago recibido</span><b>${money(p.pago)}</b></div>
+              <div class="kv"><span>Saldo pendiente</span><b>${money(p.pend)}</b></div>
+              <div class="kv"><span>Interés</span><b>${money(p.int)}</b></div>
+            </div>
+            <div class="grp">
+              <div class="grp-l">Expensa del período</div>
+              <div class="kv"><span><span class="pct">${p.pa}%</span>Ordinaria</span><b>${money(p.ea)}</b></div>
+              <div class="kv"><span><span class="pct">${p.pc}%</span>Adicional ord.</span><b>${money(p.ad)}</b></div>
+            </div>
+            <div class="grp">
+              <div class="grp-l">Extras y resultado</div>
+              <div class="kv"><span>Particulares</span><b>${money(p.part)}</b></div>
+              <div class="kv total"><span>Total a pagar</span><b>${money(p.total)}</b></div>
+            </div>
+            <button class="btn btn-ghost" style="margin-top:12px" data-snack="Previsualizando el resumen de ${p.uf}">${svg('ojo')} Previsualizar resumen</button>
+          </div>
+        </div>`).join('')}`;
+  }
+
+  function pasoTres(){
+    return `
+      <div class="card">
+        <div class="field-row">
+          <div class="field"><label>1er vencimiento</label><input type="date" value="2026-09-10"></div>
+          <div class="field"><label>2do vencimiento</label><input type="date" value="2026-09-20"></div>
+        </div>
+        <div class="field" style="margin-bottom:0"><label>Recargo del 2do vencimiento</label><input type="text" value="8,00 %"></div>
+      </div>
+      <div class="card">
+        <div class="switch"><span>Publicar en el portal del vecino</span><button class="sw on" data-sw></button></div>
+        <div class="switch"><span>Adjuntar detalle de gastos</span><button class="sw on" data-sw></button></div>
+        <div class="switch"><span>Incluir código de pago</span><button class="sw" data-sw></button></div>
+      </div>
+      <div class="card">
+        <div class="kv"><span>Saldo inicial del período</span><b>${money(318400)}</b></div>
+        <div class="kv"><span>Total ingresos</span><b>${money(2704000)}</b></div>
+        <div class="kv total"><span>Saldo final</span><b>${money(-1262100)}</b></div>
+      </div>`;
+  }
+
+  function pasoCuatro(){
+    return `
+      <div class="card hero" style="margin-bottom:14px">
+        <div class="lbl">Todo listo</div>
+        <div class="amount">${cons().ufs} resúmenes</div>
+        <div class="meta">${D.mes} · ${cons().n}</div>
+      </div>
+      <div class="card">
+        <div class="kv"><span>Por email</span><b>22 UFs</b></div>
+        <div class="kv"><span>Sólo portal (sin email)</span><b>2 UFs</b></div>
+        <div class="kv"><span>Vence</span><b>10/09/2026</b></div>
+        <div class="kv total"><span>Total a emitir</span><b>${money(D.totalGastos)}</b></div>
+      </div>
+      <button class="btn btn-ghost" data-snack="Previsualizando el resumen de 3º B">${svg('ojo')} Previsualizar un resumen</button>`;
+  }
+
+  function renderCierre(){
+    const p = PASOS[paso-1];
+    const ultimo = paso === 4;
+    cierreView.innerHTML = `
+      ${progressBar()}
+      <div class="steptitle">${p.t}</div>
+      <div class="stepsub">Paso ${paso} de 4 · ${p.s}</div>
+      ${[pasoUno, pasoDos, pasoTres, pasoCuatro][paso-1]()}
+      <div class="stepfoot">
+        <button class="btn btn-primary" data-paso="${ultimo?'enviar':'next'}">
+          ${ultimo ? svg('enviar') + ' Enviar las expensas' : 'Continuar ' + svg('chev')}
+        </button>
+      </div>`;
+  }
+
+  /* — LIQUIDACIONES ANTERIORES — */
+  view('liquidaciones', `
+    <div class="card hero">
+      <div class="lbl">En curso</div>
+      <div class="amount">${D.mes}</div>
+      <div class="meta">Paso 2 de 4 · prorrateo sin revisar</div>
+      <button class="btn-hero" data-push="cierre">${svg('rayo')} Seguir el cierre</button>
+    </div>
+    <div class="section-label">Anteriores</div>
+    <div class="list">
+      ${D.liquidaciones.map(l=>`
+        <button class="row" data-snack="${l.per}: abriendo el detalle">
+          <span class="row-ic verde">${svg('liquidacion')}</span>
+          <span class="row-main">
+            <span class="row-t">${l.per}</span>
+            <span class="row-s"><span class="pill ${l.cls}">${l.estado}</span></span>
+          </span>
+          <span class="row-end"><span class="row-amt">${money(l.total)}</span>${rowChev}</span>
+        </button>`).join('')}
+    </div>
+  `, true);
+
+  /* — PROVEEDORES — */
+  view('proveedores', `
+    <div class="list">
+      ${D.proveedores.map(p=>`
+        <button class="row" data-snack="${p.n}">
+          <span class="row-ic">${svg('proveedor')}</span>
+          <span class="row-main"><span class="row-t">${p.n}</span><span class="row-s">${p.rubro} · ${p.cuit}</span></span>
+          <span class="row-end">${rowChev}</span>
+        </button>`).join('')}
+    </div>
+    <div style="margin-top:14px"><button class="btn btn-ghost" data-snack="Nuevo proveedor">${svg('mas')} Nuevo proveedor</button></div>
+  `, true);
+
+  /* — AMENITIES — */
+  view('amenities', `
+    <div class="section-label">Por confirmar</div>
+    <div class="list">
+      ${D.reservas.map((r,i)=>`
+        <div class="row" style="cursor:default">
+          <span class="row-ic ama">${svg('calendario')}</span>
+          <span class="row-main"><span class="row-t">${r.am} · ${r.quien}</span><span class="row-s">${r.cuando}</span></span>
+          <span class="row-end">
+            <button class="bar-btn" data-snack="Reserva de ${r.am} aprobada" style="color:var(--nd-verde)">${svg('aprobar')}</button>
+            <button class="bar-btn" data-snack="Reserva de ${r.am} rechazada">${svg('cerrar')}</button>
+          </span>
+        </div>`).join('')}
+    </div>
+    <div class="section-label">Agenda</div>
+    <div class="days">
+      ${['22 V','23 S','24 D','25 L','26 M','27 M'].map((d,i)=>{
+        const [n,l] = d.split(' ');
+        return `<button class="day${i===1?' active':''}"><b>${n}</b><span>${l}</span></button>`;
+      }).join('')}
+    </div>
+    <div class="list">
+      <div class="row" style="cursor:default"><span class="row-main"><span class="row-t">SUM</span><span class="row-s">18 a 23 hs · 4º A</span></span><span class="row-end"><span class="pill warn">a confirmar</span></span></div>
+      <div class="row" style="cursor:default"><span class="row-main"><span class="row-t">Parrilla</span><span class="row-s">Libre todo el día</span></span><span class="row-end"><span class="pill ok">libre</span></span></div>
+      <div class="row" style="cursor:default"><span class="row-main"><span class="row-t">Gimnasio</span><span class="row-s">Sin reservas</span></span><span class="row-end"><span class="pill ok">libre</span></span></div>
+    </div>
+  `, true);
+
+  /* — BALANCE — */
+  view('balance', `
+    <div class="kpis">
+      <div class="kpi ok"><b>$2.70M</b><span>Ingresos</span></div>
+      <div class="kpi bad"><b>$4.28M</b><span>Egresos</span></div>
+      <div class="kpi"><b>$318k</b><span>Caja</span></div>
+    </div>
+    <div class="section-label">Últimos 6 meses</div>
+    <div class="list">
+      ${[['Agosto 2026',2704000,4284500],['Julio 2026',3980000,4128300],['Junio 2026',3910000,3986100],['Mayo 2026',3860000,3874500],['Abril 2026',3700000,3712900],['Marzo 2026',3620000,3588200]].map(([m,i,e])=>`
+        <div class="row" style="cursor:default">
+          <span class="row-main"><span class="row-t">${m}</span><span class="row-s">Ingresos ${money(i)}</span></span>
+          <span class="row-end"><span class="row-amt" style="color:${i>=e?'var(--nd-verde)':'var(--nd-terracota-hondo)'}">${money(i-e)}</span></span>
+        </div>`).join('')}
+    </div>
+  `, true);
+
+  /* — MENSAJERÍA — */
+  view('mensajeria', `
+    <div class="empty">
+      ${svg('megafono')}
+      <p>La mensajería llega en la próxima versión.<br>Por ahora los comunicados salen por email.</p>
+    </div>
+    <button class="btn btn-ghost" data-sheet="comunicado">${svg('megafono')} Enviar un comunicado</button>
+  `, true);
+
+  /* — CONFIGURACIÓN — */
+  view('config', `
+    <div class="card">
+      <div class="switch"><span>Avisarme de gastos sin aprobar</span><button class="sw on" data-sw></button></div>
+      <div class="switch"><span>Avisarme de reservas nuevas</span><button class="sw on" data-sw></button></div>
+      <div class="switch"><span>Resumen diario a las 9</span><button class="sw" data-sw></button></div>
+    </div>
+    <div class="section-label">Del consorcio</div>
+    <div class="list">
+      <button class="row" data-snack="Tarifas y coeficientes"><span class="row-ic">${svg('balance')}</span><span class="row-main"><span class="row-t">Tarifas y coeficientes</span><span class="row-s">%A y %C por unidad</span></span><span class="row-end">${rowChev}</span></button>
+      <button class="row" data-snack="Gastos recurrentes"><span class="row-ic">${svg('reloj')}</span><span class="row-main"><span class="row-t">Gastos recurrentes</span><span class="row-s">6 activos</span></span><span class="row-end">${rowChev}</span></button>
+      <button class="row" data-snack="Datos del consorcio"><span class="row-ic">${svg('edificio')}</span><span class="row-main"><span class="row-t">Datos del consorcio</span><span class="row-s">CUIT, dirección, encargado</span></span><span class="row-end">${rowChev}</span></button>
+    </div>
+  `, true);
+
+  /* — DETALLE DE CONSORCIO — */
+  view('consorcio', '', true);
+  const consView = stack.querySelector('[data-view="consorcio"] .pad');
+  function renderConsorcio(){
+    const c = cons();
+    consView.innerHTML = `
+      <div class="card hero">
+        <div class="lbl">${c.d}</div>
+        <div class="amount" style="font-size:1.6rem">${c.n}</div>
+        <div class="meta">${c.ufs} unidades · ${c.mora} en mora</div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><b>${c.ufs}</b><span>UFs</span></div>
+        <div class="kpi bad"><b>${c.mora}</b><span>En mora</span></div>
+        <div class="kpi ok"><b>${c.ufs-c.mora}</b><span>Al día</span></div>
+      </div>
+      <div class="section-label">Unidades funcionales</div>
+      <div class="list">
+        ${D.ufs.map(u=>`
+          <button class="row" data-snack="${u.n} · ${u.quien}">
+            <span class="uf-n" style="width:40px;height:40px;border-radius:13px;font-size:.85rem">${u.n}</span>
+            <span class="row-main"><span class="row-t">${u.quien}</span><span class="row-s">Piso ${u.piso} · ${u.m2} m² · <span class="pct">${u.pct}%</span></span></span>
+            <span class="row-end">${rowChev}</span>
+          </button>`).join('')}
+      </div>`;
+  }
+
+  /* ══════════════════ Navegación push ══════════════════ */
+  let subOpen = null;
+  const SUBTITLES = {
+    cierre:'Cierre de mes', liquidaciones:'Liquidaciones', proveedores:'Proveedores',
+    amenities:'Amenities', balance:'Balance', mensajeria:'Mensajería',
+    config:'Configuración', consorcio:'Consorcio'
+  };
+
+  function push(id){
+    const v = stack.querySelector(`.screenview[data-view="${id}"]`);
+    if(!v) return;
+    if(id==='cierre') renderCierre();
+    if(id==='consorcio') renderConsorcio();
+    subOpen = v;
+    v.classList.add('active'); v.scrollTop = 0;
+    void v.offsetWidth;
+    v.classList.remove('out'); v.classList.add('in');
+    appbar.classList.add('sub','scrolled');
+    compact.textContent = SUBTITLES[id] || '';
+    navBtn.innerHTML = svg('atras');
+    markDrawer();
+  }
+  function closeSub(instant){
+    if(!subOpen) return;
+    const v = subOpen; subOpen = null;
+    navBtn.innerHTML = svg('menu');
+    appbar.classList.remove('sub');
+    const meta = TABS.find(t=>t.id===tab);
+    compact.textContent = meta.t;
+    const active = stack.querySelector(`.screenview[data-view="${tab}"]`);
+    appbar.classList.toggle('scrolled', !!active && active.scrollTop > 26);
+    markDrawer();
+    if(instant){ v.classList.remove('active','in','out'); return; }
+    v.classList.remove('in'); v.classList.add('out');
+    setTimeout(()=>{ if(subOpen!==v) v.classList.remove('active','out'); }, 270);
+  }
+
+  /* El botón de la izquierda es ☰ arriba de todo y ← dentro de una
+     sub-pantalla. Dentro del cierre retrocede de paso antes de salir. */
+  navBtn.addEventListener('click', ()=>{
+    if(!subOpen){ openDrawer(); return; }
+    if(subOpen.dataset.view==='cierre' && paso > 1){ paso--; renderCierre(); return; }
+    closeSub();
+  });
+
+  /* Back-swipe desde el borde izquierdo (sólo con sub-pantalla abierta) */
+  stack.addEventListener('pointerdown', e=>{
+    if(!subOpen) return;
+    const r = stack.getBoundingClientRect();
+    if(e.clientX - r.left > 26) return;
+    const v = subOpen, x0 = e.clientX;
+    v.style.transition = 'none';
+    const move = ev => { v.style.transform = `translateX(${Math.max(0, ev.clientX - x0)}px)`; };
+    const up = ev => {
+      stack.removeEventListener('pointermove', move);
+      stack.removeEventListener('pointerup', up);
+      v.style.transition = ''; v.style.transform = '';
+      if(ev.clientX - x0 > 70) closeSub();
+    };
+    stack.addEventListener('pointermove', move);
+    stack.addEventListener('pointerup', up);
+  });
+
+  /* ══════════════════ Bottom sheet ══════════════════ */
+  function openSheet({title, sub, body, foot}){
+    $('.sheet-head').innerHTML = `<h3>${title}</h3>${sub?`<p>${sub}</p>`:''}`;
+    $('.sheet-body').innerHTML = body;
+    $('.sheet-foot').innerHTML = foot || '';
+    $('.sheet-foot').style.display = foot ? 'flex' : 'none';
+    $('.sheet-body').scrollTop = 0;
+    sheet.classList.add('open'); scrim.classList.add('open');
+  }
+  function closeSheet(){ sheet.classList.remove('open'); scrim.classList.remove('open'); }
+  scrim.addEventListener('click', ()=>{ closeSheet(); closeDrawer(); });
+
+  /* Arrastrar para cerrar */
+  $('.grabber').addEventListener('pointerdown', e=>{
+    const y0 = e.clientY, h = sheet.offsetHeight;
+    sheet.classList.add('dragging');
+    e.target.setPointerCapture(e.pointerId);
+    const move = ev => {
+      const dy = Math.max(0, ev.clientY - y0);
+      sheet.style.transform = `translateY(${dy}px)`;
+      scrim.style.opacity = String(Math.max(0, 1 - dy/h*1.4));
+    };
+    const up = ev => {
+      e.target.removeEventListener('pointermove', move);
+      e.target.removeEventListener('pointerup', up);
+      sheet.classList.remove('dragging');
+      sheet.style.transform = ''; scrim.style.opacity = '';
+      if(ev.clientY - y0 > 90) closeSheet();
+    };
+    e.target.addEventListener('pointermove', move);
+    e.target.addEventListener('pointerup', up);
+  });
+
+  /* ══════════════════ Snackbar ══════════════════ */
+  let snackT;
+  function toast(msg){
+    snack.innerHTML = `${svg('check')}<span>${msg}</span>`;
+    snack.style.bottom = (tabbar.offsetHeight + 12) + 'px';
+    snack.classList.add('show');
+    clearTimeout(snackT);
+    snackT = setTimeout(()=>snack.classList.remove('show'), 2600);
+  }
+
+  /* ══════════════════ Segmented control ══════════════════ */
+  const segmented = stack.querySelector('.segmented');
+  function moveThumb(){
+    const btn = segmented.querySelector('.seg.active');
+    const thumb = segmented.querySelector('.seg-thumb');
+    thumb.style.left = btn.offsetLeft + 'px';
+    thumb.style.width = btn.offsetWidth + 'px';
+  }
+  function setSeg(id){
+    cobrosSeg = id;
+    segmented.querySelectorAll('.seg').forEach(s=>s.classList.toggle('active', s.dataset.seg===id));
+    stack.querySelectorAll('[data-panel]').forEach(p=>p.style.display = p.dataset.panel===id?'':'none');
+    moveThumb();
+  }
+  segmented.addEventListener('click', e=>{
+    const b = e.target.closest('.seg'); if(b) setSeg(b.dataset.seg);
+  });
+
+  /* ══════════════════ Sheets ══════════════════ */
+  const sheets = {
+
+    /* Elegir cómo cargar el gasto. Se mantiene el paso, pero la cámara
+       de la pantalla Gastos lo saltea: el camino rápido no lo cruza. */
+    nuevoGasto(){
+      openSheet({
+        title:'Nuevo gasto',
+        sub:cons().n,
+        body:`
+          <button class="opt" data-sheet2="camara">
+            <span class="oi">${svg('camara')}</span>
+            <span><b>Sacarle una foto</b><i>La IA lee la factura y completa los campos</i></span>
+          </button>
+          <button class="opt" data-sheet2="lote">
+            <span class="oi">${svg('doc')}</span>
+            <span><b>Varias facturas</b><i>Sacá todas las fotos y revisalas de a una</i></span>
+          </button>
+          <button class="opt" data-sheet2="manual">
+            <span class="oi verde">${svg('editar')}</span>
+            <span><b>Carga manual</b><i>Sin comprobante: monto, categoría y proveedor</i></span>
+          </button>`
+      });
+    },
+
+    /* Camino rápido: la foto ya fue sacada, esto es la confirmación. */
+    camara(){ loteIdx = 0; confirmar(1); },
+
+    lote(){ loteIdx = 0; confirmar(D.lote.length); },
+
+    manual(){
+      montoManual = ''; catManual = null;
+      openSheet({
+        title:'Carga rápida',
+        sub:`${cons().n} · sin comprobante`,
+        body:`
+          <div class="amount-big" data-monto>$0</div>
+          <div class="amount-hint">Monto del gasto</div>
+          <div class="numpad">
+            ${['1','2','3','4','5','6','7','8','9','000','0','del'].map(k=>
+              `<button class="nk" data-key="${k}">${k==='del'?svg('borrar'):k}</button>`).join('')}
+          </div>
+          <div class="section-label" style="padding-left:0">Categoría</div>
+          <div class="catgrid">
+            ${D.categorias.map(c=>`<button class="cat" data-cat="${c.n}">${svg(c.ic)}<span>${c.n}</span></button>`).join('')}
+          </div>
+          <div class="section-label" style="padding-left:0">Proveedor</div>
+          <div class="chips">
+            ${D.proveedores.map(p=>`<button class="chip" data-prov="${p.n}">${p.n}</button>`).join('')}
+            <button class="chip">+ Otro</button>
+          </div>`,
+        foot:`<button class="btn btn-primary" data-guardar-manual>Guardar gasto</button>`
+      });
+    },
+
+    consorcio(){
+      openSheet({
+        title:'Cambiar de consorcio',
+        sub:'Todas las pantallas pasan a este contexto',
+        body:D.consorcios.map((c,i)=>`
+          <button class="row" data-setcons="${i}" style="border-radius:14px;margin-bottom:6px;border-bottom:none">
+            <span class="row-ic${i===D.activo?'':' verde'}">${svg(i===D.activo?'aprobar':'edificio')}</span>
+            <span class="row-main"><span class="row-t">${c.n}</span><span class="row-s">${c.d} · ${c.ufs} UFs</span></span>
+            <span class="row-end">${i===D.activo?'<span class="pill ok">activo</span>':rowChev}</span>
+          </button>`).join('')
+      });
+    },
+
+    comunicado(){
+      openSheet({
+        title:'Nuevo comunicado',
+        sub:`Llega a las ${cons().ufs} unidades de ${cons().n}`,
+        body:`
+          <div class="field"><label>Asunto</label><input type="text" placeholder="Corte de agua programado"></div>
+          <div class="field"><label>Mensaje</label><textarea placeholder="Escribí el comunicado..."></textarea></div>
+          <div class="switch"><span>Marcar como urgente</span><button class="sw" data-sw></button></div>`,
+        foot:`<button class="btn btn-ghost" data-cerrar>Cancelar</button>
+              <button class="btn btn-primary" data-snack-close="Comunicado enviado a ${cons().ufs} unidades">${svg('enviar')} Enviar</button>`
+      });
+    },
+
+    perfil(){
+      openSheet({
+        title:'Santiago Despontin',
+        sub:'Administrador · 4 consorcios',
+        body:`
+          <div class="kv"><span>Email</span><b>santiago@niddo.app</b></div>
+          <div class="kv"><span>Matrícula</span><b>CABA 12.847</b></div>
+          <div class="kv"><span>Plan</span><b>Profesional</b></div>`
+      });
+    },
+
+    gasto(i){
+      const g = D.gastos[i];
+      openSheet({
+        title:g.desc,
+        sub:`${g.prov} · ${g.fecha}`,
+        body:`
+          <div class="kv"><span>Monto</span><b>${money(g.monto)}</b></div>
+          <div class="kv"><span>Categoría</span><b>${g.cat}</b></div>
+          <div class="kv"><span>Consorcio</span><b>${cons().n}</b></div>
+          <div class="kv"><span>Estado</span><b>${g.ok?'Aprobado':'Sin aprobar'}</b></div>`,
+        foot: g.ok
+          ? `<button class="btn btn-ghost" data-snack-close="Gasto editado">${svg('editar')} Editar</button>`
+          : `<button class="btn btn-ghost" data-snack-close="Gasto rechazado">Rechazar</button>
+             <button class="btn btn-primary" data-snack-close="Gasto aprobado">${svg('aprobar')} Aprobar</button>`
+      });
+    }
+  };
+
+  /* La tarjeta de confirmación: una por comprobante, campos grandes.
+     `n` es cuántos comprobantes tiene el lote. */
+  function confirmar(n){
+    const g = D.lote[loteIdx];
+    const ultimo = loteIdx === n-1;
+    openSheet({
+      title: n>1 ? `Comprobante ${loteIdx+1} de ${n}` : 'Revisá el gasto',
+      sub: `${cons().n} · tocá cualquier dato para corregirlo`,
+      body:`
+        <div class="shot">${svg('doc')}<i>foto ${loteIdx+1}</i></div>
+        <div class="aihint">${svg('rayo')} Datos extraídos con IA · revisalos antes de guardar</div>
+        <button class="efield big" data-snack="Editar el monto">
+          <span class="lb">Monto</span><span class="vl">${money(g.monto)} ${svg('editar')}</span>
+        </button>
+        <button class="efield" data-snack="Editar el proveedor">
+          <span class="lb">Proveedor</span><span class="vl">${g.prov} ${svg('editar')}</span>
+        </button>
+        <button class="efield" data-snack="Editar la categoría">
+          <span class="lb">Categoría</span><span class="vl">${g.cat} ${svg('editar')}</span>
+        </button>
+        <button class="efield" data-snack="Editar la fecha">
+          <span class="lb">Fecha</span><span class="vl">${g.fecha} ${svg('editar')}</span>
+        </button>
+        <button class="efield" data-snack="Editar el vencimiento">
+          <span class="lb">Vence</span><span class="vl">${g.vto} ${svg('editar')}</span>
+        </button>
+        <div class="switch" style="margin-top:6px"><span>Ya está pagado</span><button class="sw" data-sw></button></div>`,
+      foot:`<button class="btn btn-ghost" data-cerrar>Descartar</button>
+            <button class="btn btn-primary" data-lote="${n}">
+              ${ultimo ? svg('check') + ' Guardar' : 'Guardar y seguir ' + svg('chev')}
+            </button>`
+    });
+  }
+
+  /* ══════════════════ Delegación de eventos ══════════════════ */
+  function handle(e){
+    const t = e.target;
+
+    const goto = t.closest('[data-goto]');
+    if(goto){ closeSub(true); go(goto.dataset.goto); if(goto.dataset.seg) setSeg(goto.dataset.seg); return; }
+
+    const pu = t.closest('[data-push]');
+    if(pu){ closeSheet(); push(pu.dataset.push); return; }
+
+    const sh = t.closest('[data-sheet]');
+    if(sh && !t.closest('.drawer')){ sheets[sh.dataset.sheet](); return; }
+
+    const sh2 = t.closest('[data-sheet2]');
+    if(sh2){ const k = sh2.dataset.sheet2; closeSheet(); setTimeout(()=>sheets[k](), 240); return; }
+
+    const cs = t.closest('[data-cons]');
+    if(cs){ D.activo = +cs.dataset.cons; refreshContext(); push('consorcio'); return; }
+
+    const set = t.closest('[data-setcons]');
+    if(set){
+      D.activo = +set.dataset.setcons;
+      closeSheet(); refreshContext();
+      toast('Ahora estás en ' + cons().n);
+      return;
+    }
+
+    const ga = t.closest('[data-gasto]');
+    if(ga){ sheets.gasto(+ga.dataset.gasto); return; }
+
+    const uf = t.closest('.uf-h');
+    if(uf){ uf.parentElement.classList.toggle('open'); return; }
+
+    const chip = t.closest('[data-chip]');
+    if(chip){
+      chip.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active', c===chip));
+      return;
+    }
+
+    const sw = t.closest('[data-sw]');
+    if(sw){ sw.classList.toggle('on'); return; }
+
+    /* Paso siguiente del cierre */
+    const ps = t.closest('[data-paso]');
+    if(ps){
+      if(ps.dataset.paso === 'enviar'){
+        closeSub();
+        toast(`${cons().ufs} resúmenes de ${D.mes} enviados`);
+        paso = 1;
+        return;
+      }
+      paso++; renderCierre();
+      stack.querySelector('[data-view="cierre"]').scrollTop = 0;
+      return;
+    }
+
+    /* Lote de comprobantes */
+    const lt = t.closest('[data-lote]');
+    if(lt){
+      const n = +lt.dataset.lote;
+      if(loteIdx < n-1){ loteIdx++; confirmar(n); toast('Gasto guardado'); }
+      else { closeSheet(); toast(n>1 ? `${n} gastos cargados` : 'Gasto cargado'); }
+      return;
+    }
+
+    /* Teclado numérico */
+    const key = t.closest('[data-key]');
+    if(key){
+      const k = key.dataset.key;
+      if(k==='del') montoManual = montoManual.slice(0,-1);
+      else if(montoManual.length < 9) montoManual += k;
+      const out = $('[data-monto]');
+      if(out) out.textContent = montoManual ? money(parseInt(montoManual,10)) : '$0';
+      return;
+    }
+
+    const cat = t.closest('[data-cat]');
+    if(cat){
+      catManual = cat.dataset.cat;
+      cat.parentElement.querySelectorAll('.cat').forEach(c=>c.classList.toggle('active', c===cat));
+      return;
+    }
+
+    const prov = t.closest('[data-prov]');
+    if(prov){
+      prov.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active', c===prov));
+      return;
+    }
+
+    if(t.closest('[data-guardar-manual]')){
+      if(!montoManual){ toast('Falta el monto'); return; }
+      closeSheet();
+      toast(`Gasto de ${money(parseInt(montoManual,10))} cargado`);
+      return;
+    }
+
+    if(t.closest('[data-cerrar]')){ closeSheet(); return; }
+
+    const sc = t.closest('[data-snack-close]');
+    if(sc){ closeSheet(); toast(sc.dataset.snackClose); return; }
+
+    const sn = t.closest('[data-snack]');
+    if(sn){ toast(sn.dataset.snack); return; }
+  }
+
+  stack.addEventListener('click', handle);
+  sheet.addEventListener('click', handle);
+  appbar.addEventListener('click', handle);   /* el botón de consorcio vive acá */
+
+  /* Cambiar de consorcio repinta todo lo que depende del contexto */
+  function refreshContext(){
+    buildDrawer();
+    const meta = TABS.find(t=>t.id===tab);
+    large.innerHTML = `${meta.t}<small>${meta.sub()}</small>`;
+    /* El nombre del consorcio aparece dentro de pantallas ya renderizadas:
+       si no se repintan, cambiar de contexto deja el nombre viejo a la vista. */
+    screen.querySelectorAll('[data-cn]').forEach(e=>e.textContent = cons().n);
+  }
+
+  /* ══════════════════ Arranque ══════════════════ */
+  buildDrawer();
+  go('hoy');
+  setSeg('resumen');
+  requestAnimationFrame(moveThumb);
+}
+
+document.querySelectorAll('.screen').forEach(mountApp);
+</script>
+</body>
+</html>
