@@ -449,6 +449,55 @@
         font-family: var(--font); font-size: .88rem; font-weight: 800; cursor: pointer;
     }
 
+    /* ── Tarjeta del mes en curso, en "Hoy" ──────────────────────────────
+       Deliberadamente lo más pesado de la pantalla: la pregunta que un
+       administrador se hace al abrir el teléfono es en qué punto del mes
+       está, y hasta ahora había que acordarse de entrar a Liquidaciones
+       para contestarla. */
+    .nd-hoy {
+        background: linear-gradient(145deg, var(--nd-verde), var(--nd-verde-bosque));
+        color: #fff; border-radius: 18px; padding: 20px;
+        margin-bottom: 14px; position: relative; overflow: hidden;
+    }
+    .nd-hoy::after {
+        content: ''; position: absolute; right: -34px; top: -34px;
+        width: 130px; height: 130px; border-radius: 50%;
+        background: rgba(255, 255, 255, .07);
+    }
+    .nd-hoy .lbl {
+        font-size: .72rem; font-weight: 700; text-transform: uppercase;
+        letter-spacing: .08em; opacity: .78;
+    }
+    .nd-hoy-t {
+        font-family: 'Fredoka', var(--font);
+        font-size: 2.1rem; font-weight: 600; letter-spacing: -.03em;
+        margin: 5px 0 3px;
+    }
+    .nd-hoy .meta { font-size: .83rem; opacity: .88; font-weight: 600; }
+    .nd-hoy-pasos { display: flex; gap: 5px; margin: 14px 0 0; }
+    .nd-hoy-pasos i { flex: 1; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .24); }
+    .nd-hoy-pasos i.hecho { background: var(--nd-amarillo); }
+    .nd-hoy-pasos i.actual { background: #fff; }
+    .nd-hoy-falta { font-size: .82rem; font-weight: 700; opacity: .92; margin-top: 10px; }
+    .nd-hoy-btn {
+        position: relative; z-index: 2; width: 100%; margin-top: 14px;
+        border: none; border-radius: 14px; padding: 14px;
+        background: var(--nd-amarillo); color: #3A2A08;
+        font-family: var(--font); font-size: .92rem; font-weight: 800;
+        cursor: pointer; min-height: 44px; transition: transform .12s;
+    }
+    .nd-hoy-btn:active { transform: scale(.97); }
+
+    /* El título de cada sección ya lo pone el app bar como título grande.
+       Repetirlo abajo era el resto más visible de layout de escritorio: dos
+       veces "Gastos" en la misma pantalla. El subtítulo y los botones del
+       encabezado se quedan, que sí dicen algo. */
+    .nd-mobile .main .page-title { display: none; }
+
+    /* Mandaba a usar el panel lateral, que en el teléfono no existía, y a
+       mirar KPIs que ahora contesta la tarjeta del mes. */
+    .nd-mobile #sec-dashboard .section-info { display: none; }
+
     /* ── Hoja de "Más" ───────────────────────────────────────────────────
        Reusa el aspecto de las sheets: es la misma idea, con contenido
        propio en vez de un formulario. */

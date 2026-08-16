@@ -1451,6 +1451,72 @@ async function loadDashboard() {
         $('kpi-gastos').textContent = d.gastos_pendientes;
         $('kpi-mora').textContent = d.en_mora;
     } catch {}
+    if (ndMobile()) ndCierreHoy();
+}
+
+/* La tarjeta del mes en curso, arriba de todo en "Hoy". Sin esto el cierre
+   existe pero no se ve: hay que acordarse de entrar a Liquidaciones. La
+   pregunta que un administrador se hace al abrir el teléfono es en qué
+   punto del mes está, y esto la contesta antes que nada. */
+async function ndCierreHoy() {
+    const cont = document.getElementById('nd-cierre-hoy')
+        || (() => {
+            const d = document.createElement('div');
+            d.id = 'nd-cierre-hoy';
+            const sec = $('sec-dashboard');
+            sec.insertBefore(d, sec.querySelector('.kpi-row'));
+            return d;
+        })();
+
+    try {
+        const liqs = await api('/api/liquidaciones');
+        /* La más nueva que todavía no esté cerrada: ese es "el mes en curso".
+           Si están todas cerradas no hay cierre en marcha y la tarjeta
+           invita a empezar uno. */
+        const abierta = (liqs || [])
+            .filter(l => l.estado !== 'cerrada')
+            .sort((a, b) => String(b.periodo).localeCompare(String(a.periodo)))[0];
+
+        if (!abierta) {
+            cont.innerHTML = `
+                <div class="nd-hoy">
+                    <div class="lbl">Cierre de mes</div>
+                    <div class="nd-hoy-t">Sin liquidación en curso</div>
+                    <div class="meta">Empezá el cierre cuando tengas los gastos del período cargados</div>
+                    <button class="nd-hoy-btn" onclick="show('liquidaciones');openNuevaLiquidacionModal()">
+                        Nueva liquidación</button>
+                </div>`;
+            return;
+        }
+
+        const paso = ndCierrePasoInicial(abierta);
+        const falta = ['', 'Falta revisar los gastos del período', 'Falta revisar el prorrateo',
+                       'Faltan los vencimientos', 'Falta enviar los resúmenes'][paso];
+
+        cont.innerHTML = `
+            <div class="nd-hoy">
+                <div class="lbl">Cierre de ${ndPeriodoTexto(abierta.periodo)}</div>
+                <div class="nd-hoy-t">${fmt(abierta.total_egresos)}</div>
+                <div class="meta">${escHtml((abierta.consorcios || {}).nombre || '')}</div>
+                <div class="nd-hoy-pasos">${[1, 2, 3, 4].map(n =>
+                    `<i class="${n < paso ? 'hecho' : n === paso ? 'actual' : ''}"></i>`).join('')}</div>
+                <div class="nd-hoy-falta">${falta}</div>
+                <button class="nd-hoy-btn" onclick="ndSeguirCierre('${abierta.id}')">
+                    Seguir el cierre</button>
+            </div>`;
+    } catch { cont.innerHTML = ''; }
+}
+
+function ndPeriodoTexto(p) {
+    const [a, m] = String(p || '').split('-');
+    const meses = ['enero','febrero','marzo','abril','mayo','junio',
+                   'julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    return meses[parseInt(m, 10) - 1] ? `${meses[parseInt(m, 10) - 1]} ${a}` : p;
+}
+
+async function ndSeguirCierre(lid) {
+    show('liquidaciones');
+    await openLiqDetail(lid);
 }
 
 // ── CONSORCIOS ────────────────────────────────────────────────────────────────
