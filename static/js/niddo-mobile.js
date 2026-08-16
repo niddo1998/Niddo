@@ -107,6 +107,7 @@
             original.call(this, name, navPassesEl ? arguments[1] : undefined);
             setTab(TAB_OF[name] || name);
             setTitle(name);
+            markDrawer(name);
             /* Si el template ya escribe el hash por su cuenta —admin lo
                hace dentro de show()— empujar además duplicaría entradas y el
                atrás necesitaría dos toques. */
@@ -150,6 +151,19 @@
 
         var row = document.createElement('div');
         row.className = 'nd-titlerow';
+
+        /* El botón del cajón va antes del título para que el título quede
+           centrado entre él y lo que el template tenga a la derecha. */
+        if (CFG.drawer) {
+            var menu = document.createElement('button');
+            menu.className = 'nd-menu-btn';
+            menu.type = 'button';
+            menu.setAttribute('aria-label', 'Menú');
+            menu.innerHTML = '<svg class="ic"><use href="#ic-menu"></use></svg>';
+            menu.addEventListener('click', openDrawer);
+            row.appendChild(menu);
+        }
+
         var compact = document.createElement('div');
         compact.className = 'nd-compacttitle';
         row.appendChild(compact);
@@ -177,6 +191,175 @@
         }, { passive: true });
     }
 
+    /* ── Cajón lateral ────────────────────────────────────────────────────
+       Opt-in: sólo se construye si el template declara `drawer`. El vecino
+       no lo declara y sigue con la hoja de "Más", que para sus tres ítems
+       alcanza. Admin tiene once secciones y necesita un índice.
+
+       Estructura declarada por el template:
+           drawer: {
+               brand: 'niddo',
+               contextLabel: 'Consorcio activo',
+               contextSelectors: ['filter-gastos-consorcio', ...],
+               groups: [{ label: 'Operación', items: [
+                   { section: 'gastos', label: 'Gastos', icon: 'ic-expensa', badge: 3 },
+                   { href: '/superadmin', label: 'Aprobaciones', icon: 'ic-vecino' }
+               ]}]
+           } */
+
+    var DRAWER = CFG.drawer || null;
+
+    function buildDrawer() {
+        if (!DRAWER || document.getElementById('nd-drawer')) return;
+
+        var overlay = document.createElement('div');
+        overlay.id = 'nd-drawer-overlay';
+
+        var panel = document.createElement('aside');
+        panel.id = 'nd-drawer';
+
+        var html = '';
+        if (DRAWER.brand) {
+            html += '<div class="nd-dr-brand">' + DRAWER.brand + '<i>o</i></div>';
+        }
+        if (DRAWER.contextSelectors && DRAWER.contextSelectors.length) {
+            html += '<button type="button" class="nd-dr-cons" id="nd-dr-cons">' +
+                '<span class="nd-dr-ic"><svg class="ic"><use href="#ic-edificio"></use></svg></span>' +
+                '<span><span class="lb">' + (DRAWER.contextLabel || 'Contexto') + '</span>' +
+                '<span class="nm" id="nd-dr-cons-nombre">—</span></span>' +
+                '<svg class="ic ic-sm"><use href="#ic-chevron"></use></svg></button>';
+        }
+
+        html += '<div class="nd-dr-scroll">';
+        (DRAWER.groups || []).forEach(function (g) {
+            if (g.label) html += '<div class="nd-dr-lbl">' + g.label + '</div>';
+            (g.items || []).forEach(function (it) {
+                var tag = it.href ? 'a' : 'button';
+                var attrs = it.href
+                    ? ' href="' + it.href + '"'
+                    : ' type="button" data-nd-section="' + it.section + '"';
+                html += '<' + tag + ' class="nd-dr-item"' + attrs + '>' +
+                    '<svg class="ic"><use href="#' + it.icon + '"></use></svg>' +
+                    '<span>' + it.label + '</span>' +
+                    (it.badge ? '<i class="nd-dr-badge">' + it.badge + '</i>' : '') +
+                    '</' + tag + '>';
+            });
+        });
+        html += '</div>';
+
+        html += '<div class="nd-dr-foot">' +
+            '<a class="nd-dr-item danger" href="/auth/logout">' +
+            '<svg class="ic"><use href="#ic-salir"></use></svg><span>Cerrar sesión</span></a></div>';
+
+        panel.innerHTML = html;
+        document.body.appendChild(overlay);
+        document.body.appendChild(panel);
+
+        overlay.addEventListener('click', closeDrawer);
+
+        panel.addEventListener('click', function (ev) {
+            var it = ev.target.closest('[data-nd-section]');
+            if (!it) return;
+            closeDrawer();
+            window[navFn](it.dataset.ndSection);
+        });
+
+        makeDrawerDraggable(panel);
+        watchEdgeSwipe();
+    }
+
+    function openDrawer() {
+        var p = document.getElementById('nd-drawer');
+        var o = document.getElementById('nd-drawer-overlay');
+        if (!p) return;
+        p.classList.add('open');
+        if (o) o.classList.add('open');
+    }
+
+    function closeDrawer() {
+        var p = document.getElementById('nd-drawer');
+        var o = document.getElementById('nd-drawer-overlay');
+        if (p) p.classList.remove('open');
+        if (o) o.classList.remove('open');
+    }
+
+    /* Qué ítem se ilumina. Se llama desde la navegación, igual que setTab. */
+    function markDrawer(section) {
+        var items = document.querySelectorAll('#nd-drawer [data-nd-section]');
+        for (var i = 0; i < items.length; i++) {
+            items[i].classList.toggle('active', items[i].dataset.ndSection === section);
+        }
+    }
+
+    /* Arrastrar el cajón hacia la izquierda lo cierra. */
+    function makeDrawerDraggable(panel) {
+        var overlay = document.getElementById('nd-drawer-overlay');
+        panel.addEventListener('pointerdown', function (e) {
+            /* Si el toque empieza sobre un ítem, es un tap, no un arrastre. */
+            if (e.target.closest('.nd-dr-item, .nd-dr-cons')) return;
+            var x0 = e.clientX, w = panel.offsetWidth;
+            panel.classList.add('nd-dragging');
+            function move(ev) {
+                var dx = Math.min(0, ev.clientX - x0);
+                panel.style.transform = 'translateX(' + dx + 'px)';
+                if (overlay) overlay.style.opacity = String(Math.max(0, 1 + dx / w));
+            }
+            function up(ev) {
+                panel.removeEventListener('pointermove', move);
+                panel.removeEventListener('pointerup', up);
+                panel.classList.remove('nd-dragging');
+                panel.style.transform = '';
+                if (overlay) overlay.style.opacity = '';
+                if (ev.clientX - x0 < -70) closeDrawer();
+            }
+            panel.addEventListener('pointermove', move);
+            panel.addEventListener('pointerup', up);
+        });
+    }
+
+    /* Entrar desde el borde izquierdo abre el cajón. El umbral de 22px es el
+       mismo que usa el sistema para su propio gesto de atrás, así que no se
+       dispara con un scroll normal. */
+    function watchEdgeSwipe() {
+        document.addEventListener('pointerdown', function (e) {
+            if (e.clientX > 22) return;
+            if (document.getElementById('nd-drawer').classList.contains('open')) return;
+            /* No robarle el gesto a una sheet abierta. */
+            if (document.querySelector('.modal-overlay.open, .drawer-overlay.open')) return;
+
+            var panel = document.getElementById('nd-drawer');
+            var overlay = document.getElementById('nd-drawer-overlay');
+            var x0 = e.clientX, w = panel.offsetWidth;
+            var movido = false;
+
+            function move(ev) {
+                var dx = Math.min(w, Math.max(0, ev.clientX - x0));
+                if (dx < 6) return;
+                movido = true;
+                panel.classList.add('nd-dragging');
+                panel.style.transform = 'translateX(' + (dx - w) + 'px)';
+                if (overlay) {
+                    overlay.classList.add('open');
+                    overlay.style.opacity = String(dx / w);
+                }
+            }
+            function up(ev) {
+                document.removeEventListener('pointermove', move);
+                document.removeEventListener('pointerup', up);
+                panel.classList.remove('nd-dragging');
+                panel.style.transform = '';
+                if (overlay) overlay.style.opacity = '';
+                if (!movido) return;
+                if (ev.clientX - x0 > 80) openDrawer(); else closeDrawer();
+            }
+            document.addEventListener('pointermove', move);
+            document.addEventListener('pointerup', up);
+        });
+    }
+
+    NiddoMobile.openDrawer = openDrawer;
+    NiddoMobile.closeDrawer = closeDrawer;
+
     /* ── Hoja de "Más" ───────────────────────────────────────────────────── */
 
     var MAS_ITEMS = CFG.masItems || [
@@ -186,6 +369,9 @@
     ];
 
     function buildMas() {
+        /* Con cajón no hay hoja de "Más": son la misma función y tener las dos
+           dejaría dos índices que se pueden contradecir. */
+        if (DRAWER) return;
         if (document.getElementById('nd-mas-overlay')) return;
 
         var overlay = document.createElement('div');
@@ -330,6 +516,9 @@
     document.addEventListener('DOMContentLoaded', function () {
         wrapNav();
         initSheets();
+        /* El cajón antes del header: buildHeader ata el botón ☰ a openDrawer,
+           que necesita que el panel exista para el gesto de borde. */
+        buildDrawer();
         buildHeader();
         buildMas();
         watchScroll();
@@ -375,6 +564,7 @@
                 : defaultSection;
             setTab(TAB_OF[nombre] || nombre);
             setTitle(nombre);
+            markDrawer(nombre);
         }
     });
 })();

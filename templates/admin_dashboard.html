@@ -34,19 +34,36 @@
             proveedores: 'Proveedores', amenities: 'Amenities',
             balance: 'Balance', mensajeria: 'Mensajería', config: 'Configuración'
         },
-        masItems: [
-            { section: 'liquidaciones', label: 'Liquidaciones', icon: 'ic-liquidacion' },
-            { section: 'proveedores',   label: 'Proveedores',   icon: 'ic-proveedor' },
-            { section: 'amenities',     label: 'Amenities',     icon: 'ic-reserva' },
-            { section: 'balance',       label: 'Balance',       icon: 'ic-balance' },
-            { section: 'mensajeria',    label: 'Mensajería',    icon: 'ic-mensaje' },
-            { section: 'config',        label: 'Configuración', icon: 'ic-config' }
-            {% if es_superadmin %},
-            /* Página propia, no sección: en móvil el sidebar no existe y sin
-               esta entrada el panel solo se alcanzaba escribiendo la URL. */
-            { href: '/superadmin',      label: 'Aprobaciones',  icon: 'ic-vecino' }
-            {% endif %}
-        ]
+        /* El cajón reemplaza a la hoja de "Más". Once secciones no entran en
+           una hoja de tres ítems, y seis de ellas quedaban escondidas. */
+        drawer: {
+            brand: 'nidd',
+            contextLabel: 'Consorcio activo',
+            groups: [
+                { label: 'Operación', items: [
+                    { section: 'dashboard',     label: 'Hoy',            icon: 'ic-panel' },
+                    { section: 'gastos',        label: 'Gastos',         icon: 'ic-expensa' },
+                    { section: 'cobros',        label: 'Cobros',         icon: 'ic-cobro' },
+                    { section: 'liquidaciones', label: 'Liquidaciones',  icon: 'ic-liquidacion' }
+                ]},
+                { label: 'Padrón', items: [
+                    { section: 'consorcios',    label: 'Edificios',      icon: 'ic-edificio' },
+                    { section: 'proveedores',   label: 'Proveedores',    icon: 'ic-proveedor' },
+                    { section: 'amenities',     label: 'Amenities',      icon: 'ic-reserva' }
+                ]},
+                { label: 'Sistema', items: [
+                    { section: 'balance',       label: 'Balance',        icon: 'ic-balance' },
+                    { section: 'mensajeria',    label: 'Mensajería',     icon: 'ic-mensaje' },
+                    { section: 'config',        label: 'Configuración',  icon: 'ic-config' }
+                    {% if es_superadmin %},
+                    /* Página propia, no sección: en móvil el sidebar no existe
+                       y sin esta entrada el panel de aprobaciones sólo se
+                       alcanzaba escribiendo la URL. */
+                    { href: '/superadmin',      label: 'Aprobaciones',   icon: 'ic-vecino' }
+                    {% endif %}
+                ]}
+            ]
+        }
     };
     </script>
     <script src="{{ url_for('static', filename='js/niddo-mobile.js') }}" defer></script>

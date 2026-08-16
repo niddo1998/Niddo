@@ -171,6 +171,107 @@
         height: 0; padding: 0; overflow: hidden;
     }
 
+    /* ── Cajón lateral ───────────────────────────────────────────────────
+       Sólo lo usa admin, que tiene once secciones: la hoja de "Más" servía
+       para tres o cuatro, no para seis escondidas. El vecino sigue con la
+       hoja, porque para él alcanza.
+
+       Es opt-in: si el template no declara `drawer` en su configuración,
+       nada de esto se construye. */
+    #nd-drawer {
+        position: fixed; top: 0; bottom: 0; left: 0;
+        width: min(298px, 84vw); z-index: 1100;
+        background: var(--surface);
+        display: flex; flex-direction: column;
+        box-shadow: 8px 0 40px rgba(42, 33, 28, .22);
+        padding-top: var(--safe-top);
+        padding-bottom: var(--safe-bottom);
+        transform: translateX(-100%);
+        transition: transform .32s cubic-bezier(.32, .72, 0, 1);
+    }
+    #nd-drawer.nd-dragging { transition: none; }
+    #nd-drawer-overlay {
+        position: fixed; inset: 0; z-index: 1090;
+        background: rgba(42, 33, 28, .42);
+        opacity: 0; pointer-events: none;
+        transition: opacity .28s;
+    }
+    #nd-drawer-overlay.open { opacity: 1; pointer-events: auto; }
+    #nd-drawer-overlay.open + #nd-drawer,
+    #nd-drawer.open { transform: translateX(0); }
+
+    .nd-dr-brand {
+        font-family: 'Fredoka', var(--font);
+        font-size: 1.1rem; font-weight: 600; letter-spacing: -.02em;
+        padding: 2px 20px 6px; color: var(--text);
+    }
+    .nd-dr-brand i { color: var(--nd-terracota); font-style: normal; }
+
+    /* El consorcio activo. Es el contexto de todas las pantallas, así que
+       vive arriba del índice y no adentro de él. */
+    .nd-dr-cons {
+        display: flex; align-items: center; gap: 11px;
+        width: calc(100% - 28px); margin: 0 14px 4px;
+        padding: 10px 13px;
+        background: var(--surface2); border: 1px solid var(--border);
+        border-radius: 16px;
+        font-family: var(--font); text-align: left; cursor: pointer;
+    }
+    .nd-dr-cons:active { background: var(--surface3, var(--surface2)); }
+    .nd-dr-cons .nd-dr-ic {
+        width: 38px; height: 38px; flex-shrink: 0; border-radius: 12px;
+        background: rgba(47, 111, 94, .13); color: var(--nd-verde);
+        display: flex; align-items: center; justify-content: center;
+    }
+    .nd-dr-cons .nd-dr-ic .ic { width: 22px; height: 22px; }
+    .nd-dr-cons > span:not(.nd-dr-ic) { flex: 1; min-width: 0; }
+    .nd-dr-cons .lb {
+        display: block; font-size: .65rem; font-weight: 800;
+        text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+    }
+    .nd-dr-cons .nm {
+        display: block; font-size: .9rem; font-weight: 800;
+        letter-spacing: -.01em; margin-top: 2px; color: var(--text);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    .nd-dr-scroll { flex: 1; overflow-y: auto; padding: 6px 0 4px; }
+    .nd-dr-lbl {
+        font-size: .65rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: .1em; color: var(--muted); padding: 9px 20px 2px;
+    }
+    .nd-dr-item {
+        display: flex; align-items: center; gap: 14px;
+        width: 100%; height: 46px; padding: 0 20px;
+        background: none; border: none; text-decoration: none;
+        font-family: var(--font); font-size: .92rem; font-weight: 700;
+        color: var(--text); text-align: left; cursor: pointer;
+        transition: background .12s;
+    }
+    .nd-dr-item:active { background: var(--surface2); }
+    .nd-dr-item .ic { width: 26px; height: 26px; flex-shrink: 0; color: var(--muted); }
+    .nd-dr-item.active { color: var(--nd-terracota-hondo); background: rgba(232, 115, 74, .14); }
+    .nd-dr-item.active .ic { color: var(--nd-terracota-hondo); }
+    .nd-dr-item .nd-dr-badge {
+        margin-left: auto; min-width: 22px; height: 22px; padding: 0 6px;
+        border-radius: 11px; background: var(--nd-terracota-hondo); color: #fff;
+        font-size: .7rem; font-weight: 800; font-style: normal;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .nd-dr-foot { border-top: 1px solid var(--border); padding: 6px 0 2px; }
+    .nd-dr-item.danger, .nd-dr-item.danger .ic { color: var(--nd-terracota-hondo); }
+
+    /* El botón que lo abre, a la izquierda del título compacto. */
+    .nd-menu-btn {
+        width: 44px; height: 44px; flex-shrink: 0;
+        border: none; background: none; cursor: pointer;
+        color: var(--nd-terracota-hondo);
+        display: flex; align-items: center; justify-content: center;
+        border-radius: 22px; transition: background .15s, transform .1s;
+    }
+    .nd-menu-btn:active { background: rgba(232, 115, 74, .14); transform: scale(.92); }
+    .nd-menu-btn .ic { width: 24px; height: 24px; stroke-width: 2.2; }
+
     /* ── Hoja de "Más" ───────────────────────────────────────────────────
        Reusa el aspecto de las sheets: es la misma idea, con contenido
        propio en vez de un formulario. */
