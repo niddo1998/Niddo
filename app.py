@@ -14,6 +14,8 @@ from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
+from recurrentes import periodos_pendientes
+
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 load_dotenv()
@@ -1416,10 +1418,122 @@ def api_proveedores_gastos(pid):
 # ══════════════════════════════════════════════════════════════════════════════
 # API — GASTOS
 # ══════════════════════════════════════════════════════════════════════════════
+def _falta_schema_v12(msg):
+    """¿El error es "no existe la columna" de las que agrega v12?
+
+    Mismo criterio que `_falta_schema_v9`: las cuatro columnas de gastos
+    recurrentes llegan juntas, así que un fallo por cualquiera se responde
+    igual — hay que correr el SQL.
+    """
+    return (('dia_carga' in msg or 'gasto_origen_id' in msg
+             or 'periodo_generado' in msg or 'tarifa_confirmada' in msg)
+            and ('does not exist' in msg or '42703' in msg
+                 or 'PGRST204' in msg or 'schema cache' in msg))
+
+
+ERROR_FALTA_V12 = ('Falta correr supabase_schema_v12.sql en Supabase: la base todavía '
+                   'no tiene las columnas que generan los gastos recurrentes mes a mes.')
+
+
+def _es_duplicado(msg):
+    """¿El INSERT chocó contra el índice único de (origen, período)?
+
+    Significa que otra request ya generó ese gasto entre nuestro chequeo y
+    nuestra inserción. No es un error a reportar: el gasto existe, que es el
+    resultado que buscábamos.
+    """
+    return '23505' in msg or 'duplicate key value' in msg
+
+
+# Campos que el hijo hereda de su plantilla. `monto` entra acá a propósito:
+# copiar la tarifa del período anterior es lo que hace que el gasto sirva de
+# algo apenas se genera, y el cartel de confirmación es el que se encarga de
+# que nadie la dé por buena sin mirarla.
+_CAMPOS_HEREDADOS = ('consorcio_id', 'proveedor_id', 'unidad_id', 'descripcion',
+                     'categoria', 'monto', 'metodo_pago', 'frecuencia', 'notas')
+
+
+def generar_recurrentes(admin_id, hoy=None):
+    """Crea los gastos que las plantillas recurrentes deberían haber generado.
+
+    Es idempotente y perezosa: la dispara la request que entra a Gastos o la
+    que abre el selector de liquidación, en vez de un cron. En una app de
+    administración de consorcios el único escenario donde un cron ganaría es
+    "nadie entró en tres meses y quiero los gastos igual", y si nadie entró
+    tampoco hay liquidación que emitir. A cambio no hay endpoints públicos ni
+    secretos de cron que cuidar.
+
+    Devuelve cuántos gastos creó.
+    """
+    hoy = hoy or date.today()
+
+    plantillas = supabase.table('gastos') \
+        .select('id, ' + ', '.join(_CAMPOS_HEREDADOS) + ', fecha_gasto, dia_carga') \
+        .eq('admin_id', admin_id).eq('recurrente', True).execute().data or []
+    plantillas = [p for p in plantillas if p.get('dia_carga')]
+    if not plantillas:
+        return 0
+
+    hijos = supabase.table('gastos').select('gasto_origen_id, periodo_generado') \
+        .in_('gasto_origen_id', [p['id'] for p in plantillas]).execute().data or []
+    ya_generados = {}
+    for h in hijos:
+        ya_generados.setdefault(h['gasto_origen_id'], set()).add(h['periodo_generado'])
+
+    creados = 0
+    for p in plantillas:
+        pendientes = periodos_pendientes(
+            fecha_inicio=date.fromisoformat(str(p['fecha_gasto'])),
+            dia_carga=p.get('dia_carga'),
+            frecuencia=p.get('frecuencia'),
+            hoy=hoy,
+            ya_generados=ya_generados.get(p['id'], set()),
+        )
+        for periodo, fecha in pendientes:
+            hijo = {c: p.get(c) for c in _CAMPOS_HEREDADOS}
+            hijo.update({
+                'fecha_gasto': str(fecha),
+                'admin_id': admin_id,
+                'pagado': False,
+                'fecha_pago': None,
+                # El hijo NO es recurrente: si heredara el tilde generaría sus
+                # propios hijos y el mes siguiente habría una progresión
+                # geométrica de gastos duplicados.
+                'recurrente': False,
+                'gasto_origen_id': p['id'],
+                'periodo_generado': periodo,
+                'tarifa_confirmada': False,
+            })
+            try:
+                supabase.table('gastos').insert(hijo).execute()
+                creados += 1
+            except Exception as e:
+                if _es_duplicado(str(e)):
+                    continue
+                raise
+
+    return creados
+
+
+def _generar_recurrentes_silencioso(admin_id):
+    """Genera recurrentes sin dejar que un fallo tumbe la pantalla.
+
+    Poder ver y cargar gastos importa más que generar los del mes: si esto
+    falla, la lista se muestra igual y el barrido se reintenta en la próxima
+    entrada. La excepción se imprime para que quede en los logs de Vercel.
+    """
+    try:
+        return generar_recurrentes(admin_id)
+    except Exception as e:
+        app.logger.warning('No se pudieron generar los gastos recurrentes: %s', e)
+        return 0
+
+
 @app.route('/api/gastos', methods=['GET'])
 @require_auth(allowed_roles=['admin'])
 def api_gastos_list():
     admin_id = get_admin_id()
+    _generar_recurrentes_silencioso(admin_id)
     q = supabase.table('gastos') \
         .select('*, consorcios(nombre), proveedores(nombre), unidades_funcionales(numero, piso)') \
         .eq('admin_id', admin_id)
@@ -1450,6 +1564,22 @@ def _falta_schema_v9(msg):
 ERROR_FALTA_V9 = ('Falta correr supabase_schema_v9.sql en Supabase: la base todavía no '
                   'tiene las columnas que separan los gastos generales de los '
                   'específicos de una UF.')
+
+
+def _dia_carga(d):
+    """Día del mes elegido para un gasto recurrente, o None.
+
+    Solo tiene sentido en gastos recurrentes: un gasto común con día de carga
+    sería una plantilla que nunca genera nada, y quedaría como ruido esperando
+    a que alguien tilde "recurrente" y arranque a generar meses sin querer.
+    """
+    if d.get('recurrente') not in (True, 'true', 'on', '1'):
+        return None
+    try:
+        dia = int(d.get('dia_carga') or 0)
+    except (TypeError, ValueError):
+        return None
+    return dia if 1 <= dia <= 31 else None
 
 
 def _unidad_es_del_consorcio(unidad_id, consorcio_id):
@@ -1488,6 +1618,7 @@ def api_gastos_create():
         'metodo_pago': d.get('metodo_pago', ''),
         'recurrente': d.get('recurrente') in (True, 'true', 'on', '1'),
         'frecuencia': d.get('frecuencia', ''),
+        'dia_carga': _dia_carga(d),
         'notas': d.get('notas', ''),
         'admin_id': admin_id,
     }
@@ -1499,6 +1630,8 @@ def api_gastos_create():
     except Exception as e:
         if _falta_schema_v9(str(e)):
             return jsonify({'error': f'{ERROR_FALTA_V9} [{e}]'}), 409
+        if _falta_schema_v12(str(e)):
+            return jsonify({'error': f'{ERROR_FALTA_V12} [{e}]'}), 409
         raise
     gasto = res.data[0] if res.data else {}
 
@@ -1526,7 +1659,8 @@ def api_gastos_update(gid):
     admin_id = get_admin_id()
     d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
     allowed = ('consorcio_id','proveedor_id','unidad_id','descripcion','categoria','monto','fecha_gasto',
-                'fecha_vencimiento','pagado','fecha_pago','metodo_pago','recurrente','frecuencia','notas')
+                'fecha_vencimiento','pagado','fecha_pago','metodo_pago','recurrente','frecuencia',
+                'dia_carga','notas')
     payload = {}
     for k in allowed:
         if k in d:
@@ -1535,9 +1669,22 @@ def api_gastos_update(gid):
                 v = float(v)
             elif k in ('pagado', 'recurrente'):
                 v = v in (True, 'true', 'on', '1')
+            elif k == 'dia_carga':
+                v = int(v) if str(v).strip().isdigit() and 1 <= int(v) <= 31 else None
             elif k in ('proveedor_id', 'unidad_id', 'fecha_vencimiento', 'fecha_pago'):
                 v = v or None
             payload[k] = v
+
+    # Destildar "recurrente" tiene que apagar la generación, no dejar la
+    # plantilla con día cargado esperando a que alguien la vuelva a tildar.
+    if payload.get('recurrente') is False:
+        payload['dia_carga'] = None
+
+    # Editar el monto a mano es una confirmación de tarifa: el administrador
+    # acaba de escribir ese número mirando la factura. Dejarlo igual haría que
+    # el cartel le vuelva a preguntar por algo que ya resolvió.
+    if 'monto' in payload:
+        payload['tarifa_confirmada'] = True
 
     # El consorcio puede no venir en un PUT parcial; se lee el guardado para poder
     # validar igual que en el alta.
@@ -1555,6 +1702,8 @@ def api_gastos_update(gid):
     except Exception as e:
         if _falta_schema_v9(str(e)):
             return jsonify({'error': f'{ERROR_FALTA_V9} [{e}]'}), 409
+        if _falta_schema_v12(str(e)):
+            return jsonify({'error': f'{ERROR_FALTA_V12} [{e}]'}), 409
         raise
     gasto = res.data[0] if res.data else {}
 
@@ -1584,6 +1733,80 @@ def api_gastos_delete(gid):
     admin_id = get_admin_id()
     supabase.table('gastos').delete().eq('id', gid).eq('admin_id', admin_id).execute()
     return jsonify({'ok': True})
+
+
+@app.route('/api/gastos/tarifas-pendientes')
+@require_auth(allowed_roles=['admin'])
+def api_tarifas_pendientes():
+    """Gastos generados automáticamente cuya tarifa nadie confirmó todavía.
+
+    Alimenta el cartel que salta al entrar a Gastos. Van agrupados por
+    consorcio porque un administrador con seis edificios los revisa por
+    edificio, no en una lista plana de treinta filas.
+    """
+    admin_id = get_admin_id()
+    try:
+        gastos = supabase.table('gastos') \
+            .select('id, descripcion, categoria, monto, fecha_gasto, periodo_generado, '
+                    'consorcio_id, consorcios(nombre), proveedores(nombre)') \
+            .eq('admin_id', admin_id).eq('tarifa_confirmada', False) \
+            .order('fecha_gasto').execute().data or []
+    except Exception as e:
+        if _falta_schema_v12(str(e)):
+            return jsonify({'error': f'{ERROR_FALTA_V12} [{e}]'}), 409
+        raise
+
+    por_consorcio = {}
+    for gasto in gastos:
+        cid = gasto['consorcio_id']
+        if cid not in por_consorcio:
+            por_consorcio[cid] = {
+                'consorcio_id': cid,
+                'consorcio': (gasto.get('consorcios') or {}).get('nombre', 'Sin consorcio'),
+                'gastos': [],
+            }
+        por_consorcio[cid]['gastos'].append(gasto)
+
+    return jsonify({'total': len(gastos), 'consorcios': list(por_consorcio.values())})
+
+
+@app.route('/api/gastos/confirmar-tarifas', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_confirmar_tarifas():
+    """Marca tarifas como confirmadas, hayan cambiado de monto o no.
+
+    Que "sigue igual" también confirme es deliberado. Si solo apagara el cartel
+    un cambio de monto, un gasto con tarifa estable — un seguro, una cuota fija
+    — pediría confirmación todos los meses para siempre, y a la tercera vez el
+    administrador aprende a cerrar el cartel sin leerlo. Ahí la alerta deja de
+    servir justo para el mes en que la tarifa sí cambió.
+    """
+    admin_id = get_admin_id()
+    items = (request.json or {}).get('gastos') or []
+    if not items:
+        return jsonify({'error': 'No se recibió ningún gasto para confirmar'}), 400
+
+    actualizados = 0
+    for item in items:
+        gid = item.get('id')
+        if not gid:
+            continue
+        payload = {'tarifa_confirmada': True}
+        if item.get('monto') not in (None, ''):
+            try:
+                payload['monto'] = float(item['monto'])
+            except (TypeError, ValueError):
+                return jsonify({'error': f'Monto inválido para el gasto {gid}'}), 400
+        try:
+            res = supabase.table('gastos').update(payload) \
+                .eq('id', gid).eq('admin_id', admin_id).execute()
+        except Exception as e:
+            if _falta_schema_v12(str(e)):
+                return jsonify({'error': f'{ERROR_FALTA_V12} [{e}]'}), 409
+            raise
+        actualizados += len(res.data or [])
+
+    return jsonify({'ok': True, 'actualizados': actualizados})
 
 
 @app.route('/api/gastos/<gid>/comprobante')
@@ -2936,10 +3159,15 @@ def api_liquidacion_gastos_disponibles():
     if not consorcio_id or not periodo:
         return jsonify({'error': 'Faltan consorcio_id y periodo'}), 400
 
+    # El admin puede venir directo a liquidar sin pasar por Gastos; si no
+    # generamos acá, el gasto recurrente del mes no existiría todavía y la
+    # liquidación saldría sin él.
+    _generar_recurrentes_silencioso(admin_id)
+
     desde, hasta = _periodo_rango(periodo)
     gastos = supabase.table('gastos') \
         .select('id, descripcion, categoria, monto, fecha_gasto, pagado, unidad_id, '
-                'proveedores(nombre), unidades_funcionales(numero)') \
+                'tarifa_confirmada, proveedores(nombre), unidades_funcionales(numero)') \
         .eq('consorcio_id', consorcio_id) \
         .eq('admin_id', admin_id) \
         .gte('fecha_gasto', desde) \
