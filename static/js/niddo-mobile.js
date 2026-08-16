@@ -519,6 +519,9 @@
     NiddoMobile.openDrawer = openDrawer;
     NiddoMobile.closeDrawer = closeDrawer;
     NiddoMobile.setContexto = setCtx;
+    /* Para los <select> que el template repuebla y limpia por su cuenta al
+       abrir un modal: le devuelve el contexto sin cambiarlo. */
+    NiddoMobile.reaplicarContexto = function () { ctxSelectors().forEach(aplicarCtx); };
 
     /* ── Hoja de "Más" ───────────────────────────────────────────────────── */
 

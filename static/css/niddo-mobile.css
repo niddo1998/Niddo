@@ -387,6 +387,68 @@
     }
     .nd-auto-nav button[disabled] { color: var(--muted); opacity: .4; }
 
+    /* ── Carga rápida manual ─────────────────────────────────────────────
+       Para el gasto sin comprobante. El formulario completo tiene quince
+       campos; parado en la calle se cargan tres: cuánto, de qué y a quién.
+       El resto queda a un toque de distancia, no eliminado. */
+    .nd-mobile #modal-gasto.nd-rapido .nd-form-completo { display: none; }
+
+    .nd-monto-big {
+        font-family: 'Fredoka', var(--font);
+        font-size: 2.9rem; font-weight: 600; letter-spacing: -.035em;
+        text-align: center; padding: 4px 0 2px;
+        color: var(--nd-terracota-hondo);
+    }
+    .nd-monto-hint {
+        text-align: center; font-size: .78rem; font-weight: 700;
+        color: var(--muted); margin-bottom: 14px;
+    }
+    .nd-numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+    .nd-nk {
+        height: 56px; border: none; border-radius: 16px;
+        background: var(--surface2); cursor: pointer;
+        font-family: 'Fredoka', var(--font); font-size: 1.5rem; font-weight: 600;
+        color: var(--text);
+        display: flex; align-items: center; justify-content: center;
+        transition: transform .1s, background .12s;
+    }
+    .nd-nk:active { transform: scale(.94); background: var(--border2); }
+    .nd-nk .ic { width: 24px; height: 24px; }
+
+    .nd-catgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+    .nd-cat {
+        background: var(--surface2); border: 1.5px solid transparent;
+        border-radius: 16px; padding: 13px 6px 10px; cursor: pointer;
+        font-family: var(--font); min-height: 44px;
+        display: flex; flex-direction: column; align-items: center; gap: 7px;
+        transition: background .14s, border-color .14s, transform .1s;
+    }
+    .nd-cat .ic { width: 24px; height: 24px; color: var(--muted); }
+    .nd-cat span { font-size: .72rem; font-weight: 700; color: var(--text2); text-align: center; line-height: 1.2; }
+    .nd-cat:active { transform: scale(.95); }
+    .nd-cat.active { background: rgba(47, 111, 94, .13); border-color: var(--nd-verde); }
+    .nd-cat.active .ic, .nd-cat.active span { color: var(--nd-verde); }
+
+    .nd-chips { display: flex; gap: 7px; overflow-x: auto; padding: 2px 0 4px; scrollbar-width: none; }
+    .nd-chips::-webkit-scrollbar { display: none; }
+    .nd-chip {
+        flex-shrink: 0; border: 1px solid var(--border); background: var(--surface);
+        color: var(--text2); font-family: var(--font); font-size: .79rem; font-weight: 700;
+        padding: 10px 14px; border-radius: 20px; cursor: pointer; min-height: 44px;
+    }
+    .nd-chip.active { background: var(--nd-verde); border-color: var(--nd-verde); color: #fff; }
+
+    .nd-lbl-sec {
+        font-size: .72rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: .09em; color: var(--muted); padding: 18px 2px 8px;
+    }
+    .nd-mas-campos {
+        width: 100%; margin-top: 14px; padding: 13px;
+        border: 1px solid var(--border); border-radius: 14px;
+        background: var(--surface2); color: var(--text2);
+        font-family: var(--font); font-size: .88rem; font-weight: 800; cursor: pointer;
+    }
+
     /* ── Hoja de "Más" ───────────────────────────────────────────────────
        Reusa el aspecto de las sheets: es la misma idea, con contenido
        propio en vez de un formulario. */
