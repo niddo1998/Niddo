@@ -160,7 +160,12 @@
             menu.type = 'button';
             menu.setAttribute('aria-label', 'Menú');
             menu.innerHTML = '<svg class="ic"><use href="#ic-menu"></use></svg>';
-            menu.addEventListener('click', openDrawer);
+            menu.addEventListener('click', function () {
+                /* Un solo botón con dos papeles: ☰ en la raíz, ← adentro de
+                   un flujo. Dos botones en la misma esquina competirían por
+                   el pulgar y sólo uno tiene sentido a la vez. */
+                if (backHandler) backHandler(); else openDrawer();
+            });
             row.appendChild(menu);
         }
 
@@ -208,6 +213,20 @@
            } */
 
     var DRAWER = CFG.drawer || null;
+
+    /* Mientras haya un handler, el botón de la esquina es "atrás" en vez de
+       "menú". Lo pone y lo saca el flujo que lo necesita (hoy, el cierre de
+       mes); en la raíz siempre vuelve a ser el cajón. */
+    var backHandler = null;
+
+    NiddoMobile.setBack = function (fn) {
+        backHandler = fn || null;
+        var btn = document.querySelector('.nd-menu-btn');
+        if (!btn) return;
+        btn.innerHTML = '<svg class="ic"><use href="#' +
+            (backHandler ? 'ic-volver' : 'ic-menu') + '"></use></svg>';
+        btn.setAttribute('aria-label', backHandler ? 'Atrás' : 'Menú');
+    };
 
     function buildDrawer() {
         if (!DRAWER || document.getElementById('nd-drawer')) return;

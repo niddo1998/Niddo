@@ -277,6 +277,47 @@
     .nd-menu-btn:active { background: rgba(232, 115, 74, .14); transform: scale(.92); }
     .nd-menu-btn .ic { width: 24px; height: 24px; stroke-width: 2.2; }
 
+    /* ── Cierre de mes ───────────────────────────────────────────────────
+       Los cuatro tabs del detalle de liquidación (Rubros · Prorrateo ·
+       Envíos · Configuración) son en el teléfono cuatro pasos de un mismo
+       trámite. No se duplica nada: se ocultan los botones de tab y se
+       agregan encabezado de progreso y pie con el próximo paso.
+
+       El orden cambia respecto de escritorio: los vencimientos van antes
+       que el envío, porque enviar es lo último que se hace. */
+    .nd-mobile #liq-tabs { display: none; }
+
+    .nd-pasos { display: flex; gap: 6px; padding: 2px 0 14px; }
+    .nd-pasos i {
+        flex: 1; height: 6px; border-radius: 3px;
+        background: var(--surface2);
+        transition: background .3s;
+    }
+    .nd-pasos i.hecho { background: var(--nd-verde); }
+    .nd-pasos i.actual { background: var(--nd-terracota); }
+
+    .nd-paso-t {
+        font-family: 'Fredoka', var(--font);
+        font-size: 1.3rem; font-weight: 600; letter-spacing: -.025em;
+    }
+    .nd-paso-s {
+        font-size: .84rem; font-weight: 600; color: var(--muted);
+        margin: 3px 0 14px;
+    }
+
+    /* Pegado abajo para que el próximo paso esté siempre al alcance del
+       pulgar, sin importar cuánto mida el contenido del paso. */
+    .nd-paso-foot {
+        position: sticky; bottom: 0; z-index: 20;
+        padding: 14px 0 4px; margin-top: 12px;
+        background: linear-gradient(to top, var(--bg) 72%, transparent);
+    }
+    .nd-paso-foot .btn-p { width: 100%; justify-content: center; padding: 15px; }
+
+    /* Enviar, agendar y previsualizar son acciones del último paso.
+       Antes de eso el encabezado sólo invita a saltearse el trámite. */
+    .nd-mobile #liq-detail:not(.nd-en-paso4) > .page-header { display: none; }
+
     /* ── Hoja de "Más" ───────────────────────────────────────────────────
        Reusa el aspecto de las sheets: es la misma idea, con contenido
        propio en vez de un formulario. */

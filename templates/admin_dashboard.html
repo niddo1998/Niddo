@@ -2957,14 +2957,20 @@ async function openLiqDetail(lid) {
         $('liq-estado-sel').value = l.estado || 'borrador';
         $('liq-notas').value = l.notas || '';
 
-        // Load rubros tab
-        liqTab('rubros', document.querySelector('#liq-tabs .tab-btn'));
+        if (ndMobile()) {
+            ndCierreMontar();
+            ndCierreIr(ndCierrePasoInicial(l));
+        } else {
+            liqTab('rubros', document.querySelector('#liq-tabs .tab-btn'));
+        }
     } catch(e) { toast(e.message,'err'); }
 }
 
 function closeLiqDetail() {
     currentLiqId = null;
     currentLiqData = null;
+    /* Salir del cierre devuelve el botón de la esquina al cajón. */
+    if (ndMobile()) NiddoMobile.setBack(null);
     $('liq-detail').style.display = 'none';
     $('card-liq-list').style.display = '';
     const filters = document.querySelector('#sec-liquidaciones > .filters');
@@ -2992,6 +2998,90 @@ function liqTab(tab, el) {
     if (tab === 'rubros') loadRubros();
     if (tab === 'prorrateo') loadProrrateo();
     if (tab === 'envios') loadEnvios();
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   CIERRE DE MES — sólo mobile
+
+   En escritorio el detalle de una liquidación son cuatro tabs sueltos y
+   nada te dice en qué punto del mes estás. En el teléfono los mismos
+   cuatro tabs se presentan como los cuatro pasos de un trámite.
+
+   No se duplica lógica: cada paso llama a liqTab() con su tab. Lo único
+   que se agrega es el encabezado de progreso y el pie con el próximo
+   paso. El orden cambia -vencimientos antes que envío- porque enviar es
+   lo último que se hace.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const ND_PASOS = [
+    { tab:'rubros',     t:'Gastos del período',   s:'Revisá que esté todo cargado antes de prorratear' },
+    { tab:'prorrateo',  t:'Prorrateo por unidad', s:'Cómo se reparte el total entre las unidades' },
+    { tab:'config-liq', t:'Vencimientos',         s:'Cuándo vence y cuánto recarga el segundo vencimiento' },
+    { tab:'envios',     t:'Enviar las expensas',  s:'El resumen le llega a cada copropietario' }
+];
+let ndPaso = 1;
+
+function ndMobile() { return !!(window.NiddoMobile && NiddoMobile.isMobile()); }
+
+function ndCierreMontar() {
+    const det = $('liq-detail');
+    if (!det || det.querySelector('#nd-cierre-head')) return;
+
+    const head = document.createElement('div');
+    head.id = 'nd-cierre-head';
+    head.innerHTML = '<div class="nd-pasos"><i></i><i></i><i></i><i></i></div>' +
+                     '<div class="nd-paso-t"></div><div class="nd-paso-s"></div>';
+    det.insertBefore(head, det.firstChild);
+
+    const foot = document.createElement('div');
+    foot.className = 'nd-paso-foot';
+    foot.innerHTML = '<button class="btn-p" id="nd-paso-btn" onclick="ndCierreSiguiente()"></button>';
+    det.appendChild(foot);
+}
+
+function ndCierreIr(n) {
+    ndPaso = Math.min(ND_PASOS.length, Math.max(1, n));
+    const p = ND_PASOS[ndPaso - 1];
+    const ultimo = ndPaso === ND_PASOS.length;
+
+    liqTab(p.tab, null);
+
+    const det = $('liq-detail');
+    det.querySelectorAll('.nd-pasos i').forEach((el, i) => {
+        el.classList.toggle('hecho', i + 1 < ndPaso);
+        el.classList.toggle('actual', i + 1 === ndPaso);
+    });
+    det.querySelector('.nd-paso-t').textContent = p.t;
+    det.querySelector('.nd-paso-s').textContent = `Paso ${ndPaso} de ${ND_PASOS.length} · ${p.s}`;
+    $('nd-paso-btn').textContent = ultimo ? 'Enviar los resúmenes' : 'Continuar';
+
+    /* Los botones del encabezado -enviar, agendar, previsualizar- son todos
+       del último paso. Mostrarlos antes invita a saltearse el trámite. */
+    det.classList.toggle('nd-en-paso4', ultimo);
+
+    NiddoMobile.setBack(ndCierreAtras);
+    window.scrollTo(0, 0);
+}
+
+/* El atrás retrocede de paso antes de salir del cierre. Si saliera de una,
+   perder tres pasos por un toque sería el peor error posible acá. */
+function ndCierreAtras() {
+    if (ndPaso > 1) { ndCierreIr(ndPaso - 1); return; }
+    closeLiqDetail();
+}
+
+function ndCierreSiguiente() {
+    if (ndPaso < ND_PASOS.length) { ndCierreIr(ndPaso + 1); return; }
+    openEnviarModal();
+}
+
+/* En qué paso cae al entrar. No se guarda nada nuevo: se deduce del estado
+   de la liquidación, así salir y volver no pierde el lugar. */
+function ndCierrePasoInicial(l) {
+    if (!l) return 1;
+    if (l.estado === 'publicada' || l.estado === 'cerrada') return 4;
+    if (l.fecha_vencimiento_1) return 3;
+    return 1;
 }
 
 async function loadRubros() {
