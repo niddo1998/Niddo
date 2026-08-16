@@ -1019,7 +1019,7 @@
                 <div class="form-group"><label class="form-label">Fecha de pago</label><input type="date" class="form-ctrl" id="m-gasto-fecha-pago"></div>
             </div>
             <div class="sep"></div>
-            <div class="form-row">
+            <div class="form-row3">
                 <div class="form-group">
                     <label class="checkbox-row"><input type="checkbox" id="m-gasto-recurrente" onchange="toggleFrecuencia()"> Gasto recurrente</label>
                 </div>
@@ -1031,6 +1031,11 @@
                         <option value="trimestral">Trimestral</option>
                         <option value="anual">Anual</option>
                     </select>
+                </div>
+                <div class="form-group" id="dia-carga-group" style="display:none">
+                    <label class="form-label">Día de carga</label>
+                    <select class="form-ctrl" id="m-gasto-dia-carga"></select>
+                    <div class="text-muted text-sm" style="margin-top:4px;">En meses más cortos se carga el último día.</div>
                 </div>
             </div>
             <div class="form-group"><label class="form-label">Notas</label><textarea class="form-ctrl" id="m-gasto-notas" rows="2"></textarea></div>
@@ -1044,6 +1049,28 @@
         <div class="modal-footer">
             <button class="btn-s" onclick="closeModal('modal-gasto')">Cancelar</button>
             <button class="btn-p" onclick="saveGasto()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Tarifas pendientes: salta al entrar a Gastos cuando hay gastos
+     recurrentes generados cuya tarifa nadie confirmó todavía. -->
+<div class="modal-overlay" id="modal-tarifas">
+    <div class="modal-box">
+        <div class="modal-head">
+            <h3>Tarifas por confirmar</h3>
+            <button class="modal-close" onclick="closeModal('modal-tarifas')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted text-sm" style="margin-bottom:14px;">
+                Estos gastos recurrentes se cargaron solos con el monto del período anterior.
+                Revisá si la tarifa cambió: corregí el monto donde haga falta y confirmá el resto.
+            </p>
+            <div id="tarifas-lista"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-tarifas')">Después</button>
+            <button class="btn-p" onclick="confirmarTarifas()">Confirmar todo</button>
         </div>
     </div>
 </div>
@@ -1372,7 +1399,18 @@ function categoriaBadge(cat) {
     return cat;
 }
 function toggleFrecuencia() {
-    $('frecuencia-group').style.display = $('m-gasto-recurrente').checked ? 'block' : 'none';
+    const on = $('m-gasto-recurrente').checked;
+    $('frecuencia-group').style.display = on ? 'block' : 'none';
+    $('dia-carga-group').style.display = on ? 'block' : 'none';
+}
+
+/* El selector de día se llena por JS para no escribir 31 <option> a mano. */
+function poblarDiasCarga() {
+    const sel = $('m-gasto-dia-carga');
+    if (!sel || sel.options.length) return;
+    for (let d = 1; d <= 31; d++) {
+        sel.insertAdjacentHTML('beforeend', `<option value="${d}">${d}</option>`);
+    }
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
@@ -1702,6 +1740,67 @@ async function initGastos() {
     if (!consorcios.length) await loadConsorcios();
     await loadProveedoresOpts();
     await loadGastos();
+    await checkTarifasPendientes();
+}
+
+/* ── Tarifas pendientes ──────────────────────────────────────────────────────
+   Los gastos recurrentes se generan solos copiando el monto del período
+   anterior. Este cartel es lo que evita que esa copia se dé por buena sin que
+   nadie la mire: junta todos los pendientes en un modal y deja corregir los
+   montos ahí mismo, agrupados por consorcio porque un administrador con seis
+   edificios los revisa por edificio, no en una lista plana de treinta filas. */
+async function checkTarifasPendientes() {
+    let data;
+    try {
+        const r = await fetch('/api/gastos/tarifas-pendientes');
+        if (!r.ok) return;   // Falta el schema v12 o similar: no molestamos.
+        data = await r.json();
+    } catch (e) { return; }
+
+    if (!data || !data.total) return;
+
+    $('tarifas-lista').innerHTML = data.consorcios.map(c => `
+        <div style="margin-bottom:16px;">
+            <div class="text-sm" style="font-weight:600;margin-bottom:6px;">${escHtml(c.consorcio)}</div>
+            ${c.gastos.map(g => `
+                <div class="form-row" style="align-items:center;gap:8px;margin-bottom:6px;">
+                    <div class="text-sm">
+                        ${escHtml(g.descripcion)}
+                        <div class="text-muted text-sm">${g.periodo_generado||''}${(g.proveedores||{}).nombre ? ' · ' + escHtml((g.proveedores||{}).nombre) : ''}</div>
+                    </div>
+                    <input type="number" step="0.01" class="form-ctrl tarifa-monto"
+                           data-id="${g.id}" value="${g.monto}">
+                </div>`).join('')}
+        </div>`).join('');
+
+    openModal('modal-tarifas');
+}
+
+async function confirmarTarifas() {
+    /* "Sigue igual" y "actualicé el monto" cierran el cartel por igual: si solo
+       lo apagara un cambio de monto, un seguro con tarifa estable pediría
+       confirmación todos los meses y el administrador aprendería a cerrarlo
+       sin leerlo — justo lo que hay que evitar para el mes en que sí cambia. */
+    const gastos = [...document.querySelectorAll('.tarifa-monto')].map(i => ({
+        id: i.dataset.id,
+        monto: i.value,
+    }));
+    if (!gastos.length) { closeModal('modal-tarifas'); return; }
+
+    try {
+        const r = await fetch('/api/gastos/confirmar-tarifas', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({gastos}),
+        });
+        const res = await r.json();
+        if (!r.ok) { toast(res.error || 'No se pudieron confirmar las tarifas','warn'); return; }
+        closeModal('modal-tarifas');
+        toast(`${res.actualizados} tarifa(s) confirmada(s)`,'ok');
+        await loadGastos();
+    } catch (e) {
+        toast('No se pudieron confirmar las tarifas','warn');
+    }
 }
 
 async function loadProveedoresOpts() {
@@ -1733,9 +1832,9 @@ async function loadGastos() {
                 <td><strong>${g.descripcion}</strong>${g.unidad_id?`<span class="b b-b" style="margin-left:6px;">UF ${escHtml((g.unidades_funcionales||{}).numero||'—')}</span>`:''}${g.notas?`<div class="text-muted text-sm">${g.notas}</div>`:''}</td>
                 <td>${categoriaBadge(g.categoria)}</td>
                 <td>${(g.proveedores||{}).nombre||'—'}</td>
-                <td><strong>${fmt(g.monto)}</strong></td>
+                <td><strong>${fmt(g.monto)}</strong>${g.tarifa_confirmada === false ? '<span class="b b-y" style="margin-left:6px;">sin confirmar</span>' : ''}</td>
                 <td>${g.pagado ? '<span class="b b-g">Pagado</span>' : '<span class="b b-y">Pendiente</span>'}</td>
-                <td>${g.recurrente ? `<span class="b b-b">${g.frecuencia||'recurrente'}</span>` : '—'}</td>
+                <td>${g.recurrente ? `<span class="b b-b">${g.frecuencia||'recurrente'}</span>` : (g.gasto_origen_id ? '<span class="b b-b">automático</span>' : '—')}</td>
                 <td><div class="inline-actions">
                     ${g.archivo_nombre ? `<a href="/api/gastos/${g.id}/comprobante" target="_blank" title="Ver comprobante" class="btn-s btn-sm" style="text-decoration:none;" aria-label="Ver comprobante" title="Ver comprobante"><svg class="ic ic-sm"><use href="#ic-doc"></use></svg></a>` : ''}
                     <button class="btn-s btn-sm" onclick="openGastoModal('${g.id}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button>
@@ -2120,6 +2219,7 @@ async function onGastoConsorcioChange(unidadSeleccionada) {
 }
 
 function openGastoModal(id) {
+    poblarDiasCarga();
     $('m-gasto-id').value = id||'';
     $('m-gasto-title').textContent = id ? 'Editar gasto' : 'Nuevo gasto';
     $('m-gasto-comprobante').value = '';
@@ -2144,7 +2244,8 @@ function openGastoModal(id) {
         ['m-gasto-vto','m-gasto-fecha-pago'].forEach(f=>$(f).value='');
         $('m-gasto-pagado').checked = false;
         $('m-gasto-recurrente').checked = false;
-        $('frecuencia-group').style.display = 'none';
+        $('m-gasto-dia-carga').value = String(new Date().getDate());
+        toggleFrecuencia();
     } else {
         const g = currentGastos.find(x => x.id === id);
         if (g) {
@@ -2160,7 +2261,8 @@ function openGastoModal(id) {
             $('m-gasto-fecha-pago').value = g.fecha_pago || '';
             $('m-gasto-recurrente').checked = !!g.recurrente;
             $('m-gasto-frecuencia').value = g.frecuencia || '';
-            $('frecuencia-group').style.display = g.recurrente ? 'block' : 'none';
+            $('m-gasto-dia-carga').value = String(g.dia_carga || new Date(g.fecha_gasto + 'T00:00:00').getDate() || 1);
+            toggleFrecuencia();
             $('m-gasto-notas').value = g.notas || '';
             if (g.unidad_id) {
                 $('m-gasto-alcance').value = 'uf';
@@ -2201,6 +2303,7 @@ async function saveGasto() {
     fd.append('metodo_pago', $('m-gasto-metodo').value);
     fd.append('recurrente', $('m-gasto-recurrente').checked ? 'true' : 'false');
     fd.append('frecuencia', $('m-gasto-frecuencia').value);
+    fd.append('dia_carga', $('m-gasto-dia-carga').value || '');
     fd.append('notas', $('m-gasto-notas').value);
 
     const fileInput = $('m-gasto-comprobante');
@@ -2735,7 +2838,11 @@ function renderGastosDisponibles() {
         const prov = (g.proveedores||{}).nombre;
         const uf = g.unidad_id ? `UF ${(g.unidades_funcionales||{}).numero||'—'}` : null;
         const sub = [g.fecha_gasto, g.categoria, prov, uf && `sólo ${uf}`].filter(Boolean).join(' · ');
+        /* El gasto sigue viniendo tildado como cualquier otro: esto es sólo un
+           aviso de que el monto es el que se copió del período anterior y
+           nadie confirmó todavía si la tarifa cambió. */
         const badge = (g.ya_enviado ? '<span class="b b-gr">Ya enviado</span>' : '')
+                    + (g.tarifa_confirmada === false ? '<span class="b b-y">Tarifa sin confirmar</span>' : '')
                     + (uf ? `<span class="b b-b">${escHtml(uf)}</span>` : '');
         return `<label class="pick-row ${on?'':'is-off'}">
             <input type="checkbox" ${on?'checked':''} onchange="liqGastoToggle('${g.id}',this.checked)">
