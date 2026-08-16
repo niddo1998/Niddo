@@ -261,6 +261,11 @@
     .nd-dr-foot { border-top: 1px solid var(--border); padding: 6px 0 2px; }
     .nd-dr-item.danger, .nd-dr-item.danger .ic { color: var(--nd-terracota-hondo); }
 
+    /* Los <select> de consorcio que el contexto reemplaza. Se ocultan, no se
+       borran: siguen siendo lo que leen las funciones de carga. La clase la
+       pone el JS a partir de la lista que declara el template. */
+    .nd-mobile .nd-ctx-oculto { display: none !important; }
+
     /* El botón que lo abre, a la izquierda del título compacto. */
     .nd-menu-btn {
         width: 44px; height: 44px; flex-shrink: 0;

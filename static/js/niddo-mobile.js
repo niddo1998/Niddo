@@ -258,11 +258,39 @@
         overlay.addEventListener('click', closeDrawer);
 
         panel.addEventListener('click', function (ev) {
+            if (ev.target.closest('#nd-dr-cons')) {
+                closeDrawer();
+                /* Después de que el cajón termine de salir: dos capas
+                   deslizando a la vez se lee como un salto. */
+                setTimeout(openCtxSheet, 200);
+                return;
+            }
             var it = ev.target.closest('[data-nd-section]');
             if (!it) return;
             closeDrawer();
             window[navFn](it.dataset.ndSection);
         });
+
+        /* Los <select> se llenan cuando responde /api/consorcios, que es
+           después de esto. Sin observar, el cajón mostraría "—" para siempre. */
+        /* Los <select> siguen existiendo y siguen siendo la fuente de verdad,
+           pero dejan de verse: el contexto ya dice en qué edificio estás, y
+           cinco filtros repetidos era justamente lo que se sacaba. */
+        ctxSelectors().forEach(function (s) { s.classList.add('nd-ctx-oculto'); });
+
+        /* Se observan los cinco, no sólo el primero: el de liquidaciones se
+           llena al entrar a esa sección y el de la extracción con IA al abrir
+           el modal, mucho después de esto. El que llegue tarde recibe el
+           contexto que ya se eligió. */
+        if (window.MutationObserver) {
+            ctxSelectors().forEach(function (s) {
+                new MutationObserver(function () {
+                    aplicarCtx(s);
+                    refreshCtxLabel();
+                }).observe(s, { childList: true });
+            });
+        }
+        refreshCtxLabel();
 
         makeDrawerDraggable(panel);
         watchEdgeSwipe();
@@ -357,8 +385,121 @@
         });
     }
 
+    /* ── Contexto de consorcio ────────────────────────────────────────────
+       En escritorio el consorcio es un filtro, y el mismo <select> aparece
+       repetido en cinco pantallas. En el teléfono eso es lo que más hace
+       que el panel se sienta un formulario web: elegís el edificio una vez
+       por sección en vez de estar "parado" en uno.
+
+       La implementación es deliberadamente conservadora. El contexto no
+       reemplaza a los <select>: les escribe el valor y dispara su `change`.
+       Así loadGastos(), loadCobros(), loadMora() y loadLiquidaciones()
+       siguen leyendo de donde siempre, no hay segunda fuente de verdad, y
+       el escritorio no se entera de nada. */
+
+    function ctxSelectors() {
+        return (DRAWER && DRAWER.contextSelectors || [])
+            .map(function (id) { return document.getElementById(id); })
+            .filter(Boolean);
+    }
+
+    /* El primero que tenga opciones cargadas manda: son todos el mismo
+       listado, pero se llenan en momentos distintos según qué sección se
+       haya visitado. */
+    function ctxPrimary() {
+        var sels = ctxSelectors();
+        for (var i = 0; i < sels.length; i++) {
+            if (sels[i].options.length > 1) return sels[i];
+        }
+        return sels[0] || null;
+    }
+
+    /* El valor vacío es "todos" en los cinco <select>, pero cada uno lo
+       rotula distinto ("Todos", "Todos los consorcios"). El contexto es uno
+       solo, así que la etiqueta también. */
+    function ctxLabel() {
+        if (!ctxValue) return 'Todos los consorcios';
+        var s = ctxPrimary();
+        if (!s) return 'Todos los consorcios';
+        for (var i = 0; i < s.options.length; i++) {
+            if (s.options[i].value === ctxValue) return s.options[i].textContent.trim();
+        }
+        return 'Todos los consorcios';
+    }
+
+    function refreshCtxLabel() {
+        var el = document.getElementById('nd-dr-cons-nombre');
+        if (el) el.textContent = ctxLabel();
+    }
+
+    /* El contexto elegido, recordado aparte de los <select>.
+       Hace falta porque los cinco no se llenan a la vez: los de gastos y
+       cobros cargan al abrir la página, pero el de liquidaciones se llena al
+       entrar a esa sección y el de la extracción con IA al abrir el modal.
+       Un <select> descarta un value que todavía no tiene como opción, así que
+       sin recordarlo esas dos pantallas se quedaban en "todos". */
+    var ctxValue = '';
+
+    function aplicarCtx(s) {
+        if (s.value === ctxValue) return;
+        s.value = ctxValue;
+        /* Si el valor no existe como opción, el select queda en '' y no hay
+           nada que avisar: cuando se llene, este mismo camino lo corrige. */
+        if (s.value !== ctxValue) return;
+        s.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function setCtx(value) {
+        ctxValue = value;
+        ctxSelectors().forEach(aplicarCtx);
+        refreshCtxLabel();
+    }
+
+    function openCtxSheet() {
+        var primary = ctxPrimary();
+        if (!primary) return;
+
+        var overlay = document.getElementById('nd-ctx-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.id = 'nd-ctx-overlay';
+            overlay.innerHTML =
+                '<div class="modal-box">' +
+                '<div class="modal-head"><h3>Cambiar de consorcio</h3></div>' +
+                '<div class="modal-body" id="nd-ctx-lista"></div></div>';
+            document.body.appendChild(overlay);
+            makeDraggable(overlay.querySelector('.modal-box'), overlay);
+            overlay.addEventListener('click', function (ev) {
+                if (ev.target === overlay) overlay.classList.remove('open');
+            });
+            overlay.addEventListener('click', function (ev) {
+                var b = ev.target.closest('[data-nd-ctx]');
+                if (!b) return;
+                setCtx(b.dataset.ndCtx);
+                overlay.classList.remove('open');
+            });
+        }
+
+        var html = '';
+        for (var i = 0; i < primary.options.length; i++) {
+            var o = primary.options[i];
+            var sel = o.value === ctxValue;
+            /* Cada <select> rotula la opción vacía distinto; en el contexto
+               es una sola cosa y se llama de una sola manera. */
+            var texto = o.value ? o.textContent.trim() : 'Todos los consorcios';
+            html += '<button type="button" class="nd-dr-item' + (sel ? ' active' : '') + '"' +
+                ' data-nd-ctx="' + o.value.replace(/"/g, '&quot;') + '">' +
+                '<svg class="ic"><use href="#' + (sel ? 'ic-pagado' : 'ic-edificio') + '"></use></svg>' +
+                '<span>' + texto + '</span></button>';
+        }
+        document.getElementById('nd-ctx-lista').innerHTML = html;
+        overlay.classList.add('open');
+    }
+
     NiddoMobile.openDrawer = openDrawer;
     NiddoMobile.closeDrawer = closeDrawer;
+    NiddoMobile.setContexto = setCtx;
 
     /* ── Hoja de "Más" ───────────────────────────────────────────────────── */
 

@@ -39,6 +39,16 @@
         drawer: {
             brand: 'nidd',
             contextLabel: 'Consorcio activo',
+            /* Los cinco <select> de consorcio que hoy están repetidos. El
+               contexto les escribe el valor y dispara su change, así las
+               funciones de carga siguen leyendo de donde siempre. */
+            contextSelectors: [
+                'filter-gastos-consorcio',
+                'filter-cobros-consorcio',
+                'filter-mora-consorcio',
+                'filter-liq-consorcio',
+                'auto-consorcio'
+            ],
             groups: [
                 { label: 'Operación', items: [
                     { section: 'dashboard',     label: 'Hoy',            icon: 'ic-panel' },
