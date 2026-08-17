@@ -355,8 +355,13 @@ const hue = c => `hsl(${c.hue} 52% 38%)`;
 const hueSoft = c => `hsl(${c.hue} 42% 48% / .45)`;
 const hueFaint = c => `hsl(${c.hue} 34% 52% / .28)`;
 
+// `seed` es lo que dice el código (el relevamiento del repo), `overrides` lo que
+// hay guardado en roadmap_estado, y `status` el efectivo: seed con los overrides
+// encima. Antes `load()` reemplazaba el seed por lo que venía de la base, así que
+// con la tabla vacía el mapa arrancaba en 0/0/102 y escondía todo lo construido.
 let status = {};
 let seed = {};
+let overrides = {};
 const CIRC_BIG = 2*Math.PI*16, CIRC_SM = 2*Math.PI*9;
 
 function subId(catId, fi, si){ return `${catId}::${fi}::${si}`; }
@@ -386,25 +391,28 @@ async function persistOne(id, jsStatus){
   }catch(e){ console.error('No se pudo guardar', id, e); }
 }
 
+/* Volver al estado real = borrar mis marcas, no escribir el seed encima: si se
+   guardara el seed como filas, la próxima corrección del código quedaría tapada
+   por lo que se guardó hoy. */
 async function resetToSeed(){
-  const allIds = new Set([...Object.keys(status), ...Object.keys(seed)]);
-  const tasks = [];
-  allIds.forEach(id=>{ if(seed[id] !== status[id]) tasks.push(persistOne(id, seed[id])); });
-  await Promise.all(tasks);
+  await Promise.all(Object.keys(overrides).map(id => persistOne(id, null)));
+  overrides = {};
   status = { ...seed };
 }
 
 async function load(){
+  overrides = {};
   try{
     const res = await fetch('/api/superadmin/roadmap');
     if(res.ok){
       const raw = await res.json();
-      status = {};
-      Object.entries(raw).forEach(([id, estadoApi])=>{ status[id] = API_TO_ESTADO[estadoApi]; });
-      return;
+      Object.entries(raw).forEach(([id, estadoApi])=>{
+        const s = API_TO_ESTADO[estadoApi];
+        if(s) overrides[id] = s;
+      });
     }
-  }catch(e){}
-  status = { ...seed };
+  }catch(e){ console.error('No se pudo leer el roadmap guardado; se muestra el estado del código', e); }
+  status = { ...seed, ...overrides };
 }
 
 function funcCounts(cat, fi){
@@ -491,7 +499,8 @@ function cycle(cat, fi, si, el){
   const id = subId(cat.id, fi, si);
   const cur = status[id];
   const next = !cur ? 'planned' : cur==='planned' ? 'built' : undefined;
-  if(next) status[id] = next; else delete status[id];
+  if(next){ status[id] = next; overrides[id] = next; }
+  else { delete status[id]; delete overrides[id]; }
   el.dataset.status = next || 'none';
   persistOne(id, next);
   updateAll();
