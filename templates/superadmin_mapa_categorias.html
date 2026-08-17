@@ -3,31 +3,44 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Niddo — Mapa conceptual (Superadmin)</title>
+<title>Mapa por categoría | Niddo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap');
-
+/* Los tokens de marca viven en niddo-brand.css. Acá solo se nombran los roles
+   propios del mapa (estados del roadmap, colores por rol) apuntando a la
+   paleta: verde = construida, amarillo = planeada, gris = sin definir. */
 :root{
-  --bg:#12151c; --bg-elev:#171b26; --card:#1c2130; --card-hover:#242a3c;
-  --border:#2a3042; --border-soft:#232838;
-  --text:#f2f4fa; --text-dim:#9098ae; --text-faint:#5b6478;
-  --accent:#e8a33d; --planned:#4e9ee0; --built:#4fb286; --none:#3a4155;
-  --admin:#7c8cf0; --vecino:#3fc9a8;
+  --card:        var(--surface);
+  --card-hover:  var(--nd-crema);
+  --border-soft: var(--border2);
+  --text-dim:    var(--nd-gris-calido);
+  /* El #8A7B6E del manual da 3.9:1 sobre crema y no llega a AA; las notas al
+     pie y las cursivas son texto corrido, así que se oscurece a 4.8:1. */
+  --text-faint:  #7A6B5F;
+  --accent:      var(--nd-terracota-hondo);
+  --planned:     var(--nd-amarillo);
+  --built:       var(--nd-verde);
+  --none:        var(--nd-borde);
+  --admin:       var(--nd-terracota-hondo);
+  --vecino:      var(--nd-verde);
 }
 *{box-sizing:border-box; margin:0; padding:0;}
-html,body{ background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
-.display{ font-family:'Space Grotesk',sans-serif; }
-.mono{ font-family:'JetBrains Mono',monospace; letter-spacing:0.02em; }
+html,body{ background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; }
+.display{ font-family:var(--font-display); }
+.mono{ font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing:0.02em; }
 
 #app{ max-width:860px; margin:0 auto; padding:28px 20px 90px; }
 
 header.top{ display:flex; flex-direction:column; gap:16px; padding-bottom:20px; margin-bottom:26px; border-bottom:1px solid var(--border-soft); }
 .top-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:20px; flex-wrap:wrap; }
-.eyebrow{ color:var(--accent); font-size:11px; font-weight:600; letter-spacing:0.14em; text-transform:uppercase; margin-bottom:8px; display:block; }
-.top-titles h1{ font-size:22px; font-weight:700; letter-spacing:-0.01em; }
+.eyebrow{ color:var(--accent); font-size:11px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; margin-bottom:8px; display:block; }
+.top-titles h1{ font-family:var(--font-display); font-size:22px; font-weight:600; letter-spacing:-0.01em; }
 .top-titles p{ color:var(--text-dim); font-size:13px; margin-top:6px; max-width:580px; line-height:1.55; }
-#reset-btn{ background:transparent; border:1px solid var(--border); color:var(--text-dim); font-size:12px; padding:9px 14px; border-radius:100px; cursor:pointer; transition:all .15s ease; white-space:nowrap; }
-#reset-btn:hover{ border-color:#5a3030; color:#e88; background:#1f1417; }
+#reset-btn{ background:var(--surface); border:1px solid var(--border); color:var(--text2); font-family:var(--font); font-weight:700; font-size:12px; padding:9px 14px; border-radius:var(--r-pill); cursor:pointer; transition:background .18s, border-color .18s, color .18s; white-space:nowrap; }
+#reset-btn:hover{ border-color:var(--nd-terracota); color:var(--nd-terracota-hondo); background:var(--nd-terracota-dim); }
 
 .summary{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
 .summary-stat{ display:flex; align-items:baseline; gap:6px; }
@@ -40,12 +53,12 @@ header.top{ display:flex; flex-direction:column; gap:16px; padding-bottom:20px; 
 .progress-fill.planned-fill{ background:var(--planned); }
 .legend2{ display:flex; gap:14px; flex-wrap:wrap; font-size:10.5px; color:var(--text-faint); }
 .legend2 .row{ display:flex; align-items:center; gap:6px; }
-.legend2 .pill{ font-size:9px; padding:2px 6px; border-radius:5px; font-weight:600; }
-.legend2 .pill.admin{ background:#232849; color:var(--admin); }
-.legend2 .pill.vecino{ background:#17352e; color:var(--vecino); }
+.legend2 .pill{ font-size:9px; padding:2px 6px; border-radius:var(--r-sm); font-weight:700; }
+.legend2 .pill.admin{ background:var(--nd-terracota-dim); color:var(--admin); }
+.legend2 .pill.vecino{ background:var(--nd-verde-dim); color:var(--vecino); }
 
 .cat{ margin-bottom:10px; }
-.cat-head{ display:flex; align-items:center; gap:12px; cursor:pointer; background:var(--card); border:1px solid var(--border); border-radius:13px; padding:12px 14px; transition:background .15s ease, border-color .15s ease; }
+.cat-head{ display:flex; align-items:center; gap:12px; cursor:pointer; background:var(--card); border:1px solid var(--border); border-radius:var(--r-md); padding:12px 14px; box-shadow:var(--shadow-card); transition:background .15s ease, border-color .15s ease; }
 .cat-head:hover{ background:var(--card-hover); }
 .cat.expanded > .cat-head{ background:var(--card-hover); border-color:var(--cat-color); }
 
@@ -65,7 +78,7 @@ header.top{ display:flex; flex-direction:column; gap:16px; padding-bottom:20px; 
 .cat.expanded > .cat-body{ display:flex; flex-direction:column; gap:9px; }
 
 .func-head{ display:flex; align-items:center; gap:10px; cursor:pointer; padding:8px 10px; border-radius:10px; transition:background .12s ease; position:relative; flex-wrap:wrap; }
-.func-head:hover{ background:rgba(255,255,255,0.03); }
+.func-head:hover{ background:var(--nd-crema); }
 .func-head::before{ content:''; position:absolute; left:-18px; top:22px; width:14px; height:2px; background:var(--cat-color-soft); }
 
 .mini-ring{ position:relative; width:22px; height:22px; flex-shrink:0; }
@@ -79,21 +92,21 @@ header.top{ display:flex; flex-direction:column; gap:16px; padding-bottom:20px; 
 .func .chev{ font-size:10px; }
 .func.expanded > .func-head .chev{ transform:rotate(90deg); }
 
-.role-pill{ font-size:9px; padding:2px 7px; border-radius:5px; font-weight:600; flex-shrink:0; white-space:nowrap; }
-.role-pill.admin{ background:#232849; color:var(--admin); }
-.role-pill.vecino{ background:#17352e; color:var(--vecino); }
-.role-pill.cruzado{ background:#241c0c; color:var(--accent); }
-.tech-pill{ font-size:9px; padding:2px 7px; border-radius:5px; font-weight:500; background:var(--border-soft); color:var(--text-faint); flex-shrink:0; white-space:nowrap; }
+.role-pill{ font-size:9px; padding:2px 7px; border-radius:var(--r-sm); font-weight:700; flex-shrink:0; white-space:nowrap; }
+.role-pill.admin{ background:var(--nd-terracota-dim); color:var(--admin); }
+.role-pill.vecino{ background:var(--nd-verde-dim); color:var(--vecino); }
+.role-pill.cruzado{ background:var(--nd-amarillo-dim); color:var(--nd-tinta-calida); }
+.tech-pill{ font-size:9px; padding:2px 7px; border-radius:var(--r-sm); font-weight:600; background:var(--surface3); color:var(--text2); flex-shrink:0; white-space:nowrap; }
 
 .func-body{ display:none; margin:6px 0 2px 12px; padding:4px 0 2px 16px; border-left:1.5px solid var(--cat-color-fainter); flex-direction:column; gap:3px; }
 .func.expanded > .func-body{ display:flex; }
 
 .subitem{ position:relative; display:flex; align-items:flex-start; gap:9px; cursor:pointer; padding:5px 8px 5px 4px; border-radius:8px; transition:background .12s ease; }
-.subitem:hover{ background:rgba(255,255,255,0.03); }
+.subitem:hover{ background:var(--nd-crema); }
 .subitem::before{ content:''; position:absolute; left:-16px; top:12px; width:12px; height:1.5px; background:var(--cat-color-fainter); }
 .sub-dot{ width:15px; height:15px; border-radius:50%; flex-shrink:0; border:2px solid var(--none); display:flex; align-items:center; justify-content:center; transition:all .15s ease; margin-top:1px; }
 .sub-dot svg{ width:7px; height:7px; opacity:0; }
-.subitem[data-status="planned"] .sub-dot{ border-color:var(--planned); background:rgba(78,158,224,0.16); }
+.subitem[data-status="planned"] .sub-dot{ border-color:var(--planned); background:var(--nd-amarillo-dim); }
 .subitem[data-status="built"] .sub-dot{ border-color:var(--built); background:var(--built); }
 .subitem[data-status="built"] .sub-dot svg{ opacity:1; }
 .sub-text-wrap{ display:flex; flex-direction:column; }
@@ -127,20 +140,20 @@ footer.note b{ color:var(--text-dim); }
     <div class="legend2">
       <span class="row"><span class="pill admin">ADMIN</span>lo usa el administrador</span>
       <span class="row"><span class="pill vecino">VECINO</span>lo usa el vecino</span>
-      <span class="row"><span class="pill" style="background:#241c0c;color:var(--accent)">CRUZADO</span>una acción toca las dos puntas</span>
+      <span class="row"><span class="pill" style="background:var(--nd-amarillo-dim);color:var(--nd-tinta-calida)">CRUZADO</span>una acción toca las dos puntas</span>
     </div>
   </header>
 
   <div id="tree"></div>
 
   <footer class="note">
-    <b>Cómo leer los puntos:</b> verde = construido y confirmado en el código · azul = existe el dato/endpoint pero falta la otra mitad (UI, o viceversa) · gris = no hay evidencia en el repo. Donde hay una nota en cursiva, es una cita directa de lo que encontró el audit — no es mi interpretación.
+    <b>Cómo leer los puntos:</b> verde = construido y confirmado en el código · amarillo = existe el dato/endpoint pero falta la otra mitad (UI, o viceversa) · gris = no hay evidencia en el repo. Donde hay una nota en cursiva, es una cita directa de lo que encontró el audit — no es mi interpretación.
   </footer>
 </div>
 
 <script>
 const CATEGORIES = [
-  { id:"exp", code:"EXP", name:"Liquidación de expensas", hue:32, funcs:[
+  { id:"exp", code:"EXP", name:"Liquidación de expensas", hue:16, funcs:[
     { name:"Calcular expensa mensual automática", role:"admin", tech:["Supabase"], items:[
       {t:"Definir % de copropiedad por unidad", s:"planned", note:"Columnas porcentaje_a/c existen pero sin UI — hoy siempre valen 0"},
       {t:"Prorratear gastos comunes vs. exclusivos", s:"built"},
@@ -164,7 +177,7 @@ const CATEGORIES = [
       {t:"Notificación push en la app", s:"none"}
     ]}
   ]},
-  { id:"cob", code:"COB", name:"Cobranzas y medios de pago", hue:152, funcs:[
+  { id:"cob", code:"COB", name:"Cobranzas y medios de pago", hue:105, funcs:[
     { name:"Cobrar expensas online", role:"vecino", tech:[], items:[
       {t:"Generar QR de pago por unidad", s:"none"},
       {t:"Integrar billeteras virtuales", s:"none"},
@@ -186,7 +199,7 @@ const CATEGORIES = [
       {t:"Débito automático", s:"none", note:"Bind evaluado (Paquete Consorcio) pero sin integrar todavía"}
     ]}
   ]},
-  { id:"vec", code:"VEC", name:"Portal / app propietarios y vecinos", hue:205, funcs:[
+  { id:"vec", code:"VEC", name:"Portal / app propietarios y vecinos", hue:29, funcs:[
     { name:"Ver expensa y cuenta corriente", role:"vecino", tech:["Supabase"], items:[
       {t:"Historial de liquidaciones", s:"built"},
       {t:"Detalle de gastos del período", s:"built"},
@@ -211,7 +224,7 @@ const CATEGORIES = [
       {t:"Ver resultados", s:"built"}
     ]}
   ]},
-  { id:"adm", code:"ADM", name:"Gestión operativa / app del administrador", hue:255, funcs:[
+  { id:"adm", code:"ADM", name:"Gestión operativa / app del administrador", hue:117, funcs:[
     { name:"Administrar múltiples consorcios", role:"admin", tech:["Supabase"], items:[
       {t:"Tablero centralizado", s:"built"},
       {t:"Cambiar entre consorcios", s:"built"},
@@ -227,7 +240,7 @@ const CATEGORIES = [
       {t:"Automatizar avisos a propietarios", s:"none"}
     ]}
   ]},
-  { id:"com", code:"COM", name:"Comunicación", hue:330, funcs:[
+  { id:"com", code:"COM", name:"Comunicación", hue:41, funcs:[
     { name:"Enviar comunicados", role:"cruzado", tech:["Supabase"], items:[
       {t:"Redactar (texto, imagen, adjunto)", s:"planned", note:"Backend listo (POST /api/admin/comunicados), sin UI — \"Mensajería\" es un placeholder"},
       {t:"Segmentar destinatarios (propietario/inquilino/unidad)", s:"none"},
@@ -240,7 +253,7 @@ const CATEGORIES = [
       {t:"Historial de la conversación", s:"none"}
     ]}
   ]},
-  { id:"mnt", code:"MNT", name:"Mantenimiento y reclamos", hue:15, funcs:[
+  { id:"mnt", code:"MNT", name:"Mantenimiento y reclamos", hue:130, funcs:[
     { name:"Gestionar reclamos (vista admin)", role:"admin", tech:["Supabase"], items:[
       {t:"Recibir y categorizar", s:"planned", note:"El reclamo llega a la base; el admin no tiene pantalla para verlo todavía"},
       {t:"Asignar a proveedor o encargado", s:"none"},
@@ -254,7 +267,7 @@ const CATEGORIES = [
       {t:"Registro de lo realizado", s:"none"}
     ]}
   ]},
-  { id:"prv", code:"PRV", name:"Proveedores y gastos", hue:95, funcs:[
+  { id:"prv", code:"PRV", name:"Proveedores y gastos", hue:54, funcs:[
     { name:"Gestionar ficha de proveedor", role:"admin", tech:["Supabase"], items:[
       {t:"Datos fiscales y de contacto", s:"built"},
       {t:"Historial de trabajos realizados", s:"planned", note:"El endpoint existe; el frontend todavía no lo llama"},
@@ -271,7 +284,7 @@ const CATEGORIES = [
       {t:"Emitir retenciones si corresponde", s:"none"}
     ]}
   ]},
-  { id:"sue", code:"SUE", name:"Sueldos y gestión laboral", hue:180, funcs:[
+  { id:"sue", code:"SUE", name:"Sueldos y gestión laboral", hue:143, funcs:[
     { name:"Liquidar sueldo del encargado", role:"admin", tech:[], items:[
       {t:"Aplicar convenio (SUTERH, UTEDYC, etc.)", s:"none"},
       {t:"Calcular básico + adicionales", s:"none"},
@@ -283,7 +296,7 @@ const CATEGORIES = [
       {t:"SAC y vacaciones", s:"none"}
     ]}
   ]},
-  { id:"ctb", code:"CTB", name:"Contabilidad, balances y reportes", hue:225, funcs:[
+  { id:"ctb", code:"CTB", name:"Contabilidad, balances y reportes", hue:67, funcs:[
     { name:"Generar balance del consorcio", role:"admin", tech:["reportlab"], items:[
       {t:"Consolidar ingresos y egresos", s:"built", note:"Ojo: Balance suma Cobros, no Liquidaciones — pueden divergir sin aviso"},
       {t:"Actualizar en tiempo real", s:"built"},
@@ -298,7 +311,7 @@ const CATEGORIES = [
       {t:"Organizar por consorcio y fecha", s:"planned", note:"Depende de que exista la carga — el vecino sí puede ver/descargar lo que ya está cargado"}
     ]}
   ]},
-  { id:"ia", code:"IA", name:"Inteligencia artificial", hue:285, funcs:[
+  { id:"ia", code:"IA", name:"Inteligencia artificial", hue:155, funcs:[
     { name:"Leer facturas automáticamente", role:"admin", tech:["Groq Vision"], items:[
       {t:"Extraer proveedor, monto y fecha", s:"built"},
       {t:"Sugerir centro de costo", s:"planned"}
@@ -308,7 +321,7 @@ const CATEGORIES = [
       {t:"Responder consultas frecuentes (bot)", s:"none"}
     ]}
   ]},
-  { id:"int", code:"INT", name:"Integraciones", hue:55, funcs:[
+  { id:"int", code:"INT", name:"Integraciones", hue:79, funcs:[
     { name:"Conectar con organismos", role:"admin", tech:[], items:[
       {t:"AFIP", s:"none"},
       {t:"AGIP", s:"none"}
@@ -319,7 +332,7 @@ const CATEGORIES = [
       {t:"Redes extrabancarias", s:"none"}
     ]}
   ]},
-  { id:"bar", code:"BAR", name:"Barrios privados y control de accesos", hue:130, funcs:[
+  { id:"bar", code:"BAR", name:"Barrios privados y control de accesos", hue:168, funcs:[
     { name:"Gestionar accesos", role:"cruzado", tech:[], items:[
       {t:"Autorizar invitado desde la app", s:"none"},
       {t:"App para guardia", s:"none"},
@@ -330,7 +343,7 @@ const CATEGORIES = [
       {t:"Integración con radares", s:"none"}
     ]}
   ]},
-  { id:"nrm", code:"NRM", name:"Cumplimiento normativo", hue:350, funcs:[
+  { id:"nrm", code:"NRM", name:"Cumplimiento normativo", hue:92, funcs:[
     { name:"Cumplir formato de liquidación", role:"admin", tech:[], items:[
       {t:"QR obligatorio (CABA)", s:"none"},
       {t:"Certificado de deuda y créditos", s:"none"}
@@ -338,9 +351,9 @@ const CATEGORIES = [
   ]}
 ];
 
-const hue = c => `hsl(${c.hue} 58% 58%)`;
-const hueSoft = c => `hsl(${c.hue} 50% 40% / .55)`;
-const hueFaint = c => `hsl(${c.hue} 35% 40% / .35)`;
+const hue = c => `hsl(${c.hue} 52% 38%)`;
+const hueSoft = c => `hsl(${c.hue} 42% 48% / .45)`;
+const hueFaint = c => `hsl(${c.hue} 34% 52% / .28)`;
 
 let status = {};
 let seed = {};
@@ -459,7 +472,7 @@ CATEGORIES.forEach(cat=>{
       sub.className = 'subitem';
       sub.dataset.status = 'none';
       sub.dataset.id = subId(cat.id, fi, si);
-      sub.innerHTML = `<span class="sub-dot"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L19 7" stroke="#0d1a12" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sub-text-wrap"><span class="sub-text">${it.t}</span>${it.note ? `<span class="sub-note">${it.note}</span>` : ''}</span>`;
+      sub.innerHTML = `<span class="sub-dot"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L19 7" stroke="#F6EFE7" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sub-text-wrap"><span class="sub-text">${it.t}</span>${it.note ? `<span class="sub-note">${it.note}</span>` : ''}</span>`;
       sub.addEventListener('click', (e)=>{ e.stopPropagation(); cycle(cat, fi, si, sub); });
       fbody.appendChild(sub);
     });
