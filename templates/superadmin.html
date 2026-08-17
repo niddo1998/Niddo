@@ -45,6 +45,7 @@
             display: flex; align-items: center; gap: .4rem;
         }
         .tab:hover { color: var(--text); }
+        a.tab { text-decoration: none; }
         .tab.activa { color: var(--nd-terracota-hondo); border-bottom-color: var(--nd-terracota); }
         .badge {
             background: var(--nd-terracota); color: #fff; border-radius: var(--r-pill);
@@ -229,6 +230,9 @@
         <button class="tab" data-sec="administradores">Administradores</button>
         <button class="tab" data-sec="vecinos">Vecinos</button>
         <button class="tab" data-sec="auditoria">Auditoría</button>
+        <!-- Sin data-sec: no es una sección de esta página sino otra pantalla,
+             y el handler de abajo solo engancha los tabs que sí lo tienen. -->
+        <a class="tab" href="{{ url_for('superadmin_mapa') }}">Mapa</a>
     </nav>
 
     <div class="contenido">
@@ -335,8 +339,10 @@
     }
 
     /* ══ Navegación ══ */
-    document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('activa', x === t));
+    // Solo los tabs con data-sec cambian de sección; el de "Mapa" es un link
+    // a otra pantalla y engancharlo acá escondería todo justo antes de navegar.
+    document.querySelectorAll('.tab[data-sec]').forEach((t) => t.addEventListener('click', () => {
+        document.querySelectorAll('.tab[data-sec]').forEach((x) => x.classList.toggle('activa', x === t));
         document.querySelectorAll('.seccion').forEach((s) => { s.hidden = s.id !== 'sec-' + t.dataset.sec; });
         // Cada sección se trae la primera vez que se abre: el tablero pide cinco
         // tablas y no tiene sentido pagarlas para mirar el registro de auditoría.

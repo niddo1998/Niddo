@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Niddo — Mapa conceptual (Superadmin)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap');
+
+:root{
+  --bg:#12151c; --bg-elev:#171b26; --card:#1c2130; --card-hover:#242a3c;
+  --border:#2a3042; --border-soft:#232838;
+  --text:#f2f4fa; --text-dim:#9098ae; --text-faint:#5b6478;
+  --accent:#e8a33d; --planned:#4e9ee0; --built:#4fb286; --none:#3a4155;
+  --admin:#7c8cf0; --vecino:#3fc9a8;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{ background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+.display{ font-family:'Space Grotesk',sans-serif; }
+.mono{ font-family:'JetBrains Mono',monospace; letter-spacing:0.02em; }
+
+#app{ max-width:860px; margin:0 auto; padding:28px 20px 90px; }
+
+header.top{ display:flex; flex-direction:column; gap:16px; padding-bottom:20px; margin-bottom:26px; border-bottom:1px solid var(--border-soft); }
+.top-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:20px; flex-wrap:wrap; }
+.eyebrow{ color:var(--accent); font-size:11px; font-weight:600; letter-spacing:0.14em; text-transform:uppercase; margin-bottom:8px; display:block; }
+.top-titles h1{ font-size:22px; font-weight:700; letter-spacing:-0.01em; }
+.top-titles p{ color:var(--text-dim); font-size:13px; margin-top:6px; max-width:580px; line-height:1.55; }
+#reset-btn{ background:transparent; border:1px solid var(--border); color:var(--text-dim); font-size:12px; padding:9px 14px; border-radius:100px; cursor:pointer; transition:all .15s ease; white-space:nowrap; }
+#reset-btn:hover{ border-color:#5a3030; color:#e88; background:#1f1417; }
+
+.summary{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+.summary-stat{ display:flex; align-items:baseline; gap:6px; }
+.summary-stat .n{ font-size:18px; font-weight:600; }
+.summary-stat .l{ font-size:11px; color:var(--text-dim); }
+.dot{ width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:5px; }
+.dot.built{ background:var(--built); } .dot.planned{ background:var(--planned); } .dot.none{ background:var(--none); }
+.progress-track{ flex:1 1 180px; min-width:140px; height:7px; border-radius:100px; background:var(--border-soft); overflow:hidden; display:flex; }
+.progress-fill{ height:100%; background:var(--built); transition:width .3s ease; }
+.progress-fill.planned-fill{ background:var(--planned); }
+.legend2{ display:flex; gap:14px; flex-wrap:wrap; font-size:10.5px; color:var(--text-faint); }
+.legend2 .row{ display:flex; align-items:center; gap:6px; }
+.legend2 .pill{ font-size:9px; padding:2px 6px; border-radius:5px; font-weight:600; }
+.legend2 .pill.admin{ background:#232849; color:var(--admin); }
+.legend2 .pill.vecino{ background:#17352e; color:var(--vecino); }
+
+.cat{ margin-bottom:10px; }
+.cat-head{ display:flex; align-items:center; gap:12px; cursor:pointer; background:var(--card); border:1px solid var(--border); border-radius:13px; padding:12px 14px; transition:background .15s ease, border-color .15s ease; }
+.cat-head:hover{ background:var(--card-hover); }
+.cat.expanded > .cat-head{ background:var(--card-hover); border-color:var(--cat-color); }
+
+.ring-badge{ position:relative; width:38px; height:38px; flex-shrink:0; }
+.ring-badge svg{ position:absolute; inset:0; transform:rotate(-90deg); }
+.ring-badge svg circle.track{ fill:none; stroke:var(--border-soft); stroke-width:3; }
+.ring-badge svg circle.prog{ fill:none; stroke-width:3; stroke-linecap:round; transition:stroke-dashoffset .3s ease; }
+.ring-badge .code{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:600; }
+
+.cat-info{ flex:1; min-width:0; }
+.cat-info .name{ font-size:14.5px; font-weight:600; }
+.cat-info .frac{ font-size:11px; color:var(--text-faint); margin-top:2px; }
+.chev{ color:var(--text-faint); font-size:12px; transition:transform .2s ease; flex-shrink:0; }
+.cat.expanded > .cat-head .chev{ transform:rotate(90deg); }
+
+.cat-body{ display:none; margin:8px 0 4px 19px; padding:6px 0 2px 18px; border-left:2px solid var(--cat-color-soft); }
+.cat.expanded > .cat-body{ display:flex; flex-direction:column; gap:9px; }
+
+.func-head{ display:flex; align-items:center; gap:10px; cursor:pointer; padding:8px 10px; border-radius:10px; transition:background .12s ease; position:relative; flex-wrap:wrap; }
+.func-head:hover{ background:rgba(255,255,255,0.03); }
+.func-head::before{ content:''; position:absolute; left:-18px; top:22px; width:14px; height:2px; background:var(--cat-color-soft); }
+
+.mini-ring{ position:relative; width:22px; height:22px; flex-shrink:0; }
+.mini-ring svg{ position:absolute; inset:0; transform:rotate(-90deg); }
+.mini-ring svg circle.track{ fill:none; stroke:var(--border-soft); stroke-width:2.4; }
+.mini-ring svg circle.prog{ fill:none; stroke-width:2.4; stroke-linecap:round; transition:stroke-dashoffset .3s ease; }
+
+.func-info{ flex:1; min-width:160px; }
+.func-info .name{ font-size:13px; font-weight:500; }
+.func-info .frac{ font-size:10px; color:var(--text-faint); margin-top:1px; }
+.func .chev{ font-size:10px; }
+.func.expanded > .func-head .chev{ transform:rotate(90deg); }
+
+.role-pill{ font-size:9px; padding:2px 7px; border-radius:5px; font-weight:600; flex-shrink:0; white-space:nowrap; }
+.role-pill.admin{ background:#232849; color:var(--admin); }
+.role-pill.vecino{ background:#17352e; color:var(--vecino); }
+.role-pill.cruzado{ background:#241c0c; color:var(--accent); }
+.tech-pill{ font-size:9px; padding:2px 7px; border-radius:5px; font-weight:500; background:var(--border-soft); color:var(--text-faint); flex-shrink:0; white-space:nowrap; }
+
+.func-body{ display:none; margin:6px 0 2px 12px; padding:4px 0 2px 16px; border-left:1.5px solid var(--cat-color-fainter); flex-direction:column; gap:3px; }
+.func.expanded > .func-body{ display:flex; }
+
+.subitem{ position:relative; display:flex; align-items:flex-start; gap:9px; cursor:pointer; padding:5px 8px 5px 4px; border-radius:8px; transition:background .12s ease; }
+.subitem:hover{ background:rgba(255,255,255,0.03); }
+.subitem::before{ content:''; position:absolute; left:-16px; top:12px; width:12px; height:1.5px; background:var(--cat-color-fainter); }
+.sub-dot{ width:15px; height:15px; border-radius:50%; flex-shrink:0; border:2px solid var(--none); display:flex; align-items:center; justify-content:center; transition:all .15s ease; margin-top:1px; }
+.sub-dot svg{ width:7px; height:7px; opacity:0; }
+.subitem[data-status="planned"] .sub-dot{ border-color:var(--planned); background:rgba(78,158,224,0.16); }
+.subitem[data-status="built"] .sub-dot{ border-color:var(--built); background:var(--built); }
+.subitem[data-status="built"] .sub-dot svg{ opacity:1; }
+.sub-text-wrap{ display:flex; flex-direction:column; }
+.sub-text{ font-size:12px; line-height:1.35; color:var(--text-dim); }
+.subitem[data-status="planned"] .sub-text, .subitem[data-status="built"] .sub-text{ color:var(--text); }
+.sub-note{ font-size:10.5px; color:var(--text-faint); font-style:italic; margin-top:2px; line-height:1.3; }
+
+footer.note{ margin-top:34px; padding-top:18px; border-top:1px solid var(--border-soft); font-size:11.5px; color:var(--text-faint); line-height:1.6; }
+footer.note b{ color:var(--text-dim); }
+
+@media (max-width:600px){ .top-titles h1{ font-size:19px; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="top-row">
+      <div class="top-titles">
+        <span class="eyebrow">Mapa conceptual · Niddo</span>
+        <h1 class="display">Funcionalidades por categoría — estado real</h1>
+        <p>Vive acá en Superadmin y persiste en Supabase (tabla roadmap_estado) — lo que marques queda guardado para siempre, no por navegador. Arrancó con el estado que encontró el audit de Cursor; seguí tocando a medida que cerrás temas.</p>
+      </div>
+      <button id="reset-btn">Reiniciar a estado real</button>
+    </div>
+    <div class="summary">
+      <div class="summary-stat"><span class="dot built"></span><span class="n mono" id="stat-built">0</span><span class="l">construido</span></div>
+      <div class="summary-stat"><span class="dot planned"></span><span class="n mono" id="stat-planned">0</span><span class="l">empezado / planeado</span></div>
+      <div class="summary-stat"><span class="dot none"></span><span class="n mono" id="stat-none">0</span><span class="l">sin construir</span></div>
+      <div class="progress-track"><div class="progress-fill" id="progress-built" style="width:0%"></div><div class="progress-fill planned-fill" id="progress-planned" style="width:0%"></div></div>
+    </div>
+    <div class="legend2">
+      <span class="row"><span class="pill admin">ADMIN</span>lo usa el administrador</span>
+      <span class="row"><span class="pill vecino">VECINO</span>lo usa el vecino</span>
+      <span class="row"><span class="pill" style="background:#241c0c;color:var(--accent)">CRUZADO</span>una acción toca las dos puntas</span>
+    </div>
+  </header>
+
+  <div id="tree"></div>
+
+  <footer class="note">
+    <b>Cómo leer los puntos:</b> verde = construido y confirmado en el código · azul = existe el dato/endpoint pero falta la otra mitad (UI, o viceversa) · gris = no hay evidencia en el repo. Donde hay una nota en cursiva, es una cita directa de lo que encontró el audit — no es mi interpretación.
+  </footer>
+</div>
+
+<script>
+const CATEGORIES = [
+  { id:"exp", code:"EXP", name:"Liquidación de expensas", hue:32, funcs:[
+    { name:"Calcular expensa mensual automática", role:"admin", tech:["Supabase"], items:[
+      {t:"Definir % de copropiedad por unidad", s:"planned", note:"Columnas porcentaje_a/c existen pero sin UI — hoy siempre valen 0"},
+      {t:"Prorratear gastos comunes vs. exclusivos", s:"built"},
+      {t:"Aplicar fondo de reserva", s:"built"},
+      {t:"Calcular intereses por mora", s:"built"},
+      {t:"Generar vencimientos (1° y 2°)", s:"built"}
+    ]},
+    { name:"Gestionar gastos extraordinarios", role:"admin", tech:[], items:[
+      {t:"Diferenciar de gastos ordinarios", s:"none"},
+      {t:"Definir cuotas y plazos", s:"none"},
+      {t:"Notificar a propietarios afectados", s:"none"}
+    ]},
+    { name:"Emitir liquidación en formato normativo", role:"admin", tech:["reportlab"], items:[
+      {t:"Formato \"Mis Expensas\" (CABA/PBA)", s:"none"},
+      {t:"QR / link a comprobantes de gastos", s:"none"},
+      {t:"Exportar PDF individual por unidad", s:"built"}
+    ]},
+    { name:"Enviar la liquidación", role:"cruzado", tech:["Resend"], items:[
+      {t:"Envío por mail", s:"built"},
+      {t:"Envío por WhatsApp", s:"none", note:"Deshabilitado en la UI (\"próximamente\")"},
+      {t:"Notificación push en la app", s:"none"}
+    ]}
+  ]},
+  { id:"cob", code:"COB", name:"Cobranzas y medios de pago", hue:152, funcs:[
+    { name:"Cobrar expensas online", role:"vecino", tech:[], items:[
+      {t:"Generar QR de pago por unidad", s:"none"},
+      {t:"Integrar billeteras virtuales", s:"none"},
+      {t:"Aceptar tarjeta de débito/crédito", s:"none"}
+    ]},
+    { name:"Conciliar pagos automáticamente", role:"admin", tech:[], items:[
+      {t:"Matchear pago con unidad funcional", s:"none"},
+      {t:"Resolver cobros no identificados", s:"none"},
+      {t:"Actualizar cuenta corriente en tiempo real", s:"none"}
+    ]},
+    { name:"Gestionar morosidad", role:"admin", tech:["Supabase"], items:[
+      {t:"Calcular deuda e intereses acumulados", s:"built"},
+      {t:"Generar recordatorios automáticos", s:"none"},
+      {t:"Armar planes de pago", s:"none"}
+    ]},
+    { name:"Integrar redes de cobro", role:"admin", tech:[], items:[
+      {t:"SIRO / Banco Roela", s:"none"},
+      {t:"Pago Fácil / RapiPago", s:"none"},
+      {t:"Débito automático", s:"none", note:"Bind evaluado (Paquete Consorcio) pero sin integrar todavía"}
+    ]}
+  ]},
+  { id:"vec", code:"VEC", name:"Portal / app propietarios y vecinos", hue:205, funcs:[
+    { name:"Ver expensa y cuenta corriente", role:"vecino", tech:["Supabase"], items:[
+      {t:"Historial de liquidaciones", s:"built"},
+      {t:"Detalle de gastos del período", s:"built"},
+      {t:"Descargar comprobantes", s:"none", note:"dlCobros() es un stub — muestra \"próximamente\""}
+    ]},
+    { name:"Gestionar reclamos (vista vecino)", role:"vecino", tech:["Supabase"], items:[
+      {t:"Crear reclamo con foto y descripción", s:"built"},
+      {t:"Elegir categoría", s:"built"},
+      {t:"Ver estado: recibido → en curso → resuelto", s:"built"},
+      {t:"Recibir notificación de respuesta", s:"none"},
+      {t:"Historial de reclamos propios", s:"built"}
+    ]},
+    { name:"Reservar amenities", role:"vecino", tech:["Supabase"], items:[
+      {t:"Ver disponibilidad en calendario", s:"built"},
+      {t:"Elegir horario / turno", s:"built"},
+      {t:"Confirmar y recibir recordatorio", s:"planned", note:"Confirmación sí; recordatorio automático no confirmado"},
+      {t:"Cancelar reserva", s:"built"}
+    ]},
+    { name:"Votar y participar", role:"vecino", tech:["Supabase"], items:[
+      {t:"Ver encuestas / votaciones activas", s:"built"},
+      {t:"Emitir voto", s:"built", note:"Un voto por unidad funcional, no por persona"},
+      {t:"Ver resultados", s:"built"}
+    ]}
+  ]},
+  { id:"adm", code:"ADM", name:"Gestión operativa / app del administrador", hue:255, funcs:[
+    { name:"Administrar múltiples consorcios", role:"admin", tech:["Supabase"], items:[
+      {t:"Tablero centralizado", s:"built"},
+      {t:"Cambiar entre consorcios", s:"built"},
+      {t:"Ver alertas por consorcio", s:"built"}
+    ]},
+    { name:"Gestionar equipo y permisos", role:"admin", tech:[], items:[
+      {t:"Crear usuarios internos", s:"none"},
+      {t:"Asignar roles (full, lectura, cobranzas, etc.)", s:"none"},
+      {t:"Auditoría de acciones por usuario", s:"none"}
+    ]},
+    { name:"Configurar vencimientos y recordatorios", role:"admin", tech:[], items:[
+      {t:"Definir reglas por consorcio", s:"none", note:"\"Configuración\" es decorativa: botón sin handler, valores hardcodeados en el HTML"},
+      {t:"Automatizar avisos a propietarios", s:"none"}
+    ]}
+  ]},
+  { id:"com", code:"COM", name:"Comunicación", hue:330, funcs:[
+    { name:"Enviar comunicados", role:"cruzado", tech:["Supabase"], items:[
+      {t:"Redactar (texto, imagen, adjunto)", s:"planned", note:"Backend listo (POST /api/admin/comunicados), sin UI — \"Mensajería\" es un placeholder"},
+      {t:"Segmentar destinatarios (propietario/inquilino/unidad)", s:"none"},
+      {t:"Programar envío", s:"none"},
+      {t:"Confirmar lectura", s:"built", note:"Tabla comunicados_leidos + el vecino ya ve comunicados con datos reales"}
+    ]},
+    { name:"Atender consultas", role:"cruzado", tech:[], items:[
+      {t:"Chat / bot de WhatsApp", s:"none"},
+      {t:"Derivar a humano si no resuelve", s:"none"},
+      {t:"Historial de la conversación", s:"none"}
+    ]}
+  ]},
+  { id:"mnt", code:"MNT", name:"Mantenimiento y reclamos", hue:15, funcs:[
+    { name:"Gestionar reclamos (vista admin)", role:"admin", tech:["Supabase"], items:[
+      {t:"Recibir y categorizar", s:"planned", note:"El reclamo llega a la base; el admin no tiene pantalla para verlo todavía"},
+      {t:"Asignar a proveedor o encargado", s:"none"},
+      {t:"Adjuntar presupuesto", s:"none"},
+      {t:"Cambiar estado y notificar al vecino", s:"planned", note:"Endpoint PUT /api/admin/reclamos existe, sin UI"},
+      {t:"Cerrar con confirmación", s:"none"}
+    ]},
+    { name:"Programar mantenimientos preventivos", role:"admin", tech:[], items:[
+      {t:"Calendario de tareas recurrentes", s:"none"},
+      {t:"Alertas de vencimiento", s:"none"},
+      {t:"Registro de lo realizado", s:"none"}
+    ]}
+  ]},
+  { id:"prv", code:"PRV", name:"Proveedores y gastos", hue:95, funcs:[
+    { name:"Gestionar ficha de proveedor", role:"admin", tech:["Supabase"], items:[
+      {t:"Datos fiscales y de contacto", s:"built"},
+      {t:"Historial de trabajos realizados", s:"planned", note:"El endpoint existe; el frontend todavía no lo llama"},
+      {t:"Certificaciones y seguros", s:"none"}
+    ]},
+    { name:"Cargar gastos", role:"admin", tech:["Groq Vision"], items:[
+      {t:"OCR de factura (monto, proveedor, fecha)", s:"built", note:"Groq Vision + PyMuPDF, incluso en lote"},
+      {t:"Asignar centro de costo", s:"built"},
+      {t:"Adjuntar comprobante", s:"built"}
+    ]},
+    { name:"Pagar a proveedores", role:"admin", tech:[], items:[
+      {t:"Generar orden de pago", s:"none"},
+      {t:"Registrar el pago", s:"built"},
+      {t:"Emitir retenciones si corresponde", s:"none"}
+    ]}
+  ]},
+  { id:"sue", code:"SUE", name:"Sueldos y gestión laboral", hue:180, funcs:[
+    { name:"Liquidar sueldo del encargado", role:"admin", tech:[], items:[
+      {t:"Aplicar convenio (SUTERH, UTEDYC, etc.)", s:"none"},
+      {t:"Calcular básico + adicionales", s:"none"},
+      {t:"Generar recibo de sueldo", s:"none"}
+    ]},
+    { name:"Cumplir obligaciones laborales", role:"admin", tech:[], items:[
+      {t:"Libro de sueldos digital", s:"none"},
+      {t:"DDJJ F931", s:"none"},
+      {t:"SAC y vacaciones", s:"none"}
+    ]}
+  ]},
+  { id:"ctb", code:"CTB", name:"Contabilidad, balances y reportes", hue:225, funcs:[
+    { name:"Generar balance del consorcio", role:"admin", tech:["reportlab"], items:[
+      {t:"Consolidar ingresos y egresos", s:"built", note:"Ojo: Balance suma Cobros, no Liquidaciones — pueden divergir sin aviso"},
+      {t:"Actualizar en tiempo real", s:"built"},
+      {t:"Exportar PDF / Excel", s:"built"}
+    ]},
+    { name:"Rendir cuentas anualmente", role:"admin", tech:[], items:[
+      {t:"Armar la rendición completa", s:"none"},
+      {t:"Adjuntar respaldos", s:"none"}
+    ]},
+    { name:"Gestionar documentación", role:"cruzado", tech:["Supabase"], items:[
+      {t:"Subir actas, reglamento, contratos", s:"planned", note:"Tabla archivos_consorcio y endpoints POST/DELETE existen, pero están entre los 14 sin UI del lado admin"},
+      {t:"Organizar por consorcio y fecha", s:"planned", note:"Depende de que exista la carga — el vecino sí puede ver/descargar lo que ya está cargado"}
+    ]}
+  ]},
+  { id:"ia", code:"IA", name:"Inteligencia artificial", hue:285, funcs:[
+    { name:"Leer facturas automáticamente", role:"admin", tech:["Groq Vision"], items:[
+      {t:"Extraer proveedor, monto y fecha", s:"built"},
+      {t:"Sugerir centro de costo", s:"planned"}
+    ]},
+    { name:"Asistir en comunicación", role:"admin", tech:[], items:[
+      {t:"Sugerir redacción de comunicados", s:"none"},
+      {t:"Responder consultas frecuentes (bot)", s:"none"}
+    ]}
+  ]},
+  { id:"int", code:"INT", name:"Integraciones", hue:55, funcs:[
+    { name:"Conectar con organismos", role:"admin", tech:[], items:[
+      {t:"AFIP", s:"none"},
+      {t:"AGIP", s:"none"}
+    ]},
+    { name:"Conectar medios de pago", role:"admin", tech:[], items:[
+      {t:"SIRO", s:"none"},
+      {t:"Bind", s:"none"},
+      {t:"Redes extrabancarias", s:"none"}
+    ]}
+  ]},
+  { id:"bar", code:"BAR", name:"Barrios privados y control de accesos", hue:130, funcs:[
+    { name:"Gestionar accesos", role:"cruzado", tech:[], items:[
+      {t:"Autorizar invitado desde la app", s:"none"},
+      {t:"App para guardia", s:"none"},
+      {t:"Libro de visitas digital", s:"none"}
+    ]},
+    { name:"Controlar vehículos", role:"admin", tech:[], items:[
+      {t:"Registro de patentes", s:"none"},
+      {t:"Integración con radares", s:"none"}
+    ]}
+  ]},
+  { id:"nrm", code:"NRM", name:"Cumplimiento normativo", hue:350, funcs:[
+    { name:"Cumplir formato de liquidación", role:"admin", tech:[], items:[
+      {t:"QR obligatorio (CABA)", s:"none"},
+      {t:"Certificado de deuda y créditos", s:"none"}
+    ]}
+  ]}
+];
+
+const hue = c => `hsl(${c.hue} 58% 58%)`;
+const hueSoft = c => `hsl(${c.hue} 50% 40% / .55)`;
+const hueFaint = c => `hsl(${c.hue} 35% 40% / .35)`;
+
+let status = {};
+let seed = {};
+const CIRC_BIG = 2*Math.PI*16, CIRC_SM = 2*Math.PI*9;
+
+function subId(catId, fi, si){ return `${catId}::${fi}::${si}`; }
+
+function buildSeed(){
+  CATEGORIES.forEach(cat=>{
+    cat.funcs.forEach((f,fi)=>{
+      f.items.forEach((it,si)=>{
+        if(it.s && it.s !== 'none') seed[subId(cat.id,fi,si)] = it.s;
+      });
+    });
+  });
+}
+buildSeed();
+
+const ESTADO_TO_API = { planned:'planeada', built:'construida' };
+const API_TO_ESTADO = { planeada:'planned', construida:'built' };
+
+async function persistOne(id, jsStatus){
+  const estado = jsStatus ? ESTADO_TO_API[jsStatus] : null;
+  try{
+    await fetch(`/api/superadmin/roadmap/${encodeURIComponent(id)}`, {
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ estado })
+    });
+  }catch(e){ console.error('No se pudo guardar', id, e); }
+}
+
+async function resetToSeed(){
+  const allIds = new Set([...Object.keys(status), ...Object.keys(seed)]);
+  const tasks = [];
+  allIds.forEach(id=>{ if(seed[id] !== status[id]) tasks.push(persistOne(id, seed[id])); });
+  await Promise.all(tasks);
+  status = { ...seed };
+}
+
+async function load(){
+  try{
+    const res = await fetch('/api/superadmin/roadmap');
+    if(res.ok){
+      const raw = await res.json();
+      status = {};
+      Object.entries(raw).forEach(([id, estadoApi])=>{ status[id] = API_TO_ESTADO[estadoApi]; });
+      return;
+    }
+  }catch(e){}
+  status = { ...seed };
+}
+
+function funcCounts(cat, fi){
+  const f = cat.funcs[fi];
+  let built=0, planned=0;
+  f.items.forEach((_,si)=>{ const s = status[subId(cat.id,fi,si)]; if(s==='built') built++; else if(s==='planned') planned++; });
+  return { built, planned, total: f.items.length };
+}
+function catCounts(cat){
+  let built=0, planned=0, total=0;
+  cat.funcs.forEach((f,fi)=>{ const c = funcCounts(cat,fi); built+=c.built; planned+=c.planned; total+=c.total; });
+  return { built, planned, total };
+}
+function overallCounts(){
+  let built=0, planned=0, total=0;
+  CATEGORIES.forEach(cat=>{ const c = catCounts(cat); built+=c.built; planned+=c.planned; total+=c.total; });
+  return { built, planned, none: total-built-planned, total };
+}
+
+const tree = document.getElementById('tree');
+const roleLabel = { admin:"ADMIN", vecino:"VECINO", cruzado:"CRUZADO" };
+
+CATEGORIES.forEach(cat=>{
+  const catEl = document.createElement('div');
+  catEl.className = 'cat';
+  catEl.style.setProperty('--cat-color', hue(cat));
+  catEl.style.setProperty('--cat-color-soft', hueSoft(cat));
+  catEl.style.setProperty('--cat-color-fainter', hueFaint(cat));
+
+  const head = document.createElement('div');
+  head.className = 'cat-head';
+  head.innerHTML = `
+    <div class="ring-badge">
+      <svg viewBox="0 0 38 38"><circle class="track" cx="19" cy="19" r="16"></circle><circle class="prog" cx="19" cy="19" r="16" stroke="${hue(cat)}"></circle></svg>
+      <span class="code mono" style="color:${hue(cat)}">${cat.code}</span>
+    </div>
+    <div class="cat-info"><div class="name">${cat.name}</div><div class="frac mono">0/0</div></div>
+    <span class="chev">▸</span>
+  `;
+  head.addEventListener('click', ()=>catEl.classList.toggle('expanded'));
+
+  const body = document.createElement('div');
+  body.className = 'cat-body';
+
+  cat.funcs.forEach((f, fi)=>{
+    const funcEl = document.createElement('div');
+    funcEl.className = 'func';
+
+    const techPills = (f.tech||[]).map(t=>`<span class="tech-pill">${t}</span>`).join('');
+    const fhead = document.createElement('div');
+    fhead.className = 'func-head';
+    fhead.innerHTML = `
+      <div class="mini-ring"><svg viewBox="0 0 22 22"><circle class="track" cx="11" cy="11" r="9"></circle><circle class="prog" cx="11" cy="11" r="9" stroke="${hue(cat)}"></circle></svg></div>
+      <div class="func-info"><div class="name">${f.name}</div><div class="frac mono">0/${f.items.length}</div></div>
+      <span class="role-pill ${f.role}">${roleLabel[f.role]}</span>
+      ${techPills}
+      <span class="chev">▸</span>
+    `;
+    fhead.addEventListener('click', ()=>funcEl.classList.toggle('expanded'));
+
+    const fbody = document.createElement('div');
+    fbody.className = 'func-body';
+    f.items.forEach((it, si)=>{
+      const sub = document.createElement('div');
+      sub.className = 'subitem';
+      sub.dataset.status = 'none';
+      sub.dataset.id = subId(cat.id, fi, si);
+      sub.innerHTML = `<span class="sub-dot"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L19 7" stroke="#0d1a12" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="sub-text-wrap"><span class="sub-text">${it.t}</span>${it.note ? `<span class="sub-note">${it.note}</span>` : ''}</span>`;
+      sub.addEventListener('click', (e)=>{ e.stopPropagation(); cycle(cat, fi, si, sub); });
+      fbody.appendChild(sub);
+    });
+
+    funcEl.appendChild(fhead);
+    funcEl.appendChild(fbody);
+    body.appendChild(funcEl);
+  });
+
+  catEl.appendChild(head);
+  catEl.appendChild(body);
+  tree.appendChild(catEl);
+});
+
+function cycle(cat, fi, si, el){
+  const id = subId(cat.id, fi, si);
+  const cur = status[id];
+  const next = !cur ? 'planned' : cur==='planned' ? 'built' : undefined;
+  if(next) status[id] = next; else delete status[id];
+  el.dataset.status = next || 'none';
+  persistOne(id, next);
+  updateAll();
+}
+
+function updateAll(){
+  CATEGORIES.forEach(cat=>{
+    const catEl = [...document.querySelectorAll('.cat')].find(el => el.querySelector('.code').textContent === cat.code);
+    cat.funcs.forEach((f, fi)=>{
+      const funcEl = catEl.querySelectorAll('.func')[fi];
+      const c = funcCounts(cat, fi);
+      const done = c.built + c.planned;
+      const pct = c.total ? done/c.total : 0;
+      funcEl.querySelector('.frac').textContent = `${done}/${c.total}`;
+      const ring = funcEl.querySelector('.mini-ring .prog');
+      ring.style.strokeDasharray = CIRC_SM;
+      ring.style.strokeDashoffset = CIRC_SM - pct*CIRC_SM;
+    });
+    const cc = catCounts(cat);
+    const cdone = cc.built + cc.planned;
+    const cpct = cc.total ? cdone/cc.total : 0;
+    catEl.querySelector('.cat-info .frac').textContent = `${cdone}/${cc.total}`;
+    const cring = catEl.querySelector('.ring-badge .prog');
+    cring.style.strokeDasharray = CIRC_BIG;
+    cring.style.strokeDashoffset = CIRC_BIG - cpct*CIRC_BIG;
+  });
+  updateSummary();
+}
+
+function updateSummary(){
+  const o = overallCounts();
+  document.getElementById('stat-built').textContent = o.built;
+  document.getElementById('stat-planned').textContent = o.planned;
+  document.getElementById('stat-none').textContent = o.none;
+  document.getElementById('progress-built').style.width = (o.total ? o.built/o.total*100 : 0)+'%';
+  document.getElementById('progress-planned').style.width = (o.total ? o.planned/o.total*100 : 0)+'%';
+}
+
+function applyStatusToDOM(){
+  document.querySelectorAll('.subitem').forEach(el=>{
+    const s = status[el.dataset.id];
+    if(s) el.dataset.status = s;
+  });
+}
+
+document.getElementById('reset-btn').addEventListener('click', async ()=>{
+  if(confirm('¿Reiniciar todo al estado real (según el último audit), descartando los cambios que marcaste en Niddo? Esto se guarda para todo el equipo.')){
+    await resetToSeed();
+    applyStatusToDOM();
+    document.querySelectorAll('.subitem').forEach(el=>{ if(!status[el.dataset.id]) el.dataset.status='none'; });
+    updateAll();
+  }
+});
+
+(async function init(){
+  await load();
+  applyStatusToDOM();
+  updateAll();
+})();
+</script>
+</body>
+</html>

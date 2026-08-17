@@ -1081,6 +1081,75 @@ def api_superadmin_rechazar(sid):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# SUPERADMIN — MAPA CONCEPTUAL
+# ══════════════════════════════════════════════════════════════════════════════
+# El shell abre las otras tres vistas en <iframe src="...">, no con srcdoc: al
+# ser same-origin el navegador manda la cookie de sesión solo, así que las tres
+# pasan por @require_superadmin igual que el shell.
+@app.route('/superadmin/mapa')
+@require_superadmin
+def superadmin_mapa():
+    """Shell con las 3 pestañas del mapa conceptual."""
+    return render_template('superadmin_mapa.html')
+
+
+@app.route('/superadmin/mapa/categorias')
+@require_superadmin
+def superadmin_mapa_categorias():
+    """Categorías → funcionalidades → componentes, con el checklist persistido."""
+    return render_template('superadmin_mapa_categorias.html')
+
+
+@app.route('/superadmin/mapa/admin-vecino')
+@require_superadmin
+def superadmin_mapa_admin_vecino():
+    """Qué funcionalidades conectan entre Admin, Vecino y Superadmin."""
+    return render_template('superadmin_mapa_admin_vecino.html')
+
+
+@app.route('/superadmin/mapa/arquitectura')
+@require_superadmin
+def superadmin_mapa_arquitectura():
+    """Flujo Landing → Auth0 → Admin/Vecino y stack técnico por categoría."""
+    return render_template('superadmin_mapa_arquitectura.html')
+
+
+@app.route('/api/superadmin/roadmap', methods=['GET'])
+@require_superadmin
+def api_superadmin_roadmap():
+    """Devuelve {"exp::0::0": "planeada", ...}.
+
+    Solo vienen los items tocados a mano: 'sin_definir' es la ausencia de fila,
+    así que el mapa arranca de su propio seed y pisa con lo que haya acá.
+    """
+    filas = supabase.table('roadmap_estado').select('id, estado').execute().data or []
+    return jsonify({f['id']: f['estado'] for f in filas})
+
+
+@app.route('/api/superadmin/roadmap/<path:item_id>', methods=['PUT'])
+@require_superadmin
+def api_superadmin_roadmap_update(item_id):
+    """Guarda el estado de un item: {"estado": "planeada" | "construida" | null}.
+
+    `null` es volver a 'sin_definir', que se representa borrando la fila.
+    """
+    estado = (request.json or {}).get('estado')
+    if estado not in ('planeada', 'construida', None):
+        return jsonify({'error': 'Estado inválido: "planeada", "construida" o null'}), 400
+
+    if estado is None:
+        supabase.table('roadmap_estado').delete().eq('id', item_id).execute()
+    else:
+        supabase.table('roadmap_estado').upsert({
+            'id': item_id,
+            'estado': estado,
+            'actualizado_por': (cargar_superadmin_real() or {}).get('id'),
+            'actualizado_at': now_iso(),
+        }).execute()
+    return jsonify({'ok': True})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # API — CONSORCIOS
 # ══════════════════════════════════════════════════════════════════════════════
 @app.route('/api/consorcios', methods=['GET'])

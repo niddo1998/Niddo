@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Niddo — Arquitectura técnica (real)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap');
+
+:root{
+  --bg:#12151c; --bg-elev:#171b26; --card:#1c2130; --card-hover:#242a3c;
+  --border:#2a3042; --border-soft:#232838;
+  --text:#f2f4fa; --text-dim:#9098ae; --text-faint:#5b6478;
+  --accent:#e8a33d;
+  --built:#4fb286; --partial:#e8a33d; --notbuilt:#5b6478;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{ background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+.display{ font-family:'Space Grotesk',sans-serif; }
+.mono{ font-family:'JetBrains Mono',monospace; letter-spacing:0.02em; }
+
+#app{ max-width:1040px; margin:0 auto; padding:28px 20px 90px; }
+
+header.top{ display:flex; flex-direction:column; gap:14px; padding-bottom:20px; margin-bottom:10px; border-bottom:1px solid var(--border-soft); }
+.top-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:20px; flex-wrap:wrap; }
+.eyebrow{ color:var(--accent); font-size:11px; font-weight:600; letter-spacing:0.14em; text-transform:uppercase; margin-bottom:8px; display:block; }
+.top-titles h1{ font-size:23px; font-weight:700; letter-spacing:-0.01em; }
+.top-titles p{ color:var(--text-dim); font-size:13px; margin-top:6px; max-width:620px; line-height:1.55; }
+#reset-btn{ background:var(--card); border:1px solid var(--border); color:var(--text-dim); font-size:12px; padding:9px 16px; border-radius:100px; cursor:pointer; transition:all .15s ease; white-space:nowrap; }
+#reset-btn:hover{ border-color:var(--accent); color:var(--accent); }
+#reset-btn.on{ border-color:var(--accent); color:var(--accent); background:#241c0c; }
+
+.legend{ display:flex; gap:18px; flex-wrap:wrap; font-size:11px; color:var(--text-faint); row-gap:8px; }
+.legend .row{ display:flex; align-items:center; gap:7px; }
+.legend .sw{ width:11px; height:11px; border-radius:4px; display:inline-block; }
+.legend .sw.decided{ background:#2a3a2e; border:1px solid #3fa66a; }
+.legend .sw.tbd{ background:transparent; border:1.5px dashed var(--text-faint); }
+.legend .ln{ width:20px; height:2px; background:repeating-linear-gradient(90deg, var(--accent) 0 5px, transparent 5px 9px); display:inline-block; }
+.legend .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+.legend .dot.built{ background:var(--built); }
+.legend .dot.partial{ background:var(--partial); }
+.legend .dot.notbuilt{ background:transparent; border:1.5px dashed var(--notbuilt); }
+
+#map-container{ position:relative; padding-top:20px; }
+#lines{ position:absolute; top:0; left:0; pointer-events:none; z-index:0; }
+
+.flow{ position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; }
+
+.step{
+  border-radius:14px; padding:12px 20px; text-align:center; cursor:default;
+  border:1px solid var(--border); background:var(--card);
+  transition:opacity .2s ease;
+}
+.step .tag{ font-size:9px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-faint); }
+.step .name{ font-size:14px; font-weight:600; margin-top:2px; }
+.step .sub{ font-size:10px; color:var(--text-dim); margin-top:3px; max-width:220px; }
+
+.step.landing{ margin-top:6px; }
+.step.login{ margin-top:40px; }
+.step.auth{ margin-top:40px; border-color:#5a3c1a; background:#231909; }
+.step.auth .name{ color:#f0a94e; }
+
+.split-row{ display:flex; gap:36px; margin-top:44px; flex-wrap:wrap; justify-content:center; }
+.step.role{ width:190px; }
+.step.role.admin-role{ border-color:#3b4380; background:#181c2e; }
+.step.role.vecino-role{ border-color:#245045; background:#131f1c; }
+.step.role.super-role{ border-color:#5a3345; background:#221520; }
+.step.role.prov-role{ border:1.5px dashed var(--border); background:transparent; opacity:.6; }
+.step.role.prov-role .name{ color:var(--text-faint); }
+
+.cats-grid{
+  display:flex; flex-wrap:wrap; justify-content:center; gap:10px;
+  margin-top:52px; max-width:840px;
+}
+.chip{
+  display:flex; align-items:center; gap:8px;
+  background:var(--card); border:1px solid var(--border); border-radius:10px;
+  padding:9px 13px; cursor:pointer; transition:all .18s ease; user-select:none;
+}
+.chip:hover{ background:var(--card-hover); }
+.chip .estado-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.chip .estado-dot.built{ background:var(--built); }
+.chip .estado-dot.partial{ background:var(--partial); }
+.chip .estado-dot.notbuilt{ background:transparent; border:1.5px dashed var(--notbuilt); }
+.chip .lbl{ font-size:12px; font-weight:500; }
+.chip.selected{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent), 0 0 16px -6px rgba(232,163,61,.7); }
+.chip.selected .lbl{ color:var(--accent); }
+
+.foundation-wrap{ width:100%; margin-top:60px; }
+.foundation-title{ text-align:center; font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-faint); margin-bottom:18px; }
+.foundation{ display:flex; flex-wrap:wrap; justify-content:center; gap:12px; }
+
+.stack-chip{
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  border-radius:12px; padding:12px 16px; cursor:pointer; min-width:118px;
+  transition:all .18s ease;
+}
+.stack-chip .name{ font-size:12.5px; font-weight:600; }
+.stack-chip .role{ font-size:9.5px; color:var(--text-faint); text-align:center; }
+.stack-chip.decided{ background:#1a2a20; border:1px solid #2f5a3d; }
+.stack-chip.decided .name{ color:#7bd99a; }
+.stack-chip.tbd{ background:transparent; border:1.5px dashed var(--border); }
+.stack-chip.tbd .name{ color:var(--text-faint); }
+.stack-chip.selected{ box-shadow:0 0 0 1px var(--accent), 0 0 18px -6px rgba(232,163,61,.75); }
+
+.dim{ opacity:.15 !important; }
+
+footer.note{ margin-top:44px; padding-top:18px; border-top:1px solid var(--border-soft); font-size:11.5px; color:var(--text-faint); line-height:1.6; max-width:680px; margin-left:auto; margin-right:auto; }
+footer.note b{ color:var(--text-dim); }
+
+@media (max-width:640px){
+  .top-titles h1{ font-size:19px; }
+  .split-row{ gap:16px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="top-row">
+      <div class="top-titles">
+        <span class="eyebrow">Mapa conceptual · Niddo</span>
+        <h1 class="display">Arquitectura técnica — según el repo real</h1>
+        <p>Actualizado con el relevamiento de Cursor sobre el código. Ya no es una propuesta: esto es lo que hay hoy en app.py, los templates y el schema de Supabase.</p>
+      </div>
+      <button id="reset-btn">Mostrar todo</button>
+    </div>
+    <div class="legend">
+      <span class="row"><span class="sw decided"></span>Stack en uso</span>
+      <span class="row"><span class="sw tbd"></span>A definir / sin integrar</span>
+      <span class="row"><span class="ln"></span>De qué depende</span>
+      <span class="row"><span class="dot built"></span>Construido</span>
+      <span class="row"><span class="dot partial"></span>Parcial</span>
+      <span class="row"><span class="dot notbuilt"></span>Sin construir</span>
+    </div>
+  </header>
+
+  <div id="map-container">
+    <svg id="lines"></svg>
+    <div class="flow">
+      <div class="step landing" id="step-landing">
+        <div class="tag mono">Flask · público</div>
+        <div class="name">Landing</div>
+      </div>
+
+      <div class="step login" id="step-login">
+        <div class="tag mono">/login</div>
+        <div class="name">Elegir rol</div>
+        <div class="sub">Botón Admin / Vecino — esto define el rol, no Auth0</div>
+      </div>
+
+      <div class="step auth" id="step-auth">
+        <div class="tag mono">Authlib · OIDC</div>
+        <div class="name">Auth0</div>
+        <div class="sub">Login/callback. El claim de rol existe pero no se lee</div>
+      </div>
+
+      <div class="split-row">
+        <div class="step role admin-role" id="step-admin">
+          <div class="tag mono">/dashboard/admin</div>
+          <div class="name">Administrador</div>
+          <div class="sub">Requiere estado = aprobado</div>
+        </div>
+        <div class="step role vecino-role" id="step-vecino">
+          <div class="tag mono">/dashboard/vecino</div>
+          <div class="name">Vecino</div>
+          <div class="sub">Sin gate, entra directo</div>
+        </div>
+        <div class="step role prov-role" id="step-prov">
+          <div class="tag mono">sin ruta</div>
+          <div class="name">Proveedor</div>
+          <div class="sub">Template huérfano, no implementado</div>
+        </div>
+      </div>
+
+      <div class="cats-grid" id="cats-grid"></div>
+
+      <div class="foundation-wrap">
+        <div class="foundation-title">Infraestructura</div>
+        <div class="foundation" id="foundation"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="note">
+    <b>Lo que cambió respecto a la versión anterior:</b> el frontend no es Next.js — es Flask + Jinja2 con JS vanilla embebido, server-rendered. El rol lo elige el usuario con un click, no lo emite Auth0. Bind pasó de "decidido" a "a definir": no hay ninguna pasarela de pago integrada, el cobro es manual. Sumé Resend (mails), Groq Vision + PyMuPDF (OCR, ya funcionando) y reportlab/openpyxl (exports), que estaban en el repo y no en el mapa. Proveedor (huérfano) sigue en el flujo porque la landing lo promete como portal de producto. Superadmin no está acá: es una herramienta interna solo para el equipo de desarrollo, no pasa por este flujo de auth de cara al usuario — está detallado en el mapa Admin × Vecino, no en este.
+  </footer>
+</div>
+
+<script>
+const CATEGORIES = [
+  { id:"exp", code:"EXP", name:"Liquidación de expensas", hue:32, uses:["supabase","reportlab"], estado:"built" },
+  { id:"cob", code:"COB", name:"Cobranzas y medios de pago", hue:152, uses:["supabase","bind"], estado:"partial" },
+  { id:"vec", code:"VEC", name:"Portal / app vecinos", hue:205, uses:["flask","supabase"], estado:"built" },
+  { id:"adm", code:"ADM", name:"Gestión operativa admin", hue:255, uses:["flask","supabase"], estado:"built" },
+  { id:"com", code:"COM", name:"Comunicación", hue:330, uses:["supabase","whatsapp"], estado:"partial" },
+  { id:"mnt", code:"MNT", name:"Mantenimiento y reclamos", hue:15, uses:["supabase","storage"], estado:"partial" },
+  { id:"prv", code:"PRV", name:"Proveedores y gastos", hue:95, uses:["supabase","groq"], estado:"built" },
+  { id:"sue", code:"SUE", name:"Sueldos y gestión laboral", hue:180, uses:["supabase"], estado:"notbuilt" },
+  { id:"ctb", code:"CTB", name:"Contabilidad y balances", hue:225, uses:["supabase","reportlab"], estado:"built" },
+  { id:"ia",  code:"IA",  name:"Inteligencia artificial", hue:285, uses:["groq"], estado:"built" },
+  { id:"int", code:"INT", name:"Integraciones", hue:55, uses:["afip-agip","supabase"], estado:"notbuilt" },
+  { id:"bar", code:"BAR", name:"Barrios y control de accesos", hue:130, uses:["supabase"], estado:"notbuilt" },
+  { id:"nrm", code:"NRM", name:"Cumplimiento normativo", hue:350, uses:["supabase"], estado:"notbuilt" }
+];
+
+const FOUNDATION = [
+  { id:"flask",     name:"Flask",              role:"Backend + templates",     decided:true },
+  { id:"vercel",    name:"Vercel",             role:"Hosting (WSGI)",          decided:true },
+  { id:"supabase",  name:"Supabase",           role:"Base de datos",           decided:true },
+  { id:"auth0",     name:"Auth0",              role:"Identidad (OIDC)",        decided:true },
+  { id:"resend",    name:"Resend",             role:"Email",                   decided:true },
+  { id:"groq",      name:"Groq Vision",        role:"OCR de facturas",         decided:true },
+  { id:"reportlab", name:"reportlab / openpyxl", role:"Exports PDF y Excel",   decided:true },
+  { id:"bind",      name:"Bind",               role:"Cobros — sin integrar",   decided:false },
+  { id:"whatsapp",  name:"WhatsApp API",       role:"Comunicación",            decided:false },
+  { id:"afip-agip", name:"AFIP / AGIP",        role:"Integración fiscal",      decided:false },
+  { id:"storage",   name:"Storage de archivos", role:"Hoy: base64 en Postgres", decided:false }
+];
+
+const hue = c => `hsl(${c.hue} 58% 58%)`;
+
+const catsGrid = document.getElementById('cats-grid');
+const foundationEl = document.getElementById('foundation');
+
+CATEGORIES.forEach(cat=>{
+  const el = document.createElement('div');
+  el.className = 'chip';
+  el.dataset.id = cat.id;
+  el.dataset.kind = 'cat';
+  el.innerHTML = `<span class="estado-dot ${cat.estado}"></span><span class="lbl">${cat.name}</span>`;
+  el.addEventListener('click', (e)=>{ e.stopPropagation(); select('cat', cat.id); });
+  catsGrid.appendChild(el);
+});
+
+FOUNDATION.forEach(f=>{
+  const el = document.createElement('div');
+  el.className = 'stack-chip ' + (f.decided ? 'decided' : 'tbd');
+  el.dataset.id = f.id;
+  el.dataset.kind = 'found';
+  el.innerHTML = `<span class="name">${f.name}</span><span class="role">${f.role}</span>`;
+  el.addEventListener('click', (e)=>{ e.stopPropagation(); select('found', f.id); });
+  foundationEl.appendChild(el);
+});
+
+let selected = null;
+
+function select(kind, id){
+  if(selected && selected.kind===kind && selected.id===id){ selected = null; }
+  else { selected = { kind, id }; }
+  applyHighlight();
+}
+function clearSelection(){ selected = null; applyHighlight(); }
+document.getElementById('reset-btn').addEventListener('click', clearSelection);
+document.getElementById('map-container').addEventListener('click', clearSelection);
+['step-landing','step-login','step-auth','step-admin','step-vecino','step-prov'].forEach(id=>{
+  document.getElementById(id).addEventListener('click', (e)=>{ e.stopPropagation(); clearSelection(); });
+});
+
+function relatedFoundationIds(catId){ const c = CATEGORIES.find(c=>c.id===catId); return c ? c.uses : []; }
+function relatedCatIds(foundId){ return CATEGORIES.filter(c=>c.uses.includes(foundId)).map(c=>c.id); }
+
+function applyHighlight(){
+  const resetBtn = document.getElementById('reset-btn');
+  const chips = document.querySelectorAll('.chip, .stack-chip');
+  const paths = document.querySelectorAll('#lines path[data-type="rel"]');
+
+  if(!selected){
+    chips.forEach(c=>{ c.classList.remove('dim'); c.classList.remove('selected'); });
+    paths.forEach(p=>{ p.setAttribute('stroke-opacity', p.dataset.baseOpacity); p.setAttribute('stroke-width', p.dataset.baseWidth); });
+    resetBtn.classList.remove('on');
+    return;
+  }
+  resetBtn.classList.add('on');
+
+  let activeCats = new Set(), activeFound = new Set();
+  if(selected.kind==='cat'){ activeCats.add(selected.id); relatedFoundationIds(selected.id).forEach(f=>activeFound.add(f)); }
+  else { activeFound.add(selected.id); relatedCatIds(selected.id).forEach(c=>activeCats.add(c)); }
+
+  chips.forEach(c=>{
+    const kind = c.dataset.kind, id = c.dataset.id;
+    const active = kind==='cat' ? activeCats.has(id) : activeFound.has(id);
+    c.classList.toggle('dim', !active);
+    c.classList.toggle('selected', (kind===selected.kind && id===selected.id));
+  });
+
+  paths.forEach(p=>{
+    const active = activeCats.has(p.dataset.cat) && activeFound.has(p.dataset.found);
+    p.setAttribute('stroke-opacity', active ? '0.85' : '0.04');
+    p.setAttribute('stroke-width', active ? '2.2' : p.dataset.baseWidth);
+  });
+}
+
+const container = document.getElementById('map-container');
+const svg = document.getElementById('lines');
+
+function centerOf(el, cRect){
+  const r = el.getBoundingClientRect();
+  return { x:r.left + r.width/2 - cRect.left, y:r.top + r.height/2 - cRect.top, w:r.width, h:r.height };
+}
+function bezierD(p1, p2){
+  const dx = p2.x-p1.x, dy = p2.y-p1.y;
+  let x1,y1,x2,y2,cp1x,cp1y,cp2x,cp2y;
+  if(Math.abs(dy) >= Math.abs(dx)){
+    const sign = dy>0?1:-1;
+    x1=p1.x; y1=p1.y+sign*(p1.h/2); x2=p2.x; y2=p2.y-sign*(p2.h/2);
+    cp1x=x1; cp1y=(y1+y2)/2; cp2x=x2; cp2y=(y1+y2)/2;
+  } else {
+    const sign = dx>0?1:-1;
+    x1=p1.x+sign*(p1.w/2); y1=p1.y; x2=p2.x-sign*(p2.w/2); y2=p2.y;
+    cp1x=(x1+x2)/2; cp1y=y1; cp2x=(x1+x2)/2; cp2y=y2;
+  }
+  return `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
+}
+function mkPath(d, color, opts){
+  const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+  p.setAttribute('d', d); p.setAttribute('stroke', color); p.setAttribute('fill','none');
+  p.setAttribute('stroke-linecap','round');
+  p.dataset.baseOpacity = opts.opacity; p.dataset.baseWidth = opts.width;
+  p.setAttribute('stroke-opacity', opts.opacity); p.setAttribute('stroke-width', opts.width);
+  if(opts.dash) p.setAttribute('stroke-dasharray', opts.dash);
+  if(opts.markerEnd) p.setAttribute('marker-end', opts.markerEnd);
+  if(opts.type) p.dataset.type = opts.type;
+  if(opts.cat) p.dataset.cat = opts.cat;
+  if(opts.found) p.dataset.found = opts.found;
+  return p;
+}
+
+function drawLines(){
+  const cRect = container.getBoundingClientRect();
+  svg.setAttribute('width', container.offsetWidth);
+  svg.setAttribute('height', container.offsetHeight);
+  svg.innerHTML = `
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--text-faint)"></path>
+      </marker>
+    </defs>
+  `;
+
+  const landing = centerOf(document.getElementById('step-landing'), cRect);
+  const login = centerOf(document.getElementById('step-login'), cRect);
+  const auth = centerOf(document.getElementById('step-auth'), cRect);
+  const admin = centerOf(document.getElementById('step-admin'), cRect);
+  const vecino = centerOf(document.getElementById('step-vecino'), cRect);
+  const prov = centerOf(document.getElementById('step-prov'), cRect);
+  const catsGridPt = centerOf(catsGrid, cRect);
+  catsGridPt.y = catsGrid.getBoundingClientRect().top - cRect.top;
+  catsGridPt.h = 0;
+
+  svg.appendChild(mkPath(bezierD(landing, login), 'var(--text-faint)', {opacity:0.55, width:1.6, markerEnd:'url(#arrow)'}));
+  svg.appendChild(mkPath(bezierD(login, auth), 'var(--text-faint)', {opacity:0.55, width:1.6, markerEnd:'url(#arrow)'}));
+  svg.appendChild(mkPath(bezierD(auth, admin), 'var(--text-faint)', {opacity:0.5, width:1.5, markerEnd:'url(#arrow)'}));
+  svg.appendChild(mkPath(bezierD(auth, vecino), 'var(--text-faint)', {opacity:0.5, width:1.5, markerEnd:'url(#arrow)'}));
+  svg.appendChild(mkPath(bezierD(auth, prov), 'var(--text-faint)', {opacity:0.25, width:1.2, dash:'3 4'}));
+  svg.appendChild(mkPath(bezierD(admin, catsGridPt), 'var(--text-faint)', {opacity:0.35, width:1.3}));
+  svg.appendChild(mkPath(bezierD(vecino, catsGridPt), 'var(--text-faint)', {opacity:0.35, width:1.3}));
+
+  CATEGORIES.forEach(cat=>{
+    const catEl = document.querySelector(`.chip[data-id="${cat.id}"]`);
+    const catPt = centerOf(catEl, cRect);
+    cat.uses.forEach(fid=>{
+      const foundEl = document.querySelector(`.stack-chip[data-id="${fid}"]`);
+      if(!foundEl) return;
+      const foundPt = centerOf(foundEl, cRect);
+      svg.appendChild(mkPath(bezierD(catPt, foundPt), 'var(--accent)', {opacity:0.14, width:1.2, dash:'4 5', type:'rel', cat:cat.id, found:fid}));
+    });
+  });
+
+  applyHighlight();
+}
+
+let resizeTO;
+window.addEventListener('resize', ()=>{ clearTimeout(resizeTO); resizeTO = setTimeout(drawLines, 120); });
+requestAnimationFrame(()=>requestAnimationFrame(drawLines));
+if(document.fonts && document.fonts.ready){ document.fonts.ready.then(()=>requestAnimationFrame(drawLines)); }
+</script>
+</body>
+</html>
