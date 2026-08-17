@@ -230,9 +230,10 @@ footer.note b{ color:var(--text-dim); }
 <script>
 const ADMIN = [
   { id:"a1",  label:"Liquidar expensas", link:"v1", estado:"built", items:[
-    {t:"Definir % de copropiedad por unidad", s:"planned", note:"Columnas existen (porcentaje_a/c) pero sin UI — hoy siempre valen 0"},
+    {t:"Definir % de copropiedad por unidad", s:"planned", note:"Columnas existen (porcentaje_a/c) pero no están en el payload de alta/edición — el prorrateo cae en reparto lineal"},
     {t:"Prorratear gastos comunes vs. exclusivos", s:"built"},
-    {t:"Aplicar fondo de reserva e intereses por mora", s:"built"},
+    {t:"Calcular intereses por mora", s:"built"},
+    {t:"Aplicar fondo de reserva", s:"planned", note:"saldo_superfondo existe como columna pero no se calcula ni se carga"},
     {t:"Exportar PDF/Excel individual por unidad", s:"built"},
     {t:"Enviar por mail (WhatsApp deshabilitado)", s:"built"}
   ]},

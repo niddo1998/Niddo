@@ -155,9 +155,9 @@ footer.note b{ color:var(--text-dim); }
 const CATEGORIES = [
   { id:"exp", code:"EXP", name:"Liquidación de expensas", hue:16, funcs:[
     { name:"Calcular expensa mensual automática", role:"admin", tech:["Supabase"], items:[
-      {t:"Definir % de copropiedad por unidad", s:"planned", note:"Columnas porcentaje_a/c existen pero sin UI — hoy siempre valen 0"},
+      {t:"Definir % de copropiedad por unidad", s:"planned", note:"Columnas porcentaje_a/c existen pero no están en el payload de alta/edición de unidades — siguen en 0 y el prorrateo cae en reparto lineal"},
       {t:"Prorratear gastos comunes vs. exclusivos", s:"built"},
-      {t:"Aplicar fondo de reserva", s:"built"},
+      {t:"Aplicar fondo de reserva", s:"planned", note:"La columna saldo_superfondo existe y el PUT la acepta, pero no se calcula en ningún lado ni el panel la carga"},
       {t:"Calcular intereses por mora", s:"built"},
       {t:"Generar vencimientos (1° y 2°)", s:"built"}
     ]},
@@ -203,7 +203,7 @@ const CATEGORIES = [
     { name:"Ver expensa y cuenta corriente", role:"vecino", tech:["Supabase"], items:[
       {t:"Historial de liquidaciones", s:"built"},
       {t:"Detalle de gastos del período", s:"built"},
-      {t:"Descargar comprobantes", s:"none", note:"dlCobros() es un stub — muestra \"próximamente\""}
+      {t:"Descargar comprobantes", s:"planned", note:"El cupón por cobro (/api/vecinos/cobros/<id>/cupon) y el adjunto del gasto sí bajan; lo que sigue siendo un stub es la exportación masiva — dlCobros() muestra \"próximamente\""}
     ]},
     { name:"Gestionar reclamos (vista vecino)", role:"vecino", tech:["Supabase"], items:[
       {t:"Crear reclamo con foto y descripción", s:"built"},
@@ -314,7 +314,7 @@ const CATEGORIES = [
   { id:"ia", code:"IA", name:"Inteligencia artificial", hue:155, funcs:[
     { name:"Leer facturas automáticamente", role:"admin", tech:["Groq Vision"], items:[
       {t:"Extraer proveedor, monto y fecha", s:"built"},
-      {t:"Sugerir centro de costo", s:"planned"}
+      {t:"Sugerir centro de costo", s:"built"}
     ]},
     { name:"Asistir en comunicación", role:"admin", tech:[], items:[
       {t:"Sugerir redacción de comunicados", s:"none"},
