@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Niddo — Mapa conceptual</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap');
+:root{
+  --bg:#0e1015; --bg-elev:#171b26; --card:#1c2130; --card-hover:#242a3c;
+  --border:#2a3042; --text:#f2f4fa; --text-dim:#9098ae; --text-faint:#5b6478; --accent:#e8a33d;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{ height:100%; background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; overflow:hidden; }
+.display{ font-family:'Space Grotesk',sans-serif; }
+#shell{ display:flex; flex-direction:column; height:100vh; }
+header{ display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 20px; border-bottom:1px solid var(--border); background:var(--bg-elev); flex-wrap:wrap; row-gap:10px; }
+.brand{ display:flex; align-items:center; gap:10px; }
+.brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px 2px rgba(232,163,61,.5); }
+.brand span{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; letter-spacing:-0.01em; }
+.brand .sub{ font-family:'Inter',sans-serif; font-weight:400; font-size:11px; color:var(--text-faint); margin-left:4px; }
+.brand a{ color:var(--text-faint); font-size:11px; text-decoration:none; margin-left:12px; padding:4px 10px; border:1px solid var(--border); border-radius:100px; }
+.brand a:hover{ color:var(--text); border-color:#454d66; }
+nav{ display:flex; gap:6px; background:var(--card); border:1px solid var(--border); border-radius:100px; padding:4px; }
+nav button{ background:transparent; border:none; color:var(--text-dim); font-family:'Inter',sans-serif; font-size:12.5px; font-weight:500; padding:8px 16px; border-radius:100px; cursor:pointer; transition:all .15s ease; white-space:nowrap; }
+nav button:hover{ color:var(--text); }
+nav button.active{ background:var(--accent); color:#1a1204; font-weight:600; }
+#stage{ position:relative; flex:1; min-height:0; }
+iframe.view-frame{ position:absolute; inset:0; width:100%; height:100%; border:0; background:var(--bg); visibility:hidden; pointer-events:none; }
+iframe.view-frame.active{ visibility:visible; pointer-events:auto; }
+@media (max-width:640px){ header{ padding:12px 14px; } nav button{ padding:7px 12px; font-size:11.5px; } .brand .sub{ display:none; } }
+</style>
+</head>
+<body>
+<div id="shell">
+  <header>
+    <div class="brand">
+      <span class="dot"></span><span class="display">NIDDO</span><span class="sub">mapa conceptual</span>
+      <a href="/superadmin">← volver a Superadmin</a>
+    </div>
+    <nav id="tabs">
+      <button data-src="{{ url_for('superadmin_mapa_categorias') }}" class="active">Por categoría</button>
+      <button data-src="{{ url_for('superadmin_mapa_admin_vecino') }}">Admin × Vecino</button>
+      <button data-src="{{ url_for('superadmin_mapa_arquitectura') }}">Arquitectura</button>
+    </nav>
+  </header>
+  <div id="stage">
+    <iframe id="frame-cat" class="view-frame active" src="{{ url_for('superadmin_mapa_categorias') }}" title="Funcionalidades por categoría"></iframe>
+    <iframe id="frame-av" class="view-frame" title="Admin por Vecino"></iframe>
+    <iframe id="frame-arch" class="view-frame" title="Arquitectura técnica"></iframe>
+  </div>
+</div>
+<script>
+const frames = {
+  cat: document.getElementById('frame-cat'),
+  av: document.getElementById('frame-av'),
+  arch: document.getElementById('frame-arch')
+};
+const loadedOnce = { cat: true, av: false, arch: false };
+
+document.getElementById('tabs').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-src]');
+  if(!btn) return;
+  const buttons = [...document.querySelectorAll('#tabs button')];
+  const idx = buttons.indexOf(btn);
+  const key = ['cat','av','arch'][idx];
+
+  buttons.forEach(b=>b.classList.toggle('active', b===btn));
+  Object.entries(frames).forEach(([k, frame])=> frame.classList.toggle('active', k===key));
+
+  const frame = frames[key];
+  if(!loadedOnce[key]){
+    frame.src = btn.dataset.src;
+    loadedOnce[key] = true;
+  } else if(frame.contentWindow){
+    try{ frame.contentWindow.dispatchEvent(new Event('resize')); }catch(err){}
+  }
+});
+</script>
+</body>
+</html>

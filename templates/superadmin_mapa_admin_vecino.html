@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Niddo — Admin × Vecino (real)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap');
+
+:root{
+  --bg:#12151c; --bg-elev:#171b26; --card:#1c2130; --card-hover:#242a3c;
+  --border:#2a3042; --border-soft:#232838;
+  --text:#f2f4fa; --text-dim:#9098ae; --text-faint:#5b6478;
+  --accent:#e8a33d;
+  --admin:#7c8cf0; --admin-soft:#232849;
+  --vec:#3fc9a8; --vec-soft:#17352e;
+  --super:#e06b95; --super-soft:#33192a;
+  --built:#4fb286; --partial:#e8a33d; --notbuilt:#5b6478;
+  --planned:#4e9ee0; --none:#3a4155;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{ background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+.display{ font-family:'Space Grotesk',sans-serif; }
+.mono{ font-family:'JetBrains Mono',monospace; letter-spacing:0.02em; }
+
+#app{ max-width:1200px; margin:0 auto; padding:28px 20px 90px; }
+
+header.top{ display:flex; flex-direction:column; gap:14px; padding-bottom:20px; margin-bottom:36px; border-bottom:1px solid var(--border-soft); }
+.top-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:20px; flex-wrap:wrap; }
+.eyebrow{ color:var(--accent); font-size:11px; font-weight:600; letter-spacing:0.14em; text-transform:uppercase; margin-bottom:8px; display:block; }
+.top-titles h1{ font-size:23px; font-weight:700; letter-spacing:-0.01em; }
+.top-titles p{ color:var(--text-dim); font-size:13px; margin-top:6px; max-width:600px; line-height:1.55; }
+#reset-btn{ background:var(--card); border:1px solid var(--border); color:var(--text-dim); font-size:12px; padding:9px 16px; border-radius:100px; cursor:pointer; transition:all .15s ease; white-space:nowrap; }
+#reset-btn:hover{ border-color:var(--accent); color:var(--accent); }
+#reset-btn.on{ border-color:var(--accent); color:var(--accent); background:#241c0c; }
+
+.legend{ display:flex; gap:18px; flex-wrap:wrap; font-size:11px; color:var(--text-faint); row-gap:8px; }
+.legend .row{ display:flex; align-items:center; gap:7px; }
+.legend .ln{ width:22px; height:2px; display:inline-block; }
+.legend .ln.admin{ background:var(--admin); }
+.legend .ln.vec{ background:var(--vec); }
+.legend .ln.link{ background:repeating-linear-gradient(90deg, var(--accent) 0 5px, transparent 5px 9px); height:2px; }
+.legend .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+.legend .dot.built{ background:var(--built); } .legend .dot.partial{ background:var(--partial); } .legend .dot.notbuilt{ background:transparent; border:1.5px dashed var(--notbuilt); }
+
+#map-container{ position:relative; padding-top:10px; }
+#lines{ position:absolute; top:0; left:0; pointer-events:none; z-index:0; }
+
+.tree{ position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; }
+
+.root{
+  width:150px; height:150px; border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #2a2010, var(--bg-elev) 65%);
+  border:1px solid #3a2c14;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+  box-shadow:0 0 0 1px rgba(232,163,61,0.08), 0 0 60px -10px rgba(232,163,61,0.35), inset 0 0 40px -20px rgba(232,163,61,0.5);
+  cursor:pointer; transition:opacity .2s ease;
+}
+.root .k{ font-size:9px; letter-spacing:0.16em; color:var(--accent); text-transform:uppercase; margin-bottom:5px; }
+.root .name{ font-size:19px; font-weight:700; }
+
+.branches{ display:flex; justify-content:center; gap:64px; flex-wrap:wrap; margin-top:56px; width:100%; align-items:flex-start; }
+.branch{ display:flex; flex-direction:column; align-items:center; width:270px; }
+.branch.ghost{ width:230px; opacity:.7; }
+
+.hub{ width:100%; border-radius:16px; padding:16px 18px; text-align:center; cursor:pointer; border:1px solid; transition:opacity .2s ease, transform .15s ease; }
+.hub:hover{ transform:translateY(-2px); }
+.hub.admin{ background:var(--admin-soft); border-color:#3b4380; }
+.hub.vec{ background:var(--vec-soft); border-color:#245045; }
+.hub.super{ background:var(--super-soft); border-color:#5a3345; }
+.hub.ghost-hub{ background:transparent; border:1.5px dashed var(--border); }
+.hub .role-k{ font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; opacity:.75; }
+.hub.admin .role-k{ color:var(--admin); } .hub.vec .role-k{ color:var(--vec); } .hub.super .role-k{ color:var(--super); } .hub.ghost-hub .role-k{ color:var(--text-faint); }
+.hub .role-name{ font-size:16px; font-weight:700; margin-top:3px; font-family:'Space Grotesk',sans-serif; }
+.hub.ghost-hub .role-name{ color:var(--text-faint); }
+.hub .role-sub{ font-size:10px; color:var(--text-dim); margin-top:4px; }
+
+.leaf-list{ display:flex; flex-direction:column; gap:8px; margin-top:30px; width:100%; }
+
+.leaf{ display:flex; align-items:center; gap:9px; background:var(--card); border:1px solid var(--border); border-radius:11px; padding:9px 11px; cursor:pointer; transition:all .18s ease; }
+.leaf:hover{ background:var(--card-hover); }
+.leaf.ghost-leaf{ background:transparent; border:1.5px dashed var(--border); cursor:default; }
+.leaf .estado-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.leaf .estado-dot.built{ background:var(--built); }
+.leaf .estado-dot.partial{ background:var(--partial); }
+.leaf .estado-dot.notbuilt{ background:transparent; border:1.5px dashed var(--notbuilt); }
+.leaf .txt{ font-size:12px; line-height:1.35; color:var(--text); flex:1; }
+.leaf.ghost-leaf .txt{ color:var(--text-faint); }
+.leaf .link-ico{ width:12px; height:12px; flex-shrink:0; opacity:.5; }
+.leaf .info-ico{ width:13px; height:13px; flex-shrink:0; opacity:.35; }
+.leaf.selected{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent), 0 0 20px -6px rgba(232,163,61,.6); }
+.leaf.selected .txt{ color:var(--accent); }
+
+.dim{ opacity:.16 !important; }
+
+footer.note{ margin-top:52px; padding-top:18px; border-top:1px solid var(--border-soft); font-size:11.5px; color:var(--text-faint); line-height:1.6; max-width:680px; }
+footer.note b{ color:var(--text-dim); }
+
+/* ---------- detail panel ---------- */
+#backdrop{ position:fixed; inset:0; background:rgba(6,7,10,0.6); backdrop-filter:blur(2px); opacity:0; pointer-events:none; transition:opacity .2s ease; z-index:10; }
+#backdrop.show{ opacity:1; pointer-events:auto; }
+#panel{
+  position:fixed; top:0; right:0; height:100%; width:420px; max-width:92vw;
+  background:var(--bg-elev); border-left:1px solid var(--border);
+  transform:translateX(100%); transition:transform .28s cubic-bezier(.2,.9,.25,1);
+  z-index:11; display:flex; flex-direction:column;
+}
+#panel.show{ transform:translateX(0); }
+.panel-head{ padding:22px 22px 14px; border-bottom:1px solid var(--border-soft); display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
+.panel-head .tag{ font-size:10px; letter-spacing:0.14em; text-transform:uppercase; font-weight:600; margin-bottom:6px; }
+.panel-head h2{ font-size:18px; font-weight:600; font-family:'Space Grotesk',sans-serif; line-height:1.3; }
+.panel-head .estado-line{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-dim); margin-top:8px; }
+#panel-close{ background:var(--card); border:1px solid var(--border); color:var(--text-dim); width:30px; height:30px; border-radius:50%; cursor:pointer; flex-shrink:0; font-size:15px; line-height:1; display:flex; align-items:center; justify-content:center; }
+#panel-close:hover{ color:var(--text); border-color:#454d66; }
+.panel-partner{ padding:12px 22px; border-bottom:1px solid var(--border-soft); font-size:11.5px; color:var(--text-faint); }
+.panel-partner .chip{ display:inline-flex; align-items:center; gap:6px; background:var(--card); border:1px solid var(--border); border-radius:100px; padding:5px 11px; margin-top:6px; cursor:pointer; color:var(--text-dim); transition:all .15s ease; }
+.panel-partner .chip:hover{ border-color:var(--accent); color:var(--accent); }
+#panel-list{ flex:1; overflow-y:auto; padding:10px 14px 22px; }
+.detail-row{ display:flex; align-items:flex-start; gap:10px; padding:9px 8px; border-radius:9px; }
+.detail-dot{ width:14px; height:14px; border-radius:50%; flex-shrink:0; border:2px solid var(--none); margin-top:2px; display:flex; align-items:center; justify-content:center; }
+.detail-dot svg{ width:7px; height:7px; }
+.detail-row[data-s="built"] .detail-dot{ border-color:var(--built); background:var(--built); }
+.detail-row[data-s="planned"] .detail-dot{ border-color:var(--planned); background:rgba(78,158,224,.16); }
+.detail-txt-wrap{ display:flex; flex-direction:column; }
+.detail-txt{ font-size:12.5px; line-height:1.4; color:var(--text-dim); }
+.detail-row[data-s="built"] .detail-txt, .detail-row[data-s="planned"] .detail-txt{ color:var(--text); }
+.detail-note{ font-size:10.5px; color:var(--text-faint); font-style:italic; margin-top:2px; line-height:1.3; }
+
+@media (max-width: 900px){ .branches{ gap:36px; } .branch{ width:100%; max-width:340px; } .top-titles h1{ font-size:20px; } }
+@media (max-width: 640px){
+  #panel{ width:100%; max-width:100%; top:auto; bottom:0; height:80vh; right:0; left:0; border-left:none; border-top:1px solid var(--border); border-radius:20px 20px 0 0; transform:translateY(100%); }
+  #panel.show{ transform:translateY(0); }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="top-row">
+      <div class="top-titles">
+        <span class="eyebrow">Mapa conceptual · Niddo</span>
+        <h1 class="display">Los cuatro portales — estado real</h1>
+        <p>Admin, Vecino, Superadmin y Proveedor. Tocá una funcionalidad para ver con qué se conecta del otro lado — y ahora también su detalle interno.</p>
+      </div>
+      <button id="reset-btn">Mostrar todo</button>
+    </div>
+    <div class="legend">
+      <span class="row"><span class="ln admin"></span>Rama Administrador</span>
+      <span class="row"><span class="ln vec"></span>Rama Vecino</span>
+      <span class="row"><span class="ln link"></span>Misma interacción, dos lados</span>
+      <span class="row"><span class="dot built"></span>Construido</span>
+      <span class="row"><span class="dot partial"></span>Parcial</span>
+      <span class="row"><span class="dot notbuilt"></span>Sin construir</span>
+    </div>
+  </header>
+
+  <div id="map-container">
+    <svg id="lines"></svg>
+    <div class="tree">
+      <div class="root" id="root-node">
+        <span class="k mono">Producto</span>
+        <span class="name display">NIDDO</span>
+      </div>
+      <div class="branches">
+        <div class="branch admin-b">
+          <div class="hub admin" id="hub-admin">
+            <div class="role-k mono">Rama</div>
+            <div class="role-name">Administrador</div>
+            <div class="role-sub">/dashboard/admin</div>
+          </div>
+          <div class="leaf-list" id="list-admin"></div>
+        </div>
+        <div class="branch vec-b">
+          <div class="hub vec" id="hub-vec">
+            <div class="role-k mono">Rama</div>
+            <div class="role-name">Vecino</div>
+            <div class="role-sub">/dashboard/vecino</div>
+          </div>
+          <div class="leaf-list" id="list-vec"></div>
+        </div>
+        <div class="branch super-b">
+          <div class="hub super" id="hub-super">
+            <div class="role-k mono">Rama</div>
+            <div class="role-name">Superadmin</div>
+            <div class="role-sub">/superadmin — dueños de la plataforma</div>
+          </div>
+          <div class="leaf-list" id="list-super"></div>
+        </div>
+        <div class="branch ghost">
+          <div class="hub ghost-hub">
+            <div class="role-k mono">Sin ruta</div>
+            <div class="role-name">Proveedor</div>
+            <div class="role-sub">Template huérfano</div>
+          </div>
+          <div class="leaf-list" id="list-prov"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="note">
+    <b>El patrón que más importa acá:</b> el vecino puede crear reclamos, votar y recibir comunicados — todo construido. Pero del lado admin, responder reclamos, crear votaciones y enviar comunicados tienen el backend listo (14 endpoints) sin ninguna pantalla que los llame.
+  </footer>
+</div>
+
+<div id="backdrop"></div>
+<div id="panel">
+  <div class="panel-head">
+    <div>
+      <div class="tag mono" id="panel-tag"></div>
+      <h2 id="panel-title"></h2>
+      <div class="estado-line"><span class="dot" id="panel-estado-dot"></span><span id="panel-estado-text"></span></div>
+    </div>
+    <button id="panel-close">✕</button>
+  </div>
+  <div class="panel-partner" id="panel-partner" style="display:none;"></div>
+  <div id="panel-list"></div>
+</div>
+
+<script>
+const ADMIN = [
+  { id:"a1",  label:"Liquidar expensas", link:"v1", estado:"built", items:[
+    {t:"Definir % de copropiedad por unidad", s:"planned", note:"Columnas existen (porcentaje_a/c) pero sin UI — hoy siempre valen 0"},
+    {t:"Prorratear gastos comunes vs. exclusivos", s:"built"},
+    {t:"Aplicar fondo de reserva e intereses por mora", s:"built"},
+    {t:"Exportar PDF/Excel individual por unidad", s:"built"},
+    {t:"Enviar por mail (WhatsApp deshabilitado)", s:"built"}
+  ]},
+  { id:"a2",  label:"Cargar gastos y facturas (OCR)", link:null, estado:"built", items:[
+    {t:"OCR de factura con Groq Vision (monto, proveedor, fecha)", s:"built"},
+    {t:"Asignar centro de costo", s:"built"},
+    {t:"Adjuntar comprobante", s:"built"}
+  ]},
+  { id:"a3",  label:"Gestionar proveedores", link:"v10", estado:"built", items:[
+    {t:"Datos fiscales y de contacto", s:"built"},
+    {t:"Historial de trabajos realizados", s:"planned", note:"Endpoint existe, el frontend no lo llama todavía"},
+    {t:"Registrar pago a proveedor", s:"built"},
+    {t:"Emitir retenciones", s:"none"}
+  ]},
+  { id:"a4",  label:"Conciliar cobranzas", link:"v3", estado:"notbuilt", items:[
+    {t:"Matchear pago con unidad funcional", s:"none"},
+    {t:"Resolver cobros no identificados", s:"none"},
+    {t:"Actualizar cuenta corriente automáticamente", s:"none"}
+  ]},
+  { id:"a5",  label:"Gestionar morosidad y planes de pago", link:"v2", estado:"partial", items:[
+    {t:"Calcular deuda e intereses acumulados", s:"built"},
+    {t:"Generar recordatorios automáticos", s:"none"},
+    {t:"Armar planes de pago", s:"none"}
+  ]},
+  { id:"a6",  label:"Liquidar sueldos de encargados", link:null, estado:"notbuilt", items:[
+    {t:"Aplicar convenio (SUTERH, UTEDYC, etc.)", s:"none"},
+    {t:"Generar recibo de sueldo", s:"none"},
+    {t:"Libro de sueldos digital / DDJJ", s:"none"}
+  ]},
+  { id:"a7",  label:"Generar balances y reportes", link:"v11", estado:"built", items:[
+    {t:"Consolidar ingresos y egresos", s:"built", note:"Ojo: suma Cobros, no Liquidaciones — pueden divergir"},
+    {t:"Actualizar en tiempo real", s:"built"},
+    {t:"Exportar PDF / Excel", s:"built"}
+  ]},
+  { id:"a8",  label:"Enviar comunicados", link:"v7", estado:"partial", items:[
+    {t:"Redactar comunicado", s:"planned", note:"POST /api/admin/comunicados existe, sin UI — \"Mensajería\" es placeholder"},
+    {t:"Segmentar destinatarios", s:"none"},
+    {t:"Programar envío", s:"none"}
+  ]},
+  { id:"a9",  label:"Gestionar reclamos", link:"v4", estado:"partial", items:[
+    {t:"Recibir y categorizar", s:"planned", note:"El reclamo llega a la base; sin pantalla admin para verlo"},
+    {t:"Asignar a proveedor o encargado", s:"none"},
+    {t:"Cambiar estado y notificar al vecino", s:"planned", note:"Endpoint PUT existe, sin UI"}
+  ]},
+  { id:"a10", label:"Configurar amenities y disponibilidad", link:"v5", estado:"built", items:[
+    {t:"Crear amenity y condiciones de uso", s:"built"},
+    {t:"Ver y cancelar reservas", s:"built"},
+    {t:"Definir capacidad máxima", s:"built"}
+  ]},
+  { id:"a11", label:"Crear votaciones / encuestas", link:"v6", estado:"partial", items:[
+    {t:"Crear votación con opciones", s:"planned", note:"POST/PUT /api/admin/votaciones existe, sin UI"},
+    {t:"Definir fecha límite", s:"none"},
+    {t:"Ver resultados agregados", s:"none"}
+  ]},
+  { id:"a12", label:"Administrar documentación", link:"v8", estado:"partial", items:[
+    {t:"Subir actas, reglamento, contratos", s:"planned", note:"POST/DELETE /api/admin/archivos existe, sin UI"},
+    {t:"Organizar por consorcio y fecha", s:"planned"}
+  ]},
+  { id:"a13", label:"Gestionar accesos e invitados", link:"v9", estado:"notbuilt", items:[
+    {t:"Autorizar invitado desde la app", s:"none"},
+    {t:"App para guardia", s:"none"},
+    {t:"Libro de visitas digital", s:"none"}
+  ]},
+  { id:"a14", label:"Tablero de control multi-consorcio", link:null, estado:"built", items:[
+    {t:"Tablero centralizado con KPIs", s:"built"},
+    {t:"Cambiar entre consorcios", s:"built"},
+    {t:"Alertas de gastos pendientes y mora", s:"built"}
+  ]},
+  { id:"a15", label:"Gestionar roles y permisos del equipo", link:null, estado:"notbuilt", items:[
+    {t:"Crear usuarios internos", s:"none"},
+    {t:"Asignar roles por empleado", s:"none"},
+    {t:"Auditoría de acciones", s:"none", note:"Existe, pero solo a nivel Superadmin — no por admin de consorcio"}
+  ]},
+  { id:"a16", label:"Responder consultas (chat / bot)", link:"v12", estado:"notbuilt", items:[
+    {t:"Chat / bot de WhatsApp", s:"none"},
+    {t:"Derivar a humano si no resuelve", s:"none"},
+    {t:"Historial de la conversación", s:"none"}
+  ]}
+];
+const VEC = [
+  { id:"v1",  label:"Pagar expensas online", link:"a1", estado:"notbuilt", items:[
+    {t:"Generar QR de pago", s:"none"},
+    {t:"Integrar billeteras virtuales", s:"none"},
+    {t:"Aceptar tarjeta de débito/crédito", s:"none"}
+  ]},
+  { id:"v2",  label:"Ver cuenta corriente y comprobantes", link:"a5", estado:"partial", items:[
+    {t:"Historial de liquidaciones", s:"built"},
+    {t:"Detalle de gastos del período", s:"built"},
+    {t:"Descargar comprobantes", s:"none", note:"dlCobros() es un stub — muestra \"próximamente\""}
+  ]},
+  { id:"v3",  label:"Informar un pago", link:"a4", estado:"built", items:[
+    {t:"Declarar monto y fecha de pago", s:"built"},
+    {t:"Adjuntar comprobante", s:"built"},
+    {t:"Elegir medio de pago usado", s:"built"}
+  ]},
+  { id:"v4",  label:"Crear reclamo", link:"a9", estado:"built", items:[
+    {t:"Crear con foto y descripción", s:"built"},
+    {t:"Elegir categoría", s:"built"},
+    {t:"Ver estado: recibido → en curso → resuelto", s:"built"},
+    {t:"Historial de reclamos propios", s:"built"}
+  ]},
+  { id:"v5",  label:"Reservar amenities", link:"a10", estado:"built", items:[
+    {t:"Ver disponibilidad en calendario", s:"built"},
+    {t:"Elegir horario / turno", s:"built"},
+    {t:"Cancelar reserva", s:"built"}
+  ]},
+  { id:"v6",  label:"Votar / responder encuestas", link:"a11", estado:"built", items:[
+    {t:"Ver votaciones activas", s:"built"},
+    {t:"Emitir voto (uno por unidad)", s:"built"},
+    {t:"Ver resultados", s:"built"}
+  ]},
+  { id:"v7",  label:"Recibir comunicados", link:"a8", estado:"built", items:[
+    {t:"Ver comunicados publicados", s:"built"},
+    {t:"Marcar como leído", s:"built"},
+    {t:"Filtrar importantes", s:"built"}
+  ]},
+  { id:"v8",  label:"Consultar documentación", link:"a12", estado:"built", items:[
+    {t:"Ver archivos por categoría", s:"built"},
+    {t:"Descargar documento", s:"built"}
+  ]},
+  { id:"v9",  label:"Autorizar invitado", link:"a13", estado:"notbuilt", items:[
+    {t:"Generar invitación desde la app", s:"none"},
+    {t:"Compartir acceso", s:"none"}
+  ]},
+  { id:"v10", label:"Contratar proveedor sugerido", link:"a3", estado:"notbuilt", items:[
+    {t:"Ver proveedores del consorcio", s:"none"},
+    {t:"Solicitar presupuesto", s:"none"}
+  ]},
+  { id:"v11", label:"Ver estado del consorcio (caja, fondo de reserva)", link:"a7", estado:"notbuilt", items:[
+    {t:"Ver saldo de caja y banco", s:"none"},
+    {t:"Ver fondo de reserva", s:"none"}
+  ]},
+  { id:"v12", label:"Chatear con la administración", link:"a16", estado:"notbuilt", items:[
+    {t:"Chat directo", s:"none"},
+    {t:"Historial de conversación", s:"none"}
+  ]}
+];
+const SUPER = [
+  { id:"su1", label:"Ver métricas de la plataforma", estado:"built", items:[
+    {t:"KPIs de hoy", s:"built"}, {t:"Tendencia de 12 meses", s:"built"}, {t:"Embudo de activación", s:"built"}
+  ]},
+  { id:"su2", label:"Aprobar / rechazar administradores", estado:"built", items:[
+    {t:"Ver solicitudes pendientes", s:"built"}, {t:"Aprobar o rechazar con motivo", s:"built"}
+  ]},
+  { id:"su3", label:"Gestionar administradores", estado:"built", items:[
+    {t:"Listado completo con estado", s:"built"}, {t:"Impersonar administrador", s:"built"}
+  ]},
+  { id:"su4", label:"Gestionar vecinos globalmente", estado:"built", items:[
+    {t:"Listado completo de vecinos", s:"built"}
+  ]},
+  { id:"su5", label:"Auditar acciones", estado:"built", items:[
+    {t:"Registro de aprobaciones y rechazos", s:"built"}, {t:"Registro de impersonaciones", s:"built"}
+  ]}
+];
+const PROV = [
+  { id:"p1", label:"Ver últimas facturas" },
+  { id:"p2", label:"Ver consorcios que atiende" },
+  { id:"p3", label:"Ver resumen mensual" },
+  { id:"p4", label:"Ver próximos vencimientos" }
+];
+
+const ALL = [...ADMIN, ...VEC, ...SUPER];
+const byId = Object.fromEntries(ALL.map(n=>[n.id,n]));
+const estadoLabel = { built:"Construido", partial:"Parcial", notbuilt:"Sin construir" };
+
+const linkIcon = `<svg class="link-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 15l6-6M10 5l1-1a4 4 0 015.5 5.5l-1 1M14 19l-1 1a4 4 0 01-5.5-5.5l1-1" stroke-linecap="round"/></svg>`;
+const infoIcon = `<svg class="info-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8h.01" stroke-linecap="round"/></svg>`;
+
+const listAdmin = document.getElementById('list-admin');
+const listVec = document.getElementById('list-vec');
+const listSuper = document.getElementById('list-super');
+const listProv = document.getElementById('list-prov');
+
+function renderList(arr, container){
+  arr.forEach(n=>{
+    const el = document.createElement('div');
+    el.className = 'leaf';
+    el.dataset.id = n.id;
+    el.innerHTML = `<span class="estado-dot ${n.estado}"></span><span class="txt">${n.label}</span>${n.link ? linkIcon : ''}${infoIcon}`;
+    el.addEventListener('click', (e)=>{ e.stopPropagation(); openDetail(n.id); });
+    container.appendChild(el);
+  });
+}
+function renderGhostList(arr, container){
+  arr.forEach(n=>{
+    const el = document.createElement('div');
+    el.className = 'leaf ghost-leaf';
+    el.innerHTML = `<span class="estado-dot notbuilt"></span><span class="txt">${n.label}</span>`;
+    container.appendChild(el);
+  });
+}
+renderList(ADMIN, listAdmin);
+renderList(VEC, listVec);
+renderList(SUPER, listSuper);
+renderGhostList(PROV, listProv);
+
+let selected = null;
+
+/* ---------- connection highlight (existing behavior) ---------- */
+function applyHighlight(){
+  const allNodeEls = document.querySelectorAll('.leaf:not(.ghost-leaf)');
+  const allPaths = document.querySelectorAll('#lines path');
+
+  if(!selected){
+    allNodeEls.forEach(el=>el.classList.remove('dim','selected'));
+    allPaths.forEach(p=>{ p.classList.remove('dim','active'); p.setAttribute('stroke-opacity', p.dataset.baseOpacity); p.setAttribute('stroke-width', p.dataset.baseWidth); });
+    return;
+  }
+  const node = byId[selected];
+  if(!node) return;
+  const partner = node.link;
+  const activeIds = new Set(['root','hub-admin','hub-vec','hub-super', selected]);
+  if(partner) activeIds.add(partner);
+  const roleOf = id => id.startsWith('a') ? 'hub-admin' : id.startsWith('v') ? 'hub-vec' : 'hub-super';
+  activeIds.add(roleOf(selected));
+  if(partner) activeIds.add(roleOf(partner));
+
+  allNodeEls.forEach(el=>{
+    const id = el.dataset.id;
+    el.classList.toggle('dim', !activeIds.has(id));
+    el.classList.toggle('selected', id===selected);
+  });
+
+  allPaths.forEach(p=>{
+    const type = p.dataset.type;
+    let active = false;
+    if(type==='hier') active = activeIds.has(p.dataset.to);
+    else if(type==='link') active = (p.dataset.a===selected && p.dataset.b===partner) || (p.dataset.b===selected && p.dataset.a===partner);
+    else if(type==='root') active = activeIds.has(p.dataset.to);
+    if(active){ p.classList.remove('dim'); p.classList.add('active'); p.setAttribute('stroke-opacity', type==='link' ? '0.95' : '0.85'); p.setAttribute('stroke-width', type==='link' ? '2.4' : '2.2'); }
+    else { p.classList.add('dim'); p.classList.remove('active'); p.setAttribute('stroke-opacity', '0.05'); p.setAttribute('stroke-width', p.dataset.baseWidth); }
+  });
+}
+
+/* ---------- detail panel (new) ---------- */
+const backdrop = document.getElementById('backdrop');
+const panel = document.getElementById('panel');
+
+function renderDetail(node){
+  const roleName = node.id.startsWith('a') ? 'Administrador' : node.id.startsWith('v') ? 'Vecino' : 'Superadmin';
+  document.getElementById('panel-tag').textContent = roleName;
+  document.getElementById('panel-tag').style.color = node.id.startsWith('a') ? 'var(--admin)' : node.id.startsWith('v') ? 'var(--vec)' : 'var(--super)';
+  document.getElementById('panel-title').textContent = node.label;
+  document.getElementById('panel-estado-dot').className = 'dot ' + node.estado;
+  document.getElementById('panel-estado-text').textContent = estadoLabel[node.estado];
+
+  const partnerWrap = document.getElementById('panel-partner');
+  if(node.link && byId[node.link]){
+    const partner = byId[node.link];
+    partnerWrap.style.display = 'block';
+    partnerWrap.innerHTML = `Se conecta con la misma interacción del otro lado:<br><span class="chip" id="jump-partner">${partner.label} →</span>`;
+    document.getElementById('jump-partner').addEventListener('click', ()=>{ selected = node.link; applyHighlight(); openDetail(node.link); });
+  } else {
+    partnerWrap.style.display = 'none';
+  }
+
+  const list = document.getElementById('panel-list');
+  list.innerHTML = '';
+  (node.items || []).forEach(it=>{
+    const row = document.createElement('div');
+    row.className = 'detail-row';
+    row.dataset.s = it.s || 'none';
+    row.innerHTML = `<span class="detail-dot"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L19 7" stroke="#0d1a12" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="detail-txt-wrap"><span class="detail-txt">${it.t}</span>${it.note ? `<span class="detail-note">${it.note}</span>` : ''}</span>`;
+    list.appendChild(row);
+  });
+}
+
+function openDetail(id){
+  selected = id;
+  applyHighlight();
+  const node = byId[id];
+  if(!node) return;
+  renderDetail(node);
+  backdrop.classList.add('show');
+  panel.classList.add('show');
+}
+function closeDetail(){
+  backdrop.classList.remove('show');
+  panel.classList.remove('show');
+  selected = null;
+  applyHighlight();
+}
+document.getElementById('panel-close').addEventListener('click', closeDetail);
+backdrop.addEventListener('click', closeDetail);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDetail(); });
+
+document.getElementById('reset-btn').addEventListener('click', closeDetail);
+document.getElementById('root-node').addEventListener('click', closeDetail);
+['hub-admin','hub-vec','hub-super'].forEach(id=>document.getElementById(id).addEventListener('click', closeDetail));
+document.getElementById('map-container').addEventListener('click', closeDetail);
+
+/* ---------- connector drawing ---------- */
+const container = document.getElementById('map-container');
+const svg = document.getElementById('lines');
+const rootEl = document.getElementById('root-node');
+const hubAdminEl = document.getElementById('hub-admin');
+const hubVecEl = document.getElementById('hub-vec');
+const hubSuperEl = document.getElementById('hub-super');
+
+function centerOf(el, cRect){ const r = el.getBoundingClientRect(); return { x:r.left+r.width/2-cRect.left, y:r.top+r.height/2-cRect.top, w:r.width, h:r.height }; }
+
+function bezierPoints(p1, p2){
+  const dx = p2.x-p1.x, dy = p2.y-p1.y;
+  let x1,y1,x2,y2,cp1x,cp1y,cp2x,cp2y;
+  if(Math.abs(dx) > Math.abs(dy)){
+    const sign = dx>0?1:-1;
+    x1=p1.x+sign*(p1.w/2); y1=p1.y; x2=p2.x-sign*(p2.w/2); y2=p2.y;
+    cp1x=(x1+x2)/2; cp1y=y1; cp2x=(x1+x2)/2; cp2y=y2;
+  } else {
+    const sign = dy>0?1:-1;
+    x1=p1.x; y1=p1.y+sign*(p1.h/2); x2=p2.x; y2=p2.y-sign*(p2.h/2);
+    cp1x=x1; cp1y=(y1+y2)/2; cp2x=x2; cp2y=(y1+y2)/2;
+  }
+  return `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
+}
+function mkPath(d, color, opts){
+  const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+  p.setAttribute('d', d); p.setAttribute('stroke', color); p.setAttribute('fill','none'); p.setAttribute('stroke-linecap','round');
+  p.dataset.baseOpacity = opts.opacity; p.dataset.baseWidth = opts.width;
+  p.setAttribute('stroke-opacity', opts.opacity); p.setAttribute('stroke-width', opts.width);
+  if(opts.dash) p.setAttribute('stroke-dasharray', opts.dash);
+  if(opts.type) p.dataset.type = opts.type;
+  if(opts.to) p.dataset.to = opts.to;
+  if(opts.a) p.dataset.a = opts.a;
+  if(opts.b) p.dataset.b = opts.b;
+  return p;
+}
+
+function drawLines(){
+  const cRect = container.getBoundingClientRect();
+  svg.setAttribute('width', container.offsetWidth);
+  svg.setAttribute('height', container.offsetHeight);
+  svg.innerHTML = '';
+
+  const rootPt = centerOf(rootEl, cRect);
+  const adminHubPt = centerOf(hubAdminEl, cRect);
+  const vecHubPt = centerOf(hubVecEl, cRect);
+  const superHubPt = centerOf(hubSuperEl, cRect);
+
+  svg.appendChild(mkPath(bezierPoints(rootPt, adminHubPt), 'var(--admin)', {opacity:0.4, width:1.8, type:'root', to:'hub-admin'}));
+  svg.appendChild(mkPath(bezierPoints(rootPt, vecHubPt), 'var(--vec)', {opacity:0.4, width:1.8, type:'root', to:'hub-vec'}));
+  svg.appendChild(mkPath(bezierPoints(rootPt, superHubPt), 'var(--super)', {opacity:0.4, width:1.8, type:'root', to:'hub-super'}));
+
+  ADMIN.forEach(n=>{
+    const el = document.querySelector(`.leaf[data-id="${n.id}"]`);
+    const pt = centerOf(el, cRect);
+    svg.appendChild(mkPath(bezierPoints(adminHubPt, pt), 'var(--admin)', {opacity:0.3, width:1.4, type:'hier', to:n.id}));
+  });
+  VEC.forEach(n=>{
+    const el = document.querySelector(`.leaf[data-id="${n.id}"]`);
+    const pt = centerOf(el, cRect);
+    svg.appendChild(mkPath(bezierPoints(vecHubPt, pt), 'var(--vec)', {opacity:0.3, width:1.4, type:'hier', to:n.id}));
+  });
+  SUPER.forEach(n=>{
+    const el = document.querySelector(`.leaf[data-id="${n.id}"]`);
+    const pt = centerOf(el, cRect);
+    svg.appendChild(mkPath(bezierPoints(superHubPt, pt), 'var(--super)', {opacity:0.3, width:1.4, type:'hier', to:n.id}));
+  });
+
+  const seen = new Set();
+  ADMIN.forEach(n=>{
+    if(!n.link || seen.has(n.id)) return;
+    const partner = byId[n.link];
+    if(!partner) return;
+    const elA = document.querySelector(`.leaf[data-id="${n.id}"]`);
+    const elB = document.querySelector(`.leaf[data-id="${partner.id}"]`);
+    const ptA = centerOf(elA, cRect), ptB = centerOf(elB, cRect);
+    svg.appendChild(mkPath(bezierPoints(ptA, ptB), 'var(--accent)', {opacity:0.28, width:1.4, dash:'5 5', type:'link', a:n.id, b:partner.id}));
+    seen.add(n.id); seen.add(partner.id);
+  });
+
+  applyHighlight();
+}
+
+let resizeTO;
+window.addEventListener('resize', ()=>{ clearTimeout(resizeTO); resizeTO = setTimeout(drawLines, 120); });
+requestAnimationFrame(()=>requestAnimationFrame(drawLines));
+if(document.fonts && document.fonts.ready){ document.fonts.ready.then(()=>requestAnimationFrame(drawLines)); }
+</script>
+</body>
+</html>
