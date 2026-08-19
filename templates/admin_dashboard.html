@@ -1425,7 +1425,7 @@ function statusBadge(estado) {
 }
 function categoriaBadge(cat) {
     if (!cat) return '—';
-    return cat;
+    return escHtml(cat);
 }
 function toggleFrecuencia() {
     const on = $('m-gasto-recurrente').checked;
@@ -1534,22 +1534,22 @@ function renderConsorcios() {
     if (!consorcios.length) { tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">No hay consorcios todavía. Creá el primero o usá "Carga masiva" para cargar varios de una.</td></tr>'; return; }
     tb.innerHTML = consorcios.map(c => `
         <tr>
-            <td><strong>${c.nombre}</strong></td>
-            <td class="text-muted">${c.direccion||'—'}</td>
-            <td class="text-muted">${c.cuit||'—'}</td>
+            <td><strong>${escHtml(c.nombre)}</strong></td>
+            <td class="text-muted">${escHtml(c.direccion||'—')}</td>
+            <td class="text-muted">${escHtml(c.cuit||'—')}</td>
             <td>${c.unidades_totales||'—'}</td>
-            <td class="text-muted">${c.encargado_nombre||'—'}</td>
+            <td class="text-muted">${escHtml(c.encargado_nombre||'—')}</td>
             <td><div class="inline-actions">
-                <button class="btn-s btn-sm" onclick="openDetail('${c.id}','${c.nombre}','${c.direccion||''}')">Ver UFs</button>
+                <button class="btn-s btn-sm" onclick="openDetail('${c.id}','${escHtml(c.nombre)}','${escHtml(c.direccion||'')}')">Ver UFs</button>
                 <button class="btn-s btn-sm" onclick="openConsorioModal('${c.id}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button>
-                <button class="btn-danger btn-sm" onclick="deleteConsorcio('${c.id}','${c.nombre}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
+                <button class="btn-danger btn-sm" onclick="deleteConsorcio('${c.id}','${escHtml(c.nombre)}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
             </div></td>
         </tr>`).join('');
 }
 
 function populateConsorioSelects() {
-    const opts = '<option value="">Todos</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
-    const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    const opts = '<option value="">Todos</option>' + consorcios.map(c=>`<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
+    const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
     ['filter-gastos-consorcio','filter-cobros-consorcio','filter-mora-consorcio','filter-balance-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts; });
     ['m-gasto-consorcio','m-gen-consorcio','filter-amenities-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts2; });
 }
@@ -1634,16 +1634,16 @@ async function loadUFs() {
             let nombresHtml = '';
             let emailsHtml = '';
             if (vecinosList.length > 0) {
-                nombresHtml = vecinosList.map(v => `<div><strong>${v.nombre || '—'}</strong> <span style="font-size:0.75rem; padding: 2px 6px; border-radius: 4px; background: rgba(47,111,94,0.12); color: var(--purple); text-transform:capitalize;">${v.rol === 'propietario' ? 'Prop.' : 'Inq.'}</span></div>`).join('');
-                emailsHtml = vecinosList.map(v => `<div style="font-size:0.85rem;">${v.email}</div>`).join('');
+                nombresHtml = vecinosList.map(v => `<div><strong>${escHtml(v.nombre || '—')}</strong> <span style="font-size:0.75rem; padding: 2px 6px; border-radius: 4px; background: rgba(47,111,94,0.12); color: var(--purple); text-transform:capitalize;">${v.rol === 'propietario' ? 'Prop.' : 'Inq.'}</span></div>`).join('');
+                emailsHtml = vecinosList.map(v => `<div style="font-size:0.85rem;">${escHtml(v.email)}</div>`).join('');
             } else {
                 nombresHtml = u.vecino_nombre ? `<div>${u.vecino_nombre} <span style="font-size:0.75rem; color:var(--muted);">(Pre-cargado)</span></div>` : '<span class="text-muted">Sin asignar</span>';
                 emailsHtml = u.vecino_email ? `<div style="font-size:0.85rem;">${u.vecino_email}</div>` : '—';
             }
             return `
             <tr>
-                <td><strong>${u.numero}</strong></td>
-                <td>${u.piso||'—'}</td>
+                <td><strong>${escHtml(u.numero)}</strong></td>
+                <td>${escHtml(u.piso||'—')}</td>
                 <td><span class="b b-gr">${u.tipo||'departamento'}</span></td>
                 <td>${u.superficie_m2||'—'}</td>
                 <td>${nombresHtml}</td>
@@ -1718,8 +1718,8 @@ async function loadPendingNeighbors() {
         card.style.display = 'block';
         tb.innerHTML = list.map(v => `
             <tr>
-                <td><strong>${v.nombre || '—'}</strong></td>
-                <td>${v.email}</td>
+                <td><strong>${escHtml(v.nombre || '—')}</strong></td>
+                <td>${escHtml(v.email)}</td>
                 <td><span class="b b-y">Pendiente de asignación</span></td>
                 <td>
                     <button class="btn-teal btn-sm" onclick="openAsignarUFModal('${v.id}')">Asignar UF</button>
@@ -1734,7 +1734,7 @@ async function openAsignarUFModal(vid) {
     if (!v) return;
 
     $('m-asignar-vecino-id').value = v.id;
-    $('m-asignar-vecino-info').textContent = `Vecino: ${v.nombre || '—'} (${v.email})`;
+    $('m-asignar-vecino-info').textContent = `Vecino: ${escHtml(v.nombre || '—')} (${escHtml(v.email)})`;
     
     try {
         const list = await api(`/api/public/consorcios/${currentConsorioId}/unidades-libres`);
@@ -1743,7 +1743,7 @@ async function openAsignarUFModal(vid) {
             select.innerHTML = '<option value="">No hay unidades libres. ¡Crea una unidad funcional primero!</option>';
         } else {
             select.innerHTML = '<option value="">Seleccionar unidad...</option>' + 
-                list.map(u => `<option value="${u.id}">UF ${u.numero} (Piso ${u.piso || '—'} - ${u.tipo})</option>`).join('');
+                list.map(u => `<option value="${u.id}">UF ${escHtml(u.numero)} (Piso ${escHtml(u.piso || '—')} - ${u.tipo})</option>`).join('');
         }
         openModal('modal-asignar-uf');
     } catch(e) { toast(e.message, 'err'); }
@@ -1901,7 +1901,7 @@ async function confirmarTarifas() {
 async function loadProveedoresOpts() {
     try {
         proveedores = await api('/api/proveedores');
-        const opts = '<option value="">Sin proveedor</option>' + proveedores.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
+        const opts = '<option value="">Sin proveedor</option>' + proveedores.map(p=>`<option value="${p.id}">${escHtml(p.nombre)}</option>`).join('');
         $('m-gasto-proveedor').innerHTML = opts;
     } catch{}
 }
@@ -1923,13 +1923,13 @@ async function loadGastos() {
         tb.innerHTML = data.map(g => `
             <tr>
                 <td>${g.fecha_gasto||'—'}</td>
-                <td>${(g.consorcios||{}).nombre||'—'}</td>
-                <td><strong>${g.descripcion}</strong>${g.unidad_id?`<span class="b b-b" style="margin-left:6px;">UF ${escHtml((g.unidades_funcionales||{}).numero||'—')}</span>`:''}${g.notas?`<div class="text-muted text-sm">${g.notas}</div>`:''}</td>
+                <td>${escHtml((g.consorcios||{}).nombre||'—')}</td>
+                <td><strong>${escHtml(g.descripcion)}</strong>${g.unidad_id?`<span class="b b-b" style="margin-left:6px;">UF ${escHtml((g.unidades_funcionales||{}).numero||'—')}</span>`:''}${g.notas?`<div class="text-muted text-sm">${escHtml(g.notas)}</div>`:''}</td>
                 <td>${categoriaBadge(g.categoria)}</td>
-                <td>${(g.proveedores||{}).nombre||'—'}</td>
+                <td>${escHtml((g.proveedores||{}).nombre||'—')}</td>
                 <td><strong>${fmt(g.monto)}</strong>${g.tarifa_confirmada === false ? '<span class="b b-y" style="margin-left:6px;">sin confirmar</span>' : ''}</td>
                 <td>${g.pagado ? '<span class="b b-g">Pagado</span>' : '<span class="b b-y">Pendiente</span>'}</td>
-                <td>${g.recurrente ? `<span class="b b-b">${g.frecuencia||'recurrente'}</span>` : (g.gasto_origen_id ? '<span class="b b-b">automático</span>' : '—')}</td>
+                <td>${g.recurrente ? `<span class="b b-b">${escHtml(g.frecuencia||'recurrente')}</span>` : (g.gasto_origen_id ? '<span class="b b-b">automático</span>' : '—')}</td>
                 <td><div class="inline-actions">
                     ${g.archivo_nombre ? `<a href="/api/gastos/${g.id}/comprobante" target="_blank" title="Ver comprobante" class="btn-s btn-sm" style="text-decoration:none;" aria-label="Ver comprobante" title="Ver comprobante"><svg class="ic ic-sm"><use href="#ic-doc"></use></svg></a>` : ''}
                     <button class="btn-s btn-sm" onclick="openGastoModal('${g.id}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button>
@@ -1943,7 +1943,7 @@ async function loadGastos() {
             return `<div class="nd-row" style="cursor:default">
                 <span class="nd-row-ic ${g.pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-expensa"></use></svg></span>
                 <span class="nd-row-main">
-                    <span class="nd-row-t">${g.descripcion || '–'}</span>
+                    <span class="nd-row-t">${escHtml(g.descripcion || '–')}</span>
                     <span class="nd-row-s">${prov} · ${g.fecha_gasto || '—'}${g.pagado ? '' : ' · sin aprobar'}</span>
                 </span>
                 <span class="nd-row-amt">${fmt(g.monto)}</span>
@@ -1993,7 +1993,7 @@ function openAutoExtract() {
         return;
     }
     resetAutoExtract();
-    const opts = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    const opts = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
     $('auto-consorcio').innerHTML = opts;
     openModal('modal-auto-extract');
 
@@ -2565,7 +2565,7 @@ function openGastoModal(id) {
     infoEl.innerHTML = '';
 
     // Populate consorcio select antes de setear su valor
-    const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
     $('m-gasto-consorcio').innerHTML = opts2;
 
     // Un gasto es general del consorcio salvo que el admin diga lo contrario.
@@ -2703,8 +2703,8 @@ async function loadCobros() {
             const uf = c.unidades_funcionales||{};
             const con = c.consorcios||{};
             return `<tr>
-                <td>${con.nombre||'—'}</td>
-                <td><strong>${uf.numero||'—'}</strong></td>
+                <td>${escHtml(con.nombre||'—')}</td>
+                <td><strong>${escHtml(uf.numero||'—')}</strong></td>
                 <td>${uf.vecino_nombre||'<span class="text-muted">—</span>'}</td>
                 <td>${c.periodo||'—'}</td>
                 <td>${fmt(c.monto_base)}</td>
@@ -2712,7 +2712,7 @@ async function loadCobros() {
                 <td><strong>${fmt(c.total)}</strong></td>
                 <td>${statusBadge(c.estado)}</td>
                 <td class="text-muted">${c.fecha_vencimiento||'—'}</td>
-                <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${c.interes_mora||0}','${c.notas||''}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button></td>
+                <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${c.interes_mora||0}','${escHtml(c.notas||'')}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button></td>
             </tr>`;}).join('');
 
         /* La misma fuente de datos, en la forma que se lee en un teléfono.
@@ -2723,7 +2723,7 @@ async function loadCobros() {
             return `<div class="nd-row" style="cursor:default">
                 <span class="nd-row-ic ${pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-cobro"></use></svg></span>
                 <span class="nd-row-main">
-                    <span class="nd-row-t">${uf.numero || '–'} · ${uf.vecino_nombre || 'Sin vecino'}</span>
+                    <span class="nd-row-t">${escHtml(uf.numero || '–')} · ${uf.vecino_nombre || 'Sin vecino'}</span>
                     <span class="nd-row-s"><span class="dot ${pagado ? 'ok' : 'danger'}"></span>${c.periodo || '–'} · ${pagado ? 'Pagada' : 'Vence ' + (c.fecha_vencimiento || '—')}</span>
                 </span>
                 <span class="nd-row-amt">${fmt(c.total)}</span>
@@ -2760,8 +2760,8 @@ async function loadMora() {
             const dias = vto ? Math.max(0,Math.ceil((today-vto)/(1000*60*60*24))) : '—';
             const interes = typeof dias === 'number' ? (c.monto_base||0)*tasa/100*dias : 0;
             return `<tr style="background:rgba(196,80,43,.04)">
-                <td>${con.nombre||'—'}</td>
-                <td><strong>${uf.numero||'—'}</strong></td>
+                <td>${escHtml(con.nombre||'—')}</td>
+                <td><strong>${escHtml(uf.numero||'—')}</strong></td>
                 <td>${uf.vecino_nombre||'—'}</td>
                 <td class="text-muted">${uf.vecino_email||'—'}</td>
                 <td>${c.periodo||'—'}</td>
@@ -2800,7 +2800,7 @@ async function saveCobro() {
 }
 
 function openGenerarModal() {
-    const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
     $('m-gen-consorcio').innerHTML = opts2;
     $('m-gen-periodo').value = new Date().toISOString().slice(0,7);
     openModal('modal-generar');
@@ -2833,14 +2833,14 @@ async function loadProveedores() {
         if (!proveedores.length) { tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">Sin proveedores. Añadí el primero.</td></tr>'; return; }
         tb.innerHTML = proveedores.map(p => `
             <tr>
-                <td><strong>${p.nombre}</strong></td>
-                <td class="text-muted">${p.cuit||'—'}</td>
-                <td>${p.rubro||'—'}</td>
-                <td class="text-muted">${p.email||'—'}</td>
+                <td><strong>${escHtml(p.nombre)}</strong></td>
+                <td class="text-muted">${escHtml(p.cuit||'—')}</td>
+                <td>${escHtml(p.rubro||'—')}</td>
+                <td class="text-muted">${escHtml(p.email||'—')}</td>
                 <td class="text-muted">${p.telefono||'—'}</td>
                 <td><div class="inline-actions">
                     <button class="btn-s btn-sm" onclick="openProveedorModal('${p.id}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button>
-                    <button class="btn-danger btn-sm" onclick="deleteProveedor('${p.id}','${p.nombre}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
+                    <button class="btn-danger btn-sm" onclick="deleteProveedor('${p.id}','${escHtml(p.nombre)}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
                 </div></td>
             </tr>`).join('');
     } catch(e) { toast(e.message,'err'); }
@@ -2898,11 +2898,11 @@ async function loadBalance() {
         el.style.color = res >= 0 ? 'var(--nd-verde)' : 'var(--nd-terracota-hondo)';
 
         $('tbody-bal-cobros').innerHTML = d.cobros.length
-            ? d.cobros.map(c=>`<tr><td>${(c.consorcios||{}).nombre||'—'}</td><td>${c.periodo||'—'}</td><td>${fmt(c.total)}</td></tr>`).join('')
+            ? d.cobros.map(c=>`<tr><td>${escHtml((c.consorcios||{}).nombre||'—')}</td><td>${c.periodo||'—'}</td><td>${fmt(c.total)}</td></tr>`).join('')
             : '<tr><td colspan="3" class="tbl-empty">Sin ingresos</td></tr>';
 
         $('tbody-bal-gastos').innerHTML = d.gastos.length
-            ? d.gastos.map(g=>`<tr><td>${(g.consorcios||{}).nombre||'—'}</td><td>${g.descripcion||'—'}</td><td>${g.categoria||'—'}</td><td>${fmt(g.monto)}</td></tr>`).join('')
+            ? d.gastos.map(g=>`<tr><td>${escHtml((g.consorcios||{}).nombre||'—')}</td><td>${escHtml(g.descripcion||'—')}</td><td>${escHtml(g.categoria||'—')}</td><td>${fmt(g.monto)}</td></tr>`).join('')
             : '<tr><td colspan="4" class="tbl-empty">Sin egresos</td></tr>';
     } catch(e) { toast(e.message,'err'); }
 }
@@ -2956,9 +2956,9 @@ function renderAmenities() {
     }
     tb.innerHTML = loadedAmenities.map(a => `
         <tr>
-            <td><strong>${a.nombre}</strong></td>
+            <td><strong>${escHtml(a.nombre)}</strong></td>
             <td>${a.capacidad_maxima || 'Sin límite'}</td>
-            <td class="text-muted text-sm">${a.descripcion || '—'}</td>
+            <td class="text-muted text-sm">${escHtml(a.descripcion || '—')}</td>
             <td>
                 <div class="inline-actions">
                     <button class="btn-s btn-sm" onclick="openAmenityModal('${a.id}')"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg>Editar</button>
@@ -2977,9 +2977,9 @@ function renderAmenitiesReservations() {
     }
     tb.innerHTML = loadedReservations.map(r => `
         <tr>
-            <td><strong>${(r.amenities||{}).nombre || '—'}</strong></td>
-            <td>${(r.vecinos||{}).nombre || 'Administración'}</td>
-            <td>${(r.vecinos||{}).unidad || '—'}</td>
+            <td><strong>${escHtml((r.amenities||{}).nombre || '—')}</strong></td>
+            <td>${escHtml((r.vecinos||{}).nombre || 'Administración')}</td>
+            <td>${escHtml((r.vecinos||{}).unidad || '—')}</td>
             <td>${r.fecha}</td>
             <td>${r.hora_inicio.substring(0, 5)} - ${r.hora_fin.substring(0, 5)}</td>
             <td>${statusBadge(r.estado)}</td>
@@ -3088,7 +3088,7 @@ let currentLiqData = null;
 
 async function initLiquidaciones() {
     if (!consorcios.length) await loadConsorcios();
-    const opts = '<option value="">Todos los consorcios</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    const opts = '<option value="">Todos los consorcios</option>' + consorcios.map(c=>`<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
     if ($('filter-liq-consorcio')) $('filter-liq-consorcio').innerHTML = opts;
     closeLiqDetail();
     await loadLiquidaciones();
@@ -3108,7 +3108,7 @@ async function loadLiquidaciones() {
             const revBadge = rev > 1 ? ` <span class="b b-y" title="Reliquidación del mismo período">rev. ${rev}</span>` : '';
             return `<tr>
                 <td><strong>${l.periodo}</strong>${revBadge}</td>
-                <td>${(l.consorcios||{}).nombre||'—'}</td>
+                <td>${escHtml((l.consorcios||{}).nombre||'—')}</td>
                 <td>${fmt(l.total_egresos)}</td>
                 <td style="font-weight:600;color:${(l.saldo_final||0)>=0?'var(--nd-verde)':'var(--nd-terracota-hondo)'}">${fmt(l.saldo_final)}</td>
                 <td><span class="b ${estadoBadge}">${estadoLabel}</span></td>
@@ -3127,7 +3127,7 @@ let liqGastos = [];          // [{...gasto, ya_enviado}]
 let liqGastosSel = new Set();  // ids tildados
 
 function openNuevaLiquidacionModal() {
-    const opts = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    const opts = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
     $('m-liq-consorcio').innerHTML = opts;
     $('m-liq-periodo').value = new Date().toISOString().slice(0,7);
     liqGastos = []; liqGastosSel = new Set();
@@ -3173,7 +3173,7 @@ function renderGastosDisponibles() {
     cont.innerHTML = liqGastos.map(g => {
         const on = liqGastosSel.has(g.id);
         const prov = (g.proveedores||{}).nombre;
-        const uf = g.unidad_id ? `UF ${(g.unidades_funcionales||{}).numero||'—'}` : null;
+        const uf = g.unidad_id ? `UF ${escHtml((g.unidades_funcionales||{}).numero||'—')}` : null;
         const sub = [g.fecha_gasto, g.categoria, prov, uf && `sólo ${uf}`].filter(Boolean).join(' · ');
         /* El gasto sigue viniendo tildado como cualquier otro: esto es sólo un
            aviso de que el monto es el que se copió del período anterior y
@@ -3184,7 +3184,7 @@ function renderGastosDisponibles() {
         return `<label class="pick-row ${on?'':'is-off'}">
             <input type="checkbox" ${on?'checked':''} onchange="liqGastoToggle('${g.id}',this.checked)">
             <span class="pick-main">
-                <span class="pick-title">${g.descripcion||'(sin descripción)'}</span>
+                <span class="pick-title">${escHtml(g.descripcion||'(sin descripción)')}</span>
                 <span class="pick-sub">${sub}</span>
             </span>
             ${badge}
@@ -3247,7 +3247,7 @@ async function openLiqDetail(lid) {
         $('liq-detail-titulo').textContent = (l.numero_revision || 1) > 1
             ? `Liquidación ${l.periodo} — revisión ${l.numero_revision}`
             : `Liquidación ${l.periodo}`;
-        $('liq-detail-sub').textContent = `${(l.consorcios||{}).nombre||''} — ${(l.consorcios||{}).direccion||''}`;
+        $('liq-detail-sub').textContent = `${escHtml((l.consorcios||{}).nombre||'')} — ${escHtml((l.consorcios||{}).direccion||'')}`;
 
         // KPIs
         $('liq-detail-kpis').innerHTML = `
@@ -3406,7 +3406,7 @@ async function loadRubros() {
             }).join('<br>');
             return `<tr>
                 <td><strong>${r.numero_rubro}</strong></td>
-                <td><strong>${r.nombre}</strong></td>
+                <td><strong>${escHtml(r.nombre)}</strong></td>
                 <td class="text-muted text-sm">${(r.items||[]).length} items<div style="max-height:80px;overflow:auto;margin-top:4px;font-size:.75rem;color:var(--muted);">${itemsList}</div></td>
                 <td><strong>${fmt(r.subtotal)}</strong></td>
                 <td><span class="b b-p">${r.porcentaje_sobre_total}%</span></td>
@@ -3423,8 +3423,8 @@ async function loadProrrateo() {
         tb.innerHTML = data.map(p => {
             const uf = p.unidades_funcionales || {};
             return `<tr>
-                <td><strong>${uf.numero||'—'}</strong></td>
-                <td>${uf.piso||'—'}</td>
+                <td><strong>${escHtml(uf.numero||'—')}</strong></td>
+                <td>${escHtml(uf.piso||'—')}</td>
                 <td>${uf.vecino_nombre||'<span class="text-muted">—</span>'}</td>
                 <td class="text-muted">${fmt(p.saldo_anterior)}</td>
                 <td style="color:var(--nd-verde)">${fmt(p.pago_realizado)}</td>
@@ -3468,10 +3468,10 @@ async function loadProrrateo() {
             const mora = (p.saldo_pendiente || 0) > 0;
             return `<div class="nd-pcard${mora ? ' mora' : ''}">
                 <button class="nd-pcard-h" onclick="this.parentNode.classList.toggle('open')">
-                    <span class="nd-pcard-uf">${uf.numero || '–'}</span>
+                    <span class="nd-pcard-uf">${escHtml(uf.numero || '–')}</span>
                     <span class="nd-pcard-n">
                         <b>${uf.vecino_nombre || 'Sin copropietario'}</b>
-                        <span>Piso ${uf.piso || '–'} · ${pct(p.porcentaje_a || 0)} ord.</span>
+                        <span>Piso ${escHtml(uf.piso || '–')} · ${pct(p.porcentaje_a || 0)} ord.</span>
                     </span>
                     <span class="nd-pcard-tot"><b>${fmt(p.total_unidad)}</b><span>Total</span></span>
                     <svg class="ic nd-pcard-arr"><use href="#ic-chevron"></use></svg>
@@ -3513,7 +3513,7 @@ async function loadEnvios() {
             const estadoMap = {enviado:'b-g',leido:'b-b',fallido:'b-r',pendiente:'b-y'};
             const fecha = e.fecha_envio ? new Date(e.fecha_envio).toLocaleString('es-AR') : '—';
             return `<tr>
-                <td><strong>${uf.numero||'—'}</strong></td>
+                <td><strong>${escHtml(uf.numero||'—')}</strong></td>
                 <td>${uf.vecino_nombre||'—'}</td>
                 <td><span class="b b-b">Email</span></td>
                 <td><span class="b ${estadoMap[e.estado]||'b-gr'}">${e.estado}</span></td>
@@ -3552,7 +3552,7 @@ function openPreviewModal() {
         const sel = $('m-preview-uf');
         sel.innerHTML = data.map(p => {
             const uf = p.unidades_funcionales || {};
-            return `<option value="${p.unidad_id}">UF ${uf.numero||'?'} — ${uf.vecino_nombre||'Sin nombre'}</option>`;
+            return `<option value="${p.unidad_id}">UF ${escHtml(uf.numero||'?')} — ${uf.vecino_nombre||'Sin nombre'}</option>`;
         }).join('');
         if (data.length) loadPreview(data[0].unidad_id);
         openModal('modal-preview');
@@ -3564,7 +3564,7 @@ function openPreviewUF(uid) {
         const sel = $('m-preview-uf');
         sel.innerHTML = data.map(p => {
             const uf = p.unidades_funcionales || {};
-            return `<option value="${p.unidad_id}" ${p.unidad_id===uid?'selected':''}>UF ${uf.numero||'?'} — ${uf.vecino_nombre||'Sin nombre'}</option>`;
+            return `<option value="${p.unidad_id}" ${p.unidad_id===uid?'selected':''}>UF ${escHtml(uf.numero||'?')} — ${uf.vecino_nombre||'Sin nombre'}</option>`;
         }).join('');
         loadPreview(uid);
         openModal('modal-preview');
@@ -3631,8 +3631,8 @@ function renderEnviarUFs() {
         return `<label class="pick-row ${on?'':'is-off'}">
             <input type="checkbox" ${on?'checked':''} ${sinMail?'disabled':''} onchange="enviarUFToggle('${u.unidad_id}',this.checked)">
             <span class="pick-main">
-                <span class="pick-title">UF ${u.numero} — ${u.nombre}</span>
-                <span class="pick-sub">${u.email || 'sin email configurado'}</span>
+                <span class="pick-title">UF ${escHtml(u.numero)} — ${escHtml(u.nombre)}</span>
+                <span class="pick-sub">${escHtml(u.email || 'sin email configurado')}</span>
             </span>
             ${badge}
             <span class="pick-amount">${fmt(u.total)}</span>
