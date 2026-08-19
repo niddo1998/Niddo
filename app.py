@@ -8,9 +8,10 @@ from functools import wraps
 
 from flask import (
     Flask, render_template, redirect, url_for,
-    session, request, jsonify, send_file, Response, g, abort
+    session, request, jsonify, send_file, Response, g, abort, make_response
 )
 from authlib.integrations.flask_client import OAuth
+from markupsafe import escape
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
@@ -349,6 +350,89 @@ def make_pdf(title: str, headers: list, rows: list) -> io.BytesIO:
     return buf
 
 
+# ── Adjuntos ──────────────────────────────────────────────────────────────────
+# Cuatro tipos y nada más, reconocidos por sus primeros bytes y no por lo que
+# diga el cliente. Los adjuntos se sirven inline —el vecino hace click y los
+# mira en una pestaña— así que un .html o un .svg subido con su propio
+# `content_type` era una página ejecutándose en el dominio de Niddo, con la
+# sesión de quien la abriera. SVG queda afuera a propósito: es XML con scripts.
+FIRMAS_ADJUNTO = (
+    (b'%PDF-',              'application/pdf'),
+    (b'\xff\xd8\xff',       'image/jpeg'),
+    (b'\x89PNG\r\n\x1a\n',  'image/png'),
+)
+MIMES_ADJUNTO = {'application/pdf', 'image/jpeg', 'image/png', 'image/webp'}
+TAMANO_MAXIMO_ADJUNTO = 5 * 1024 * 1024
+
+
+def _mime_real(datos: bytes) -> Optional[str]:
+    """El tipo que declaran los primeros bytes, o None si no es ninguno de la lista."""
+    for firma, mime in FIRMAS_ADJUNTO:
+        if datos.startswith(firma):
+            return mime
+    # WEBP es un contenedor RIFF: el tipo está en los bytes 8..12, no al principio.
+    if datos[:4] == b'RIFF' and datos[8:12] == b'WEBP':
+        return 'image/webp'
+    return None
+
+
+def _nombre_limpio(nombre: str) -> str:
+    """Saca separadores y caracteres de control, y deja el resto como estaba.
+
+    No se usa `secure_filename` porque reescribe acentos y espacios, y el nombre
+    se le muestra al usuario en la tabla: "Factura Edesur agosto.pdf" tiene que
+    seguir leyéndose así. Lo peligroso es la ruta y el salto de línea, y eso sí
+    se va.
+    """
+    nombre = (nombre or '').replace('\\', '/').split('/')[-1]
+    nombre = ''.join(c for c in nombre if c.isprintable())
+    return nombre[:200] or 'adjunto'
+
+
+def validar_adjunto(archivo):
+    """Devuelve (bytes, mime, nombre) del archivo subido, o levanta ValueError.
+
+    El mime sale del contenido y nunca de `archivo.content_type`: ese lo elige
+    quien sube y es exactamente el campo del que dependía el problema.
+    """
+    datos = archivo.read()
+    if not datos:
+        raise ValueError('El archivo está vacío')
+    if len(datos) > TAMANO_MAXIMO_ADJUNTO:
+        raise ValueError('El archivo supera el máximo de 5 MB')
+    mime = _mime_real(datos)
+    if not mime:
+        raise ValueError('Formato no admitido: subí un PDF, JPG, PNG o WEBP')
+    return datos, mime, _nombre_limpio(archivo.filename)
+
+
+def enviar_adjunto(archivo_base64, nombre, mime_guardado, forzar_descarga=False):
+    """Sirve un adjunto para verlo en el navegador, sin dejar que se ejecute.
+
+    El tipo se vuelve a deducir del contenido en vez de confiar en el guardado:
+    las filas cargadas antes de que existiera la validación pueden tener
+    cualquier `mime_type`, y servir un `text/html` viejo sería el mismo agujero
+    recién cerrado. Lo que no se reconoce baja como descarga y no se abre.
+
+    `forzar_descarga` es para los archivos del consorcio, que siempre bajaron en
+    vez de abrirse: el permiso es el que cambia, no la pantalla.
+    """
+    datos = base64.b64decode(archivo_base64)
+    mime = _mime_real(datos)
+    if mime is None and mime_guardado in MIMES_ADJUNTO:
+        mime = mime_guardado
+    res = send_file(
+        io.BytesIO(datos),
+        mimetype=mime or 'application/octet-stream',
+        download_name=_nombre_limpio(nombre),
+        as_attachment=forzar_descarga or mime is None,
+    )
+    # Sin esto el navegador puede ignorar el Content-Type y adivinar por el
+    # contenido, que es la otra mitad del mismo problema.
+    res.headers['X-Content-Type-Options'] = 'nosniff'
+    return res
+
+
 # ── Auth decorator ─────────────────────────────────────────────────────────────
 def require_auth(allowed_roles=None, permitir_pendiente=False):
     """Exige sesión y, para administradores, que la cuenta esté aprobada.
@@ -403,6 +487,189 @@ def require_superadmin(f):
             abort(404)
         return f(*args, **kwargs)
     return decorated
+
+
+# ── Pertenencia de los datos ───────────────────────────────────────────────────
+# `require_auth` contesta una sola pregunta: quién sos. La otra —si este
+# consorcio, esta liquidación o este cobro son tuyos— no la contestaba nadie.
+# Sin ella, dos administradores aprobados eran indistinguibles frente a la base:
+# alcanzaba con cambiar un UUID en la URL para editar el prorrateo de otro,
+# bajarse su padrón o mandarle un mail a sus vecinos.
+#
+# La pertenencia se resuelve acá y no en cada endpoint a propósito. Repartida en
+# cuarenta rutas, la garantía vale lo que valga la ruta que alguien olvide, y el
+# olvido no se ve: la pantalla funciona igual.
+#
+# Toda la cadena termina en `consorcios.admin_id`, que es el único lugar donde
+# está escrito de quién es un edificio. Las tablas que no tienen `admin_id`
+# —cobros, reclamos, avisos de pago, prorrateos— cuelgan de ahí por
+# `consorcio_id` o por `liquidacion_id`.
+
+def _no_es_tuyo():
+    """Corta la request como si el recurso no existiera.
+
+    404 y no 403 por la misma razón que `require_superadmin`: un 403 confirma
+    que el UUID probado existe, y eso es justo lo que le falta a quien está
+    tanteando IDs ajenos. Va como JSON porque el 404 de Flask es HTML y le
+    rompería el `res.json()` al front.
+    """
+    abort(make_response(jsonify({'error': 'No encontrado'}), 404))
+
+
+def consorcio_propio(cid, campos='*'):
+    """La fila del consorcio si es del administrador en sesión; si no, 404.
+
+    Devuelve la fila porque varios endpoints ya necesitaban leer el consorcio
+    (el nombre para el Excel, el CBU para el resumen): así el chequeo no agrega
+    una query, reemplaza la que ya estaba.
+    """
+    if not cid:
+        _no_es_tuyo()
+    res = supabase.table('consorcios').select(campos) \
+        .eq('id', cid).eq('admin_id', get_admin_id()).execute()
+    if not res.data:
+        _no_es_tuyo()
+    return res.data[0]
+
+
+def consorcios_propios_ids():
+    """IDs de los consorcios del administrador, para los listados sin filtro.
+
+    Una lista vacía es un administrador recién aprobado, sin edificios todavía.
+    Quien la reciba tiene que cortar antes de consultar: un `.in_()` con lista
+    vacía no filtra nada en algunos backends y devolvería toda la tabla, que es
+    exactamente lo contrario de lo que se está pidiendo.
+    """
+    res = supabase.table('consorcios').select('id').eq('admin_id', get_admin_id()).execute()
+    return [c['id'] for c in (res.data or [])]
+
+
+def liquidacion_propia(lid, campos='*'):
+    """La liquidación si es del administrador en sesión; si no, 404.
+
+    `liquidaciones` sí tiene `admin_id`, así que no hace falta pasar por el
+    consorcio.
+    """
+    if not lid:
+        _no_es_tuyo()
+    res = supabase.table('liquidaciones').select(campos) \
+        .eq('id', lid).eq('admin_id', get_admin_id()).execute()
+    if not res.data:
+        _no_es_tuyo()
+    return res.data[0]
+
+
+def fila_de_consorcio_propio(tabla, rid):
+    """Fila de una tabla que cuelga de `consorcio_id`, si el consorcio es propio.
+
+    Son dos queries y no una porque PostgREST no filtra por una columna de la
+    tabla padre sin un embed, y un embed acá se lee peor que el salto explícito.
+    """
+    if not rid:
+        _no_es_tuyo()
+    res = supabase.table(tabla).select('id, consorcio_id').eq('id', rid).execute()
+    fila = res.data[0] if res.data else None
+    if not fila:
+        _no_es_tuyo()
+    consorcio_propio(fila.get('consorcio_id'), 'id')
+    return fila
+
+
+def consorcio_visible(cid):
+    """Para las rutas que comparten administradores y vecinos.
+
+    El administrador ve los consorcios que administra; el vecino, el suyo. Sin
+    esto, un vecino podía leer los datos de cualquier edificio de la plataforma
+    cambiando el UUID.
+    """
+    if not cid:
+        _no_es_tuyo()
+    if (session.get('user') or {}).get('role') == 'vecino':
+        vecino_id = get_vecino_id()
+        if not vecino_id:
+            _no_es_tuyo()
+        res = supabase.table('vecinos').select('consorcio_id').eq('id', vecino_id).execute()
+        if not res.data or res.data[0].get('consorcio_id') != cid:
+            _no_es_tuyo()
+        return
+    consorcio_propio(cid, 'id')
+
+
+def amenity_visible(amenity_id):
+    """El amenity, si es del consorcio de quien está en sesión.
+
+    Las reservas no guardan el consorcio: cuelgan del amenity, y el amenity del
+    consorcio. Ese salto es el único que dice de quién es un quincho, y lo usan
+    las tres rutas de reservas.
+    """
+    if not amenity_id:
+        _no_es_tuyo()
+    res = supabase.table('amenities').select('id, consorcio_id').eq('id', amenity_id).execute()
+    if not res.data:
+        _no_es_tuyo()
+    consorcio_visible(res.data[0].get('consorcio_id'))
+    return res.data[0]
+
+
+def unidades_del_vecino():
+    """Los UUID de unidad que el vecino en sesión tiene derecho a mirar.
+
+    Las expensas cuelgan de la unidad y no del vecino, así que las rutas de
+    cobros reciben el `unidad_id` por query string y ninguna comprobaba que
+    fuera suyo: cambiar el UUID mostraba la expensa del vecino de al lado.
+
+    La unidad de `vecinos` va primera a propósito. Es la que esas rutas usaban
+    cuando no venía `unidad_id`, y si el orden cambiara, un vecino con varias
+    unidades abriría la pantalla en otra distinta a la de siempre.
+    """
+    if 'unidades_vecino' in g:
+        return g.unidades_vecino
+    g.unidades_vecino = []
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return g.unidades_vecino
+
+    res = supabase.table('vecinos').select('unidad_id').eq('id', vecino_id).execute()
+    principal = res.data[0].get('unidad_id') if res.data else None
+    ids = [principal] if principal else []
+
+    # `vecinos_unidades` es de v7. Si el entorno no la migró, el respaldo de
+    # arriba alcanza y la ruta sigue andando en vez de tirar un 500.
+    try:
+        extra = supabase.table('vecinos_unidades').select('unidad_id') \
+            .eq('vecino_id', vecino_id).eq('activo', True).execute().data or []
+        for fila in extra:
+            uid = fila.get('unidad_id')
+            if uid and uid not in ids:
+                ids.append(uid)
+    except Exception:
+        pass
+
+    g.unidades_vecino = ids
+    return ids
+
+
+def unidad_propia(unidad_id):
+    """Corta con 404 si la unidad no es del vecino en sesión."""
+    if not unidad_id or unidad_id not in unidades_del_vecino():
+        _no_es_tuyo()
+    return unidad_id
+
+
+def _vecino_sin_consorcio():
+    """True si el vecino en sesión todavía no se asoció a ningún edificio.
+
+    Es el único momento en que mirar consorcios ajenos tiene sentido: en la
+    pantalla de alta hay que elegir uno de una lista. Después de asociarse no
+    se vuelve a pasar por ahí, y dejar la puerta abierta era lo que permitía
+    que cualquier vecino enumerara los edificios y las unidades de toda la
+    plataforma.
+    """
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return False
+    res = supabase.table('vecinos').select('consorcio_id').eq('id', vecino_id).execute()
+    return bool(res.data) and not res.data[0].get('consorcio_id')
 
 
 RUTA_SALIR_IMPERSONACION = '/superadmin/impersonar/salir'
@@ -1141,6 +1408,7 @@ def api_consorcios_delete(cid):
 @app.route('/api/consorcios/<cid>/unidades', methods=['GET'])
 @require_auth(allowed_roles=['admin'])
 def api_ufs_list(cid):
+    consorcio_propio(cid, 'id')
     res = supabase.table('unidades_funcionales').select('*').eq('consorcio_id', cid).order('numero').execute()
     ufs = res.data or []
 
@@ -1172,6 +1440,7 @@ def api_ufs_list(cid):
 @app.route('/api/consorcios/<cid>/unidades', methods=['POST'])
 @require_auth(allowed_roles=['admin'])
 def api_ufs_create(cid):
+    consorcio_propio(cid, 'id')
     d = request.json
     payload = {
         'consorcio_id': cid,
@@ -1189,6 +1458,7 @@ def api_ufs_create(cid):
 @app.route('/api/consorcios/<cid>/unidades/<uid>', methods=['PUT'])
 @require_auth(allowed_roles=['admin'])
 def api_ufs_update(cid, uid):
+    consorcio_propio(cid, 'id')
     d = request.json
     payload = {k: v for k, v in {
         'numero': d.get('numero'),
@@ -1205,6 +1475,7 @@ def api_ufs_update(cid, uid):
 @app.route('/api/consorcios/<cid>/unidades/<uid>', methods=['DELETE'])
 @require_auth(allowed_roles=['admin'])
 def api_ufs_delete(cid, uid):
+    consorcio_propio(cid, 'id')
     supabase.table('unidades_funcionales').delete().eq('id', uid).eq('consorcio_id', cid).execute()
     return jsonify({'ok': True})
 
@@ -1341,7 +1612,7 @@ def api_carga_masiva():
 @app.route('/api/consorcios/<cid>/export/excel')
 @require_auth(allowed_roles=['admin'])
 def export_consorcios_excel(cid):
-    con = supabase.table('consorcios').select('*').eq('id', cid).single().execute().data
+    con = consorcio_propio(cid)
     ufs = supabase.table('unidades_funcionales').select('*').eq('consorcio_id', cid).order('numero').execute().data
     headers = ['UF', 'Piso', 'Tipo', 'Superficie m²', 'Vecino', 'Email']
     rows = [[u['numero'], u.get('piso',''), u.get('tipo',''), u.get('superficie_m2',''),
@@ -1353,7 +1624,7 @@ def export_consorcios_excel(cid):
 @app.route('/api/consorcios/<cid>/export/pdf')
 @require_auth(allowed_roles=['admin'])
 def export_consorcios_pdf(cid):
-    con = supabase.table('consorcios').select('*').eq('id', cid).single().execute().data
+    con = consorcio_propio(cid)
     ufs = supabase.table('unidades_funcionales').select('*').eq('consorcio_id', cid).order('numero').execute().data
     headers = ['UF', 'Piso', 'Tipo', 'Sup. m²', 'Vecino', 'Email']
     rows = [[u['numero'], u.get('piso',''), u.get('tipo',''), str(u.get('superficie_m2','')),
@@ -1411,7 +1682,12 @@ def api_proveedores_delete(pid):
 @app.route('/api/proveedores/<pid>/gastos')
 @require_auth(allowed_roles=['admin'])
 def api_proveedores_gastos(pid):
-    res = supabase.table('gastos').select('*, consorcios(nombre)').eq('proveedor_id', pid).order('fecha_gasto', desc=True).execute()
+    # El filtro por `admin_id` es el que acota: sin él, el historial de un
+    # proveedor compartido —el mismo ascensorista factura a varios edificios—
+    # mezclaba los gastos de todos los administradores que lo tuvieran cargado.
+    res = supabase.table('gastos').select('*, consorcios(nombre)') \
+        .eq('proveedor_id', pid).eq('admin_id', get_admin_id()) \
+        .order('fecha_gasto', desc=True).execute()
     return jsonify(res.data)
 
 
@@ -1622,6 +1898,16 @@ def api_gastos_create():
         'notas': d.get('notas', ''),
         'admin_id': admin_id,
     }
+    # El gasto queda con el `admin_id` de quien lo carga, así que un consorcio
+    # ajeno no lo haría aparecer en la lista de su administrador — pero sí en la
+    # pantalla de gastos de sus vecinos, que filtra por consorcio.
+    #
+    # El campo vacío se responde aparte: es el formulario mandado sin elegir
+    # edificio, y un "No encontrado" ahí no le dice a nadie qué le falta.
+    if not payload['consorcio_id']:
+        return jsonify({'error': 'Elegí a qué consorcio corresponde el gasto'}), 400
+    consorcio_propio(payload['consorcio_id'], 'id')
+
     if not _unidad_es_del_consorcio(payload['unidad_id'], payload['consorcio_id']):
         return jsonify({'error': 'La unidad funcional elegida no pertenece a ese consorcio'}), 400
 
@@ -1638,17 +1924,19 @@ def api_gastos_create():
     # Guardar comprobante si se adjuntó
     archivo = request.files.get('comprobante')
     if archivo and archivo.filename and gasto.get('id'):
-        file_bytes = archivo.read()
+        try:
+            file_bytes, mime, nombre = validar_adjunto(archivo)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
         b64 = base64.b64encode(file_bytes).decode('utf-8')
-        mime = archivo.content_type or 'application/pdf'
         supabase.table('comprobantes_gastos').insert({
             'gasto_id': gasto['id'],
-            'archivo_nombre': archivo.filename,
+            'archivo_nombre': nombre,
             'archivo_base64': b64,
             'mime_type': mime,
         }).execute()
-        supabase.table('gastos').update({'archivo_nombre': archivo.filename}).eq('id', gasto['id']).execute()
-        gasto['archivo_nombre'] = archivo.filename
+        supabase.table('gastos').update({'archivo_nombre': nombre}).eq('id', gasto['id']).execute()
+        gasto['archivo_nombre'] = nombre
 
     return jsonify(gasto), 201
 
@@ -1686,6 +1974,12 @@ def api_gastos_update(gid):
     if 'monto' in payload:
         payload['tarifa_confirmada'] = True
 
+    # Mudar el gasto a otro consorcio es válido, pero solo entre los propios: sin
+    # el chequeo, un PUT con un `consorcio_id` ajeno metía el gasto en un edificio
+    # de otro administrador.
+    if payload.get('consorcio_id'):
+        consorcio_propio(payload['consorcio_id'], 'id')
+
     # El consorcio puede no venir en un PUT parcial; se lee el guardado para poder
     # validar igual que en el alta.
     if payload.get('unidad_id'):
@@ -1710,19 +2004,21 @@ def api_gastos_update(gid):
     # Guardar/reemplazar comprobante si se adjuntó
     archivo = request.files.get('comprobante')
     if archivo and archivo.filename:
-        file_bytes = archivo.read()
+        try:
+            file_bytes, mime, nombre = validar_adjunto(archivo)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
         b64 = base64.b64encode(file_bytes).decode('utf-8')
-        mime = archivo.content_type or 'application/pdf'
         # Eliminar comprobante anterior si existe
         supabase.table('comprobantes_gastos').delete().eq('gasto_id', gid).execute()
         supabase.table('comprobantes_gastos').insert({
             'gasto_id': gid,
-            'archivo_nombre': archivo.filename,
+            'archivo_nombre': nombre,
             'archivo_base64': b64,
             'mime_type': mime,
         }).execute()
-        supabase.table('gastos').update({'archivo_nombre': archivo.filename}).eq('id', gid).execute()
-        gasto['archivo_nombre'] = archivo.filename
+        supabase.table('gastos').update({'archivo_nombre': nombre}).eq('id', gid).execute()
+        gasto['archivo_nombre'] = nombre
 
     return jsonify(gasto)
 
@@ -1812,18 +2108,25 @@ def api_confirmar_tarifas():
 @app.route('/api/gastos/<gid>/comprobante')
 @require_auth()
 def api_gasto_comprobante(gid):
-    """Servir el comprobante adjunto de un gasto (PDF o imagen)."""
+    """Servir el comprobante adjunto de un gasto (PDF o imagen).
+
+    La factura lleva el CUIT del proveedor, el importe y a veces el CBU donde se
+    pagó. La ruta la usan las dos pantallas —la del administrador y la del
+    vecino— así que el permiso se resuelve por el consorcio del gasto y no por
+    el rol: cada uno ve los comprobantes de su edificio.
+    """
+    gasto = supabase.table('gastos').select('consorcio_id').eq('id', gid).execute().data
+    if not gasto:
+        _no_es_tuyo()
+    consorcio_visible(gasto[0].get('consorcio_id'))
+
     res = supabase.table('comprobantes_gastos').select('*').eq('gasto_id', gid).single().execute()
     if not res.data:
         return jsonify({'error': 'No hay comprobante adjunto para este gasto'}), 404
     comp = res.data
-    file_bytes = base64.b64decode(comp['archivo_base64'])
-    return send_file(
-        io.BytesIO(file_bytes),
-        mimetype=comp.get('mime_type', 'application/pdf'),
-        download_name=comp.get('archivo_nombre', 'comprobante.pdf'),
-        as_attachment=False
-    )
+    return enviar_adjunto(comp['archivo_base64'],
+                          comp.get('archivo_nombre', 'comprobante.pdf'),
+                          comp.get('mime_type'))
 
 
 @app.route('/api/gastos/extract', methods=['POST'])
@@ -1979,9 +2282,16 @@ def api_gastos_export():
 @app.route('/api/cobros', methods=['GET'])
 @require_auth(allowed_roles=['admin'])
 def api_cobros_list():
+    # `cobros` no tiene `admin_id`: el dueño se deduce del consorcio. Sin filtro
+    # explícito este listado devolvía las expensas de toda la plataforma.
     q = supabase.table('cobros').select('*, unidades_funcionales(numero, vecino_nombre, vecino_email), consorcios(nombre)')
     if request.args.get('consorcio_id'):
-        q = q.eq('consorcio_id', request.args['consorcio_id'])
+        q = q.eq('consorcio_id', consorcio_propio(request.args['consorcio_id'], 'id')['id'])
+    else:
+        cids = consorcios_propios_ids()
+        if not cids:
+            return jsonify([])
+        q = q.in_('consorcio_id', cids)
     if request.args.get('periodo'):
         q = q.eq('periodo', request.args['periodo'])
     if request.args.get('estado'):
@@ -1995,7 +2305,7 @@ def api_cobros_list():
 def api_cobros_generar():
     """Genera un cobro para cada UF del consorcio en el período dado."""
     d = request.json
-    consorcio_id = d['consorcio_id']
+    consorcio_id = consorcio_propio(d.get('consorcio_id'), 'id')['id']
     periodo = d['periodo']
     monto_base = float(d['monto_base'])
     fecha_vencimiento = d.get('fecha_vencimiento')
@@ -2023,6 +2333,7 @@ def api_cobros_generar():
 @app.route('/api/cobros/<rid>', methods=['PUT'])
 @require_auth(allowed_roles=['admin'])
 def api_cobros_update(rid):
+    fila_de_consorcio_propio('cobros', rid)
     d = request.json
     allowed = ('estado','fecha_pago','interes_mora','total','notas','comprobante_nombre')
     payload = {k: v for k, v in d.items() if k in allowed}
@@ -2037,7 +2348,12 @@ def api_cobros_mora():
     q = supabase.table('cobros').select('*, unidades_funcionales(numero, vecino_nombre, vecino_email), consorcios(nombre)')
     q = q.in_('estado', ['vencido', 'en_mora'])
     if request.args.get('consorcio_id'):
-        q = q.eq('consorcio_id', request.args['consorcio_id'])
+        q = q.eq('consorcio_id', consorcio_propio(request.args['consorcio_id'], 'id')['id'])
+    else:
+        cids = consorcios_propios_ids()
+        if not cids:
+            return jsonify([])
+        q = q.in_('consorcio_id', cids)
     res = q.order('fecha_vencimiento').execute()
     return jsonify(res.data)
 
@@ -2046,11 +2362,19 @@ def api_cobros_mora():
 @require_auth(allowed_roles=['admin'])
 def api_cobros_export():
     q = supabase.table('cobros').select('*, unidades_funcionales(numero, vecino_nombre), consorcios(nombre)')
+    propios = True
     if request.args.get('consorcio_id'):
-        q = q.eq('consorcio_id', request.args['consorcio_id'])
+        q = q.eq('consorcio_id', consorcio_propio(request.args['consorcio_id'], 'id')['id'])
+    else:
+        cids = consorcios_propios_ids()
+        propios = bool(cids)
+        if propios:
+            q = q.in_('consorcio_id', cids)
     if request.args.get('periodo'):
         q = q.eq('periodo', request.args['periodo'])
-    data = q.order('created_at', desc=True).execute().data
+    # Sin consorcios propios el archivo sale vacío, pero sale: un administrador
+    # recién aprobado que exporta espera una planilla sin filas, no un error.
+    data = q.order('created_at', desc=True).execute().data if propios else []
 
     headers = ['Consorcio', 'UF', 'Vecino', 'Período', 'Monto Base', 'Interés', 'Total', 'Estado', 'Vencimiento', 'Fecha Pago']
     rows = [[
@@ -2073,6 +2397,18 @@ def api_cobros_export():
 # ══════════════════════════════════════════════════════════════════════════════
 # API — BALANCE
 # ══════════════════════════════════════════════════════════════════════════════
+def _cids_del_balance(consorcio_id):
+    """Consorcios que entran en el balance: el pedido, o todos los propios.
+
+    Devuelve siempre una lista. Vacía significa "ningún consorcio que mirar" y
+    quien la reciba tiene que saltear la consulta, no correrla sin filtro.
+    """
+    if consorcio_id:
+        return [consorcio_propio(consorcio_id, 'id')['id']]
+    return consorcios_propios_ids()
+
+
+
 @app.route('/api/balance')
 @require_auth(allowed_roles=['admin'])
 def api_balance():
@@ -2081,16 +2417,17 @@ def api_balance():
     desde = request.args.get('desde')
     hasta = request.args.get('hasta')
 
-    # Ingresos (cobros pagados)
+    # Ingresos (cobros pagados). Los gastos ya venían filtrados por `admin_id`,
+    # pero los cobros no tienen esa columna y quedaban sin acotar: el balance
+    # sumaba como ingreso propio cada expensa pagada de la plataforma.
+    cids = _cids_del_balance(consorcio_id)
     q_cobros = supabase.table('cobros').select('total, periodo, consorcios(nombre)')
     q_cobros = q_cobros.eq('estado', 'pagado')
-    if consorcio_id:
-        q_cobros = q_cobros.eq('consorcio_id', consorcio_id)
     if desde:
         q_cobros = q_cobros.gte('fecha_pago', desde)
     if hasta:
         q_cobros = q_cobros.lte('fecha_pago', hasta)
-    cobros = q_cobros.execute().data
+    cobros = q_cobros.in_('consorcio_id', cids).execute().data if cids else []
 
     # Egresos (gastos)
     q_gastos = supabase.table('gastos').select('monto, fecha_gasto, descripcion, categoria, consorcios(nombre)').eq('admin_id', admin_id)
@@ -2122,11 +2459,11 @@ def api_balance_export():
     desde = request.args.get('desde')
     hasta = request.args.get('hasta')
 
+    cids = _cids_del_balance(consorcio_id)
     q_cobros = supabase.table('cobros').select('total, periodo, consorcios(nombre)').eq('estado', 'pagado')
-    if consorcio_id: q_cobros = q_cobros.eq('consorcio_id', consorcio_id)
     if desde: q_cobros = q_cobros.gte('fecha_pago', desde)
     if hasta: q_cobros = q_cobros.lte('fecha_pago', hasta)
-    cobros = q_cobros.execute().data
+    cobros = q_cobros.in_('consorcio_id', cids).execute().data if cids else []
 
     q_gastos = supabase.table('gastos').select('monto, fecha_gasto, descripcion, categoria, consorcios(nombre)').eq('admin_id', admin_id)
     if consorcio_id: q_gastos = q_gastos.eq('consorcio_id', consorcio_id)
@@ -2155,6 +2492,7 @@ def api_balance_export():
 @app.route('/api/consorcios/<cid>/amenities', methods=['GET'])
 @require_auth()
 def api_amenities_list(cid):
+    consorcio_visible(cid)
     res = supabase.table('amenities').select('*').eq('consorcio_id', cid).order('nombre').execute()
     return jsonify(res.data)
 
@@ -2162,6 +2500,7 @@ def api_amenities_list(cid):
 @app.route('/api/consorcios/<cid>/amenities', methods=['POST'])
 @require_auth(allowed_roles=['admin'])
 def api_amenities_create(cid):
+    consorcio_propio(cid, 'id')
     d = request.json
     payload = {
         'consorcio_id': cid,
@@ -2177,6 +2516,7 @@ def api_amenities_create(cid):
 @app.route('/api/consorcios/<cid>/amenities/<aid>', methods=['PUT'])
 @require_auth(allowed_roles=['admin'])
 def api_amenities_update(cid, aid):
+    consorcio_propio(cid, 'id')
     d = request.json
     payload = {k: v for k, v in {
         'nombre': d.get('nombre'),
@@ -2191,6 +2531,7 @@ def api_amenities_update(cid, aid):
 @app.route('/api/consorcios/<cid>/amenities/<aid>', methods=['DELETE'])
 @require_auth(allowed_roles=['admin'])
 def api_amenities_delete(cid, aid):
+    consorcio_propio(cid, 'id')
     supabase.table('amenities').delete().eq('id', aid).eq('consorcio_id', cid).execute()
     return jsonify({'ok': True})
 
@@ -2207,19 +2548,26 @@ def api_reservas_list():
 
     if user['role'] == 'admin':
         if amenity_id:
+            amenity_visible(amenity_id)
             q = q.eq('amenity_id', amenity_id)
-        elif consorcio_id:
-            res_amenities = supabase.table('amenities').select('id').eq('consorcio_id', consorcio_id).execute()
-            ids = [a['id'] for a in res_amenities.data]
-            if ids:
-                q = q.in_('amenity_id', ids)
-            else:
+        else:
+            # Sin `amenity_id` la consulta salía sin filtrar: devolvía las
+            # reservas de toda la plataforma, con nombre y unidad de cada vecino.
+            cids = [consorcio_propio(consorcio_id, 'id')['id']] if consorcio_id \
+                else consorcios_propios_ids()
+            if not cids:
                 return jsonify([])
+            res_amenities = supabase.table('amenities').select('id').in_('consorcio_id', cids).execute()
+            ids = [a['id'] for a in (res_amenities.data or [])]
+            if not ids:
+                return jsonify([])
+            q = q.in_('amenity_id', ids)
     else:
         vecino_id = get_vecino_id()
         if request.args.get('only_mine') == 'true':
             q = q.eq('vecino_id', vecino_id)
         elif amenity_id:
+            amenity_visible(amenity_id)
             q = q.eq('amenity_id', amenity_id)
         else:
             q = q.eq('vecino_id', vecino_id)
@@ -2249,6 +2597,10 @@ def api_reservas_create():
     # Validar formato
     if not amenity_id or not fecha or not hora_inicio or not hora_fin:
         return jsonify({'error': 'Faltan datos obligatorios'}), 400
+
+    # Reservar el quincho de otro edificio es ocuparlo: la validación de
+    # conflictos de horario lo daría por bueno igual, porque solo mira el amenity.
+    amenity_visible(amenity_id)
 
     # Comprobar conflictos de horario
     conflicts_res = supabase.table('reservas_amenities').select('*')\
@@ -2293,6 +2645,12 @@ def api_reservas_create():
 def api_reservas_delete(rid):
     user = session['user']
     if user['role'] == 'admin':
+        # Sin el salto por el amenity, cualquier administrador cancelaba la
+        # reserva de cualquier edificio de la plataforma.
+        reserva = supabase.table('reservas_amenities').select('amenity_id').eq('id', rid).execute().data
+        if not reserva:
+            _no_es_tuyo()
+        amenity_visible(reserva[0].get('amenity_id'))
         supabase.table('reservas_amenities').delete().eq('id', rid).execute()
     else:
         vecino_id = get_vecino_id()
@@ -2311,6 +2669,18 @@ def api_reservas_delete(rid):
 @app.route('/api/public/consorcios', methods=['GET'])
 @require_auth()
 def api_public_consorcios():
+    """La lista para el desplegable del alta de vecino.
+
+    Devolvía todos los consorcios de la plataforma a cualquiera con sesión. Un
+    vecino ya asociado no tiene nada que elegir acá, y un administrador sólo
+    puede querer los suyos.
+    """
+    if (session.get('user') or {}).get('role') == 'admin':
+        res = supabase.table('consorcios').select('id, nombre') \
+            .eq('admin_id', get_admin_id()).order('nombre').execute()
+        return jsonify(res.data)
+    if not _vecino_sin_consorcio():
+        _no_es_tuyo()
     res = supabase.table('consorcios').select('id, nombre').order('nombre').execute()
     return jsonify(res.data)
 
@@ -2318,6 +2688,17 @@ def api_public_consorcios():
 @app.route('/api/public/consorcios/<cid>/unidades-libres', methods=['GET'])
 @require_auth()
 def api_public_unidades_libres(cid):
+    """Las unidades de un consorcio, para elegir la propia al darse de alta.
+
+    La usan dos pantallas: el alta del vecino, que necesita ver un edificio que
+    todavía no es suyo, y el panel del administrador sobre uno de los suyos. El
+    permiso se resuelve distinto en cada caso; lo que no puede seguir pasando
+    es que un vecino ya asociado se baje el padrón de cualquier edificio.
+    """
+    if (session.get('user') or {}).get('role') == 'admin':
+        consorcio_propio(cid, 'id')
+    elif not _vecino_sin_consorcio():
+        _no_es_tuyo()
     res = supabase.table('unidades_funcionales')\
         .select('id, numero, piso, tipo')\
         .eq('consorcio_id', cid)\
@@ -2381,6 +2762,7 @@ def api_vecinos_asociar():
 @app.route('/api/consorcios/<cid>/vecinos/pendientes', methods=['GET'])
 @require_auth(allowed_roles=['admin'])
 def api_consorcio_vecinos_pendientes(cid):
+    consorcio_propio(cid, 'id')
     res = supabase.table('vecinos')\
         .select('*')\
         .eq('consorcio_id', cid)\
@@ -2392,6 +2774,7 @@ def api_consorcio_vecinos_pendientes(cid):
 @app.route('/api/consorcios/<cid>/vecinos/<vid>/asignar-unidad', methods=['POST'])
 @require_auth(allowed_roles=['admin'])
 def api_consorcio_vecino_asignar(cid, vid):
+    consorcio_propio(cid, 'id')
     d = request.json
     unidad_id = d.get('unidad_id')
 
@@ -2507,13 +2890,12 @@ def api_vecinos_mis_unidades():
 @app.route('/api/vecinos/cobros')
 @require_auth(allowed_roles=['vecino'])
 def api_vecinos_cobros():
-    vecino_id = get_vecino_id()
-    if not vecino_id:
-        return jsonify([])
+    permitidas = unidades_del_vecino()
     unidad_id = request.args.get('unidad_id')
-    if not unidad_id:
-        v = supabase.table('vecinos').select('unidad_id').eq('id', vecino_id).single().execute()
-        unidad_id = (v.data or {}).get('unidad_id')
+    if unidad_id:
+        unidad_propia(unidad_id)
+    else:
+        unidad_id = permitidas[0] if permitidas else None
     if not unidad_id:
         return jsonify([])
     q = supabase.table('cobros').select('*').eq('unidad_id', unidad_id)
@@ -2528,13 +2910,12 @@ def api_vecinos_cobros():
 @app.route('/api/vecinos/cobro-actual')
 @require_auth(allowed_roles=['vecino'])
 def api_vecinos_cobro_actual():
-    vecino_id = get_vecino_id()
-    if not vecino_id:
-        return jsonify(None)
+    permitidas = unidades_del_vecino()
     unidad_id = request.args.get('unidad_id')
-    if not unidad_id:
-        v = supabase.table('vecinos').select('unidad_id').eq('id', vecino_id).single().execute()
-        unidad_id = (v.data or {}).get('unidad_id')
+    if unidad_id:
+        unidad_propia(unidad_id)
+    else:
+        unidad_id = permitidas[0] if permitidas else None
     if not unidad_id:
         return jsonify(None)
     res = supabase.table('cobros').select('*').eq('unidad_id', unidad_id).in_('estado', ['pendiente', 'vencido', 'en_mora']).order('periodo', desc=True).limit(1).execute()
@@ -2550,10 +2931,21 @@ def api_vecinos_cupon_pago(rid):
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
     from reportlab.lib.styles import getSampleStyleSheet
     vecino_id = get_vecino_id()
-    cobro_res = supabase.table('cobros').select('*').eq('id', rid).single().execute()
+    cobro_res = supabase.table('cobros').select('*').eq('id', rid).execute()
     if not cobro_res.data:
-        return jsonify({'error': 'Cobro no encontrado'}), 404
-    cobro = cobro_res.data
+        _no_es_tuyo()
+    cobro = cobro_res.data[0]
+    # El cupón trae el consorcio, el CUIT, la unidad y el importe. Sin este
+    # chequeo alcanzaba con probar UUIDs para bajarse el de cualquier vecino.
+    unidad_propia(cobro.get('unidad_id'))
+
+    # El cupón lleva el importe, el estado de deuda y los datos del consorcio.
+    # Sin este chequeo, un vecino se bajaba el de cualquier unidad cambiando el
+    # id en la URL.
+    vecino = supabase.table('vecinos').select('unidad_id').eq('id', vecino_id).execute().data
+    if not vecino or not vecino[0].get('unidad_id') \
+            or vecino[0]['unidad_id'] != cobro.get('unidad_id'):
+        _no_es_tuyo()
     uf_data = {}
     if cobro.get('unidad_id'):
         uf_res = supabase.table('unidades_funcionales').select('*, consorcios(nombre, direccion, cuit)').eq('id', cobro['unidad_id']).single().execute()
@@ -2684,10 +3076,13 @@ def api_avisos_pago_create():
     payload = {'vecino_id': vecino_id, 'consorcio_id': v_data.get('consorcio_id'), 'unidad_id': v_data.get('unidad_id'), 'cobro_id': d.get('cobro_id') or None, 'monto': float(d.get('monto', 0)) if d.get('monto') else None, 'fecha_pago': d.get('fecha_pago') or None, 'medio_pago': d.get('medio_pago', ''), 'observaciones': d.get('observaciones', ''), 'estado': 'pendiente'}
     archivo = request.files.get('comprobante') if hasattr(request, 'files') and request.files else None
     if archivo and archivo.filename:
-        file_bytes = archivo.read()
+        try:
+            file_bytes, mime, nombre = validar_adjunto(archivo)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
         payload['adjunto_base64'] = base64.b64encode(file_bytes).decode('utf-8')
-        payload['adjunto_nombre'] = archivo.filename
-        payload['adjunto_mime'] = archivo.content_type or 'application/pdf'
+        payload['adjunto_nombre'] = nombre
+        payload['adjunto_mime'] = mime
     res = supabase.table('avisos_pago').insert(payload).execute()
     return jsonify(res.data[0] if res.data else {}), 201
 
@@ -2725,10 +3120,13 @@ def api_reclamos_create():
     payload = {'vecino_id': vecino_id, 'consorcio_id': v_data.get('consorcio_id'), 'unidad_id': v_data.get('unidad_id'), 'titulo': titulo, 'descripcion': descripcion, 'categoria': d.get('categoria', 'otro'), 'estado': 'activo'}
     archivo = request.files.get('adjunto') if hasattr(request, 'files') and request.files else None
     if archivo and archivo.filename:
-        file_bytes = archivo.read()
+        try:
+            file_bytes, mime, nombre = validar_adjunto(archivo)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
         payload['adjunto_base64'] = base64.b64encode(file_bytes).decode('utf-8')
-        payload['adjunto_nombre'] = archivo.filename
-        payload['adjunto_mime'] = archivo.content_type or 'application/pdf'
+        payload['adjunto_nombre'] = nombre
+        payload['adjunto_mime'] = mime
     res = supabase.table('reclamos').insert(payload).execute()
     return jsonify(res.data[0] if res.data else {}), 201
 
@@ -2755,8 +3153,9 @@ def api_reclamos_adjunto(rid):
         return jsonify({'error': 'No encontrado'}), 404
     if not reclamo.data.get('adjunto_base64'):
         return jsonify({'error': 'Sin adjunto'}), 404
-    file_bytes = base64.b64decode(reclamo.data['adjunto_base64'])
-    return send_file(io.BytesIO(file_bytes), mimetype=reclamo.data.get('adjunto_mime', 'application/pdf'), download_name=reclamo.data.get('adjunto_nombre', 'adjunto'), as_attachment=False)
+    return enviar_adjunto(reclamo.data['adjunto_base64'],
+                          reclamo.data.get('adjunto_nombre', 'adjunto'),
+                          reclamo.data.get('adjunto_mime'))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2869,8 +3268,10 @@ def api_archivos_descargar(aid):
     v = supabase.table('vecinos').select('consorcio_id').eq('id', vecino_id).single().execute()
     if (v.data or {}).get('consorcio_id') != archivo['consorcio_id']:
         return jsonify({'error': 'Sin permiso'}), 403
-    file_bytes = base64.b64decode(archivo['archivo_base64'])
-    return send_file(io.BytesIO(file_bytes), mimetype=archivo.get('mime_type', 'application/pdf'), download_name=archivo.get('nombre', 'archivo'), as_attachment=True)
+    return enviar_adjunto(archivo['archivo_base64'],
+                          archivo.get('nombre', 'archivo'),
+                          archivo.get('mime_type'),
+                          forzar_descarga=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2895,6 +3296,10 @@ def api_admin_comunicados_create():
     payload = {'consorcio_id': d.get('consorcio_id'), 'admin_id': admin_id, 'titulo': (d.get('titulo') or '').strip(), 'cuerpo': (d.get('cuerpo') or '').strip(), 'importante': bool(d.get('importante', False))}
     if not payload['titulo'] or not payload['cuerpo'] or not payload['consorcio_id']:
         return jsonify({'error': 'Faltan campos obligatorios'}), 400
+    # El comunicado lo leen los vecinos del consorcio, no el administrador: sin
+    # este chequeo se podía publicar un aviso en la cartelera de un edificio
+    # ajeno, firmado por su administración.
+    consorcio_propio(payload['consorcio_id'], 'id')
     res = supabase.table('comunicados').insert(payload).execute()
     return jsonify(res.data[0] if res.data else {}), 201
 
@@ -2913,6 +3318,7 @@ def api_admin_votaciones_create():
     admin_id = get_admin_id()
     d = request.json or {}
     payload = {'consorcio_id': d.get('consorcio_id'), 'admin_id': admin_id, 'titulo': (d.get('titulo') or '').strip(), 'descripcion': d.get('descripcion', ''), 'opciones': d.get('opciones', ['Si', 'No', 'Abstención']), 'fecha_limite': d.get('fecha_limite') or None, 'votos_necesarios': d.get('votos_necesarios') or None, 'estado': 'activa'}
+    consorcio_propio(payload['consorcio_id'], 'id')
     res = supabase.table('votaciones').insert(payload).execute()
     return jsonify(res.data[0] if res.data else {}), 201
 
@@ -2936,8 +3342,12 @@ def api_admin_archivos_create():
     archivo = request.files.get('archivo')
     if not archivo or not archivo.filename:
         return jsonify({'error': 'Se requiere un archivo'}), 400
-    file_bytes = archivo.read()
-    payload = {'consorcio_id': d.get('consorcio_id'), 'admin_id': admin_id, 'categoria': d.get('categoria', 'otros'), 'nombre': d.get('nombre') or archivo.filename, 'archivo_base64': base64.b64encode(file_bytes).decode('utf-8'), 'mime_type': archivo.content_type or 'application/pdf'}
+    consorcio_propio(d.get('consorcio_id'), 'id')
+    try:
+        file_bytes, mime, nombre = validar_adjunto(archivo)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    payload = {'consorcio_id': d.get('consorcio_id'), 'admin_id': admin_id, 'categoria': d.get('categoria', 'otros'), 'nombre': d.get('nombre') or nombre, 'archivo_base64': base64.b64encode(file_bytes).decode('utf-8'), 'mime_type': mime}
     res = supabase.table('archivos_consorcio').insert(payload).execute()
     return jsonify(res.data[0] if res.data else {}), 201
 
@@ -2966,6 +3376,9 @@ def api_admin_medios_pago_create():
     admin_id = get_admin_id()
     d = request.json or {}
     payload = {'consorcio_id': d.get('consorcio_id'), 'admin_id': admin_id, 'nombre': (d.get('nombre') or '').strip(), 'descripcion': d.get('descripcion', ''), 'activo': bool(d.get('activo', True))}
+    # Un medio de pago es la cuenta a la que los vecinos giran la expensa. Meter
+    # uno en un consorcio ajeno es redirigir su cobranza.
+    consorcio_propio(payload['consorcio_id'], 'id')
     res = supabase.table('medios_pago').insert(payload).execute()
     return jsonify(res.data[0] if res.data else {}), 201
 
@@ -2984,9 +3397,7 @@ def api_admin_reclamos_list():
     admin_id = get_admin_id()
     cid = request.args.get('consorcio_id')
     if cid:
-        con_check = supabase.table('consorcios').select('id').eq('id', cid).eq('admin_id', admin_id).execute()
-        if not con_check.data:
-            return jsonify({'error': 'Sin permiso'}), 403
+        consorcio_propio(cid, 'id')
         q = supabase.table('reclamos').select('*, vecinos(nombre, email, unidad)').eq('consorcio_id', cid)
     else:
         cons = supabase.table('consorcios').select('id').eq('admin_id', admin_id).execute().data or []
@@ -3003,6 +3414,7 @@ def api_admin_reclamos_list():
 @app.route('/api/admin/reclamos/<rid>', methods=['PUT'])
 @require_auth(allowed_roles=['admin'])
 def api_admin_reclamos_update(rid):
+    fila_de_consorcio_propio('reclamos', rid)
     d = request.json or {}
     allowed = ('estado', 'respuesta_admin')
     payload = {k: v for k, v in d.items() if k in allowed}
@@ -3017,6 +3429,7 @@ def api_admin_avisos_pago_list():
     admin_id = get_admin_id()
     cid = request.args.get('consorcio_id')
     if cid:
+        consorcio_propio(cid, 'id')
         q = supabase.table('avisos_pago').select('id, consorcio_id, vecino_id, unidad_id, cobro_id, monto, fecha_pago, medio_pago, observaciones, adjunto_nombre, adjunto_mime, estado, created_at, vecinos(nombre, email, unidad)').eq('consorcio_id', cid)
     else:
         cons = supabase.table('consorcios').select('id').eq('admin_id', admin_id).execute().data or []
@@ -3031,6 +3444,7 @@ def api_admin_avisos_pago_list():
 @app.route('/api/admin/avisos-pago/<aid>', methods=['PUT'])
 @require_auth(allowed_roles=['admin'])
 def api_admin_avisos_pago_update(aid):
+    fila_de_consorcio_propio('avisos_pago', aid)
     d = request.json or {}
     payload = {k: v for k, v in d.items() if k in ('estado',)}
     res = supabase.table('avisos_pago').update(payload).eq('id', aid).execute()
@@ -3158,6 +3572,7 @@ def api_liquidacion_gastos_disponibles():
     periodo = request.args.get('periodo')
     if not consorcio_id or not periodo:
         return jsonify({'error': 'Faltan consorcio_id y periodo'}), 400
+    consorcio_propio(consorcio_id, 'id')
 
     # El admin puede venir directo a liquidar sin pasar por Gastos; si no
     # generamos acá, el gasto recurrente del mes no existiría todavía y la
@@ -3199,7 +3614,7 @@ def api_liquidaciones_create():
     """
     admin_id = get_admin_id()
     d = request.json
-    consorcio_id = d['consorcio_id']
+    consorcio_id = consorcio_propio(d.get('consorcio_id'), 'id')['id']
     periodo = d['periodo']  # "2026-07"
     gastos_ids = d.get('gastos_ids')  # None = todos los gastos del período
 
@@ -3559,12 +3974,14 @@ def _rubros_con_items(liq_id):
 @app.route('/api/liquidaciones/<lid>/rubros', methods=['GET'])
 @require_auth(allowed_roles=['admin'])
 def api_liquidacion_rubros(lid):
+    liquidacion_propia(lid, 'id')
     return jsonify(_rubros_con_items(lid))
 
 
 @app.route('/api/liquidaciones/<lid>/prorrateo', methods=['GET'])
 @require_auth(allowed_roles=['admin'])
 def api_liquidacion_prorrateo(lid):
+    liquidacion_propia(lid, 'id')
     res = supabase.table('liquidacion_prorrateo') \
         .select('*, unidades_funcionales(numero, piso, tipo, vecino_nombre, vecino_email)') \
         .eq('liquidacion_id', lid).order('unidades_funcionales(numero)').execute()
@@ -3574,19 +3991,31 @@ def api_liquidacion_prorrateo(lid):
 @app.route('/api/liquidaciones/<lid>/prorrateo/<pid>', methods=['PUT'])
 @require_auth(allowed_roles=['admin'])
 def api_liquidacion_prorrateo_update(lid, pid):
+    liquidacion_propia(lid, 'id')
     d = request.json
     allowed = ('saldo_anterior', 'pago_realizado', 'saldo_pendiente', 'interes_mora',
                'porcentaje_a', 'expensa_a', 'porcentaje_c', 'adicional_ordinaria',
                'gastos_particulares', 'extraordinaria', 'redondeo', 'total_unidad')
     payload = {k: v for k, v in d.items() if k in allowed}
-    res = supabase.table('liquidacion_prorrateo').update(payload).eq('id', pid).execute()
+    # El `liquidacion_id` también filtra: con la liquidación propia en la URL y
+    # un `pid` ajeno en el path, el chequeo de arriba pasaría igual.
+    res = supabase.table('liquidacion_prorrateo').update(payload) \
+        .eq('id', pid).eq('liquidacion_id', lid).execute()
     return jsonify(res.data[0] if res.data else {})
 
 
 # ── Resumen personalizado por UF ───────────────────────────────────────────────
 
 def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
-    """Genera el HTML del resumen personalizado para una UF."""
+    """Genera el HTML del resumen personalizado para una UF.
+
+    Todo lo que viene de la base pasa por `escape()`. Este HTML sale por dos
+    puertas y las dos son delicadas: el mail que le llega al vecino, y la
+    respuesta de `?format=html`, que el navegador abre como página en el
+    dominio de Niddo. La descripción de un gasto la escribe un administrador,
+    así que sin escapar alcanzaba con nombrar un gasto `<script>...` para
+    ejecutar código en la sesión de todo el edificio.
+    """
     periodo_display = liq.get('periodo', '')
     try:
         y, m = periodo_display.split('-')
@@ -3657,7 +4086,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
     if particulares_uf:
         particulares_rows = ''.join(f'''
         <tr>
-            <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;font-size:14px;">{p["desc"]}</td>
+            <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;font-size:14px;">{escape(p["desc"])}</td>
             <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;text-align:right;font-size:14px;font-weight:600;">${p["monto"]:,.2f}</td>
         </tr>''' for p in particulares_uf)
         particulares_html = f'''
@@ -3679,7 +4108,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
     obras_html = ''
     if obras_en_curso:
         obras_items = ''.join(
-            f'<li style="padding:6px 0;font-size:13px;color:#444;">{o["desc"]} — Cuota {o["cuota"]} de {o["total"]}</li>'
+            f'<li style="padding:6px 0;font-size:13px;color:#444;">{escape(o["desc"])} — Cuota {escape(o["cuota"])} de {escape(o["total"])}</li>'
             for o in obras_en_curso
         )
         obras_html = f'''
@@ -3725,8 +4154,8 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 
 <!-- Header -->
 <div style="background:linear-gradient(135deg,#7C3AED,#10B981);border-radius:14px;padding:28px;color:#fff;text-align:center;">
-    <h1 style="margin:0;font-size:22px;font-weight:800;">🏢 {consorcio.get('nombre', '')}</h1>
-    <p style="margin:6px 0 0;font-size:13px;opacity:.85;">{consorcio.get('direccion', '')}</p>
+    <h1 style="margin:0;font-size:22px;font-weight:800;">🏢 {escape(consorcio.get('nombre', ''))}</h1>
+    <p style="margin:6px 0 0;font-size:13px;opacity:.85;">{escape(consorcio.get('direccion', ''))}</p>
     <p style="margin:4px 0 0;font-size:13px;opacity:.85;">Período: {periodo_display}</p>
 </div>
 
@@ -3734,7 +4163,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 <div style="background:#fff;border-radius:12px;margin-top:16px;padding:24px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.05);">
     <p style="margin:0;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">{'Expensa complementaria' if es_complementaria else 'Tu expensa este mes'}</p>
     <p style="margin:8px 0 0;font-size:38px;font-weight:800;color:#111;">${total_unidad:,.2f}</p>
-    <p style="margin:6px 0 0;font-size:12px;color:#888;">UF {uf.get('numero', '')} — Piso {uf.get('piso', '—')} — {uf.get('vecino_nombre', '')}</p>
+    <p style="margin:6px 0 0;font-size:12px;color:#888;">UF {escape(uf.get('numero', ''))} — Piso {escape(uf.get('piso', '—'))} — {escape(uf.get('vecino_nombre', ''))}</p>
     {aviso_complementaria}
 </div>
 
@@ -3796,7 +4225,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 <!-- Footer -->
 <div style="text-align:center;margin-top:24px;padding:16px;">
     <p style="font-size:12px;color:#aaa;">Generado por Niddo — Gestión de consorcios inteligente</p>
-    <p style="font-size:11px;color:#ccc;">{liq.get('notas', '')}</p>
+    <p style="font-size:11px;color:#ccc;">{escape(liq.get('notas', ''))}</p>
 </div>
 
 </div>
@@ -3808,10 +4237,8 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 @require_auth(allowed_roles=['admin'])
 def api_liquidacion_resumen(lid, uid):
     """Genera y devuelve el resumen HTML personalizado de una UF."""
-    liq = supabase.table('liquidaciones').select('*, consorcios(nombre, direccion, banco_nombre, banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago)') \
-        .eq('id', lid).single().execute().data
-    if not liq:
-        return jsonify({'error': 'Liquidación no encontrada'}), 404
+    liq = liquidacion_propia(lid, '*, consorcios(nombre, direccion, banco_nombre, '
+                                  'banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago)')
 
     consorcio = liq.get('consorcios', {})
 
@@ -3845,13 +4272,13 @@ def api_liquidacion_enviar(lid):
     if unidades_ids is not None and not unidades_ids:
         return jsonify({'error': 'Seleccioná al menos una unidad funcional para enviar'}), 400
 
+    # El permiso se resuelve antes de tocar nada: es la ruta que manda mails a
+    # cuarenta vecinos, y lo único que no se puede deshacer después.
+    liq = liquidacion_propia(lid, '*, consorcios(nombre, direccion, banco_nombre, '
+                                  'banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago)')
+
     import resend
     resend.api_key = os.environ.get('RESEND_API_KEY', '')
-
-    liq = supabase.table('liquidaciones').select('*, consorcios(nombre, direccion, banco_nombre, banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago)') \
-        .eq('id', lid).single().execute().data
-    if not liq:
-        return jsonify({'error': 'Liquidación no encontrada'}), 404
 
     consorcio = liq.get('consorcios', {})
 
@@ -3931,6 +4358,7 @@ def api_liquidacion_enviar(lid):
 @app.route('/api/liquidaciones/<lid>/envios', methods=['GET'])
 @require_auth(allowed_roles=['admin'])
 def api_liquidacion_envios(lid):
+    liquidacion_propia(lid, 'id')
     res = supabase.table('resumen_envios') \
         .select('*, unidades_funcionales(numero, vecino_nombre, vecino_email)') \
         .eq('liquidacion_id', lid).order('created_at', desc=True).execute()
@@ -3942,6 +4370,7 @@ def api_liquidacion_envios(lid):
 @app.route('/api/envio-programado/<cid>', methods=['GET'])
 @require_auth(allowed_roles=['admin'])
 def api_envio_programado_get(cid):
+    consorcio_propio(cid, 'id')
     res = supabase.table('envio_programado').select('*') \
         .eq('consorcio_id', cid).limit(1).execute()
     return jsonify(res.data[0] if res.data else {})
@@ -3951,6 +4380,7 @@ def api_envio_programado_get(cid):
 @require_auth(allowed_roles=['admin'])
 def api_envio_programado_set(cid):
     admin_id = get_admin_id()
+    consorcio_propio(cid, 'id')
     d = request.json
     payload = {
         'consorcio_id': cid,
