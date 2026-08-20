@@ -92,3 +92,43 @@ def test_el_listado_no_arrastra_el_base64_del_adjunto(admin, reclamos):
     fila = admin.get('/api/admin/reclamos').get_json()[0]
     assert 'adjunto_nombre' in fila
     assert 'adjunto_base64' not in fila
+
+
+# ── El vecino se entera ───────────────────────────────────────────────────────
+# Un reclamo es lo que uno reporta y después espera. Sin aviso, el vecino tiene
+# que acordarse de entrar a mirar si le contestaron.
+
+@pytest.fixture
+def mails(monkeypatch, app_modulo):
+    enviados = []
+    monkeypatch.setattr(app_modulo, '_enviar_mail',
+                        lambda dest, asunto, html: enviados.append((dest, asunto, html)))
+    return enviados
+
+
+def test_le_avisa_al_vecino_que_le_respondieron(admin, reclamos, mails):
+    admin.put('/api/admin/reclamos/rec-1',
+              json={'estado': 'en_proceso', 'respuesta_admin': 'Va el plomero el martes'})
+    assert len(mails) == 1
+    destinatarios, asunto, html = mails[0]
+    assert destinatarios == ['uno@test']
+    assert 'Pérdida en el baño' in asunto
+    assert 'Va el plomero el martes' in html
+    assert 'En proceso' in html
+
+
+def test_sin_respuesta_escrita_igual_avisa_el_cambio_de_estado(admin, reclamos, mails):
+    admin.put('/api/admin/reclamos/rec-1', json={'estado': 'en_proceso'})
+    assert len(mails) == 1
+    assert 'En proceso' in mails[0][2]
+
+
+def test_si_el_aviso_explota_la_respuesta_igual_queda(admin, reclamos, monkeypatch,
+                                                      app_modulo):
+    def explota(*_a, **_k):
+        raise RuntimeError('Resend caído')
+    monkeypatch.setattr(app_modulo, '_enviar_mail', explota)
+    r = admin.put('/api/admin/reclamos/rec-1',
+                  json={'estado': 'resuelto', 'respuesta_admin': 'Listo'})
+    assert r.status_code == 200
+    assert reclamos[0]['respuesta_admin'] == 'Listo'

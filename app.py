@@ -658,6 +658,40 @@ def _mail_reserva_confirmada(reserva: dict, amenity_id: str) -> None:
                  _mail_shell('Tu reserva quedó confirmada', cuerpo))
 
 
+def _mail_respuesta_reclamo(reclamo: dict, estado_nuevo: str, respuesta: str) -> None:
+    """Le avisa al vecino que su reclamo se movió.
+
+    Sin esto el vecino tiene que acordarse de entrar a mirar. Un reclamo es
+    justamente lo que uno reporta y después espera: el aviso es la mitad del
+    trámite, y era la mitad que faltaba.
+    """
+    vecino = supabase.table('vecinos').select('nombre, email') \
+        .eq('id', reclamo.get('vecino_id')).single().execute().data or {}
+    email = vecino.get('email')
+    if not email:
+        return
+
+    nombre = (vecino.get('nombre') or '').split(' ')[0]
+    saludo = f'Hola {nombre},' if nombre else 'Hola,'
+    titulo = reclamo.get('titulo') or 'tu reclamo'
+    legible = {'activo': 'Activo', 'en_proceso': 'En proceso',
+               'resuelto': 'Resuelto', 'cerrado': 'Cerrado'}.get(estado_nuevo, estado_nuevo)
+
+    cuerpo = f"""
+      <p style="margin:0 0 16px">{saludo}</p>
+      <p style="margin:0 0 22px">La administración actualizó tu reclamo
+      <strong>{titulo}</strong>.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:22px">
+        <tr><td style="padding:7px 0;color:#574C42;width:130px">Estado</td><td style="padding:7px 0"><strong>{legible}</strong></td></tr>
+      </table>
+      {f'<p style="margin:0 0 8px;color:#574C42;font-size:13px"><strong>Respuesta:</strong></p><p style="margin:0 0 22px">{respuesta}</p>' if respuesta else ''}
+      <a href="{url_for('dashboard', role='vecino', _external=True)}"
+         style="display:inline-block;background:#E8734A;color:#fff;text-decoration:none;
+         padding:12px 24px;border-radius:12px;font-weight:700">Ver en el portal</a>"""
+    _enviar_mail([email], f'Tu reclamo se actualizó — {titulo}',
+                 _mail_shell('Novedades de tu reclamo', cuerpo))
+
+
 def _mail_aviso_solicitud(fila: dict) -> None:
     """Avisa a los superadmins, con todo lo necesario para levantar el teléfono."""
     panel = url_for('superadmin_panel', _external=True)
@@ -3083,7 +3117,19 @@ def api_admin_reclamos_update(rid):
     payload = {k: v for k, v in d.items() if k in allowed}
     payload['updated_at'] = now_iso()
     res = supabase.table('reclamos').update(payload).eq('id', rid).execute()
-    return jsonify(res.data[0] if res.data else {})
+    actualizado = res.data[0] if res.data else {}
+
+    # El aviso va después de guardar y sin poder voltear la respuesta: el
+    # reclamo ya se movió, y que Resend esté caído no es motivo para que el
+    # administrador vea un error sobre algo que sí quedó hecho.
+    if actualizado:
+        try:
+            _mail_respuesta_reclamo(actualizado, payload.get('estado'),
+                                    payload.get('respuesta_admin') or '')
+        except Exception:
+            app.logger.exception('Falló el aviso del reclamo %s', rid)
+
+    return jsonify(actualizado)
 
 
 def _reclamo_de_mis_consorcios(rid, admin_id, columnas='*'):
