@@ -230,12 +230,13 @@ footer.note b{ color:var(--text-dim); }
 <script>
 const ADMIN = [
   { id:"a1",  label:"Liquidar expensas", link:"v1", estado:"built", items:[
-    {t:"Definir % de copropiedad por unidad", s:"planned", note:"Columnas existen (porcentaje_a/c) pero no están en el payload de alta/edición — el prorrateo cae en reparto lineal"},
+    {t:"Definir % de copropiedad por unidad", s:"planned", note:"porcentaje_a/c no están en el payload de alta/edición de la UF — quedan en 0 y el prorrateo cae en reparto lineal"},
     {t:"Prorratear gastos comunes vs. exclusivos", s:"built"},
-    {t:"Calcular intereses por mora", s:"built"},
+    {t:"Calcular intereses por mora", s:"planned", note:"interes_mora se inserta siempre en 0 y solo cambia editándolo a mano: no hay cálculo automático ni tasa configurable"},
     {t:"Aplicar fondo de reserva", s:"planned", note:"saldo_superfondo existe como columna pero no se calcula ni se carga"},
-    {t:"Exportar PDF/Excel individual por unidad", s:"built"},
-    {t:"Enviar por mail (WhatsApp deshabilitado)", s:"built"}
+    {t:"Exportar PDF/Excel individual por unidad", s:"planned", note:"El resumen por UF es HTML (preview + cuerpo del mail); PDF hay para gastos, cobros, balance y cupón, no para el resumen"},
+    {t:"Enviar por mail (WhatsApp deshabilitado)", s:"built"},
+    {t:"Programar el envío mensual", s:"planned", note:"El modal \"Agendar\" guarda en envio_programado, pero no hay cron que lea esa tabla"}
   ]},
   { id:"a2",  label:"Cargar gastos y facturas (OCR)", link:null, estado:"built", items:[
     {t:"OCR de factura con Groq Vision (monto, proveedor, fecha)", s:"built"},
@@ -244,17 +245,18 @@ const ADMIN = [
   ]},
   { id:"a3",  label:"Gestionar proveedores", link:"v10", estado:"built", items:[
     {t:"Datos fiscales y de contacto", s:"built"},
-    {t:"Historial de trabajos realizados", s:"planned", note:"Endpoint existe, el frontend no lo llama todavía"},
+    {t:"Historial de trabajos realizados", s:"planned", note:"GET /api/proveedores/&lt;pid&gt;/gastos existe, el frontend no lo llama todavía"},
     {t:"Registrar pago a proveedor", s:"built"},
     {t:"Emitir retenciones", s:"none"}
   ]},
   { id:"a4",  label:"Conciliar cobranzas", link:"v3", estado:"notbuilt", items:[
     {t:"Matchear pago con unidad funcional", s:"none"},
     {t:"Resolver cobros no identificados", s:"none"},
-    {t:"Actualizar cuenta corriente automáticamente", s:"none"}
+    {t:"Actualizar cuenta corriente automáticamente", s:"none"},
+    {t:"Revisar el aviso de pago que mandó el vecino", s:"planned", note:"GET/PUT /api/admin/avisos-pago existen sin pantalla: el vecino avisa y del otro lado no lo ve nadie"}
   ]},
   { id:"a5",  label:"Gestionar morosidad y planes de pago", link:"v2", estado:"partial", items:[
-    {t:"Calcular deuda e intereses acumulados", s:"built"},
+    {t:"Calcular deuda e intereses acumulados", s:"planned", note:"El panel lista cobros vencido/en_mora, pero nada los pasa a ese estado al vencerse ni acumula intereses"},
     {t:"Generar recordatorios automáticos", s:"none"},
     {t:"Armar planes de pago", s:"none"}
   ]},
@@ -271,7 +273,7 @@ const ADMIN = [
   { id:"a8",  label:"Enviar comunicados", link:"v7", estado:"partial", items:[
     {t:"Redactar comunicado", s:"planned", note:"POST /api/admin/comunicados existe, sin UI — \"Mensajería\" es placeholder"},
     {t:"Segmentar destinatarios", s:"none"},
-    {t:"Programar envío", s:"none"}
+    {t:"Programar envío", s:"planned", note:"Existe solo para liquidaciones (envio_programado) y sin ejecutor; para comunicados no hay ni campo"}
   ]},
   { id:"a9",  label:"Gestionar reclamos", link:"v4", estado:"partial", items:[
     {t:"Recibir y categorizar", s:"planned", note:"El reclamo llega a la base; sin pantalla admin para verlo"},
@@ -300,12 +302,13 @@ const ADMIN = [
   { id:"a14", label:"Tablero de control multi-consorcio", link:null, estado:"built", items:[
     {t:"Tablero centralizado con KPIs", s:"built"},
     {t:"Cambiar entre consorcios", s:"built"},
-    {t:"Alertas de gastos pendientes y mora", s:"built"}
+    {t:"Alertas de gastos pendientes y mora", s:"built", note:"Ojo: el contador de mora de /api/dashboard/kpis no filtra por admin_id — cuenta los cobros de todos los administradores"},
+    {t:"Carga masiva de consorcios y UF por Excel", s:"built"}
   ]},
   { id:"a15", label:"Gestionar roles y permisos del equipo", link:null, estado:"notbuilt", items:[
     {t:"Crear usuarios internos", s:"none"},
     {t:"Asignar roles por empleado", s:"none"},
-    {t:"Auditoría de acciones", s:"none", note:"Existe, pero solo a nivel Superadmin — no por admin de consorcio"}
+    {t:"Auditoría de acciones", s:"none", note:"superadmin_auditoria registra solo lo del Superadmin — del equipo del administrador no se guarda nada"}
   ]},
   { id:"a16", label:"Responder consultas (chat / bot)", link:"v12", estado:"notbuilt", items:[
     {t:"Chat / bot de WhatsApp", s:"none"},
@@ -322,7 +325,7 @@ const VEC = [
   { id:"v2",  label:"Ver cuenta corriente y comprobantes", link:"a5", estado:"partial", items:[
     {t:"Historial de liquidaciones", s:"built"},
     {t:"Detalle de gastos del período", s:"built"},
-    {t:"Descargar comprobantes", s:"none", note:"dlCobros() es un stub — muestra \"próximamente\""}
+    {t:"Descargar comprobantes", s:"planned", note:"El cupón por cobro y el adjunto del gasto sí bajan; la exportación masiva sigue siendo un stub (dlCobros() muestra \"próximamente\")"}
   ]},
   { id:"v3",  label:"Informar un pago", link:"a4", estado:"built", items:[
     {t:"Declarar monto y fecha de pago", s:"built"},
@@ -396,6 +399,19 @@ const PROV = [
 ];
 
 const ALL = [...ADMIN, ...VEC, ...SUPER];
+
+/* El `estado` de cada nodo se recalcula desde sus items en vez de confiar en el
+   que quedó escrito arriba: al corregir un item a mano era fácil dejar el punto
+   del árbol en verde con la lista ya en amarillo. Todo construido = built, algo
+   construido o empezado = partial, nada = notbuilt. */
+ALL.forEach(n=>{
+  const items = n.items || [];
+  if(!items.length) return;
+  const built = items.filter(i=>i.s==='built').length;
+  const started = items.filter(i=>i.s==='built'||i.s==='planned').length;
+  n.estado = built === items.length ? 'built' : (started ? 'partial' : 'notbuilt');
+});
+
 const byId = Object.fromEntries(ALL.map(n=>[n.id,n]));
 const estadoLabel = { built:"Construido", partial:"Parcial", notbuilt:"Sin construir" };
 

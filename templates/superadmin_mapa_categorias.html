@@ -127,7 +127,7 @@ footer.note b{ color:var(--text-dim); }
       <div class="top-titles">
         <span class="eyebrow">Mapa conceptual · Niddo</span>
         <h1 class="display">Funcionalidades por categoría — estado real</h1>
-        <p>Vive acá en Superadmin y persiste en Supabase (tabla roadmap_estado) — lo que marques queda guardado para siempre, no por navegador. Arrancó con el estado que encontró el audit de Cursor; seguí tocando a medida que cerrás temas.</p>
+        <p>Vive acá en Superadmin y persiste en Supabase (tabla roadmap_estado) — lo que marques queda guardado para siempre, no por navegador. El punto de partida sale de releer el código, no de una lista de deseos: última pasada sobre <span class="mono">main</span> el 20/08/2026. Si algo lo marcaste a mano, tu marca gana sobre el seed; “Reiniciar a estado real” borra tus marcas y te deja lo que dice el repo.</p>
       </div>
       <button id="reset-btn">Reiniciar a estado real</button>
     </div>
@@ -147,7 +147,7 @@ footer.note b{ color:var(--text-dim); }
   <div id="tree"></div>
 
   <footer class="note">
-    <b>Cómo leer los puntos:</b> verde = construido y confirmado en el código · amarillo = existe el dato/endpoint pero falta la otra mitad (UI, o viceversa) · gris = no hay evidencia en el repo. Donde hay una nota en cursiva, es una cita directa de lo que encontró el audit — no es mi interpretación.
+    <b>Cómo leer los puntos:</b> verde = construido y confirmado en el código · amarillo = existe el dato/endpoint pero falta la otra mitad (UI, o viceversa) · gris = no hay evidencia en el repo. La nota en cursiva dice dónde mirar: nombre de endpoint, de tabla o de función, para que puedas verificarlo sin creerme. <b>Ojo con el amarillo:</b> varias cosas que antes figuraban en verde bajaron a amarillo — el dato se guarda y se muestra, pero nadie lo calcula (intereses de mora, recargo del 2° vencimiento, envío programado, gasto recurrente). Lo que se mide acá es el estado de <span class="mono">main</span>: las ramas <span class="mono">feat/</span> sin mergear no cuentan.
   </footer>
 </div>
 
@@ -155,11 +155,11 @@ footer.note b{ color:var(--text-dim); }
 const CATEGORIES = [
   { id:"exp", code:"EXP", name:"Liquidación de expensas", hue:16, funcs:[
     { name:"Calcular expensa mensual automática", role:"admin", tech:["Supabase"], items:[
-      {t:"Definir % de copropiedad por unidad", s:"planned", note:"Columnas porcentaje_a/c existen pero no están en el payload de alta/edición de unidades — siguen en 0 y el prorrateo cae en reparto lineal"},
+      {t:"Definir % de copropiedad por unidad", s:"planned", note:"Sigue sin poder cargarse en la UF: api_ufs_create/update no incluyen porcentaje_a ni porcentaje_c en el payload, así que quedan en 0 y el prorrateo cae en reparto lineal. Se puede corregir liquidación por liquidación con PUT /api/liquidaciones/&lt;lid&gt;/prorrateo/&lt;pid&gt;, pero ese endpoint tampoco tiene pantalla"},
       {t:"Prorratear gastos comunes vs. exclusivos", s:"built"},
       {t:"Aplicar fondo de reserva", s:"planned", note:"La columna saldo_superfondo existe y el PUT la acepta, pero no se calcula en ningún lado ni el panel la carga"},
-      {t:"Calcular intereses por mora", s:"built"},
-      {t:"Generar vencimientos (1° y 2°)", s:"built"}
+      {t:"Calcular intereses por mora", s:"planned", note:"El campo interes_mora viaja hasta el cupón y el resumen, pero se inserta siempre en 0 (cobros/generar y el prorrateo de la liquidación) y solo cambia si el admin lo edita a mano por PUT /api/cobros/&lt;id&gt;. No hay cálculo automático ni tasa configurable — la de Configuración está hardcodeada en el HTML"},
+      {t:"Generar vencimientos (1° y 2°)", s:"built", note:"Las dos fechas se cargan y se imprimen. Ojo: el recargo del 2° vencimiento (interes_2_vto) se muestra como \"+X%\" en el resumen pero no se aplica a ningún total"}
     ]},
     { name:"Gestionar gastos extraordinarios", role:"admin", tech:[], items:[
       {t:"Diferenciar de gastos ordinarios", s:"none"},
@@ -169,27 +169,30 @@ const CATEGORIES = [
     { name:"Emitir liquidación en formato normativo", role:"admin", tech:["reportlab"], items:[
       {t:"Formato \"Mis Expensas\" (CABA/PBA)", s:"none"},
       {t:"QR / link a comprobantes de gastos", s:"none"},
-      {t:"Exportar PDF individual por unidad", s:"built"}
+      {t:"Exportar PDF individual por unidad", s:"planned", note:"El resumen por UF se genera en HTML (preview del panel y cuerpo del mail). Los PDF de reportlab existen para consorcio, gastos, cobros, balance y el cupón del vecino — para el resumen de liquidación no"}
     ]},
     { name:"Enviar la liquidación", role:"cruzado", tech:["Resend"], items:[
       {t:"Envío por mail", s:"built"},
       {t:"Envío por WhatsApp", s:"none", note:"Deshabilitado en la UI (\"próximamente\")"},
-      {t:"Notificación push en la app", s:"none"}
+      {t:"Notificación push en la app", s:"none"},
+      {t:"Programar el envío mensual", s:"planned", note:"El modal \"Agendar\" guarda día, hora, canal y activo en envio_programado vía POST /api/envio-programado/&lt;cid&gt;. No hay cron ni worker: nadie lee esa tabla, así que la programación no dispara nada"}
     ]}
   ]},
   { id:"cob", code:"COB", name:"Cobranzas y medios de pago", hue:105, funcs:[
     { name:"Cobrar expensas online", role:"vecino", tech:[], items:[
       {t:"Generar QR de pago por unidad", s:"none"},
       {t:"Integrar billeteras virtuales", s:"none"},
-      {t:"Aceptar tarjeta de débito/crédito", s:"none"}
+      {t:"Aceptar tarjeta de débito/crédito", s:"none"},
+      {t:"Mostrar CBU / alias del consorcio al vecino", s:"planned", note:"GET /api/vecinos/medios-pago ya alimenta la pantalla del vecino, pero el ABM del admin (/api/admin/medios-pago, GET/POST/DELETE) no tiene UI: los medios se cargan a mano en la base"}
     ]},
     { name:"Conciliar pagos automáticamente", role:"admin", tech:[], items:[
       {t:"Matchear pago con unidad funcional", s:"none"},
       {t:"Resolver cobros no identificados", s:"none"},
-      {t:"Actualizar cuenta corriente en tiempo real", s:"none"}
+      {t:"Actualizar cuenta corriente en tiempo real", s:"none"},
+      {t:"Aviso de pago del vecino → confirmación del admin", s:"planned", note:"El vecino informa el pago con comprobante (drawer + POST /api/avisos_pago). Del lado admin, GET /api/admin/avisos-pago y PUT /api/admin/avisos-pago/&lt;aid&gt; existen pero no hay pantalla: el aviso queda sin revisar"}
     ]},
     { name:"Gestionar morosidad", role:"admin", tech:["Supabase"], items:[
-      {t:"Calcular deuda e intereses acumulados", s:"built"},
+      {t:"Calcular deuda e intereses acumulados", s:"planned", note:"El panel de morosidad lista los cobros en estado vencido/en_mora, pero ningún proceso pasa un cobro a esos estados al vencerse ni acumula intereses. Hoy la lista solo se llena si alguien edita el estado a mano"},
       {t:"Generar recordatorios automáticos", s:"none"},
       {t:"Armar planes de pago", s:"none"}
     ]},
@@ -228,12 +231,13 @@ const CATEGORIES = [
     { name:"Administrar múltiples consorcios", role:"admin", tech:["Supabase"], items:[
       {t:"Tablero centralizado", s:"built"},
       {t:"Cambiar entre consorcios", s:"built"},
-      {t:"Ver alertas por consorcio", s:"built"}
+      {t:"Ver alertas por consorcio", s:"built"},
+      {t:"Carga masiva de consorcios y UF por Excel", s:"built", note:"Plantilla .xlsx generada con openpyxl (/api/consorcios/plantilla) + import con deduplicación (/api/consorcios/carga-masiva). La plantilla no trae columna de % de copropiedad"}
     ]},
     { name:"Gestionar equipo y permisos", role:"admin", tech:[], items:[
       {t:"Crear usuarios internos", s:"none"},
       {t:"Asignar roles (full, lectura, cobranzas, etc.)", s:"none"},
-      {t:"Auditoría de acciones por usuario", s:"none"}
+      {t:"Auditoría de acciones por usuario", s:"none", note:"Existe superadmin_auditoria, pero solo registra lo que hace el superadmin (aprobaciones, rechazos, impersonaciones). Del equipo del administrador no se guarda nada"}
     ]},
     { name:"Configurar vencimientos y recordatorios", role:"admin", tech:[], items:[
       {t:"Definir reglas por consorcio", s:"none", note:"\"Configuración\" es decorativa: botón sin handler, valores hardcodeados en el HTML"},
@@ -244,7 +248,7 @@ const CATEGORIES = [
     { name:"Enviar comunicados", role:"cruzado", tech:["Supabase"], items:[
       {t:"Redactar (texto, imagen, adjunto)", s:"planned", note:"Backend listo (POST /api/admin/comunicados), sin UI — \"Mensajería\" es un placeholder"},
       {t:"Segmentar destinatarios (propietario/inquilino/unidad)", s:"none"},
-      {t:"Programar envío", s:"none"},
+      {t:"Programar envío", s:"planned", note:"Solo para liquidaciones: envio_programado guarda día/hora/canal por consorcio y nadie lo ejecuta. Para comunicados sueltos no hay ni campo"},
       {t:"Confirmar lectura", s:"built", note:"Tabla comunicados_leidos + el vecino ya ve comunicados con datos reales"}
     ]},
     { name:"Atender consultas", role:"cruzado", tech:[], items:[
@@ -276,7 +280,8 @@ const CATEGORIES = [
     { name:"Cargar gastos", role:"admin", tech:["Groq Vision"], items:[
       {t:"OCR de factura (monto, proveedor, fecha)", s:"built", note:"Groq Vision + PyMuPDF, incluso en lote"},
       {t:"Asignar centro de costo", s:"built"},
-      {t:"Adjuntar comprobante", s:"built"}
+      {t:"Adjuntar comprobante", s:"built"},
+      {t:"Regenerar el gasto recurrente cada período", s:"planned", note:"El alta guarda recurrente + frecuencia y la tabla los muestra como chip, pero nada crea la ocurrencia del mes siguiente: hoy es una etiqueta"}
     ]},
     { name:"Pagar a proveedores", role:"admin", tech:[], items:[
       {t:"Generar orden de pago", s:"none"},
@@ -347,6 +352,19 @@ const CATEGORIES = [
     { name:"Cumplir formato de liquidación", role:"admin", tech:[], items:[
       {t:"QR obligatorio (CABA)", s:"none"},
       {t:"Certificado de deuda y créditos", s:"none"}
+    ]}
+  ]},
+  { id:"seg", code:"SEG", name:"Seguridad y aislamiento entre clientes", hue:5, funcs:[
+    { name:"Separar los datos de cada administrador", role:"admin", tech:["Supabase"], items:[
+      {t:"Filtrar consorcios, gastos y liquidaciones por admin_id", s:"built", note:"/api/consorcios, /api/gastos, /api/proveedores y /api/liquidaciones (incluidos PUT y DELETE) sí filtran por el admin de la sesión"},
+      {t:"Filtrar cobros, morosidad y balance por admin_id", s:"none", note:"/api/cobros, /api/cobros/mora, /api/cobros/export, PUT /api/cobros/&lt;rid&gt;, el mora_count de /api/dashboard/kpis y la mitad de ingresos de /api/balance no filtran por admin_id. Sin consorcio_id en la query devuelven los cobros de todos los administradores de la plataforma"},
+      {t:"Validar que el consorcio del path sea del admin", s:"none", note:"/api/consorcios/&lt;cid&gt;/unidades (GET/POST/PUT/DELETE), /api/consorcios/&lt;cid&gt;/amenities y /api/cobros/generar operan sobre el cid que reciban sin comprobar que ese consorcio pertenezca al admin logueado"},
+      {t:"Validar que la liquidación del path sea del admin", s:"planned", note:"El PUT y el DELETE de /api/liquidaciones/&lt;lid&gt; filtran por admin_id, pero /resumen/&lt;uid&gt;, /enviar, /rubros y /prorrateo no: con un id ajeno se puede leer y hasta mandar por mail la liquidación de otro"},
+      {t:"Validar que el cobro sea del vecino que lo pide", s:"none", note:"/api/vecinos/cobros/&lt;rid&gt;/cupon arma el PDF con el id que le pasen, sin comprobar que ese cobro sea de la unidad del vecino de la sesión"}
+    ]},
+    { name:"Defensa en profundidad en la base", role:"admin", tech:["Supabase"], items:[
+      {t:"Row Level Security en las tablas", s:"none", note:"El backend usa la service_role key, que saltea RLS por diseño. Hoy el filtro por admin_id en Flask es el único control: si un endpoint se olvida, no hay red abajo"},
+      {t:"Helper único de \"este recurso es del admin\"", s:"none", note:"No existe: cada endpoint decide por su cuenta si filtra o no, que es exactamente por qué la lista de arriba quedó despareja"}
     ]}
   ]}
 ];
