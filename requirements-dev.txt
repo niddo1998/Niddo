@@ -1,0 +1,2 @@
+# Sólo para correr los tests: la app en producción usa requirements.txt.
+pytest>=8.0

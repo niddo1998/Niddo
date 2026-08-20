@@ -394,6 +394,21 @@
             </tbody>
         </table>
     </div>
+
+    <div class="table-wrap" style="margin-top:18px">
+        <div class="twh">
+            <h3>Pagos que informaste</h3>
+            <span style="font-size:0.75rem;color:var(--muted)">La administración los revisa y los marca acá</span>
+        </div>
+        <table class="table" id="table-avisos">
+            <thead>
+                <tr><th>Fecha de pago</th><th>Monto</th><th>Medio</th><th>Informado el</th><th>Estado</th></tr>
+            </thead>
+            <tbody id="tb-avisos">
+                <tr><td colspan="5" class="tbl-empty">Cargando...</td></tr>
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <!-- REPORTE GASTOS -->
@@ -667,7 +682,7 @@
 <div class="toast-container" id="tc"></div>
 
 <script>
-const S = { vecino:null, unidades:[], activeU:null, coms:[], comFilter:'all', recs:[], vots:[], votFilter:'', cobros:[], amenities:[], selAm:null, charts:{}, booked:[], selStart:null, selEnd:null, dragAnchor:null, dragging:false };
+const S = { vecino:null, unidades:[], activeU:null, coms:[], comFilter:'all', recs:[], vots:[], votFilter:'', cobros:[], avisos:[], amenities:[], selAm:null, charts:{}, booked:[], selStart:null, selEnd:null, dragAnchor:null, dragging:false };
 
 function toast(msg, t='ok'){const el=document.createElement('div');el.className='toast '+t;el.textContent=msg;document.getElementById('tc').appendChild(el);setTimeout(()=>el.remove(),3200)}
 function openModal(id){document.getElementById(id).classList.add('open')}
@@ -705,12 +720,17 @@ function showSection(name){
     if(ldr[name])ldr[name]();
 }
 
+// Todo lo que viene de la API se pinta con innerHTML. Sin esto, un reclamo
+// titulado <img src=x onerror=...> ejecuta código en la sesión de quien lo abra,
+// y el título lo escribe el propio vecino.
+const esc = s => String(s ?? '').replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt$=n=>n!=null?'$'+Number(n).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}):'–';
 const fmtD=d=>d?new Date(d+'T00:00:00').toLocaleDateString('es-AR'):'–';
 
 const badgeMap={pagado:'ok',pendiente:'pending',vencido:'danger',en_mora:'danger',activo:'ok',en_proceso:'pending',resuelto:'ok',cerrado:'muted',activa:'ok',cerrada:'muted',confirmada:'ok',cancelada:'danger'};
 const ebadge = e => {
-    const clm = {pagado:'ok', pendiente:'pending', vencido:'danger', en_mora:'danger', activo:'ok', en_proceso:'pending', resuelto:'ok', cerrado:'muted'};
+    const clm = {pagado:'ok', pendiente:'pending', vencido:'danger', en_mora:'danger', activo:'ok', en_proceso:'pending', resuelto:'ok', cerrado:'muted', aceptado:'ok', rechazado:'danger'};
     return `<span class="state-dot" title="${e||''}"><span class="dot ${clm[e]||'muted'}"></span><span style="font-size:0.75rem;font-weight:600">${e||'–'}</span></span>`;
 };
 
@@ -888,7 +908,29 @@ async function openCom(id){
     document.getElementById('com-detail').innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">${c.importante?'<span style="color:var(--amber);font-size:1.1rem">⭐</span>':''}<h2 style="font-size:1.1rem;font-weight:800">${c.titulo}</h2></div><div style="color:var(--muted);font-size:0.78rem;margin-bottom:18px">${new Date(c.created_at).toLocaleDateString('es-AR',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div><div style="font-size:0.88rem;line-height:1.8;color:var(--text2);white-space:pre-wrap">${c.cuerpo}</div>`
 }
 
-async function loadExpensas(){await loadCobros();populatePagoCobros()}
+async function loadExpensas(){await loadCobros();await loadAvisos();populatePagoCobros()}
+
+/* El vecino informaba un pago y no volvía a saber nada: el endpoint devolvía el
+   estado desde siempre y esta pantalla no lo pedía. */
+async function loadAvisos(){
+    const tb=document.getElementById('tb-avisos');
+    tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Cargando...</td></tr>';
+    try{
+        S.avisos=await api('/api/avisos_pago');
+        renderAvisosTable();
+    }catch(e){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Error al cargar los pagos informados</td></tr>'}
+}
+function renderAvisosTable(){
+    const tb=document.getElementById('tb-avisos');
+    if(!S.avisos.length){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Todavía no informaste ningún pago</td></tr>';return}
+    tb.innerHTML=S.avisos.map(a=>`<tr class="data-row">
+        <td>${a.fecha_pago?new Date(a.fecha_pago+'T00:00:00').toLocaleDateString('es-AR'):'–'}</td>
+        <td><strong>${fmt$(a.monto)}</strong></td>
+        <td>${esc(a.medio_pago)||'–'}</td>
+        <td>${a.created_at?new Date(a.created_at).toLocaleDateString('es-AR'):'–'}</td>
+        <td>${ebadge(a.estado)}</td>
+    </tr>`).join('');
+}
 async function loadCobros(){
     const tb=document.getElementById('tb-cobros');tb.innerHTML='<tr><td colspan="7" class="tbl-empty">Cargando...</td></tr>';
     try{
@@ -1011,7 +1053,10 @@ async function submitPago(){
     btn.disabled = true;
     
     try{
-        await fetch('/api/avisos_pago',{method:'POST',body:fd});
+        // Sin mirar res.ok un 400 del servidor terminaba en "enviado con éxito"
+        // y el vecino se quedaba esperando una confirmación que nunca iba a llegar.
+        const res=await fetch('/api/avisos_pago',{method:'POST',body:fd});
+        if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error||'Error '+res.status)}
         closeDrawer('drawer-pago');
         toast('Aviso de pago enviado con éxito','ok');
         

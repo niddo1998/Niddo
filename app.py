@@ -2874,12 +2874,19 @@ def api_admin_avisos_pago_list():
     return jsonify(res.data)
 
 
+# El vecino ve este estado en su pantalla, así que dejar pasar cualquier string
+# significaba mostrarle una palabra que su UI no sabe pintar.
+ESTADOS_AVISO_PAGO = ('pendiente', 'aceptado', 'rechazado')
+
+
 @app.route('/api/admin/avisos-pago/<aid>', methods=['PUT'])
 @require_auth(allowed_roles=['admin'])
 def api_admin_avisos_pago_update(aid):
     d = request.json or {}
-    payload = {k: v for k, v in d.items() if k in ('estado',)}
-    res = supabase.table('avisos_pago').update(payload).eq('id', aid).execute()
+    estado = d.get('estado')
+    if estado not in ESTADOS_AVISO_PAGO:
+        return jsonify({'error': f'Estado inválido: {", ".join(ESTADOS_AVISO_PAGO)}'}), 400
+    res = supabase.table('avisos_pago').update({'estado': estado}).eq('id', aid).execute()
     return jsonify(res.data[0] if res.data else {})
 
 
