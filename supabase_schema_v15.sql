@@ -1,7 +1,7 @@
 -- ============================================================
 --  Niddo — Supabase Schema v15 (capacidad y cupo de amenities)
 --  Ejecutar en: Supabase Dashboard → SQL Editor
---  Requiere haber ejecutado v1 → v14 antes
+--  Requiere haber ejecutado v1 → v12 y la v14 antes
 -- ============================================================
 --
 --  `amenities.capacidad_maxima` existe desde v3 y el admin la carga desde el

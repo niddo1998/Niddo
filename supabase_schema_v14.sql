@@ -1,7 +1,7 @@
 -- ============================================================
 --  Niddo — Supabase Schema v14 (teléfono del vecino)
 --  Ejecutar en: Supabase Dashboard → SQL Editor
---  Requiere haber ejecutado v1 → v13 antes
+--  Requiere haber ejecutado v1 → v12 antes
 -- ============================================================
 --
 --  El vecino no tenía dónde dejar un teléfono. `administradores` sí tiene la
@@ -9,9 +9,9 @@
 --  PUT /api/me: hasta ahora el perfil del vecino era de sólo lectura y para
 --  corregir un nombre mal escrito había que entrar a la base.
 --
---  Se salta la v13 a propósito: ese número lo ocupa la migración de RLS que
---  viene en feat/mobile-admin-v2. Correr las dos en cualquier orden es seguro,
---  no se tocan.
+--  Va después de la v12 y no de la v13: la v13 no está en esta rama, la ocupa
+--  la migración de RLS de feat/mobile-admin-v2. No hace falta esperarla — las
+--  dos tocan cosas distintas y corren en cualquier orden.
 
 ALTER TABLE vecinos ADD COLUMN IF NOT EXISTS telefono TEXT;
 
