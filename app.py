@@ -2163,6 +2163,16 @@ def api_reservas_create():
     if new_start >= new_end:
         return jsonify({'error': 'La hora de inicio debe ser anterior a la hora de fin'}), 400
 
+    # Reservar para ayer no es una reserva. Se comparaba solamente contra las
+    # otras reservas, así que una fecha pasada entraba sin chistar y quedaba
+    # ocupando el calendario hacia atrás.
+    try:
+        dia = date.fromisoformat(str(fecha)[:10])
+    except ValueError:
+        return jsonify({'error': 'Fecha inválida'}), 400
+    if dia < date.today():
+        return jsonify({'error': 'No se puede reservar una fecha que ya pasó'}), 400
+
     for r in conflicts_res.data:
         est_start = to_minutes(r['hora_inicio'])
         est_end = to_minutes(r['hora_fin'])

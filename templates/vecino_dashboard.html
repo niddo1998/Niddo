@@ -1227,7 +1227,10 @@ const calIsBooked=m=>S.booked.some(b=>m>=b.start&&m<b.end);
 async function loadReservas(){
     const cid=(S.activeU?.consorcios?.id)||S.vecino?.consorcio_id;if(!cid)return;
     try{S.amenities=await api('/api/consorcios/'+cid+'/amenities');const sel=document.getElementById('res-am');sel.innerHTML='<option value="">Seleccioná un espacio...</option>';S.amenities.forEach(a=>{const o=document.createElement('option');o.value=a.id;o.textContent=a.nombre;sel.appendChild(o)})}catch(e){}
-    const fEl=document.getElementById('res-fecha');if(!fEl.value)fEl.value=new Date().toISOString().split('T')[0];
+    // El servidor rechaza las fechas pasadas; el `min` evita que el vecino
+    // arme todo un turno para recién enterarse al confirmar.
+    const fEl=document.getElementById('res-fecha');const hoy=new Date().toISOString().split('T')[0];
+    fEl.min=hoy;if(!fEl.value)fEl.value=hoy;
     await loadMisReservas();
 }
 async function loadMisReservas(){
