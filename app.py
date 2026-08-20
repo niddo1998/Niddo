@@ -611,6 +611,53 @@ def _mail_shell(titulo: str, cuerpo: str) -> str:
     </div>"""
 
 
+def _mail_reserva_confirmada(reserva: dict, amenity_id: str) -> None:
+    """Le manda al vecino el comprobante de su reserva.
+
+    Hasta acá la única confirmación era un toast en pantalla: el vecino cerraba
+    la pestaña y no le quedaba nada con la fecha y la hora que había elegido.
+
+    Va después del insert y nunca antes: el mail confirma algo que ya pasó. Y
+    como `_enviar_mail` se traga sus propios errores, que Resend esté caído no
+    voltea una reserva que en la base ya está.
+    """
+    vecino_id = reserva.get('vecino_id')
+    if not vecino_id:
+        # Reserva cargada por el admin sin decir para quién: no hay a quién avisarle.
+        return
+    vecino = supabase.table('vecinos').select('nombre, email') \
+        .eq('id', vecino_id).single().execute().data or {}
+    email = vecino.get('email')
+    if not email:
+        return
+
+    amenity = supabase.table('amenities') \
+        .select('nombre, condiciones_uso, consorcios(nombre)') \
+        .eq('id', amenity_id).single().execute().data or {}
+    espacio = amenity.get('nombre') or 'el espacio común'
+    edificio = (amenity.get('consorcios') or {}).get('nombre') or ''
+    condiciones = (amenity.get('condiciones_uso') or '').strip()
+    nombre = (vecino.get('nombre') or '').split(' ')[0]
+    saludo = f'Hola {nombre},' if nombre else 'Hola,'
+
+    cuerpo = f"""
+      <p style="margin:0 0 16px">{saludo}</p>
+      <p style="margin:0 0 22px">Tu reserva quedó confirmada.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:22px">
+        <tr><td style="padding:7px 0;color:#574C42;width:130px">Espacio</td><td style="padding:7px 0"><strong>{espacio}</strong></td></tr>
+        <tr><td style="padding:7px 0;color:#574C42">Edificio</td><td style="padding:7px 0">{edificio}</td></tr>
+        <tr><td style="padding:7px 0;color:#574C42">Día</td><td style="padding:7px 0"><strong>{reserva.get('fecha','')}</strong></td></tr>
+        <tr><td style="padding:7px 0;color:#574C42">Horario</td><td style="padding:7px 0"><strong>{reserva.get('hora_inicio','')} a {reserva.get('hora_fin','')}</strong></td></tr>
+      </table>
+      {f'<p style="margin:0 0 22px;color:#574C42;font-size:13px"><strong>Condiciones de uso:</strong><br>{condiciones}</p>' if condiciones else ''}
+      <p style="margin:0;color:#574C42;font-size:13px">
+        Si no vas a usarlo, cancelá la reserva desde el portal para que otro vecino pueda tomar el turno.
+      </p>"""
+    _enviar_mail([email],
+                 f'Reserva confirmada — {espacio} el {reserva.get("fecha", "")}',
+                 _mail_shell('Tu reserva quedó confirmada', cuerpo))
+
+
 def _mail_aviso_solicitud(fila: dict) -> None:
     """Avisa a los superadmins, con todo lo necesario para levantar el teléfono."""
     panel = url_for('superadmin_panel', _external=True)
@@ -2131,7 +2178,19 @@ def api_reservas_create():
         'estado': 'confirmada'
     }
     res = supabase.table('reservas_amenities').insert(payload).execute()
-    return jsonify(res.data[0] if res.data else {}), 201
+    reserva = res.data[0] if res.data else {}
+
+    # La reserva ya está guardada. Avisar es lo último y lo menos importante:
+    # si armar el mail falla —un amenity borrado entre medio, Resend caído—, el
+    # vecino tiene que ver su reserva hecha igual, no un 500 sobre algo que sí
+    # pasó. `_enviar_mail` ya se traga lo suyo; esto cubre las consultas de
+    # alrededor, que también pueden romper.
+    try:
+        _mail_reserva_confirmada(reserva, amenity_id)
+    except Exception:
+        app.logger.exception('Falló el aviso de la reserva %s', reserva.get('id'))
+
+    return jsonify(reserva), 201
 
 
 @app.route('/api/reservas_amenities/<rid>', methods=['DELETE'])

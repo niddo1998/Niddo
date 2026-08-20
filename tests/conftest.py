@@ -160,11 +160,16 @@ def _datos():
              'es_superadmin': False, 'email': 'admin@test', 'nombre': 'Admin',
              'ultima_actividad': '2999-01-01T00:00:00+00:00'},
         ],
+        # `consorcios` va embebido a mano: el doble no resuelve los joins de
+        # PostgREST, así que se guarda la fila como la devolvería el select
+        # `amenities(..., consorcios(nombre))` que hace la app.
         'amenities': [
             {'id': 'amen-1', 'consorcio_id': 'cons-1', 'nombre': 'SUM',
-             'capacidad_maxima': None},
+             'capacidad_maxima': None, 'condiciones_uso': '',
+             'consorcios': {'nombre': 'Mío'}},
             {'id': 'amen-2', 'consorcio_id': 'cons-2', 'nombre': 'Quincho ajeno',
-             'capacidad_maxima': None},
+             'capacidad_maxima': None, 'condiciones_uso': '',
+             'consorcios': {'nombre': 'Ajeno'}},
         ],
         'reservas_amenities': [],
         'votaciones': [
