@@ -148,6 +148,8 @@ footer.note b{ color:var(--text-dim); }
 
   <footer class="note">
     <b>Cómo leer los puntos:</b> verde = construido y confirmado en el código · amarillo = existe el dato/endpoint pero falta la otra mitad (UI, o viceversa) · gris = no hay evidencia en el repo. La nota en cursiva dice dónde mirar: nombre de endpoint, de tabla o de función, para que puedas verificarlo sin creerme. <b>Ojo con el amarillo:</b> varias cosas que antes figuraban en verde bajaron a amarillo — el dato se guarda y se muestra, pero nadie lo calcula (intereses de mora, recargo del 2° vencimiento, envío programado, gasto recurrente). Lo que se mide acá es el estado de <span class="mono">main</span>: las ramas <span class="mono">feat/</span> sin mergear no cuentan.
+    <br><br>
+    <b>Antes de tomar algo de esta lista, mirá las ramas abiertas.</b> <span class="mono">feat/mobile-admin-v2</span> está 15 commits adelante de main y ya trae, con tests, casi toda la categoría SEG (chequeo de pertenencia request por request, RLS en las 26 tablas, escapado de lo que los dashboards pintan con innerHTML) más el admin mobile v2 y los gastos recurrentes generándose mes a mes. Mergearla mueve más puntos de este mapa que cualquier cosa que se empiece de cero hoy.
   </footer>
 </div>
 
