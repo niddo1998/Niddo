@@ -2699,19 +2699,33 @@ def api_votaciones_votar(vid):
     v = supabase.table('vecinos').select('unidad_id, consorcio_id').eq('id', vecino_id).single().execute()
     v_data = v.data or {}
     unidad_id = v_data.get('unidad_id')
+
+    # Sin unidad no hay voto. El control de abajo es "una unidad, un voto", así
+    # que con unidad_id en None no aplicaba a nadie: un vecino todavía en
+    # "Pendiente" podía votar la misma votación tantas veces como quisiera.
+    if not unidad_id:
+        return jsonify({'error': 'Necesitás tener una unidad asignada para votar. '
+                                 'Pedile al administrador que te asigne la tuya.'}), 403
+
     votacion_res = supabase.table('votaciones').select('*').eq('id', vid).single().execute()
     if not votacion_res.data:
         return jsonify({'error': 'Votación no encontrada'}), 404
     votacion = votacion_res.data
+
+    # La votación se buscaba sólo por id: con el UUID de la asamblea del edificio
+    # de al lado, el voto entraba. Se contesta 404 y no 403 para no confirmar
+    # que ese id existe.
+    if votacion.get('consorcio_id') != v_data.get('consorcio_id'):
+        return jsonify({'error': 'Votación no encontrada'}), 404
+
     if votacion.get('estado') != 'activa':
         return jsonify({'error': 'La votación ya no está activa'}), 400
     opciones_validas = votacion.get('opciones') or ['Si', 'No', 'Abstención']
     if opcion not in opciones_validas:
         return jsonify({'error': f'Opción inválida. Opciones: {opciones_validas}'}), 400
-    if unidad_id:
-        ya_voto = supabase.table('votos').select('id').eq('votacion_id', vid).eq('unidad_id', unidad_id).execute()
-        if ya_voto.data:
-            return jsonify({'error': 'Tu unidad ya emitió un voto en esta votación'}), 409
+    ya_voto = supabase.table('votos').select('id').eq('votacion_id', vid).eq('unidad_id', unidad_id).execute()
+    if ya_voto.data:
+        return jsonify({'error': 'Tu unidad ya emitió un voto en esta votación'}), 409
     try:
         res = supabase.table('votos').insert({'votacion_id': vid, 'vecino_id': vecino_id, 'unidad_id': unidad_id, 'opcion': opcion}).execute()
         return jsonify(res.data[0] if res.data else {}), 201
