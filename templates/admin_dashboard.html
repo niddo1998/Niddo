@@ -671,8 +671,8 @@
         <div class="card">
             <div class="card-h"><span class="card-t">Amenities del Consorcio</span></div>
             <table class="tbl">
-                <thead><tr><th>Nombre</th><th>Capacidad Max.</th><th>Descripción</th><th>Acciones</th></tr></thead>
-                <tbody id="tbody-amenities"><tr><td colspan="4" class="tbl-empty">Seleccioná un consorcio para ver sus amenities</td></tr></tbody>
+                <thead><tr><th>Nombre</th><th>Capacidad Max.</th><th>Cupo mensual</th><th>Descripción</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-amenities"><tr><td colspan="5" class="tbl-empty">Seleccioná un consorcio para ver sus amenities</td></tr></tbody>
             </table>
         </div>
     </div>
@@ -834,7 +834,8 @@
             <input type="hidden" id="m-amenity-id">
             <div class="form-row">
                 <div class="form-group"><label class="form-label">Nombre *</label><input class="form-ctrl" id="m-amenity-nombre" placeholder="SUM / Piscina / Parrilla"></div>
-                <div class="form-group"><label class="form-label">Capacidad Máxima</label><input type="number" class="form-ctrl" id="m-amenity-capacidad" placeholder="Ej: 30"></div>
+                <div class="form-group"><label class="form-label">Capacidad Máxima</label><input type="number" class="form-ctrl" id="m-amenity-capacidad" min="1" placeholder="Ej: 30"><div style="font-size:.72rem;color:var(--muted);margin-top:4px">Personas que entran. Vacío = sin tope</div></div>
+                <div class="form-group"><label class="form-label">Reservas por vecino al mes</label><input type="number" class="form-ctrl" id="m-amenity-max-mes" min="1" placeholder="Ej: 2"><div style="font-size:.72rem;color:var(--muted);margin-top:4px">Cuántas veces puede tomarlo el mismo vecino en un mes. Vacío = sin tope</div></div>
             </div>
             <div class="form-group"><label class="form-label">Descripción</label><input class="form-ctrl" id="m-amenity-desc" placeholder="Breve descripción del espacio"></div>
             <div class="form-group"><label class="form-label">Condiciones de Uso</label><textarea class="form-ctrl" id="m-amenity-condiciones" rows="4" placeholder="Normas de convivencia, limpieza, horarios..."></textarea></div>
@@ -2552,7 +2553,7 @@ async function initAmenities() {
 async function loadAmenitiesAndReservations() {
     const cid = $('filter-amenities-consorcio').value;
     if (!cid) {
-        $('tbody-amenities').innerHTML = '<tr><td colspan="4" class="tbl-empty">Seleccioná un consorcio para ver sus amenities</td></tr>';
+        $('tbody-amenities').innerHTML = '<tr><td colspan="5" class="tbl-empty">Seleccioná un consorcio para ver sus amenities</td></tr>';
         $('tbody-amenities-reservations').innerHTML = '<tr><td colspan="7" class="tbl-empty">Seleccioná un consorcio para ver las reservas</td></tr>';
         return;
     }
@@ -2571,13 +2572,14 @@ async function loadAmenitiesAndReservations() {
 function renderAmenities() {
     const tb = $('tbody-amenities');
     if (!loadedAmenities.length) {
-        tb.innerHTML = '<tr><td colspan="4" class="tbl-empty">No hay amenities cargados. ¡Añadí el primero!</td></tr>';
+        tb.innerHTML = '<tr><td colspan="5" class="tbl-empty">No hay amenities cargados. ¡Añadí el primero!</td></tr>';
         return;
     }
     tb.innerHTML = loadedAmenities.map(a => `
         <tr>
             <td><strong>${a.nombre}</strong></td>
             <td>${a.capacidad_maxima || 'Sin límite'}</td>
+            <td>${a.max_reservas_mes ? a.max_reservas_mes + '/mes' : 'Sin tope'}</td>
             <td class="text-muted text-sm">${a.descripcion || '—'}</td>
             <td>
                 <div class="inline-actions">
@@ -2619,6 +2621,7 @@ function openAmenityModal(id) {
     $('m-amenity-id').value = '';
     $('m-amenity-nombre').value = '';
     $('m-amenity-capacidad').value = '';
+    $('m-amenity-max-mes').value = '';
     $('m-amenity-desc').value = '';
     $('m-amenity-condiciones').value = '';
     $('m-amenity-title').textContent = 'Nuevo amenity';
@@ -2630,6 +2633,7 @@ function openAmenityModal(id) {
         $('m-amenity-title').textContent = 'Editar amenity';
         $('m-amenity-nombre').value = a.nombre || '';
         $('m-amenity-capacidad').value = a.capacidad_maxima || '';
+        $('m-amenity-max-mes').value = a.max_reservas_mes || '';
         $('m-amenity-desc').value = a.descripcion || '';
         $('m-amenity-condiciones').value = a.condiciones_uso || '';
     }
@@ -2641,6 +2645,7 @@ async function saveAmenity() {
     const id = $('m-amenity-id').value;
     const nombre = $('m-amenity-nombre').value.trim();
     const cap = parseInt($('m-amenity-capacidad').value) || null;
+    const maxMes = parseInt($('m-amenity-max-mes').value) || null;
     const desc = $('m-amenity-desc').value.trim();
     const cond = $('m-amenity-condiciones').value.trim();
 
@@ -2649,7 +2654,7 @@ async function saveAmenity() {
         return;
     }
 
-    const payload = { nombre, capacidad_maxima: cap, descripcion: desc, condiciones_uso: cond };
+    const payload = { nombre, capacidad_maxima: cap, max_reservas_mes: maxMes, descripcion: desc, condiciones_uso: cond };
 
     try {
         if (id) {

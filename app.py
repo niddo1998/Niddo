@@ -2,7 +2,7 @@ import io
 import os
 import json
 import base64
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 from typing import Optional
 from functools import wraps
 
@@ -2062,6 +2062,7 @@ def api_amenities_create(cid):
         'descripcion': d.get('descripcion', ''),
         'condiciones_uso': d.get('condiciones_uso', ''),
         'capacidad_maxima': d.get('capacidad_maxima') or None,
+        'max_reservas_mes': d.get('max_reservas_mes') or None,
     }
     res = supabase.table('amenities').insert(payload).execute()
     return jsonify(res.data[0] if res.data else {}), 201
@@ -2076,6 +2077,7 @@ def api_amenities_update(cid, aid):
         'descripcion': d.get('descripcion'),
         'condiciones_uso': d.get('condiciones_uso'),
         'capacidad_maxima': d.get('capacidad_maxima'),
+        'max_reservas_mes': d.get('max_reservas_mes'),
     }.items() if v is not None}
     res = supabase.table('amenities').update(payload).eq('id', aid).eq('consorcio_id', cid).execute()
     return jsonify(res.data[0] if res.data else {})
@@ -2179,12 +2181,49 @@ def api_reservas_create():
         if new_start < est_end and new_end > est_start:
             return jsonify({'error': 'El horario seleccionado entra en conflicto con otra reserva'}), 400
 
+    # Las dos reglas del amenity. Las dos son opcionales: si el admin no cargó
+    # el número, el espacio no tiene tope y se comporta como hasta ahora.
+    amenity = supabase.table('amenities') \
+        .select('nombre, capacidad_maxima, max_reservas_mes') \
+        .eq('id', amenity_id).single().execute().data or {}
+
+    personas = d.get('cantidad_personas')
+    if personas is not None:
+        try:
+            personas = int(personas)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'La cantidad de personas tiene que ser un número'}), 400
+        if personas < 1:
+            return jsonify({'error': 'La cantidad de personas tiene que ser al menos 1'}), 400
+
+    cupo = amenity.get('capacidad_maxima')
+    if cupo and personas and personas > int(cupo):
+        return jsonify({'error': f'{amenity.get("nombre") or "El espacio"} admite hasta '
+                                 f'{cupo} personas y estás anotando {personas}'}), 400
+
+    # El tope mensual se cuenta por vecino y por espacio, sobre el mes de la
+    # fecha que se está reservando y no sobre el mes en curso: reservar en
+    # octubre no debería gastar el cupo de septiembre.
+    tope = amenity.get('max_reservas_mes')
+    if tope and vecino_id:
+        desde = dia.replace(day=1).isoformat()
+        hasta = (dia.replace(day=28) + timedelta(days=4)).replace(day=1).isoformat()
+        delmes = supabase.table('reservas_amenities').select('id') \
+            .eq('amenity_id', amenity_id).eq('vecino_id', vecino_id) \
+            .eq('estado', 'confirmada') \
+            .gte('fecha', desde).lt('fecha', hasta).execute().data or []
+        if len(delmes) >= int(tope):
+            return jsonify({'error': f'Ya tenés {len(delmes)} reserva(s) de '
+                                     f'{amenity.get("nombre") or "este espacio"} este mes '
+                                     f'y el máximo es {tope}'}), 400
+
     payload = {
         'amenity_id': amenity_id,
         'vecino_id': vecino_id,
         'fecha': fecha,
         'hora_inicio': hora_inicio,
         'hora_fin': hora_fin,
+        'cantidad_personas': personas,
         'estado': 'confirmada'
     }
     res = supabase.table('reservas_amenities').insert(payload).execute()

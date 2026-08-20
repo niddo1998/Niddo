@@ -490,6 +490,9 @@
         </div>
         <div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap">
             <button class="btn btn-secondary btn-sm" id="btn-cond" onclick="verCondiciones()" disabled><svg class="ic ic-sm"><use href="#ic-doc"></use></svg>Condiciones</button>
+            <label class="fl" style="margin:0" for="res-personas">Personas</label>
+            <input type="number" id="res-personas" class="fc" min="1" style="width:90px" placeholder="—">
+            <span id="res-cupo" style="font-size:0.78rem;color:var(--muted)"></span>
             <span id="am-desc" style="font-size:0.82rem;color:var(--muted)">Seleccioná un espacio para ver los detalles</span>
         </div>
     </div>
@@ -1267,6 +1270,14 @@ function onAmenitySelected(){
     const aid=document.getElementById('res-am').value;S.selAm=S.amenities.find(a=>a.id===aid);
     const bc=document.getElementById('btn-cond');const lbl=document.getElementById('am-desc');
     if(S.selAm){bc.disabled=false;lbl.textContent=S.selAm.descripcion||''}else{bc.disabled=true;lbl.textContent='Seleccioná un espacio para ver los detalles'}
+
+    /* Los topes del espacio se dicen antes de reservar, no después: el
+       servidor rechaza igual, pero enterarse al confirmar es peor. */
+    const pEl=document.getElementById('res-personas');const cupoEl=document.getElementById('res-cupo');
+    const cap=S.selAm?.capacidad_maxima;const maxMes=S.selAm?.max_reservas_mes;
+    pEl.max=cap||'';
+    cupoEl.textContent=[cap?`hasta ${cap}`:'', maxMes?`${maxMes} reserva(s) por mes`:''].filter(Boolean).join(' · ');
+
     onResDateChanged();
 }
 async function onResDateChanged(){
@@ -1344,7 +1355,10 @@ async function realizarReserva(){
     const aid=document.getElementById('res-am').value;const fecha=document.getElementById('res-fecha').value;
     if(!aid||!fecha||S.selStart==null){toast('Elegí un horario en el calendario','warn');return}
     try{
-        await api('/api/reservas_amenities',{method:'POST',body:JSON.stringify({amenity_id:aid,fecha,hora_inicio:minToHHMM(S.selStart),hora_fin:minToHHMM(S.selEnd)})});
+        // La cantidad es opcional: sin espacio con capacidad cargada no hay
+        // contra qué compararla, y las reservas viejas tampoco la tienen.
+        const personas=parseInt(document.getElementById('res-personas').value)||null;
+        await api('/api/reservas_amenities',{method:'POST',body:JSON.stringify({amenity_id:aid,fecha,hora_inicio:minToHHMM(S.selStart),hora_fin:minToHHMM(S.selEnd),cantidad_personas:personas})});
         toast('Reserva confirmada','ok');clearSeleccion();await loadMisReservas();onResDateChanged()
     }catch(e){toast(e.message,'err')}
 }
