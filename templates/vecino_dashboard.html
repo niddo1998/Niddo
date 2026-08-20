@@ -730,7 +730,7 @@ const fmtD=d=>d?new Date(d+'T00:00:00').toLocaleDateString('es-AR'):'–';
 
 const badgeMap={pagado:'ok',pendiente:'pending',vencido:'danger',en_mora:'danger',activo:'ok',en_proceso:'pending',resuelto:'ok',cerrado:'muted',activa:'ok',cerrada:'muted',confirmada:'ok',cancelada:'danger'};
 const ebadge = e => {
-    const clm = {pagado:'ok', pendiente:'pending', vencido:'danger', en_mora:'danger', activo:'ok', en_proceso:'pending', resuelto:'ok', cerrado:'muted', aceptado:'ok', rechazado:'danger'};
+    const clm = {pagado:'ok', pendiente:'pending', vencido:'danger', en_mora:'danger', activo:'ok', en_proceso:'pending', resuelto:'ok', cerrado:'muted', aceptado:'ok', rechazado:'danger', vencida:'muted'};
     return `<span class="state-dot" title="${e||''}"><span class="dot ${clm[e]||'muted'}"></span><span style="font-size:0.75rem;font-weight:600">${e||'–'}</span></span>`;
 };
 
@@ -1205,10 +1205,13 @@ function renderVots(){
     c.innerHTML=S.vots.map(v=>{
         const tot=v.total_votos||0;const opc=v.opciones||['Si','No','Abstención'];
         const barras=opc.map(op=>{const cnt=(v.conteo_votos||{})[op]||0;const pct=tot>0?Math.round(cnt/tot*100):0;const clm={'Si':'yes','No':'no','Abstención':'abs'};return`<div class="vot-bar-w"><div class="vot-bar-l"><span>${op}</span><span>${cnt} votos (${pct}%)</span></div><div class="vot-bar"><div class="vot-bar-f ${clm[op]||'abs'}" style="width:${pct}%"></div></div></div>`}).join('');
-        const bloq=v.ya_vote||v.estado!=='activa';
+        // `vigente` lo decide el backend, con la misma regla que usa para
+        // aceptar el voto: si lo calculara acá, la pantalla podría ofrecer un
+        // botón que el servidor va a rechazar.
+        const bloq=v.ya_vote||!v.vigente;
         const btns=bloq?'':opc.map(op=>`<button class="vot-btn" onclick="votar('${v.id}','${op}')">${op}</button>`).join('');
         const yaVote=v.ya_vote?`<div style="color:var(--teal);font-size:0.8rem;margin-top:8px">Ya votaste: <strong>${v.mi_opcion||'–'}</strong></div>`:'';
-        return`<div class="vot-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div class="vot-title">${v.titulo}</div>${ebadge(v.estado)}</div><div class="vot-desc">${v.descripcion||''}</div>${v.fecha_limite?`<div style="font-size:0.75rem;color:var(--muted);margin-bottom:10px">Vence: ${fmtD(v.fecha_limite)} · ${tot} votos emitidos</div>`:''} ${barras}${yaVote}${!bloq?`<div class="vot-btns">${btns}</div>`:''}</div>`
+        return`<div class="vot-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div class="vot-title">${esc(v.titulo)}</div>${ebadge(v.vencida?'vencida':v.estado)}</div><div class="vot-desc">${esc(v.descripcion)||''}</div>${v.fecha_limite?`<div style="font-size:0.75rem;color:var(--muted);margin-bottom:10px">${v.vencida?'Venció':'Vence'}: ${fmtD(v.fecha_limite)} · ${tot} votos emitidos</div>`:''}${v.falta_quorum?`<div style="font-size:0.75rem;color:var(--amber);margin-bottom:10px">Faltan ${v.falta_quorum} votos para llegar al quórum</div>`:''} ${barras}${yaVote}${!bloq?`<div class="vot-btns">${btns}</div>`:''}</div>`
     }).join('')
 }
 async function votar(vid,opcion){

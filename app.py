@@ -2753,6 +2753,21 @@ def api_reclamos_adjunto(rid):
 # API — VOTACIONES & VOTOS
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _votacion_vigente(votacion) -> bool:
+    """Si todavía se puede votar.
+
+    `estado` no alcanza: nada lo mueve solo, así que una votación con la fecha
+    límite vencida seguía figurando 'activa' y aceptando votos para siempre.
+    `fecha_limite` es un DATE y se cuenta inclusive: el último día se vota.
+    """
+    if votacion.get('estado') != 'activa':
+        return False
+    limite = votacion.get('fecha_limite')
+    if not limite:
+        return True
+    return str(limite)[:10] >= date.today().isoformat()
+
+
 @app.route('/api/votaciones')
 @require_auth(allowed_roles=['vecino'])
 def api_votaciones_list():
@@ -2783,6 +2798,12 @@ def api_votaciones_list():
             conteo[op] = conteo.get(op, 0) + 1
         vot['conteo_votos'] = conteo
         vot['total_votos'] = len(votos)
+        # Se calcula acá y no en el navegador para que la pantalla y el endpoint
+        # que recibe el voto no puedan discrepar sobre si la votación sigue viva.
+        vot['vigente'] = _votacion_vigente(vot)
+        vot['vencida'] = (vot.get('estado') == 'activa' and not vot['vigente'])
+        necesarios = vot.get('votos_necesarios')
+        vot['falta_quorum'] = max(0, int(necesarios) - len(votos)) if necesarios else 0
         vot['ya_vote'] = False
         if unidad_id:
             mi_voto = next((voto for voto in votos if voto.get('unidad_id') == unidad_id), None)
@@ -2824,7 +2845,10 @@ def api_votaciones_votar(vid):
     if votacion.get('consorcio_id') != v_data.get('consorcio_id'):
         return jsonify({'error': 'Votación no encontrada'}), 404
 
-    if votacion.get('estado') != 'activa':
+    if not _votacion_vigente(votacion):
+        limite = votacion.get('fecha_limite')
+        if votacion.get('estado') == 'activa' and limite:
+            return jsonify({'error': f'La votación venció el {str(limite)[:10]}'}), 400
         return jsonify({'error': 'La votación ya no está activa'}), 400
     opciones_validas = votacion.get('opciones') or ['Si', 'No', 'Abstención']
     if opcion not in opciones_validas:
