@@ -2319,6 +2319,43 @@ def api_me():
     return jsonify(result.data[0])
 
 
+# Lo que cada rol puede cambiar de su propio perfil. Es una lista blanca y no
+# una negra a propósito: con una negra, cada columna nueva del schema nace
+# editable y hay que acordarse de prohibirla. Acá nace prohibida.
+CAMPOS_PERFIL_EDITABLES = {
+    'vecino': ('nombre', 'telefono'),
+    'admin': ('nombre', 'nombre_contacto', 'telefono'),
+}
+
+
+@app.route('/api/me', methods=['PUT'])
+@require_auth()
+def api_me_update():
+    """El usuario corrige su propio perfil.
+
+    Nada de email, auth0_id, estado, es_superadmin, consorcio_id, unidad_id ni
+    rol: son la identidad y los permisos, no el perfil. Cambiar el email acá,
+    además, desincronizaría la fila de la cuenta de Auth0 que la ampara.
+    """
+    user = session['user']
+    table = 'administradores' if user['role'] == 'admin' else 'vecinos'
+    permitidos = CAMPOS_PERFIL_EDITABLES.get(user['role'], ())
+
+    d = request.json or {}
+    payload = {k: (v or '').strip() if isinstance(v, str) else v
+               for k, v in d.items() if k in permitidos}
+    if not payload:
+        return jsonify({'error': f'No hay nada que actualizar. Campos editables: '
+                                 f'{", ".join(permitidos)}'}), 400
+    if 'nombre' in payload and not payload['nombre']:
+        return jsonify({'error': 'El nombre no puede quedar vacío'}), 400
+
+    res = supabase.table(table).update(payload).eq('auth0_id', user['sub']).execute()
+    if not res.data:
+        return jsonify({'error': 'Perfil no encontrado'}), 404
+    return jsonify(res.data[0])
+
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════

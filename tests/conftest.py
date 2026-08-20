@@ -142,10 +142,10 @@ def _datos():
         'vecinos': [
             {'id': 'vec-1', 'auth0_id': 'auth0|uno', 'consorcio_id': 'cons-1',
              'unidad_id': 'uf-1', 'unidad': '1A', 'nombre': 'Uno',
-             'email': 'uno@test', 'telefono': ''},
+             'email': 'uno@test', 'telefono': '', 'rol': 'propietario'},
             {'id': 'vec-2', 'auth0_id': 'auth0|dos', 'consorcio_id': 'cons-2',
              'unidad_id': 'uf-2', 'unidad': '2B', 'nombre': 'Dos',
-             'email': 'dos@test', 'telefono': ''},
+             'email': 'dos@test', 'telefono': '', 'rol': 'propietario'},
         ],
         'consorcios': [
             {'id': 'cons-1', 'admin_id': 'admin-1', 'nombre': 'Mío'},

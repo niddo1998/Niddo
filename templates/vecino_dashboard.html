@@ -1372,8 +1372,57 @@ function toggleAllAccordions(expand) {
 
 async function loadPerfil(){
     const el=document.getElementById('perfil-content');const v=S.vecino;if(!v)return;
-    el.innerHTML=`<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px"><div style="width:52px;height:52px;border-radius:50%;background:var(--nd-verde);display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:800;color:white">${(v.nombre||v.email||'?').charAt(0).toUpperCase()}</div><div><div style="font-size:1rem;font-weight:800">${v.nombre||'–'}</div><div style="color:var(--muted);font-size:0.83rem">${v.email}</div><div style="margin-top:4px">${ebadge('activo')}</div></div></div><div style="border-top:1px solid var(--border);padding-top:16px"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:12px">Mis Unidades</div>${S.unidades.map(u=>{const con=u.consorcios||{};const uf=u.unidades_funcionales||{};return`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px"><div style="font-weight:700;margin-bottom:4px"><svg class="ic ic-sm"><use href="#ic-edificio"></use></svg>${con.nombre||'–'}</div><div style="font-size:0.8rem;color:var(--muted)">Unidad ${uf.numero||'–'} · Piso ${uf.piso||'–'} · ${u.rol||'propietario'}</div>${con.encargado_nombre?`<div style="font-size:0.78rem;color:var(--text2);margin-top:4px">${con.encargado_nombre} ${con.encargado_tel?'· '+con.encargado_tel:''}</div>`:''}</div>`}).join('')}</div>`
+    el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--nd-verde);display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:800;color:white">${esc((v.nombre||v.email||'?').charAt(0).toUpperCase())}</div>
+        <div>
+            <div style="font-size:1rem;font-weight:800">${esc(v.nombre)||'–'}</div>
+            <div style="color:var(--muted);font-size:0.83rem">${esc(v.email)}</div>
+            <div style="margin-top:4px">${ebadge('activo')}</div>
+        </div>
+    </div>
+
+    <form id="form-perfil" onsubmit="event.preventDefault();guardarPerfil()" style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
+        <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:12px">Mis Datos</div>
+        <div class="fg"><label class="fl">Nombre</label><input type="text" id="pf-nombre" class="fc" value="${esc(v.nombre)}" maxlength="120" required></div>
+        <div class="fg"><label class="fl">Teléfono</label><input type="tel" id="pf-telefono" class="fc" value="${esc(v.telefono)}" maxlength="40" placeholder="+54 9 11 ..."></div>
+        <div class="fg" style="margin-bottom:0">
+            <label class="fl">Email</label>
+            <input type="email" class="fc" value="${esc(v.email)}" disabled>
+            <div style="font-size:0.72rem;color:var(--muted);margin-top:4px">El email viene de tu cuenta y no se cambia desde acá</div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top:14px">Guardar cambios</button>
+    </form>
+
+    <div style="border-top:1px solid var(--border);padding-top:16px">
+        <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:12px">Mis Unidades</div>
+        ${S.unidades.map(u=>{
+            const con=u.consorcios||{};const uf=u.unidades_funcionales||{};
+            return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px">
+                <div style="font-weight:700;margin-bottom:4px"><svg class="ic ic-sm"><use href="#ic-edificio"></use></svg>${esc(con.nombre)||'–'}</div>
+                <div style="font-size:0.8rem;color:var(--muted)">Unidad ${esc(uf.numero)||'–'} · Piso ${esc(uf.piso)||'–'} · ${esc(u.rol)||'propietario'}</div>
+                ${con.encargado_nombre?`<div style="font-size:0.78rem;color:var(--text2);margin-top:4px">${esc(con.encargado_nombre)} ${con.encargado_tel?'· '+esc(con.encargado_tel):''}</div>`:''}
+            </div>`;
+        }).join('')}
+    </div>`;
 }
+
+async function guardarPerfil(){
+    const btn=document.querySelector('#form-perfil button[type="submit"]');
+    const orig=btn.textContent;btn.textContent='Guardando...';btn.disabled=true;
+    try{
+        // La respuesta trae el perfil ya guardado: se pisa S.vecino con eso y no
+        // con lo que se tipeó, así que la pantalla muestra lo que quedó en la base.
+        S.vecino=await api('/api/me',{method:'PUT',body:JSON.stringify({
+            nombre:document.getElementById('pf-nombre').value,
+            telefono:document.getElementById('pf-telefono').value
+        })});
+        loadPerfil();
+        toast('Perfil actualizado','ok');
+    }catch(e){toast('Error: '+e.message,'err')}
+    finally{btn.textContent=orig;btn.disabled=false}
+}
+
 
 async function showOnboarding(){
     document.getElementById('onboarding-overlay').classList.add('visible');
