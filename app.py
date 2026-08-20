@@ -2387,6 +2387,44 @@ def api_vecinos_cobro_actual():
     return jsonify(res.data[0] if res.data else None)
 
 
+@app.route('/api/vecinos/cobros/export')
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_cobros_export():
+    """Baja la cuenta corriente del vecino en Excel o PDF.
+
+    No toma `unidad_id` de la query a propósito: la unidad se resuelve del lado
+    del servidor igual que en /api/vecinos/cobros, así que no hay parámetro que
+    cambiar para bajarse la cuenta corriente del departamento de al lado.
+    """
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify({'error': 'No autenticado'}), 401
+    v = supabase.table('vecinos').select('unidad_id').eq('id', vecino_id).single().execute()
+    unidad_id = (v.data or {}).get('unidad_id')
+    if not unidad_id:
+        return jsonify({'error': 'Todavía no tenés una unidad asignada'}), 400
+
+    q = supabase.table('cobros').select('*').eq('unidad_id', unidad_id)
+    if request.args.get('desde'):
+        q = q.gte('created_at', request.args['desde'])
+    if request.args.get('hasta'):
+        q = q.lte('created_at', request.args['hasta'])
+    data = q.order('periodo', desc=True).execute().data or []
+
+    headers = ['Período', 'Monto Base', 'Interés', 'Total', 'Estado', 'Vencimiento', 'Fecha Pago']
+    rows = [[
+        c.get('periodo', ''), c.get('monto_base', 0), c.get('interes_mora', 0),
+        c.get('total', 0), c.get('estado', ''),
+        c.get('fecha_vencimiento', ''), c.get('fecha_pago', ''),
+    ] for c in data]
+
+    if request.args.get('fmt') == 'pdf':
+        buf = make_pdf('Mi cuenta corriente', headers, [[str(x) for x in r] for r in rows])
+        return pdf_response(buf, 'mi_cuenta_corriente.pdf')
+    wb = make_excel(headers, rows, 'Cuenta corriente')
+    return excel_response(wb, 'mi_cuenta_corriente.xlsx')
+
+
 @app.route('/api/vecinos/cobros/<rid>/cupon')
 @require_auth(allowed_roles=['vecino'])
 def api_vecinos_cupon_pago(rid):

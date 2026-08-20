@@ -372,7 +372,7 @@
     <div class="table-wrap">
         <div class="twh">
             <h3>Cuenta Corriente</h3>
-            <div style="display:flex;gap:8px"><button class="btn btn-secondary btn-xs" onclick="dlCobros('excel')">⬇ Excel</button></div>
+            <div style="display:flex;gap:8px"><button class="btn btn-secondary btn-xs" onclick="dlCobros('excel')">⬇ Excel</button><button class="btn btn-secondary btn-xs" onclick="dlCobros('pdf')">⬇ PDF</button></div>
         </div>
         <div class="table-filters">
             <input type="text" id="cob-search" class="fc" style="width:100%;max-width:220px;padding:6px 12px" placeholder="Buscar período o estado..." oninput="filterTable('tb-cobros', 'cob-search')">
@@ -1073,7 +1073,14 @@ async function submitPago(){
         btn.disabled = false;
     }
 }
-function dlCobros(fmt){toast('Función de descarga disponible próximamente','info')}
+/* El filtro "Desde" de la pantalla viaja con la descarga: si el vecino recortó
+   el período en la tabla, esperar que el archivo traiga lo mismo que ve. */
+function dlCobros(fmt){
+    const p=[];
+    if(fmt==='pdf')p.push('fmt=pdf');
+    const d=document.getElementById('exp-desde').value;if(d)p.push('desde='+d);
+    window.location.href='/api/vecinos/cobros/export'+(p.length?'?'+p.join('&'):'');
+}
 
 async function loadGastos(){
     const tb=document.getElementById('tb-gastos');tb.innerHTML='<tr><td colspan="8" class="tbl-empty">Cargando...</td></tr>';
