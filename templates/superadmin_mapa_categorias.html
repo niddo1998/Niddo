@@ -208,25 +208,49 @@ const CATEGORIES = [
     { name:"Ver expensa y cuenta corriente", role:"vecino", tech:["Supabase"], items:[
       {t:"Historial de liquidaciones", s:"built"},
       {t:"Detalle de gastos del período", s:"built"},
-      {t:"Descargar comprobantes", s:"planned", note:"El cupón por cobro (/api/vecinos/cobros/<id>/cupon) y el adjunto del gasto sí bajan; lo que sigue siendo un stub es la exportación masiva — dlCobros() muestra \"próximamente\""}
+      {t:"Descargar comprobantes", s:"planned", note:"El cupón por cobro (/api/vecinos/cobros/&lt;id&gt;/cupon) y el adjunto del gasto sí bajan; lo que sigue siendo un stub es la exportación masiva — dlCobros() muestra \"próximamente\""},
+      {t:"Ver en qué quedó el pago que informó", s:"planned", note:"GET /api/avisos_pago existe, está bien acotado al vecino y devuelve el estado, pero la UI nunca lo llama: el vecino manda el comprobante y no vuelve a saber nada"}
     ]},
     { name:"Gestionar reclamos (vista vecino)", role:"vecino", tech:["Supabase"], items:[
       {t:"Crear reclamo con foto y descripción", s:"built"},
       {t:"Elegir categoría", s:"built"},
       {t:"Ver estado: recibido → en curso → resuelto", s:"built"},
       {t:"Recibir notificación de respuesta", s:"none"},
-      {t:"Historial de reclamos propios", s:"built"}
+      {t:"Historial de reclamos propios", s:"built"},
+      {t:"Que el administrador le conteste", s:"planned", note:"El vecino ya muestra respuesta_admin cuando viene con texto: lo que falta es la pantalla del admin para escribirla. El circuito se corta del otro lado, no de este"}
     ]},
     { name:"Reservar amenities", role:"vecino", tech:["Supabase"], items:[
       {t:"Ver disponibilidad en calendario", s:"built"},
       {t:"Elegir horario / turno", s:"built"},
-      {t:"Confirmar y recibir recordatorio", s:"planned", note:"Confirmación sí; recordatorio automático no confirmado"},
-      {t:"Cancelar reserva", s:"built"}
+      {t:"Confirmar y recibir recordatorio", s:"planned", note:"La confirmación es un toast en pantalla: el POST de reserva no manda un solo mail, ni al confirmar ni antes del turno"},
+      {t:"Cancelar reserva", s:"built", note:"Bien acotado: el DELETE comprueba que la reserva sea del vecino antes de borrarla"},
+      {t:"Validar que el amenity sea de su consorcio", s:"none", note:"POST /api/reservas_amenities usa el amenity_id que le pasen. Valida solapamiento de horarios y formato, pero no que el espacio sea del edificio del vecino"},
+      {t:"Respetar capacidad máxima y cupo por vecino", s:"none", note:"amenities.capacidad_maxima se carga en el alta y no la lee nadie. Tampoco hay tope de reservas por vecino ni bloqueo de fechas pasadas"}
     ]},
     { name:"Votar y participar", role:"vecino", tech:["Supabase"], items:[
       {t:"Ver encuestas / votaciones activas", s:"built"},
       {t:"Emitir voto", s:"built", note:"Un voto por unidad funcional, no por persona"},
-      {t:"Ver resultados", s:"built"}
+      {t:"Ver resultados", s:"built", note:"Se devuelven siempre, también en una votación activa y antes de emitir el voto: el que vota último ve el resultado parcial"},
+      {t:"Cerrar la votación al llegar la fecha límite", s:"none", note:"votaciones.fecha_limite y votos_necesarios están en el schema desde v6 y no los lee ninguna línea de código. Solo se mira estado=\"activa\", que nada cambia solo"},
+      {t:"Validar que la votación sea de su consorcio", s:"none", note:"POST /api/votaciones/&lt;vid&gt;/votar busca la votación por id y no compara el consorcio. Y si el vecino quedó en \"Pendiente\" sin unidad_id, el control de un voto por UF se saltea entero"}
+    ]},
+    { name:"Manejar más de una unidad", role:"vecino", tech:["Supabase"], items:[
+      {t:"Listar todas sus unidades en el perfil", s:"built", note:"/api/vecinos/mis-unidades lee vecinos_unidades (v7) y cae al campo viejo si el entorno no migró. Es el único endpoint que mira esa tabla"},
+      {t:"Que el resto de las pantallas respeten la unidad elegida", s:"none", note:"Solo cobros, cobro-actual y el cupón aceptan unidad_id. Comunicados, reclamos, votaciones, archivos, gastos-reporte, medios-pago y avisos de pago leen vecinos.consorcio_id / unidad_id — el campo viejo, que es uno solo"},
+      {t:"Selector de unidad en la pantalla", s:"none", note:"S.activeU solo se setea si hay exactamente una unidad. Con dos queda en null, updateHeader() corta en la primera línea y las chapas de consorcio y UF no llegan a mostrarse"},
+      {t:"Poder sumar una segunda unidad", s:"none", note:"/api/vecinos/asociar pisa vecinos.consorcio_id y unidad_id, y nunca escribe en vecinos_unidades. Hoy la segunda unidad solo entra cargándola a mano en la base: la tabla tiene lector y no tiene escritor"}
+    ]},
+    { name:"Entrar al edificio que le corresponde", role:"cruzado", tech:["Auth0"], items:[
+      {t:"Elegir consorcio y unidad libre al darse de alta", s:"built"},
+      {t:"Quedar pendiente si no encuentra su unidad", s:"built", note:"Cae en unidad=\"Pendiente\" y el admin lo asigna después desde /api/consorcios/&lt;cid&gt;/vecinos/pendientes"},
+      {t:"Verificar que esa unidad sea realmente suya", s:"none", note:"Con un login alcanza para reclamar cualquier unidad libre de cualquier consorcio de la lista pública y ver sus expensas, gastos y archivos al instante. No hay código de invitación ni aprobación del admin en el camino"}
+    ]},
+    { name:"Enterarse de lo que pasa", role:"cruzado", tech:["Resend"], items:[
+      {t:"Recibir la liquidación por mail", s:"built", note:"Sale con Resend cuando el admin la envía desde el panel — es la única notificación que hoy le llega al vecino"},
+      {t:"Avisar cuando hay un comunicado nuevo", s:"none", note:"El comunicado se publica y el vecino se entera si entra a mirar"},
+      {t:"Avisar cuando le responden un reclamo", s:"none"},
+      {t:"Confirmación y recordatorio de reserva", s:"none"},
+      {t:"Notificación push", s:"none"}
     ]}
   ]},
   { id:"adm", code:"ADM", name:"Gestión operativa / app del administrador", hue:117, funcs:[
@@ -362,7 +386,7 @@ const CATEGORIES = [
       {t:"Filtrar cobros, morosidad y balance por admin_id", s:"none", note:"/api/cobros, /api/cobros/mora, /api/cobros/export, PUT /api/cobros/&lt;rid&gt;, el mora_count de /api/dashboard/kpis y la mitad de ingresos de /api/balance no filtran por admin_id. Sin consorcio_id en la query devuelven los cobros de todos los administradores de la plataforma"},
       {t:"Validar que el consorcio del path sea del admin", s:"none", note:"/api/consorcios/&lt;cid&gt;/unidades (GET/POST/PUT/DELETE), /api/consorcios/&lt;cid&gt;/amenities y /api/cobros/generar operan sobre el cid que reciban sin comprobar que ese consorcio pertenezca al admin logueado"},
       {t:"Validar que la liquidación del path sea del admin", s:"planned", note:"El PUT y el DELETE de /api/liquidaciones/&lt;lid&gt; filtran por admin_id, pero /resumen/&lt;uid&gt;, /enviar, /rubros y /prorrateo no: con un id ajeno se puede leer y hasta mandar por mail la liquidación de otro"},
-      {t:"Validar que el cobro sea del vecino que lo pide", s:"none", note:"/api/vecinos/cobros/&lt;rid&gt;/cupon arma el PDF con el id que le pasen, sin comprobar que ese cobro sea de la unidad del vecino de la sesión"}
+      {t:"Validar que el cobro sea del vecino que lo pide", s:"none", note:"/api/vecinos/cobros/&lt;rid&gt;/cupon arma el PDF con el id que le pasen. Peor: /api/vecinos/cobros y /api/vecinos/cobro-actual aceptan ?unidad_id= de la query y no comprueban que esa unidad sea del vecino, así que alcanza con cambiar el parámetro para leer las expensas de cualquier departamento"}
     ]},
     { name:"Defensa en profundidad en la base", role:"admin", tech:["Supabase"], items:[
       {t:"Row Level Security en las tablas", s:"none", note:"El backend usa la service_role key, que saltea RLS por diseño. Hoy el filtro por admin_id en Flask es el único control: si un endpoint se olvida, no hay red abajo"},
