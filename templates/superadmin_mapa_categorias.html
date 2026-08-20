@@ -127,7 +127,7 @@ footer.note b{ color:var(--text-dim); }
       <div class="top-titles">
         <span class="eyebrow">Mapa conceptual · Niddo</span>
         <h1 class="display">Funcionalidades por categoría — estado real</h1>
-        <p>Vive acá en Superadmin y persiste en Supabase (tabla roadmap_estado) — lo que marques queda guardado para siempre, no por navegador. El punto de partida sale de releer el código, no de una lista de deseos: última pasada sobre <span class="mono">main</span> el 20/08/2026. Si algo lo marcaste a mano, tu marca gana sobre el seed; “Reiniciar a estado real” borra tus marcas y te deja lo que dice el repo.</p>
+        <p>Vive acá en Superadmin y persiste en Supabase (tabla roadmap_estado) — lo que marques queda guardado para siempre, no por navegador. El punto de partida sale de releer el código, no de una lista de deseos: última pasada sobre <span class="mono">main</span> el 20/08/2026, más lo cerrado en <span class="mono">claude/vecino-fixes-vqxc95</span>. Si algo lo marcaste a mano, tu marca gana sobre el seed; “Reiniciar a estado real” borra tus marcas y te deja lo que dice el repo.</p>
       </div>
       <button id="reset-btn">Reiniciar a estado real</button>
     </div>
@@ -191,7 +191,7 @@ const CATEGORIES = [
       {t:"Matchear pago con unidad funcional", s:"none"},
       {t:"Resolver cobros no identificados", s:"none"},
       {t:"Actualizar cuenta corriente en tiempo real", s:"none"},
-      {t:"Aviso de pago del vecino → confirmación del admin", s:"planned", note:"El vecino informa el pago con comprobante (drawer + POST /api/avisos_pago). Del lado admin, GET /api/admin/avisos-pago y PUT /api/admin/avisos-pago/&lt;aid&gt; existen pero no hay pantalla: el aviso queda sin revisar"}
+      {t:"Aviso de pago del vecino → confirmación del admin", s:"planned", note:"El vecino informa el pago y ahora ve el estado en que quedó. Del lado admin, GET /api/admin/avisos-pago y PUT existen y el vocabulario de estados ya está cerrado, pero sigue sin pantalla: el aviso llega y no lo revisa nadie. Es la misma forma que tenía Reclamos antes de tener sección propia"}
     ]},
     { name:"Gestionar morosidad", role:"admin", tech:["Supabase"], items:[
       {t:"Calcular deuda e intereses acumulados", s:"planned", note:"El panel de morosidad lista los cobros en estado vencido/en_mora, pero ningún proceso pasa un cobro a esos estados al vencerse ni acumula intereses. Hoy la lista solo se llena si alguien edita el estado a mano"},
@@ -208,31 +208,31 @@ const CATEGORIES = [
     { name:"Ver expensa y cuenta corriente", role:"vecino", tech:["Supabase"], items:[
       {t:"Historial de liquidaciones", s:"built"},
       {t:"Detalle de gastos del período", s:"built"},
-      {t:"Descargar comprobantes", s:"planned", note:"El cupón por cobro (/api/vecinos/cobros/&lt;id&gt;/cupon) y el adjunto del gasto sí bajan; lo que sigue siendo un stub es la exportación masiva — dlCobros() muestra \"próximamente\""},
-      {t:"Ver en qué quedó el pago que informó", s:"planned", note:"GET /api/avisos_pago existe, está bien acotado al vecino y devuelve el estado, pero la UI nunca lo llama: el vecino manda el comprobante y no vuelve a saber nada"}
+      {t:"Descargar comprobantes", s:"built", note:"El cupón por cobro, el adjunto del gasto y ahora la cuenta corriente entera en Excel o PDF por /api/vecinos/cobros/export. Esa ruta no toma unidad_id: la unidad sale de la sesión"},
+      {t:"Ver en qué quedó el pago que informó", s:"built", note:"Tabla \"Pagos que informaste\" al final de Mis Expensas. El estado que escribe el admin quedó acotado a pendiente / aceptado / rechazado, que son los tres que esta pantalla sabe pintar"}
     ]},
     { name:"Gestionar reclamos (vista vecino)", role:"vecino", tech:["Supabase"], items:[
       {t:"Crear reclamo con foto y descripción", s:"built"},
       {t:"Elegir categoría", s:"built"},
       {t:"Ver estado: recibido → en curso → resuelto", s:"built"},
-      {t:"Recibir notificación de respuesta", s:"none"},
+      {t:"Recibir notificación de respuesta", s:"built", note:"Mail por Resend cuando el admin mueve el estado o escribe una respuesta"},
       {t:"Historial de reclamos propios", s:"built"},
-      {t:"Que el administrador le conteste", s:"planned", note:"El vecino ya muestra respuesta_admin cuando viene con texto: lo que falta es la pantalla del admin para escribirla. El circuito se corta del otro lado, no de este"}
+      {t:"Que el administrador le conteste", s:"built", note:"Ya existe la sección Reclamos en el panel del admin, con filtros, contador de sin atender y modal para responder. Cerrar o resolver exige escribirle algo al vecino"}
     ]},
     { name:"Reservar amenities", role:"vecino", tech:["Supabase"], items:[
       {t:"Ver disponibilidad en calendario", s:"built"},
       {t:"Elegir horario / turno", s:"built"},
-      {t:"Confirmar y recibir recordatorio", s:"planned", note:"La confirmación es un toast en pantalla: el POST de reserva no manda un solo mail, ni al confirmar ni antes del turno"},
+      {t:"Confirmar y recibir recordatorio", s:"planned", note:"La confirmación ya sale por mail con espacio, día, horario y condiciones de uso. El recordatorio previo al turno no: necesita el cron que tampoco existe para la mora ni para el envío programado"},
       {t:"Cancelar reserva", s:"built", note:"Bien acotado: el DELETE comprueba que la reserva sea del vecino antes de borrarla"},
-      {t:"Validar que el amenity sea de su consorcio", s:"none", note:"POST /api/reservas_amenities usa el amenity_id que le pasen. Valida solapamiento de horarios y formato, pero no que el espacio sea del edificio del vecino"},
-      {t:"Respetar capacidad máxima y cupo por vecino", s:"none", note:"amenities.capacidad_maxima se carga en el alta y no la lee nadie. Tampoco hay tope de reservas por vecino ni bloqueo de fechas pasadas"}
+      {t:"Validar que el amenity sea de su consorcio", s:"none", note:"POST /api/reservas_amenities sigue usando el amenity_id que le pasen. No se arregló acá a propósito: feat/mobile-admin-v2 ya lo trae como amenity_visible() y duplicarlo sería pelearse con ese merge"},
+      {t:"Respetar capacidad máxima y cupo por vecino", s:"built", note:"La reserva ahora lleva cantidad_personas (v15) y se contrasta con capacidad_maxima. El tope mensual es max_reservas_mes, cargado por el admin en cada espacio en vez de una constante del código: se cuenta sobre el mes de la fecha reservada, por espacio, y una reserva cancelada no lo gasta. Las fechas pasadas también se rechazan"}
     ]},
     { name:"Votar y participar", role:"vecino", tech:["Supabase"], items:[
       {t:"Ver encuestas / votaciones activas", s:"built"},
       {t:"Emitir voto", s:"built", note:"Un voto por unidad funcional, no por persona"},
       {t:"Ver resultados", s:"built", note:"Se devuelven siempre, también en una votación activa y antes de emitir el voto: el que vota último ve el resultado parcial"},
-      {t:"Cerrar la votación al llegar la fecha límite", s:"none", note:"votaciones.fecha_limite y votos_necesarios están en el schema desde v6 y no los lee ninguna línea de código. Solo se mira estado=\"activa\", que nada cambia solo"},
-      {t:"Validar que la votación sea de su consorcio", s:"none", note:"POST /api/votaciones/&lt;vid&gt;/votar busca la votación por id y no compara el consorcio. Y si el vecino quedó en \"Pendiente\" sin unidad_id, el control de un voto por UF se saltea entero"}
+      {t:"Cerrar la votación al llegar la fecha límite", s:"built", note:"_votacion_vigente() la aplica en las dos puntas: el listado publica vigente / vencida / falta_quorum y el POST del voto la hace cumplir. El límite cuenta inclusive. Cuando exista el cron sólo va a pasar el estado a \"cerrada\" para dejarlo prolijo"},
+      {t:"Validar que la votación sea de su consorcio", s:"built", note:"Se compara contra el consorcio del vecino y se contesta 404, no 403, para no confirmar que ese id existe. Sin unidad asignada tampoco se vota: antes el control de un voto por UF vivía dentro de un if y no aplicaba a nadie"}
     ]},
     { name:"Manejar más de una unidad", role:"vecino", tech:["Supabase"], items:[
       {t:"Listar todas sus unidades en el perfil", s:"built", note:"/api/vecinos/mis-unidades lee vecinos_unidades (v7) y cae al campo viejo si el entorno no migró. Es el único endpoint que mira esa tabla"},
@@ -243,13 +243,14 @@ const CATEGORIES = [
     { name:"Entrar al edificio que le corresponde", role:"cruzado", tech:["Auth0"], items:[
       {t:"Elegir consorcio y unidad libre al darse de alta", s:"built"},
       {t:"Quedar pendiente si no encuentra su unidad", s:"built", note:"Cae en unidad=\"Pendiente\" y el admin lo asigna después desde /api/consorcios/&lt;cid&gt;/vecinos/pendientes"},
-      {t:"Verificar que esa unidad sea realmente suya", s:"none", note:"Con un login alcanza para reclamar cualquier unidad libre de cualquier consorcio de la lista pública y ver sus expensas, gastos y archivos al instante. No hay código de invitación ni aprobación del admin en el camino"}
+      {t:"Verificar que esa unidad sea realmente suya", s:"none", note:"Con un login alcanza para reclamar cualquier unidad libre de cualquier consorcio de la lista pública y ver sus expensas, gastos y archivos al instante. No hay código de invitación ni aprobación del admin en el camino. Antes de codearlo hay que elegir cuál de las dos: la aprobación reusa el circuito de \"Pendiente\" que ya existe y sale más barata"},
+      {t:"Corregir su nombre y dejar un teléfono", s:"built", note:"PUT /api/me con lista blanca por rol. vecinos.telefono es de v14 — no existía. Email, auth0_id, estado, consorcio_id, unidad_id y rol quedan afuera: eso es identidad y permisos, no perfil"}
     ]},
     { name:"Enterarse de lo que pasa", role:"cruzado", tech:["Resend"], items:[
       {t:"Recibir la liquidación por mail", s:"built", note:"Sale con Resend cuando el admin la envía desde el panel — es la única notificación que hoy le llega al vecino"},
       {t:"Avisar cuando hay un comunicado nuevo", s:"none", note:"El comunicado se publica y el vecino se entera si entra a mirar"},
-      {t:"Avisar cuando le responden un reclamo", s:"none"},
-      {t:"Confirmación y recordatorio de reserva", s:"none"},
+      {t:"Avisar cuando le responden un reclamo", s:"built", note:"Sale del PUT del admin, después de guardar y sin poder voltear la respuesta si Resend está caído"},
+      {t:"Confirmación y recordatorio de reserva", s:"planned", note:"La confirmación sí. El recordatorio previo al turno espera el cron"},
       {t:"Notificación push", s:"none"}
     ]}
   ]},
@@ -285,11 +286,11 @@ const CATEGORIES = [
   ]},
   { id:"mnt", code:"MNT", name:"Mantenimiento y reclamos", hue:130, funcs:[
     { name:"Gestionar reclamos (vista admin)", role:"admin", tech:["Supabase"], items:[
-      {t:"Recibir y categorizar", s:"planned", note:"El reclamo llega a la base; el admin no tiene pantalla para verlo todavía"},
+      {t:"Recibir y categorizar", s:"built", note:"Sección Reclamos con filtros por edificio y estado. El listado dejó de hacer select(\"*\"), que bajaba el adjunto en base64 de cada fila aunque nadie lo abriera"},
       {t:"Asignar a proveedor o encargado", s:"none"},
       {t:"Adjuntar presupuesto", s:"none"},
-      {t:"Cambiar estado y notificar al vecino", s:"planned", note:"Endpoint PUT /api/admin/reclamos existe, sin UI"},
-      {t:"Cerrar con confirmación", s:"none"}
+      {t:"Cambiar estado y notificar al vecino", s:"built", note:"Modal de respuesta + mail al vecino. Además se agregó /api/admin/reclamos/&lt;rid&gt;/adjunto: la ruta del adjunto era allowed_roles=[\"vecino\"], así que el reclamo con foto le llegaba al admin sin la foto"},
+      {t:"Cerrar con confirmación", s:"built", note:"Resolver o cerrar exige escribirle algo al vecino: cerrar en silencio le dejaba un reclamo \"resuelto\" y ninguna idea de qué se hizo"}
     ]},
     { name:"Programar mantenimientos preventivos", role:"admin", tech:[], items:[
       {t:"Calendario de tareas recurrentes", s:"none"},
