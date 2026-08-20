@@ -26,19 +26,21 @@
             gastos: 'gastos',
             consorcios: 'edificios',
             liquidaciones: 'mas', proveedores: 'mas', amenities: 'mas',
-            balance: 'mas', mensajeria: 'mas', config: 'mas'
+            balance: 'mas', reclamos: 'mas', mensajeria: 'mas', config: 'mas'
         },
         titles: {
             dashboard: 'Hoy', cobros: 'Cobros', gastos: 'Gastos',
             consorcios: 'Edificios', liquidaciones: 'Liquidaciones',
             proveedores: 'Proveedores', amenities: 'Amenities',
-            balance: 'Balance', mensajeria: 'Mensajería', config: 'Configuración'
+            balance: 'Balance', reclamos: 'Reclamos', mensajeria: 'Mensajería',
+            config: 'Configuración'
         },
         masItems: [
             { section: 'liquidaciones', label: 'Liquidaciones', icon: 'ic-liquidacion' },
             { section: 'proveedores',   label: 'Proveedores',   icon: 'ic-proveedor' },
             { section: 'amenities',     label: 'Amenities',     icon: 'ic-reserva' },
             { section: 'balance',       label: 'Balance',       icon: 'ic-balance' },
+            { section: 'reclamos',      label: 'Reclamos',      icon: 'ic-alerta' },
             { section: 'mensajeria',    label: 'Mensajería',    icon: 'ic-mensaje' },
             { section: 'config',        label: 'Configuración', icon: 'ic-config' }
             {% if es_superadmin %},
@@ -344,6 +346,7 @@
         <a class="nav-link" onclick="show('balance',this)"><svg class="ic"><use href="#ic-balance"></use></svg>Balance</a>
 
         <div class="nav-section-label">Comunicación</div>
+        <a class="nav-link" onclick="show('reclamos',this)"><svg class="ic"><use href="#ic-alerta"></use></svg>Reclamos <span class="badge-count" id="nav-badge-reclamos" style="display:none"></span></a>
         <a class="nav-link" onclick="show('mensajeria',this)"><svg class="ic"><use href="#ic-mensaje"></use></svg>Mensajería</a>
 
         <div class="nav-section-label">Sistema</div>
@@ -564,6 +567,62 @@
                 <thead><tr><th>Consorcio</th><th>Descripción</th><th>Categoría</th><th>Monto</th></tr></thead>
                 <tbody id="tbody-bal-gastos"><tr><td colspan="4" class="tbl-empty">—</td></tr></tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ RECLAMOS ═══ -->
+<div id="sec-reclamos" class="section">
+    <div class="page-header">
+        <div><h1 class="page-title">Reclamos</h1><p class="page-sub">Lo que reportan los vecinos de tus edificios</p></div>
+    </div>
+    <div class="filters">
+        <select class="form-ctrl" id="filter-reclamos-consorcio" onchange="loadReclamos()"><option value="">Todos los consorcios</option></select>
+        <select class="form-ctrl" id="filter-reclamos-estado" onchange="loadReclamos()">
+            <option value="">Todos los estados</option>
+            <option value="activo">Activos</option>
+            <option value="en_proceso">En proceso</option>
+            <option value="resuelto">Resueltos</option>
+            <option value="cerrado">Cerrados</option>
+        </select>
+    </div>
+    <div class="card">
+        <div class="card-h"><span class="card-t">Listado</span></div>
+        <table class="tbl">
+            <thead><tr><th>Fecha</th><th>Edificio</th><th>Vecino</th><th>Asunto</th><th>Categoría</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="tbody-reclamos"><tr><td colspan="7" class="tbl-empty">Cargando...</td></tr></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal: atender un reclamo -->
+<div class="modal" id="modal-reclamo">
+    <div class="modal-box" style="max-width:620px">
+        <div class="modal-h">
+            <h3 id="m-rec-titulo">Reclamo</h3>
+            <button class="modal-x" onclick="closeModal('modal-reclamo')">&times;</button>
+        </div>
+        <div class="modal-b">
+            <div id="m-rec-meta" style="font-size:0.82rem;color:var(--muted);margin-bottom:12px"></div>
+            <div id="m-rec-desc" style="background:var(--nd-crema);border-radius:8px;padding:14px;margin-bottom:14px;font-size:0.9rem;line-height:1.7;white-space:pre-wrap"></div>
+            <div id="m-rec-adjunto" style="margin-bottom:16px"></div>
+            <div class="form-group">
+                <label class="form-label">Estado</label>
+                <select class="form-ctrl" id="m-rec-estado">
+                    <option value="activo">Activo</option>
+                    <option value="en_proceso">En proceso</option>
+                    <option value="resuelto">Resuelto</option>
+                    <option value="cerrado">Cerrado</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Respuesta al vecino</label>
+                <textarea class="form-ctrl" id="m-rec-respuesta" rows="4" placeholder="Lo que escribas acá lo ve el vecino en su portal"></textarea>
+            </div>
+        </div>
+        <div class="modal-f">
+            <button class="btn-s" onclick="closeModal('modal-reclamo')">Cancelar</button>
+            <button class="btn-p" onclick="guardarReclamo()">Guardar y responder</button>
         </div>
     </div>
 </div>
@@ -1344,6 +1403,7 @@ function show(id, el) {
     if (id === 'balance')      initBalance();
     if (id === 'amenities')    initAmenities();
     if (id === 'liquidaciones') initLiquidaciones();
+    if (id === 'reclamos')     initReclamos();
 }
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
@@ -1417,7 +1477,7 @@ function renderConsorcios() {
 function populateConsorioSelects() {
     const opts = '<option value="">Todos</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
     const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
-    ['filter-gastos-consorcio','filter-cobros-consorcio','filter-mora-consorcio','filter-balance-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts; });
+    ['filter-gastos-consorcio','filter-cobros-consorcio','filter-mora-consorcio','filter-balance-consorcio','filter-reclamos-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts; });
     ['m-gasto-consorcio','m-gen-consorcio','filter-amenities-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts2; });
 }
 
@@ -3135,6 +3195,118 @@ async function enviarResumenes() {
         toast(`${res.enviados} resúmenes enviados, ${res.fallidos} fallidos`);
         liqTab('envios', document.querySelectorAll('#liq-tabs .tab-btn')[2]);
     } catch(e) { toast(e.message,'err'); }
+}
+
+// ── Reclamos ──────────────────────────────────────────────────────────────────
+// El circuito con el vecino estaba cortado de este lado: él ya veía
+// respuesta_admin cuando venía con texto, y nadie tenía dónde escribirla.
+
+let reclamosCargados = [];
+let reclamoActual = null;
+
+// Las clases son las que ya define el CSS de la hoja: b-r terracota (pide
+// atención), b-y amarillo (en curso), b-g verde (cerrado bien), b-gr gris.
+const RECLAMO_BADGE = {
+    activo:     'b-r',
+    en_proceso: 'b-y',
+    resuelto:   'b-g',
+    cerrado:    'b-gr',
+};
+
+function initReclamos() { loadReclamos(); }
+
+async function loadReclamos() {
+    const tb = $('tbody-reclamos');
+    tb.innerHTML = '<tr><td colspan="7" class="tbl-empty">Cargando...</td></tr>';
+    try {
+        const p = new URLSearchParams();
+        const cid = $('filter-reclamos-consorcio')?.value; if (cid) p.set('consorcio_id', cid);
+        const est = $('filter-reclamos-estado')?.value;    if (est) p.set('estado', est);
+        reclamosCargados = await api('/api/admin/reclamos' + (p.toString() ? '?' + p : ''));
+        renderReclamos();
+        actualizarBadgeReclamos();
+    } catch (e) {
+        tb.innerHTML = `<tr><td colspan="7" class="tbl-empty">Error: ${escHtml(e.message)}</td></tr>`;
+    }
+}
+
+function renderReclamos() {
+    const tb = $('tbody-reclamos');
+    if (!reclamosCargados.length) {
+        tb.innerHTML = '<tr><td colspan="7" class="tbl-empty">No hay reclamos con esos filtros</td></tr>';
+        return;
+    }
+    tb.innerHTML = reclamosCargados.map(r => {
+        const v = r.vecinos || {};
+        const con = r.consorcios || {};
+        return `<tr>
+            <td>${r.created_at ? new Date(r.created_at).toLocaleDateString('es-AR') : '—'}</td>
+            <td>${escHtml(con.nombre) || '—'}</td>
+            <td>${escHtml(v.nombre) || escHtml(v.email) || '—'}${v.unidad ? ' · UF ' + escHtml(v.unidad) : ''}</td>
+            <td><strong>${escHtml(r.titulo)}</strong>${r.adjunto_nombre ? ' <svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>' : ''}</td>
+            <td>${escHtml(r.categoria) || '—'}</td>
+            <td><span class="b ${RECLAMO_BADGE[r.estado] || 'b-gy'}">${escHtml(r.estado)}</span></td>
+            <td><button class="btn-s btn-xs" onclick="abrirReclamo('${r.id}')">Atender</button></td>
+        </tr>`;
+    }).join('');
+}
+
+/* El vecino no puede seguir esperando un reclamo que nadie miró: el contador
+   son los que todavía no se tocaron, no el total. */
+function actualizarBadgeReclamos() {
+    const b = $('nav-badge-reclamos');
+    if (!b) return;
+    const abiertos = reclamosCargados.filter(r => r.estado === 'activo').length;
+    b.textContent = abiertos;
+    b.style.display = abiertos ? 'inline-block' : 'none';
+}
+
+function abrirReclamo(id) {
+    reclamoActual = reclamosCargados.find(r => r.id === id);
+    if (!reclamoActual) return;
+    const r = reclamoActual, v = r.vecinos || {}, con = r.consorcios || {};
+
+    $('m-rec-titulo').textContent = r.titulo || 'Reclamo';
+    $('m-rec-meta').innerHTML = [
+        escHtml(con.nombre), escHtml(v.nombre) || escHtml(v.email),
+        v.unidad ? 'UF ' + escHtml(v.unidad) : '', escHtml(r.categoria),
+        r.created_at ? new Date(r.created_at).toLocaleDateString('es-AR') : ''
+    ].filter(Boolean).join(' · ');
+    $('m-rec-desc').textContent = r.descripcion || '';
+
+    // El adjunto viaja por la ruta del admin: la del vecino compara contra el
+    // vecino dueño y desde acá siempre daría 404.
+    $('m-rec-adjunto').innerHTML = r.adjunto_nombre
+        ? `<a class="btn-s btn-sm" href="/api/admin/reclamos/${r.id}/adjunto" target="_blank" rel="noopener">
+             <svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>${escHtml(r.adjunto_nombre)}</a>`
+        : '<span style="font-size:0.8rem;color:var(--muted)">Sin adjunto</span>';
+
+    $('m-rec-estado').value = r.estado || 'activo';
+    $('m-rec-respuesta').value = r.respuesta_admin || '';
+    openModal('modal-reclamo');
+}
+
+async function guardarReclamo() {
+    if (!reclamoActual) return;
+    const estado = $('m-rec-estado').value;
+    const respuesta = $('m-rec-respuesta').value.trim();
+
+    // Cerrar sin una línea de explicación deja al vecino con un reclamo
+    // "resuelto" y ninguna idea de qué se hizo.
+    if (['resuelto', 'cerrado'].includes(estado) && !respuesta) {
+        toast('Escribile al vecino qué se hizo antes de cerrar el reclamo', 'err');
+        return;
+    }
+
+    try {
+        await api(`/api/admin/reclamos/${reclamoActual.id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ estado, respuesta_admin: respuesta })
+        });
+        closeModal('modal-reclamo');
+        toast('Reclamo actualizado — el vecino ya ve la respuesta');
+        loadReclamos();
+    } catch (e) { toast(e.message, 'err'); }
 }
 
 // ── Agendar ───────────────────────────────────────────────────────────────────

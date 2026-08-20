@@ -39,9 +39,45 @@ class _Consulta:
         self.op = 'select'
         self.payload = None
         self.una_sola = False
+        self.columnas = '*'
 
-    def select(self, *_a, **_k):
+    def select(self, columnas='*', *_a, **_k):
+        """Guarda qué columnas se pidieron para poder proyectarlas al ejecutar.
+
+        Sin esto el doble devolvía la fila entera pasara lo que pasara, y un
+        `select('*')` de más —el que se traía el adjunto en base64 en cada fila
+        del listado— era indistinguible de uno acotado.
+        """
+        self.columnas = columnas
         return self
+
+    @staticmethod
+    def _campos(columnas):
+        """Los nombres de primer nivel de un select de PostgREST.
+
+        `vecinos(nombre, email)` cuenta como el campo `vecinos`: lo que interesa
+        es qué claves quedan en la fila, no cómo se resuelve el embebido.
+        """
+        campos, actual, profundidad = [], '', 0
+        for ch in columnas:
+            if ch == '(':
+                profundidad += 1
+            elif ch == ')':
+                profundidad -= 1
+            elif ch == ',' and profundidad == 0:
+                campos.append(actual)
+                actual = ''
+                continue
+            if profundidad == 0 and ch not in '()':
+                actual += ch
+        campos.append(actual)
+        return [c.strip().split('(')[0].strip() for c in campos if c.strip()]
+
+    def _proyectar(self, fila):
+        if not isinstance(fila, dict) or '*' in (self.columnas or '*'):
+            return fila
+        campos = self._campos(self.columnas)
+        return {k: v for k, v in fila.items() if k in campos}
 
     def insert(self, payload):
         self.op, self.payload = 'insert', payload
@@ -121,8 +157,8 @@ class _Consulta:
             return _Resultado(list(alcanzadas))
 
         if self.una_sola:
-            return _Resultado(alcanzadas[0] if alcanzadas else None)
-        return _Resultado(list(alcanzadas))
+            return _Resultado(self._proyectar(alcanzadas[0]) if alcanzadas else None)
+        return _Resultado([self._proyectar(f) for f in alcanzadas])
 
 
 class FakeSupabase:

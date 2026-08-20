@@ -2977,17 +2977,25 @@ def api_admin_medios_pago_delete(mid):
 def api_admin_reclamos_list():
     admin_id = get_admin_id()
     cid = request.args.get('consorcio_id')
+    # Columnas explícitas y no `*`: con el asterisco cada fila del listado se
+    # traía adjunto_base64 entero, así que abrir la pantalla con veinte reclamos
+    # con foto bajaba veinte fotos que nadie iba a mirar. El adjunto se pide de
+    # a uno por /api/admin/reclamos/<rid>/adjunto. `consorcios(nombre)` viene
+    # para poder mostrar de qué edificio es cada reclamo.
+    COLS = ('id, consorcio_id, vecino_id, unidad_id, titulo, descripcion, categoria, '
+            'estado, respuesta_admin, adjunto_nombre, created_at, updated_at, '
+            'vecinos(nombre, email, unidad), consorcios(nombre)')
     if cid:
         con_check = supabase.table('consorcios').select('id').eq('id', cid).eq('admin_id', admin_id).execute()
         if not con_check.data:
             return jsonify({'error': 'Sin permiso'}), 403
-        q = supabase.table('reclamos').select('*, vecinos(nombre, email, unidad)').eq('consorcio_id', cid)
+        q = supabase.table('reclamos').select(COLS).eq('consorcio_id', cid)
     else:
         cons = supabase.table('consorcios').select('id').eq('admin_id', admin_id).execute().data or []
         cids = [c['id'] for c in cons]
         if not cids:
             return jsonify([])
-        q = supabase.table('reclamos').select('*, vecinos(nombre, email, unidad)').in_('consorcio_id', cids)
+        q = supabase.table('reclamos').select(COLS).in_('consorcio_id', cids)
     if request.args.get('estado'):
         q = q.eq('estado', request.args['estado'])
     res = q.order('created_at', desc=True).execute()
@@ -3003,6 +3011,44 @@ def api_admin_reclamos_update(rid):
     payload['updated_at'] = now_iso()
     res = supabase.table('reclamos').update(payload).eq('id', rid).execute()
     return jsonify(res.data[0] if res.data else {})
+
+
+def _reclamo_de_mis_consorcios(rid, admin_id, columnas='*'):
+    """El reclamo, si cuelga de un consorcio del admin. Si no, None.
+
+    Se resuelve por consorcio y no por admin_id porque `reclamos` no tiene esa
+    columna: el dueño se deduce del edificio, igual que en /api/admin/reclamos.
+    """
+    reclamo = supabase.table('reclamos').select(columnas).eq('id', rid).single().execute().data
+    if not reclamo:
+        return None
+    cons = supabase.table('consorcios').select('id').eq('admin_id', admin_id).execute().data or []
+    if reclamo.get('consorcio_id') not in {c['id'] for c in cons}:
+        return None
+    return reclamo
+
+
+@app.route('/api/admin/reclamos/<rid>/adjunto')
+@require_auth(allowed_roles=['admin'])
+def api_admin_reclamos_adjunto(rid):
+    """La foto que adjuntó el vecino, para el administrador que lo atiende.
+
+    /api/reclamos/<rid>/adjunto es allowed_roles=['vecino'] y compara contra el
+    vecino dueño, así que el admin no tenía forma de abrir el adjunto: el
+    reclamo con foto le llegaba sin la foto, que suele ser todo el reclamo.
+    """
+    admin_id = get_admin_id()
+    reclamo = _reclamo_de_mis_consorcios(
+        rid, admin_id, 'consorcio_id, adjunto_base64, adjunto_nombre, adjunto_mime')
+    if not reclamo:
+        return jsonify({'error': 'No encontrado'}), 404
+    if not reclamo.get('adjunto_base64'):
+        return jsonify({'error': 'Sin adjunto'}), 404
+    file_bytes = base64.b64decode(reclamo['adjunto_base64'])
+    return send_file(io.BytesIO(file_bytes),
+                     mimetype=reclamo.get('adjunto_mime', 'application/pdf'),
+                     download_name=reclamo.get('adjunto_nombre', 'adjunto'),
+                     as_attachment=False)
 
 
 @app.route('/api/admin/avisos-pago')
