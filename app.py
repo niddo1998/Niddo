@@ -5012,6 +5012,62 @@ def api_liquidacion_resumen(lid, uid):
 
 # ── Envío de resúmenes por email ───────────────────────────────────────────────
 
+def _generar_cobros_de_liquidacion(liq, prorrateos):
+    """Convierte el prorrateo en la deuda que el vecino ve en su cuenta.
+
+    Este era el agujero grande del circuito. La liquidación calculaba el total
+    por unidad y se lo mandaba por mail, pero `cobros` —que es lo que alimenta
+    Mis Expensas, el cupón, la morosidad y el balance— se llenaba desde un modal
+    aparte donde el administrador tipeaba UN monto plano igual para todas las
+    unidades. Los dos números podían no coincidir y nada los ataba.
+
+    Es idempotente por el índice único (liquidacion_id, unidad_id): emitir dos
+    veces no duplica la deuda. Un chequeo en Python no cerraría la ventana entre
+    el SELECT y el INSERT con dos pestañas abiertas.
+
+    Devuelve cuántos cobros creó.
+    """
+    if not prorrateos:
+        return 0
+
+    lid = liq.get('id')
+    ya = supabase.table('cobros').select('unidad_id') \
+        .eq('liquidacion_id', lid).execute().data or []
+    existentes = {c['unidad_id'] for c in ya}
+
+    filas = []
+    for pr in prorrateos:
+        uid = pr.get('unidad_id')
+        if not uid or uid in existentes:
+            continue
+        total = float(pr.get('total_unidad') or 0)
+        interes = float(pr.get('interes_mora') or 0)
+        filas.append({
+            'unidad_id': uid,
+            'consorcio_id': liq.get('consorcio_id'),
+            'liquidacion_id': lid,
+            'periodo': liq.get('periodo'),
+            # El monto base es lo del período; el interés viaja aparte para que
+            # el cupón pueda mostrarlos separados, como hacen los cuatro.
+            'monto_base': round(total - interes, 2),
+            'interes_mora': interes,
+            'total': total,
+            'estado': 'pendiente',
+            'fecha_vencimiento': liq.get('fecha_vencimiento_1'),
+        })
+
+    if not filas:
+        return 0
+    try:
+        supabase.table('cobros').insert(filas).execute()
+    except Exception as e:
+        # El índice único rebota los que ya estaban: es el resultado buscado.
+        if 'duplicate key' in str(e) or '23505' in str(e):
+            return 0
+        raise
+    return len(filas)
+
+
 @app.route('/api/liquidaciones/<lid>/enviar', methods=['POST'])
 @require_auth(allowed_roles=['admin'])
 def api_liquidacion_enviar(lid):
@@ -5043,6 +5099,10 @@ def api_liquidacion_enviar(lid):
 
     # Obtener rubros con items
     rubros = _rubros_con_items(lid)
+
+    # La deuda se crea antes de avisar. Si se hiciera después y fallara, el
+    # vecino tendría el mail con un total que su cuenta no muestra.
+    cobros_creados = _generar_cobros_de_liquidacion(liq, prorrateos)
 
     enviados = 0
     fallidos = 0
@@ -5103,7 +5163,8 @@ def api_liquidacion_enviar(lid):
     if enviados > 0:
         supabase.table('liquidaciones').update({'estado': 'publicada'}).eq('id', lid).execute()
 
-    return jsonify({'enviados': enviados, 'fallidos': fallidos, 'total': len(prorrateos)})
+    return jsonify({'enviados': enviados, 'fallidos': fallidos,
+                    'total': len(prorrateos), 'cobros_generados': cobros_creados})
 
 
 @app.route('/api/liquidaciones/<lid>/envios', methods=['GET'])
