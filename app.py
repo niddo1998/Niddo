@@ -84,17 +84,25 @@ def upsert_user(role: str, auth0_id: str, email: str, nombre: str) -> Optional[d
     if role == 'vecino' and res.data:
         vecino_id = res.data[0]['id']
         current_consorcio = res.data[0].get('consorcio_id')
-        # Si el vecino no tiene consorcio asignado aún, intentar auto-asociación por email
+        # Auto-asociación por email: el administrador cargó esta unidad en el
+        # padrón con este mail, así que ya dijo de quién es. Es el único camino
+        # que entra sin pasar por la aprobación, y está bien que lo sea: la
+        # verificación la hizo el admin cuando escribió el mail.
         if not current_consorcio:
             uf_res = supabase.table('unidades_funcionales').select('id, consorcio_id, numero').eq('vecino_email', email).is_('vecino_id', 'null').execute()
             if uf_res.data:
                 uf = uf_res.data[0]
-                # Actualizar el consorcio y unidad del vecino
                 supabase.table('vecinos').update({
                     'consorcio_id': uf['consorcio_id'],
-                    'unidad': uf['numero']
+                    'unidad': uf['numero'],
+                    # Faltaba, y era lo que rompía este camino: todo lo que ve
+                    # el vecino cuelga de `unidad_id`, no del número. Sin esto
+                    # entraba al panel de su edificio y no veía una sola expensa.
+                    'unidad_id': uf['id'],
+                    # Queda 'aprobado' para que la fila no mienta: tiene
+                    # consorcio_id, o sea que está adentro.
+                    'estado_asociacion': 'aprobado',
                 }).eq('id', vecino_id).execute()
-                # Vincular el vecino_id en la unidad funcional
                 supabase.table('unidades_funcionales').update({
                     'vecino_id': vecino_id
                 }).eq('id', uf['id']).execute()
@@ -3067,9 +3075,9 @@ def api_vecinos_asociar():
         'solicitud_at': now_iso(),
         'motivo_rechazo': None,
         'rol': rol,
-        # 'Pendiente' era el modo viejo de marcar la espera y todavía lo lee la
-        # pantalla del vecino. Se sigue escribiendo para no romperla.
-        'unidad': 'Pendiente',
+        # `unidad` es el número de la unidad y se escribe recién al aprobar.
+        # Antes acá iba el string 'Pendiente', que era el modo viejo de marcar
+        # la espera; ahora eso lo dice `estado_asociacion` y nadie lo lee más.
     }).eq('id', vecino_id).execute()
 
     _mail_solicitud_vecino(vecino_id, consorcio_id, unidad_id)

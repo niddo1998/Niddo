@@ -40,6 +40,7 @@ class _Consulta:
         self.payload = None
         self.una_sola = False
         self.columnas = '*'
+        self.on_conflict = None
 
     def select(self, columnas='*', *_a, **_k):
         """Guarda qué columnas se pidieron para poder proyectarlas al ejecutar.
@@ -83,8 +84,16 @@ class _Consulta:
         self.op, self.payload = 'insert', payload
         return self
 
-    def upsert(self, payload, **_k):
-        self.op, self.payload = 'insert', payload
+    def upsert(self, payload, on_conflict=None, **_k):
+        """upsert de PostgREST, respetando `on_conflict`.
+
+        Tratarlo como un insert a secas hacía que el segundo login de la misma
+        persona creara una fila nueva en vez de refrescar la suya, y eso esconde
+        justo los bugs del camino de alta, que es donde el mismo usuario vuelve
+        a pasar por el mismo código.
+        """
+        self.op, self.payload = 'upsert', payload
+        self.on_conflict = on_conflict
         return self
 
     def update(self, payload):
@@ -101,6 +110,19 @@ class _Consulta:
 
     def neq(self, campo, valor):
         self.filtros.append(lambda f: f.get(campo) != valor)
+        return self
+
+    def is_(self, campo, valor):
+        """`is_(campo, 'null')` de PostgREST: la fila no tiene ese valor.
+
+        Se cuenta como nulo tanto la clave ausente como la explícitamente en
+        None, porque el doble guarda diccionarios y una fila que nunca escribió
+        la columna es lo mismo que una que la tiene vacía.
+        """
+        if valor in ('null', 'NULL', None):
+            self.filtros.append(lambda f: f.get(campo) is None)
+        else:
+            self.filtros.append(lambda f: f.get(campo) is valor)
         return self
 
     def in_(self, campo, valores):
@@ -134,6 +156,25 @@ class _Consulta:
         return [f for f in self.filas if all(p(f) for p in self.filtros)]
 
     def execute(self):
+        if self.op == 'upsert':
+            nuevas = self.payload if isinstance(self.payload, list) else [self.payload]
+            resultado = []
+            for fila in nuevas:
+                existente = None
+                if self.on_conflict:
+                    clave = fila.get(self.on_conflict)
+                    existente = next((f for f in self.filas
+                                      if f.get(self.on_conflict) == clave), None)
+                if existente is not None:
+                    existente.update(fila)
+                    resultado.append(existente)
+                else:
+                    fila = dict(fila)
+                    fila.setdefault('id', f'{self.tabla}-nuevo-{len(self.filas)}')
+                    self.filas.append(fila)
+                    resultado.append(fila)
+            return _Resultado(resultado)
+
         if self.op == 'insert':
             nuevas = self.payload if isinstance(self.payload, list) else [self.payload]
             creadas = []
