@@ -2025,7 +2025,7 @@ function renderBulkResults(d) {
             <div style="max-height:220px;overflow-y:auto;">
                 <table class="tbl">
                     <thead><tr><th>Hoja</th><th>Fila</th><th>Motivo</th></tr></thead>
-                    <tbody>${d.errores.map(e => `<tr><td>${e.hoja}</td><td>${e.fila}</td><td>${e.mensaje}</td></tr>`).join('')}</tbody>
+                    <tbody>${d.errores.map(e => `<tr><td>${e.hoja}</td><td>${e.fila}</td><td>${escHtml(e.mensaje)}</td></tr>`).join('')}</tbody>
                 </table>
             </div>
         </div>`;
