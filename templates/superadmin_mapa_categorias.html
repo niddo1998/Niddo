@@ -127,7 +127,7 @@ footer.note b{ color:var(--text-dim); }
       <div class="top-titles">
         <span class="eyebrow">Mapa conceptual · Niddo</span>
         <h1 class="display">Funcionalidades por categoría — estado real</h1>
-        <p>Vive acá en Superadmin y persiste en Supabase (tabla roadmap_estado) — lo que marques queda guardado para siempre, no por navegador. El punto de partida sale de releer el código, no de una lista de deseos: última pasada sobre <span class="mono">main</span> el 20/08/2026, más lo cerrado en <span class="mono">claude/vecino-fixes-vqxc95</span>. Si algo lo marcaste a mano, tu marca gana sobre el seed; “Reiniciar a estado real” borra tus marcas y te deja lo que dice el repo.</p>
+        <p>Vive acá en Superadmin y persiste en Supabase (tabla roadmap_estado) — lo que marques queda guardado para siempre, no por navegador. El punto de partida sale de releer el código, no de una lista de deseos: última pasada sobre <span class="mono">main</span> el 21/08/2026, ya con mobile v2 mergeado, más lo cerrado en <span class="mono">claude/vecino-fixes-vqxc95</span>. Si algo lo marcaste a mano, tu marca gana sobre el seed; “Reiniciar a estado real” borra tus marcas y te deja lo que dice el repo.</p>
       </div>
       <button id="reset-btn">Reiniciar a estado real</button>
     </div>
@@ -149,7 +149,7 @@ footer.note b{ color:var(--text-dim); }
   <footer class="note">
     <b>Cómo leer los puntos:</b> verde = construido y confirmado en el código · amarillo = existe el dato/endpoint pero falta la otra mitad (UI, o viceversa) · gris = no hay evidencia en el repo. La nota en cursiva dice dónde mirar: nombre de endpoint, de tabla o de función, para que puedas verificarlo sin creerme. <b>Ojo con el amarillo:</b> varias cosas que antes figuraban en verde bajaron a amarillo — el dato se guarda y se muestra, pero nadie lo calcula (intereses de mora, recargo del 2° vencimiento, envío programado, gasto recurrente). Lo que se mide acá es el estado de <span class="mono">main</span>: las ramas <span class="mono">feat/</span> sin mergear no cuentan.
     <br><br>
-    <b>Antes de tomar algo de esta lista, mirá las ramas abiertas.</b> <span class="mono">feat/mobile-admin-v2</span> está 15 commits adelante de main y ya trae, con tests, casi toda la categoría SEG (chequeo de pertenencia request por request, RLS en las 26 tablas, escapado de lo que los dashboards pintan con innerHTML) más el admin mobile v2 y los gastos recurrentes generándose mes a mes. Mergearla mueve más puntos de este mapa que cualquier cosa que se empiece de cero hoy.
+    <b>Sobre lo que dice "espera el cron":</b> puede que no lo necesite. Los gastos recurrentes se resolvieron con <span class="mono">generar_recurrentes()</span>, que es idempotente y la dispara la request que entra a Gastos. En una app de administración de consorcios, el único caso donde un cron gana es "nadie entró en tres meses y quiero los gastos igual" — y si nadie entró, tampoco hay liquidación que emitir. Antes de montar un scheduler para la mora, el envío programado o el cierre de votaciones, conviene mirar si ese patrón alcanza: sale más barato y no deja endpoints públicos ni secretos que cuidar.
   </footer>
 </div>
 
@@ -224,7 +224,7 @@ const CATEGORIES = [
       {t:"Elegir horario / turno", s:"built"},
       {t:"Confirmar y recibir recordatorio", s:"planned", note:"La confirmación ya sale por mail con espacio, día, horario y condiciones de uso. El recordatorio previo al turno no: necesita el cron que tampoco existe para la mora ni para el envío programado"},
       {t:"Cancelar reserva", s:"built", note:"Bien acotado: el DELETE comprueba que la reserva sea del vecino antes de borrarla"},
-      {t:"Validar que el amenity sea de su consorcio", s:"none", note:"POST /api/reservas_amenities sigue usando el amenity_id que le pasen. No se arregló acá a propósito: feat/mobile-admin-v2 ya lo trae como amenity_visible() y duplicarlo sería pelearse con ese merge"},
+      {t:"Validar que el amenity sea de su consorcio", s:"built", note:"amenity_visible() en las tres rutas de reservas. Las reservas no guardan el consorcio: cuelgan del amenity, y ese salto es el único que dice de quién es un quincho"},
       {t:"Respetar capacidad máxima y cupo por vecino", s:"built", note:"La reserva ahora lleva cantidad_personas (v15) y se contrasta con capacidad_maxima. El tope mensual es max_reservas_mes, cargado por el admin en cada espacio en vez de una constante del código: se cuenta sobre el mes de la fecha reservada, por espacio, y una reserva cancelada no lo gasta. Las fechas pasadas también se rechazan"}
     ]},
     { name:"Votar y participar", role:"vecino", tech:["Supabase"], items:[
@@ -308,7 +308,7 @@ const CATEGORIES = [
       {t:"OCR de factura (monto, proveedor, fecha)", s:"built", note:"Groq Vision + PyMuPDF, incluso en lote"},
       {t:"Asignar centro de costo", s:"built"},
       {t:"Adjuntar comprobante", s:"built"},
-      {t:"Regenerar el gasto recurrente cada período", s:"planned", note:"El alta guarda recurrente + frecuencia y la tabla los muestra como chip, pero nada crea la ocurrencia del mes siguiente: hoy es una etiqueta"}
+      {t:"Regenerar el gasto recurrente cada período", s:"built", note:"generar_recurrentes() en recurrentes.py, idempotente y perezosa: la dispara la request que entra a Gastos, no un cron. Vale la pena mirar ese patrón antes de montar infraestructura para la mora o el envío programado"}
     ]},
     { name:"Pagar a proveedores", role:"admin", tech:[], items:[
       {t:"Generar orden de pago", s:"none"},
@@ -384,14 +384,14 @@ const CATEGORIES = [
   { id:"seg", code:"SEG", name:"Seguridad y aislamiento entre clientes", hue:5, funcs:[
     { name:"Separar los datos de cada administrador", role:"admin", tech:["Supabase"], items:[
       {t:"Filtrar consorcios, gastos y liquidaciones por admin_id", s:"built", note:"/api/consorcios, /api/gastos, /api/proveedores y /api/liquidaciones (incluidos PUT y DELETE) sí filtran por el admin de la sesión"},
-      {t:"Filtrar cobros, morosidad y balance por admin_id", s:"none", note:"/api/cobros, /api/cobros/mora, /api/cobros/export, PUT /api/cobros/&lt;rid&gt;, el mora_count de /api/dashboard/kpis y la mitad de ingresos de /api/balance no filtran por admin_id. Sin consorcio_id en la query devuelven los cobros de todos los administradores de la plataforma"},
-      {t:"Validar que el consorcio del path sea del admin", s:"none", note:"/api/consorcios/&lt;cid&gt;/unidades (GET/POST/PUT/DELETE), /api/consorcios/&lt;cid&gt;/amenities y /api/cobros/generar operan sobre el cid que reciban sin comprobar que ese consorcio pertenezca al admin logueado"},
-      {t:"Validar que la liquidación del path sea del admin", s:"planned", note:"El PUT y el DELETE de /api/liquidaciones/&lt;lid&gt; filtran por admin_id, pero /resumen/&lt;uid&gt;, /enviar, /rubros y /prorrateo no: con un id ajeno se puede leer y hasta mandar por mail la liquidación de otro"},
-      {t:"Validar que el cobro sea del vecino que lo pide", s:"none", note:"/api/vecinos/cobros/&lt;rid&gt;/cupon arma el PDF con el id que le pasen. Peor: /api/vecinos/cobros y /api/vecinos/cobro-actual aceptan ?unidad_id= de la query y no comprueban que esa unidad sea del vecino, así que alcanza con cambiar el parámetro para leer las expensas de cualquier departamento"}
+      {t:"Filtrar cobros, morosidad y balance por admin_id", s:"built", note:"Resuelto al mergear mobile v2: cobros no tiene admin_id, así que el dueño se deduce del consorcio con consorcios_propios_ids(). Cubierto por tests/test_pertenencia.py"},
+      {t:"Validar que el consorcio del path sea del admin", s:"built", note:"consorcio_propio() en cada ruta que recibe un cid. Corta con 404 y no 403, para no confirmarle a quien tantea UUIDs que ese existe"},
+      {t:"Validar que la liquidación del path sea del admin", s:"built", note:"Resuelto en mobile v2, incluidas /resumen, /enviar, /rubros y /prorrateo, que eran por donde se podía leer y hasta mandar por mail la liquidación de otro"},
+      {t:"Validar que el cobro sea del vecino que lo pide", s:"built", note:"unidades_del_vecino() + unidad_propia(). El ?unidad_id= de la query se sigue aceptando —hace falta para multi-unidad— pero ahora se comprueba. La exportación de la cuenta corriente usa el mismo par"}
     ]},
     { name:"Defensa en profundidad en la base", role:"admin", tech:["Supabase"], items:[
-      {t:"Row Level Security en las tablas", s:"none", note:"El backend usa la service_role key, que saltea RLS por diseño. Hoy el filtro por admin_id en Flask es el único control: si un endpoint se olvida, no hay red abajo"},
-      {t:"Helper único de \"este recurso es del admin\"", s:"none", note:"No existe: cada endpoint decide por su cuenta si filtra o no, que es exactamente por qué la lista de arriba quedó despareja"}
+      {t:"Row Level Security en las tablas", s:"built", note:"v13 la activa en las 26 tablas. La app sigue entrando con la service_role key y salteándola; lo que cambia es que la anon key —que es pública por diseño— deja de leer la base entera por PostgREST"},
+      {t:"Helper único de \"este recurso es del admin\"", s:"built", note:"consorcio_propio, fila_de_consorcio_propio, consorcio_visible, amenity_visible, unidad_propia y _no_es_tuyo. Que existan es lo que hace que la próxima ruta nazca derecha en vez de depender de que alguien se acuerde"}
     ]}
   ]}
 ];
