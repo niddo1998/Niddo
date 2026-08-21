@@ -241,9 +241,9 @@ const CATEGORIES = [
       {t:"Poder sumar una segunda unidad", s:"none", note:"/api/vecinos/asociar pisa vecinos.consorcio_id y unidad_id, y nunca escribe en vecinos_unidades. Hoy la segunda unidad solo entra cargándola a mano en la base: la tabla tiene lector y no tiene escritor"}
     ]},
     { name:"Entrar al edificio que le corresponde", role:"cruzado", tech:["Auth0"], items:[
-      {t:"Elegir consorcio y unidad libre al darse de alta", s:"built"},
-      {t:"Quedar pendiente si no encuentra su unidad", s:"built", note:"Cae en unidad=\"Pendiente\" y el admin lo asigna después desde /api/consorcios/&lt;cid&gt;/vecinos/pendientes"},
-      {t:"Verificar que esa unidad sea realmente suya", s:"none", note:"Con un login alcanza para reclamar cualquier unidad libre de cualquier consorcio de la lista pública y ver sus expensas, gastos y archivos al instante. No hay código de invitación ni aprobación del admin en el camino. Antes de codearlo hay que elegir cuál de las dos: la aprobación reusa el circuito de \"Pendiente\" que ya existe y sale más barata"},
+      {t:"Elegir consorcio y unidad libre al darse de alta", s:"built", note:"La lista pública se cierra apenas manda la solicitud: antes, quedarse en pendiente dejaba abierta la enumeración de todos los edificios y unidades de la plataforma"},
+      {t:"Quedar pendiente si no encuentra su unidad", s:"built", note:"La bandeja del admin muestra qué unidad dice ser cada uno; si no supo, el admin la elige al aprobar. Rechazar pide motivo y no bloquea la cuenta: lo normal es equivocarse de unidad, no ser un intruso"},
+      {t:"Verificar que esa unidad sea realmente suya", s:"built", note:"La aprueba el administrador (v17). El gate no es un decorador: consorcio_id y unidad_id pasan a significar \"aprobado\" y sólo los escribe la aprobación, así que el endpoint que se agregue mañana nace cerrado. Antes, hasta el camino de espera escribía consorcio_id y ya mostraba gastos, comunicados y archivos"},
       {t:"Corregir su nombre y dejar un teléfono", s:"built", note:"PUT /api/me con lista blanca por rol. vecinos.telefono es de v14 — no existía. Email, auth0_id, estado, consorcio_id, unidad_id y rol quedan afuera: eso es identidad y permisos, no perfil"}
     ]},
     { name:"Enterarse de lo que pasa", role:"cruzado", tech:["Resend"], items:[
