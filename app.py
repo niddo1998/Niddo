@@ -2,6 +2,7 @@ import io
 import os
 import json
 import base64
+import re
 from datetime import datetime, timezone, date, timedelta
 from typing import Optional
 from functools import wraps
@@ -4988,8 +4989,10 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 @require_auth(allowed_roles=['admin'])
 def api_liquidacion_resumen(lid, uid):
     """Genera y devuelve el resumen HTML personalizado de una UF."""
-    liq = liquidacion_propia(lid, '*, consorcios(nombre, direccion, banco_nombre, '
-                                  'banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago)')
+    liq = liquidacion_propia(lid, '*, consorcios(nombre, direccion, cuit, clave_suterh, '
+                                  'tasa_interes_mora, recargo_segundo_vto, banco_nombre, '
+                                  'banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago, '
+                                  'banco_titular, banco_alias)')
 
     consorcio = liq.get('consorcios', {})
 
@@ -5011,6 +5014,51 @@ def api_liquidacion_resumen(lid, uid):
 
 
 # ── Envío de resúmenes por email ───────────────────────────────────────────────
+
+def _nombre_pdf_liquidacion(liq, consorcio):
+    """Nombre del adjunto. Lo primero que ve el vecino en su bandeja.
+
+    Sin tildes ni ñ a propósito: es un nombre de archivo que viaja por mail y
+    se guarda en cualquier sistema de archivos, y "expensas-mío.pdf" llega
+    roto a más clientes de los que uno esperaría.
+    """
+    import unicodedata
+    crudo = consorcio.get('nombre') or 'consorcio'
+    sin_tildes = ''.join(c for c in unicodedata.normalize('NFKD', crudo)
+                         if not unicodedata.combining(c))
+    base = re.sub(r'[^a-zA-Z0-9\s-]', '', sin_tildes).strip()
+    base = re.sub(r'\s+', '-', base).lower() or 'consorcio'
+    rev = int(liq.get('numero_revision') or 1)
+    sufijo = f'-rev{rev}' if rev > 1 else ''
+    return f"expensas-{base}-{liq.get('periodo', '')}{sufijo}.pdf"
+
+
+def _pdf_de_liquidacion(liq, consorcio, lid):
+    """Arma el PDF completo de la liquidación con lo que hay en la base."""
+    from liquidacion_pdf import construir_pdf
+
+    admin = supabase.table('administradores') \
+        .select('nombre, nombre_contacto, email, email_contacto, telefono, '
+                'cuit, matricula, direccion') \
+        .eq('id', liq.get('admin_id')).execute().data
+    admin = admin[0] if admin else {}
+    datos_admin = {
+        'nombre': admin.get('nombre_contacto') or admin.get('nombre') or '',
+        'cuit': admin.get('cuit') or '',
+        'matricula': admin.get('matricula') or '',
+        'direccion': admin.get('direccion') or '',
+        'email': admin.get('email_contacto') or admin.get('email') or '',
+        'telefono': admin.get('telefono') or '',
+    }
+
+    rubros = _rubros_con_items(lid)
+    prorrateos = supabase.table('liquidacion_prorrateo') \
+        .select('*, unidades_funcionales(numero, piso, vecino_nombre)') \
+        .eq('liquidacion_id', lid).execute().data or []
+    prorrateos.sort(key=lambda p: str((p.get('unidades_funcionales') or {}).get('numero') or ''))
+
+    return construir_pdf(liq, consorcio, datos_admin, rubros, prorrateos)
+
 
 def _generar_cobros_de_liquidacion(liq, prorrateos):
     """Convierte el prorrateo en la deuda que el vecino ve en su cuenta.
@@ -5081,8 +5129,10 @@ def api_liquidacion_enviar(lid):
 
     # El permiso se resuelve antes de tocar nada: es la ruta que manda mails a
     # cuarenta vecinos, y lo único que no se puede deshacer después.
-    liq = liquidacion_propia(lid, '*, consorcios(nombre, direccion, banco_nombre, '
-                                  'banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago)')
+    liq = liquidacion_propia(lid, '*, consorcios(nombre, direccion, cuit, clave_suterh, '
+                                  'tasa_interes_mora, recargo_segundo_vto, banco_nombre, '
+                                  'banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago, '
+                                  'banco_titular, banco_alias)')
 
     import resend
     resend.api_key = os.environ.get('RESEND_API_KEY', '')
@@ -5104,6 +5154,17 @@ def api_liquidacion_enviar(lid):
     # vecino tendría el mail con un total que su cuenta no muestra.
     cobros_creados = _generar_cobros_de_liquidacion(liq, prorrateos)
 
+    # El PDF se arma UNA vez para todo el consorcio, no uno por unidad: es la
+    # liquidación entera y es idéntica para todos, así que generarla 40 veces
+    # sería 40 veces el mismo trabajo dentro de una request que ya manda 40
+    # mails. Si falla, los mails salen igual sin adjunto: el resumen del cuerpo
+    # es el que el vecino lee, y quedarse sin avisar es peor que sin PDF.
+    pdf_bytes = None
+    try:
+        pdf_bytes = _pdf_de_liquidacion(liq, consorcio, lid)
+    except Exception:
+        app.logger.exception('No se pudo generar el PDF de la liquidación %s', lid)
+
     enviados = 0
     fallidos = 0
     from_email = os.environ.get('RESEND_FROM_EMAIL', 'Niddo <noreply@niddo.app>')
@@ -5121,7 +5182,7 @@ def api_liquidacion_enviar(lid):
         if email_destino and resend.api_key:
             try:
                 periodo_display = liq.get('periodo', '')
-                resend.Emails.send({
+                mensaje = {
                     'from': from_email,
                     'to': [email_destino],
                     'subject': (
@@ -5132,7 +5193,13 @@ def api_liquidacion_enviar(lid):
                         f'📋 Resumen de expensas — {consorcio.get("nombre", "")} — {periodo_display}'
                     ),
                     'html': html,
-                })
+                }
+                if pdf_bytes:
+                    mensaje['attachments'] = [{
+                        'filename': _nombre_pdf_liquidacion(liq, consorcio),
+                        'content': list(pdf_bytes),
+                    }]
+                resend.Emails.send(mensaje)
                 enviados += 1
             except Exception as e:
                 estado = 'fallido'

@@ -109,3 +109,19 @@ ALTER TABLE amenities
 
 COMMENT ON COLUMN amenities.precio_uso IS
   'Cargo por reserva confirmada, que se suma a la expensa de la unidad. NULL = gratis';
+
+
+-- ── 9. Los datos del administrador que la liquidación exhibe ─
+-- Los cuatro sistemas imprimen CUIT y matrícula RPA/RPAC de la administración
+-- en el encabezado: es a quién reclamarle, y va junto al domicilio y el
+-- teléfono. `administradores` tenía nombre, email y teléfono, nada más.
+ALTER TABLE administradores
+  ADD COLUMN IF NOT EXISTS cuit      TEXT,
+  ADD COLUMN IF NOT EXISTS matricula TEXT,
+  ADD COLUMN IF NOT EXISTS direccion TEXT;
+
+-- La clave SUTERH del consorcio, que va en el encabezado de los cuatro.
+ALTER TABLE consorcios
+  ADD COLUMN IF NOT EXISTS clave_suterh   TEXT,
+  ADD COLUMN IF NOT EXISTS banco_titular  TEXT,
+  ADD COLUMN IF NOT EXISTS banco_alias    TEXT;

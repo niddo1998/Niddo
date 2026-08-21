@@ -102,3 +102,74 @@ def test_el_vecino_ve_en_su_cuenta_lo_que_dice_el_mail(admin, client, emitida, b
     admin.post('/api/liquidaciones/liq-1/enviar', json={})
     visto = client.get('/api/vecinos/cobros').get_json()
     assert [c['total'] for c in visto] == [1030.0]
+
+
+# ── El PDF adjunto ────────────────────────────────────────────────────────────
+# El resumen del cuerpo del mail es personalizado y se lee bien, pero no es lo
+# que la Ley 941 obliga a rendir: eso es la liquidación entera, con el detalle
+# de cada gasto y la tabla de todas las unidades. Van juntos.
+
+@pytest.fixture
+def resend_falso(monkeypatch):
+    enviados = []
+
+    class _Emails:
+        @staticmethod
+        def send(mensaje):
+            enviados.append(mensaje)
+            return {'id': 'fake'}
+
+    import resend
+    monkeypatch.setattr(resend, 'Emails', _Emails)
+    monkeypatch.setenv('RESEND_API_KEY', 'test-key')
+    return enviados
+
+
+def test_el_mail_lleva_el_pdf_adjunto(admin, emitida, resend_falso):
+    admin.post('/api/liquidaciones/liq-1/enviar', json={})
+    assert len(resend_falso) == 2
+    for m in resend_falso:
+        adj = m.get('attachments')
+        assert adj, 'el mail salió sin adjunto'
+        assert adj[0]['filename'].endswith('.pdf')
+        assert bytes(adj[0]['content'][:5]) == b'%PDF-'
+
+
+def test_el_adjunto_se_llama_por_consorcio_y_periodo(admin, emitida, resend_falso):
+    admin.post('/api/liquidaciones/liq-1/enviar', json={})
+    nombre = resend_falso[0]['attachments'][0]['filename']
+    assert nombre == 'expensas-mio-2026-08.pdf'
+
+
+def test_la_complementaria_se_distingue_en_el_nombre(admin, emitida, resend_falso):
+    emitida['liquidaciones'][0]['numero_revision'] = 2
+    admin.post('/api/liquidaciones/liq-1/enviar', json={})
+    assert resend_falso[0]['attachments'][0]['filename'].endswith('-rev2.pdf')
+
+
+def test_es_el_mismo_pdf_para_todos(admin, emitida, resend_falso):
+    """Se arma una vez: es la liquidación del consorcio, idéntica para todos.
+    Generarla por unidad sería 40 veces el mismo trabajo en una request que ya
+    manda 40 mails."""
+    admin.post('/api/liquidaciones/liq-1/enviar', json={})
+    a, b = (m['attachments'][0]['content'] for m in resend_falso)
+    assert a == b
+
+
+def test_si_el_pdf_falla_los_mails_salen_igual(admin, emitida, resend_falso, monkeypatch):
+    """Quedarse sin avisar es peor que avisar sin adjunto."""
+    monkeypatch.setattr(app_mod, '_pdf_de_liquidacion',
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError('boom')))
+    r = admin.post('/api/liquidaciones/liq-1/enviar', json={})
+    assert r.get_json()['enviados'] == 2
+    assert all('attachments' not in m for m in resend_falso)
+
+
+def test_el_nombre_del_adjunto_no_lleva_tildes_ni_enie(admin, emitida, resend_falso):
+    """Viaja por mail y se guarda en cualquier sistema de archivos."""
+    # El endpoint lee el consorcio embebido en la liquidación, no la fila suelta.
+    emitida['liquidaciones'][0]['consorcios']['nombre'] = 'Edificio Ñandú Mío'
+    admin.post('/api/liquidaciones/liq-1/enviar', json={})
+    nombre = resend_falso[0]['attachments'][0]['filename']
+    assert nombre == 'expensas-edificio-nandu-mio-2026-08.pdf'
+    assert nombre.isascii()
