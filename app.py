@@ -1653,6 +1653,16 @@ def api_consorcios_update(cid):
         'unidades_totales': d.get('unidades_totales'),
         'encargado_nombre': d.get('encargado_nombre'),
         'encargado_tel': d.get('encargado_tel'),
+        # Parámetros de liquidación. Antes la tasa de mora estaba escrita a
+        # mano en el HTML de Configuración y el botón no tenía handler.
+        'tasa_interes_mora': d.get('tasa_interes_mora'),
+        'dias_gracia_mora': d.get('dias_gracia_mora'),
+        'recargo_segundo_vto': d.get('recargo_segundo_vto'),
+        'clave_suterh': d.get('clave_suterh'),
+        'banco_titular': d.get('banco_titular'),
+        'banco_nombre': d.get('banco_nombre'),
+        'banco_cbu': d.get('banco_cbu'),
+        'banco_alias': d.get('banco_alias'),
     }.items() if v is not None}
     res = supabase.table('consorcios').update(payload).eq('id', cid).eq('admin_id', admin_id).execute()
     return jsonify(res.data[0] if res.data else {})
@@ -1711,6 +1721,13 @@ def api_ufs_create(cid):
         'superficie_m2': d.get('superficie_m2'),
         'vecino_nombre': d.get('vecino_nombre', ''),
         'vecino_email': d.get('vecino_email', ''),
+        # El porcentaje de copropiedad por coeficiente. Era el bloqueo de todo:
+        # las columnas existían desde v7 y no había forma de cargarlas, así que
+        # quedaban en 0 y el prorrateo caía siempre en reparto lineal.
+        'porcentaje_a': d.get('porcentaje_a') or 0,
+        'porcentaje_b': d.get('porcentaje_b') or 0,
+        'porcentaje_c': d.get('porcentaje_c') or 0,
+        'porcentaje_e': d.get('porcentaje_e') or 0,
     }
     res = supabase.table('unidades_funcionales').insert(payload).execute()
     return jsonify(res.data[0] if res.data else {}), 201
@@ -1728,6 +1745,10 @@ def api_ufs_update(cid, uid):
         'superficie_m2': d.get('superficie_m2'),
         'vecino_nombre': d.get('vecino_nombre'),
         'vecino_email': d.get('vecino_email'),
+        'porcentaje_a': d.get('porcentaje_a'),
+        'porcentaje_b': d.get('porcentaje_b'),
+        'porcentaje_c': d.get('porcentaje_c'),
+        'porcentaje_e': d.get('porcentaje_e'),
     }.items() if v is not None}
     res = supabase.table('unidades_funcionales').update(payload).eq('id', uid).eq('consorcio_id', cid).execute()
     return jsonify(res.data[0] if res.data else {})
@@ -5114,6 +5135,19 @@ def _generar_cobros_de_liquidacion(liq, prorrateos):
             return 0
         raise
     return len(filas)
+
+
+@app.route('/api/liquidaciones/<lid>/pdf')
+@require_auth(allowed_roles=['admin'])
+def api_liquidacion_pdf(lid):
+    """El mismo PDF que se adjunta al mail, para revisarlo antes de enviarlo."""
+    liq = liquidacion_propia(lid, '*, consorcios(nombre, direccion, cuit, clave_suterh, '
+                                  'tasa_interes_mora, recargo_segundo_vto, banco_nombre, '
+                                  'banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago, '
+                                  'banco_titular, banco_alias)')
+    consorcio = liq.get('consorcios') or {}
+    buf = io.BytesIO(_pdf_de_liquidacion(liq, consorcio, lid))
+    return pdf_response(buf, _nombre_pdf_liquidacion(liq, consorcio))
 
 
 @app.route('/api/liquidaciones/<lid>/enviar', methods=['POST'])

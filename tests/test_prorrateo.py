@@ -213,3 +213,65 @@ def test_reproduce_una_fila_de_expensas_flow(edificio):
     esperado = round(283800.00 + 283800.67 + fila['interes_mora'], 2)
     assert fila['total_unidad'] == esperado
     assert fila['total_segundo_vto'] == round(esperado * 1.03, 2)
+
+
+# ── Que se puedan cargar es la mitad del asunto ───────────────────────────────
+# Las columnas existían desde v7 y ningún endpoint las aceptaba, así que
+# quedaban en 0 para siempre y el prorrateo caía en reparto lineal. Era el
+# bloqueo real del feature entero.
+
+@pytest.fixture
+def admin(base, app_modulo):
+    app_modulo.app.config['TESTING'] = True
+    c = app_modulo.app.test_client()
+    with c.session_transaction() as s:
+        s['user'] = {'sub': 'auth0|admin', 'email': 'admin@test',
+                     'name': 'Admin', 'role': 'admin'}
+    return c
+
+
+def test_el_alta_de_una_uf_guarda_los_porcentajes(admin, base):
+    r = admin.post('/api/consorcios/cons-1/unidades', json={
+        'numero': '5C', 'porcentaje_a': 12.5, 'porcentaje_e': 7.25})
+    assert r.status_code == 201
+    uf = next(u for u in base['unidades_funcionales'] if u['numero'] == '5C')
+    assert uf['porcentaje_a'] == 12.5
+    assert uf['porcentaje_e'] == 7.25
+
+
+def test_editar_una_uf_cambia_sus_porcentajes(admin, base):
+    admin.put('/api/consorcios/cons-1/unidades/uf-1', json={'porcentaje_a': 33.333})
+    uf = next(u for u in base['unidades_funcionales'] if u['id'] == 'uf-1')
+    assert uf['porcentaje_a'] == 33.333
+
+
+def test_el_gasto_guarda_su_coeficiente_y_comprobante(admin, base):
+    base['gastos'] = []
+    r = admin.post('/api/gastos', json={
+        'consorcio_id': 'cons-1', 'descripcion': 'Ascensor', 'monto': 1000,
+        'categoria': 'ascensor', 'coeficiente': 'e',
+        'comprobante_tipo': 'Fc. B', 'comprobante_numero': '0001-00099'})
+    assert r.status_code == 201
+    g = base['gastos'][0]
+    assert g['coeficiente'] == 'E'            # se normaliza a mayúscula
+    assert g['comprobante_tipo'] == 'Fc. B'
+    assert g['comprobante_numero'] == '0001-00099'
+
+
+def test_un_gasto_sin_coeficiente_nace_en_A(admin, base):
+    """Es como se repartía todo hasta ahora: nada cambia si no se toca."""
+    base['gastos'] = []
+    admin.post('/api/gastos', json={'consorcio_id': 'cons-1',
+                                    'descripcion': 'Luz', 'monto': 500})
+    assert base['gastos'][0]['coeficiente'] == 'A'
+
+
+def test_las_tasas_se_guardan_en_el_consorcio(admin, base):
+    """La de mora estaba escrita a mano en el HTML y el botón no hacía nada."""
+    r = admin.put('/api/consorcios/cons-1', json={
+        'tasa_interes_mora': 2.5, 'recargo_segundo_vto': 4.0, 'clave_suterh': '85693'})
+    assert r.status_code == 200
+    c = base['consorcios'][0]
+    assert c['tasa_interes_mora'] == 2.5
+    assert c['recargo_segundo_vto'] == 4.0
+    assert c['clave_suterh'] == '85693'

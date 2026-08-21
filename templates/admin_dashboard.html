@@ -696,17 +696,40 @@
 
 <!-- ═══ CONFIG ═══ -->
 <div id="sec-config" class="section">
-    <div class="page-header"><div><h1 class="page-title">Configuración</h1><p class="page-sub">Parámetros del sistema</p></div></div>
-    <div class="card card-p">
-        <div class="form-group">
-            <label class="form-label">Tasa de interés por mora (% diario)</label>
-            <input type="number" class="form-ctrl" value="2" id="cfg-tasa" style="width:100px">
+    <div class="page-header"><div><h1 class="page-title">Configuración</h1><p class="page-sub">Parámetros de liquidación por consorcio</p></div></div>
+    <div class="filters">
+        <select class="form-ctrl" id="cfg-consorcio" onchange="loadConfigConsorcio()"><option value="">Elegí un consorcio</option></select>
+    </div>
+    <div class="card card-p" id="cfg-card" style="display:none">
+        <div class="form-row3">
+            <div class="form-group">
+                <label class="form-label">Tasa de interés por mora (%)</label>
+                <input type="number" step="0.001" min="0" class="form-ctrl" id="cfg-tasa">
+                <div class="text-muted text-sm" style="margin-top:4px;">Se aplica sobre el saldo impago del período anterior.</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Días de gracia</label>
+                <input type="number" min="0" class="form-ctrl" id="cfg-gracia">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Recargo 2° vencimiento (%)</label>
+                <input type="number" step="0.01" min="0" class="form-ctrl" id="cfg-recargo">
+                <div class="text-muted text-sm" style="margin-top:4px;">El total del 2° vto. se calcula con esto.</div>
+            </div>
         </div>
-        <div class="form-group">
-            <label class="form-label">Días de gracia antes de mora</label>
-            <input type="number" class="form-ctrl" value="0" id="cfg-gracia" style="width:100px">
+        <div class="sep"></div>
+        <div class="form-row3">
+            <div class="form-group"><label class="form-label">CUIT del consorcio</label><input type="text" class="form-ctrl" id="cfg-cuit"></div>
+            <div class="form-group"><label class="form-label">Clave SUTERH</label><input type="text" class="form-ctrl" id="cfg-suterh"></div>
+            <div class="form-group"><label class="form-label">Titular de la cuenta</label><input type="text" class="form-ctrl" id="cfg-titular"></div>
         </div>
-        <button class="btn-p btn-sm">Guardar</button>
+        <div class="form-row3">
+            <div class="form-group"><label class="form-label">Banco</label><input type="text" class="form-ctrl" id="cfg-banco"></div>
+            <div class="form-group"><label class="form-label">CBU</label><input type="text" class="form-ctrl" id="cfg-cbu"></div>
+            <div class="form-group"><label class="form-label">Alias</label><input type="text" class="form-ctrl" id="cfg-alias"></div>
+        </div>
+        <div class="text-muted text-sm" style="margin-bottom:10px;">Todo esto sale impreso en el encabezado y en los datos de pago de la liquidación.</div>
+        <button class="btn-p btn-sm" onclick="guardarConfigConsorcio()">Guardar</button>
     </div>
 </div>
 
@@ -776,6 +799,7 @@
         <div class="page-header">
             <div><h2 class="page-title" id="liq-detail-titulo">—</h2><p class="page-sub" id="liq-detail-sub">—</p></div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn-s btn-sm" onclick="descargarLiquidacionPdf()"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Ver PDF</button>
                 <button class="btn-p btn-sm" onclick="openEnviarModal()"><svg class="ic ic-sm"><use href="#ic-subir"></use></svg>Enviar resúmenes</button>
                 <button class="btn-s btn-sm" onclick="openAgendarModal()">⏰ Agendar envío</button>
                 <button class="btn-s btn-sm" onclick="openPreviewModal()"><svg class="ic ic-sm"><use href="#ic-ojo"></use></svg>Previsualizar</button>
@@ -948,6 +972,17 @@
                 </div>
             </div>
             <div class="form-group"><label class="form-label">Superficie m²</label><input type="number" step="0.01" class="form-ctrl" id="m-uf-sup"></div>
+            <div class="sep"></div>
+            <label class="form-label">Porcentajes de copropiedad</label>
+            <div class="text-muted text-sm" style="margin-bottom:8px;">Cuánto le toca a esta unidad de cada coeficiente. Si los de un coeficiente no suman 100 entre todas las UF, ese se reparte en partes iguales.</div>
+            <div class="form-row3">
+                <div class="form-group"><label class="form-label">% A</label><input type="number" step="0.001" min="0" class="form-ctrl" id="m-uf-pa" placeholder="0,000"></div>
+                <div class="form-group"><label class="form-label">% B</label><input type="number" step="0.001" min="0" class="form-ctrl" id="m-uf-pb" placeholder="0,000"></div>
+            </div>
+            <div class="form-row3">
+                <div class="form-group"><label class="form-label">% C</label><input type="number" step="0.001" min="0" class="form-ctrl" id="m-uf-pc" placeholder="0,000"></div>
+                <div class="form-group"><label class="form-label">% E</label><input type="number" step="0.001" min="0" class="form-ctrl" id="m-uf-pe" placeholder="0,000"></div>
+            </div>
             <div class="sep"></div>
             <div class="form-row">
                 <div class="form-group"><label class="form-label">Nombre del vecino</label><input class="form-ctrl" id="m-uf-vec-nombre"></div>
@@ -1140,6 +1175,27 @@
                 <div class="form-group"><label class="form-label">Fecha de pago</label><input type="date" class="form-ctrl" id="m-gasto-fecha-pago"></div>
             </div>
             <div class="sep"></div>
+            <div class="form-row3">
+                <div class="form-group">
+                    <label class="form-label">Coeficiente de reparto</label>
+                    <select class="form-ctrl" id="m-gasto-coeficiente">
+                        <option value="A">A — general</option>
+                        <option value="B">B</option>
+                        <option value="C">C</option>
+                        <option value="E">E</option>
+                    </select>
+                    <div class="text-muted text-sm" style="margin-top:4px;">Con qué porcentaje de cada UF se reparte. Si no usás varios, dejá A.</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tipo de comprobante</label>
+                    <input type="text" class="form-ctrl" id="m-gasto-comp-tipo" placeholder="Fc. B / LSP A / Rc.">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">N° de comprobante</label>
+                    <input type="text" class="form-ctrl" id="m-gasto-comp-numero" placeholder="0001-00001234">
+                </div>
+            </div>
+            <div class="text-muted text-sm" style="margin:-6px 0 10px;">El comprobante sale impreso en la liquidación: la Ley 941 obliga a rendirlo junto al gasto.</div>
             <div class="form-row3">
                 <div class="form-group">
                     <label class="checkbox-row"><input type="checkbox" id="m-gasto-recurrente" onchange="toggleFrecuencia()"> Gasto recurrente</label>
@@ -1493,6 +1549,7 @@ function show(id, el) {
     if (id === 'amenities')    initAmenities();
     if (id === 'liquidaciones') initLiquidaciones();
     if (id === 'reclamos')     initReclamos();
+    if (id === 'config')       initConfig();
 }
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
@@ -1756,12 +1813,17 @@ function openUFModal(id) {
     if (!id) {
         ['m-uf-numero','m-uf-piso','m-uf-sup','m-uf-vec-nombre','m-uf-vec-email'].forEach(f=>$(f).value='');
         $('m-uf-tipo').value = 'departamento';
+        ['pa','pb','pc','pe'].forEach(k => $('m-uf-' + k).value = '');
     } else {
         const u = currentUFs.find(x => x.id === id);
         if (u) {
             $('m-uf-numero').value = u.numero || '';
             $('m-uf-piso').value = u.piso || '';
             $('m-uf-tipo').value = u.tipo || 'departamento';
+            $('m-uf-pa').value = u.porcentaje_a || '';
+            $('m-uf-pb').value = u.porcentaje_b || '';
+            $('m-uf-pc').value = u.porcentaje_c || '';
+            $('m-uf-pe').value = u.porcentaje_e || '';
             $('m-uf-sup').value = u.superficie_m2 || '';
             $('m-uf-vec-nombre').value = u.vecino_nombre || '';
             $('m-uf-vec-email').value = u.vecino_email || '';
@@ -1774,6 +1836,8 @@ async function saveUF() {
     const numero = $('m-uf-numero').value.trim();
     if (!numero || !currentConsorioId) { toast('Número de UF requerido','warn'); return; }
     const payload = { numero, piso: $('m-uf-piso').value, tipo: $('m-uf-tipo').value,
+        porcentaje_a: +$('m-uf-pa').value || 0, porcentaje_b: +$('m-uf-pb').value || 0,
+        porcentaje_c: +$('m-uf-pc').value || 0, porcentaje_e: +$('m-uf-pe').value || 0,
         superficie_m2: +$('m-uf-sup').value||null, vecino_nombre: $('m-uf-vec-nombre').value,
         vecino_email: $('m-uf-vec-email').value };
     const uid = $('m-uf-id').value;
@@ -2702,6 +2766,9 @@ function openGastoModal(id) {
     $('m-gasto-id').value = id||'';
     $('m-gasto-title').textContent = id ? 'Editar gasto' : 'Nuevo gasto';
     $('m-gasto-comprobante').value = '';
+    $('m-gasto-coeficiente').value = 'A';
+    $('m-gasto-comp-tipo').value = '';
+    $('m-gasto-comp-numero').value = '';
     const infoEl = $('m-gasto-comprobante-info');
     infoEl.style.display = 'none';
     infoEl.innerHTML = '';
@@ -2743,6 +2810,9 @@ function openGastoModal(id) {
             $('m-gasto-dia-carga').value = String(g.dia_carga || new Date(g.fecha_gasto + 'T00:00:00').getDate() || 1);
             toggleFrecuencia();
             $('m-gasto-notas').value = g.notas || '';
+            $('m-gasto-coeficiente').value = g.coeficiente || 'A';
+            $('m-gasto-comp-tipo').value = g.comprobante_tipo || '';
+            $('m-gasto-comp-numero').value = g.comprobante_numero || '';
             if (g.unidad_id) {
                 $('m-gasto-alcance').value = 'uf';
                 toggleGastoAlcance();
@@ -2784,6 +2854,9 @@ async function saveGasto() {
     fd.append('frecuencia', $('m-gasto-frecuencia').value);
     fd.append('dia_carga', $('m-gasto-dia-carga').value || '');
     fd.append('notas', $('m-gasto-notas').value);
+    fd.append('coeficiente', $('m-gasto-coeficiente').value);
+    fd.append('comprobante_tipo', $('m-gasto-comp-tipo').value);
+    fd.append('comprobante_numero', $('m-gasto-comp-numero').value);
 
     const fileInput = $('m-gasto-comprobante');
     if (fileInput.files.length > 0) {
@@ -3927,6 +4000,64 @@ async function guardarReclamo() {
         toast('Reclamo actualizado — el vecino ya ve la respuesta');
         loadReclamos();
     } catch (e) { toast(e.message, 'err'); }
+}
+
+// ── Configuración por consorcio ───────────────────────────────────────────────
+// Antes esta pantalla era decorativa: los valores estaban escritos a mano en el
+// HTML y el botón no tenía handler. Ahora son columnas del consorcio y las lee
+// el prorrateo.
+
+function initConfig() {
+    const sel = $('cfg-consorcio');
+    sel.innerHTML = '<option value="">Elegí un consorcio</option>' +
+        consorcios.map(c => `<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
+}
+
+async function loadConfigConsorcio() {
+    const cid = $('cfg-consorcio').value;
+    const card = $('cfg-card');
+    if (!cid) { card.style.display = 'none'; return; }
+    const c = consorcios.find(x => x.id === cid);
+    if (!c) return;
+    $('cfg-tasa').value = c.tasa_interes_mora ?? 0;
+    $('cfg-gracia').value = c.dias_gracia_mora ?? 0;
+    $('cfg-recargo').value = c.recargo_segundo_vto ?? 0;
+    $('cfg-cuit').value = c.cuit || '';
+    $('cfg-suterh').value = c.clave_suterh || '';
+    $('cfg-titular').value = c.banco_titular || '';
+    $('cfg-banco').value = c.banco_nombre || '';
+    $('cfg-cbu').value = c.banco_cbu || '';
+    $('cfg-alias').value = c.banco_alias || '';
+    card.style.display = 'block';
+}
+
+async function guardarConfigConsorcio() {
+    const cid = $('cfg-consorcio').value;
+    if (!cid) return;
+    try {
+        await api(`/api/consorcios/${cid}`, { method: 'PUT', body: JSON.stringify({
+            tasa_interes_mora: +$('cfg-tasa').value || 0,
+            dias_gracia_mora: +$('cfg-gracia').value || 0,
+            recargo_segundo_vto: +$('cfg-recargo').value || 0,
+            cuit: $('cfg-cuit').value.trim(),
+            clave_suterh: $('cfg-suterh').value.trim(),
+            banco_titular: $('cfg-titular').value.trim(),
+            banco_nombre: $('cfg-banco').value.trim(),
+            banco_cbu: $('cfg-cbu').value.trim(),
+            banco_alias: $('cfg-alias').value.trim(),
+        })});
+        toast('Configuración guardada');
+        await loadConsorcios();
+        initConfig();
+        $('cfg-consorcio').value = cid;
+    } catch (e) { toast(e.message, 'err'); }
+}
+
+/* El mismo PDF que se adjunta al mail. Conviene mirarlo antes de mandarlo a
+   cuarenta vecinos: es lo único de todo el circuito que no se puede deshacer. */
+function descargarLiquidacionPdf() {
+    if (!currentLiqId) { toast('Elegí una liquidación primero', 'warn'); return; }
+    window.open(`/api/liquidaciones/${currentLiqId}/pdf`, '_blank');
 }
 
 // ── Agendar ───────────────────────────────────────────────────────────────────
