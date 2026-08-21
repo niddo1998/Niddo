@@ -330,6 +330,295 @@ def build_carga_masiva_template(consorcios_existentes: list):
     return wb
 
 
+# ── Carga masiva de gastos ────────────────────────────────────────────────────
+# Mismo circuito que la de consorcios —bajás un .xlsx, lo completás, lo subís—
+# pero con dos diferencias que salen de qué es un gasto:
+#
+#  1. El gasto no crea nada de lo que referencia. Consorcio, proveedor y unidad
+#     tienen que existir de antes: el archivo los busca por nombre y la fila que
+#     apunta a algo que no está se reporta en vez de inventarlo. Un proveedor
+#     nuevo por un typo ensucia el maestro para siempre y nadie lo nota.
+#  2. Las columnas se leen por encabezado y no por posición, con alias. Así el
+#     Excel que baja "Exportar gastos" se puede volver a subir: sus títulos
+#     ("Fecha", "Método Pago") normalizan a las mismas claves que la plantilla.
+
+CATEGORIAS_GASTO = ('electricidad', 'gas', 'agua', 'limpieza', 'ascensor', 'seguro',
+                    'honorarios', 'impuesto', 'mantenimiento', 'sueldos', 'otro')
+METODOS_PAGO_GASTO = ('transferencia', 'cheque', 'efectivo', 'debito')
+FRECUENCIAS_GASTO = ('mensual', 'bimestral', 'trimestral', 'anual')
+
+# Encabezado normalizado -> clave canónica. Los alias no son cortesía: cubren
+# los títulos del export ("fecha", "metodo_pago") y las formas en que la misma
+# columna aparece escrita en las planillas que ya usan los administradores.
+ALIAS_COLUMNAS_GASTO = {
+    'consorcio': 'consorcio', 'edificio': 'consorcio',
+    'fecha': 'fecha_gasto', 'fecha_gasto': 'fecha_gasto',
+    'descripcion': 'descripcion', 'detalle': 'descripcion', 'concepto': 'descripcion',
+    'monto': 'monto', 'importe': 'monto', 'total': 'monto',
+    'categoria': 'categoria', 'rubro': 'categoria',
+    'proveedor': 'proveedor',
+    'unidad': 'unidad', 'uf': 'unidad', 'unidad_funcional': 'unidad',
+    'fecha_vencimiento': 'fecha_vencimiento', 'vencimiento': 'fecha_vencimiento', 'vto': 'fecha_vencimiento',
+    'pagado': 'pagado',
+    'fecha_pago': 'fecha_pago',
+    'metodo_pago': 'metodo_pago', 'metodo_de_pago': 'metodo_pago', 'forma_pago': 'metodo_pago',
+    'recurrente': 'recurrente',
+    'frecuencia': 'frecuencia',
+    'dia_carga': 'dia_carga', 'dia_de_carga': 'dia_carga',
+    'notas': 'notas', 'observaciones': 'notas',
+}
+
+COLUMNAS_GASTO_OBLIGATORIAS = ('consorcio', 'fecha_gasto', 'descripcion', 'monto')
+
+HEADERS_PLANTILLA_GASTOS = [
+    'consorcio*', 'fecha*', 'descripcion*', 'monto*', 'categoria', 'proveedor',
+    'unidad', 'fecha_vencimiento', 'pagado', 'fecha_pago', 'metodo_pago',
+    'recurrente', 'frecuencia', 'dia_carga', 'notas',
+]
+
+FORMATOS_FECHA = ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%d/%m/%y', '%Y/%m/%d')
+_TEXTO_VERDADERO = {'si', 'sí', 's', 'x', 'true', 'verdadero', '1', 'yes', 'y'}
+_TEXTO_FALSO = {'no', 'n', 'false', 'falso', '0', '-', ''}
+
+
+def _norm_col(nombre) -> str:
+    """El encabezado sin acentos, sin asterisco y con guiones bajos.
+
+    "Método Pago", "metodo_pago" y "Método de pago*" tienen que caer todos en la
+    misma clave: es lo que deja que el Excel exportado se vuelva a importar sin
+    que nadie renombre columnas a mano.
+    """
+    import unicodedata
+    txt = unicodedata.normalize('NFKD', str(nombre or '')).encode('ascii', 'ignore').decode()
+    txt = txt.strip().lower().replace('*', '')
+    for ch in (' ', '-', '.', '/'):
+        txt = txt.replace(ch, '_')
+    while '__' in txt:
+        txt = txt.replace('__', '_')
+    return txt.strip('_')
+
+
+def leer_filas_por_encabezado(ws, alias: dict):
+    """(columnas_encontradas, [(fila_excel, {clave: valor})]) de una hoja.
+
+    Leer por encabezado y no por posición es lo que hace que agregar, correr o
+    sacar una columna del archivo no desplace todos los datos una casilla.
+    """
+    primera = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), ()) or ()
+    columnas = {}
+    for idx, celda in enumerate(primera):
+        canon = alias.get(_norm_col(celda))
+        if canon and canon not in columnas:
+            columnas[canon] = idx
+    filas = []
+    for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), 2):
+        if not row or all(v in (None, '') for v in row):
+            continue
+        filas.append((i, {k: (row[idx] if idx < len(row) else None) for k, idx in columnas.items()}))
+    return columnas, filas
+
+
+def _texto_celda(valor) -> str:
+    """El contenido de la celda como texto limpio. Los enteros de Excel vienen
+    como float, y una UF "3.0" no matchea con la unidad "3" que hay guardada."""
+    if valor is None:
+        return ''
+    if isinstance(valor, float) and valor.is_integer():
+        return str(int(valor))
+    return str(valor).strip()
+
+
+def _fecha_excel(valor):
+    """Fecha de celda como 'YYYY-MM-DD', o None si está vacía.
+
+    Excel devuelve datetime cuando la celda tiene formato fecha y texto cuando
+    la escribieron a mano; las dos formas llegan del mismo archivo.
+    """
+    if valor in (None, ''):
+        return None
+    if isinstance(valor, datetime):
+        return valor.date().isoformat()
+    if isinstance(valor, date):
+        return valor.isoformat()
+    txt = str(valor).strip().split(' ')[0]
+    if not txt:
+        return None
+    for formato in FORMATOS_FECHA:
+        try:
+            return datetime.strptime(txt, formato).date().isoformat()
+        except ValueError:
+            continue
+    raise ValueError(f'Fecha inválida: "{valor}". Usá el formato AAAA-MM-DD.')
+
+
+def _monto_excel(valor) -> float:
+    """El monto como número, tolerando el separador de miles argentino.
+
+    "$ 15.430,50" es lo que sale de copiar una factura, y `float()` lo lee como
+    quince mil cuatrocientos treinta con cincuenta *centavos de más* o rompe.
+    """
+    if valor in (None, ''):
+        raise ValueError('Falta el monto')
+    if isinstance(valor, bool):
+        raise ValueError(f'Monto inválido: "{valor}"')
+    if isinstance(valor, (int, float)):
+        monto = float(valor)
+    else:
+        txt = str(valor).strip().replace('$', '').replace(' ', '').replace('\xa0', '')
+        if ',' in txt and '.' in txt:
+            # El último separador es el decimal; el otro es de miles.
+            txt = txt.replace('.', '').replace(',', '.') if txt.rfind(',') > txt.rfind('.') else txt.replace(',', '')
+        elif ',' in txt:
+            txt = txt.replace(',', '.')
+        try:
+            monto = float(txt)
+        except ValueError:
+            raise ValueError(f'Monto inválido: "{valor}"')
+    if monto <= 0:
+        raise ValueError(f'El monto tiene que ser mayor a cero (vino "{valor}")')
+    return round(monto, 2)
+
+
+def _bool_excel(valor, campo: str) -> bool:
+    """Sí/No de una celda. Vacío es No: nadie escribe "No" 300 veces."""
+    if valor in (None, ''):
+        return False
+    if isinstance(valor, bool):
+        return valor
+    if isinstance(valor, (int, float)):
+        return bool(valor)
+    txt = str(valor).strip().lower()
+    if txt in _TEXTO_VERDADERO:
+        return True
+    if txt in _TEXTO_FALSO:
+        return False
+    raise ValueError(f'Valor inválido en "{campo}": "{valor}". Poné Sí o No.')
+
+
+def build_gastos_template(consorcios: list, proveedores: list, unidades: list):
+    """La plantilla .xlsx de carga masiva de gastos.
+
+    Las hojas de referencia no son decorativas: la validación de la columna
+    "consorcio" apunta a la lista de la hoja "Consorcios existentes", así que el
+    administrador elige de un desplegable en vez de escribir un nombre que
+    después no matchea.
+    """
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.worksheet.datavalidation import DataValidation
+    header_fill = PatternFill("solid", fgColor="7C3AED")
+    header_font = Font(color="FFFFFF", bold=True, size=11)
+    example_font = Font(italic=True, color="9CA3AF")
+
+    def style_header(ws, headers):
+        for col, h in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=h)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center')
+            ws.column_dimensions[cell.column_letter].width = max(len(h) + 4, 16)
+
+    def lista_dv(ws, opciones, rango):
+        dv = DataValidation(type='list', formula1=f'"{",".join(opciones)}"',
+                            allow_blank=True, showErrorMessage=False)
+        ws.add_data_validation(dv)
+        dv.add(rango)
+
+    wb = openpyxl.Workbook()
+
+    ws_info = wb.active
+    ws_info.title = 'Instrucciones'
+    ws_info.column_dimensions['A'].width = 105
+    info_lines = [
+        ('Carga masiva de Gastos', True),
+        ('', False),
+        ('1. Completá la hoja "Gastos": una fila por gasto. Borrá la fila de ejemplo en gris.', False),
+        ('2. En "consorcio" elegí del desplegable o escribí el nombre exacto, tal como figura en la hoja', False),
+        ('   "Consorcios existentes". Lo mismo con "proveedor" y "unidad": esta carga no crea consorcios,', False),
+        ('   proveedores ni unidades nuevas, sólo los referencia. Si no existen, cargalos antes.', False),
+        ('3. Guardá el archivo y subilo en el panel. No cambies el nombre de la hoja ni el de las columnas.', False),
+        ('', False),
+        ('CAMPOS OBLIGATORIOS (sin ellos la fila no se importa):', True),
+        ('   • consorcio — nombre exacto de un consorcio tuyo.', False),
+        ('   • fecha — fecha del gasto, formato AAAA-MM-DD (también se acepta DD/MM/AAAA).', False),
+        ('   • descripcion — qué es el gasto. Ej: "Factura Edesur junio 2026".', False),
+        ('   • monto — número mayor a cero. Podés escribirlo como 15430.50 o 15.430,50.', False),
+        ('', False),
+        ('CAMPOS OPCIONALES (si los dejás vacíos el gasto se carga igual):', True),
+        (f'   • categoria — una de: {", ".join(CATEGORIAS_GASTO)}. Si va vacía o no coincide, queda "otro".', False),
+        ('   • proveedor — nombre exacto de un proveedor tuyo (hoja "Proveedores existentes").', False),
+        ('   • unidad — número de UF si el gasto es de una sola unidad y NO se prorratea entre todas.', False),
+        ('     Dejala vacía para el caso normal: gasto general del consorcio.', False),
+        ('   • fecha_vencimiento — cuándo vence el pago.', False),
+        ('   • pagado — Sí / No. Vacío se toma como No.', False),
+        ('   • fecha_pago — cuándo se pagó. Si la completás, el gasto queda marcado como pagado.', False),
+        (f'   • metodo_pago — {", ".join(METODOS_PAGO_GASTO)}.', False),
+        ('   • recurrente — Sí / No. Un gasto recurrente se vuelve a generar solo cada período.', False),
+        (f'   • frecuencia — {", ".join(FRECUENCIAS_GASTO)}. Sólo aplica si "recurrente" es Sí (vacío = mensual).', False),
+        ('   • dia_carga — día del mes (1 a 31) en que se genera el recurrente. Sólo si "recurrente" es Sí.', False),
+        ('   • notas — número de factura, medidor, lo que quieras dejar anotado.', False),
+        ('', False),
+        ('Si un gasto ya existe con el mismo consorcio, fecha, descripción y monto, se omite y no se duplica.', False),
+        ('Eso es lo que hace que volver a subir el mismo archivo por error no cargue todo dos veces.', False),
+        ('', False),
+        ('El Excel que baja el botón "Excel" de la pantalla de Gastos se puede volver a subir acá: sus', False),
+        ('columnas se reconocen solas. Lo que no viaja en el archivo son los comprobantes adjuntos.', False),
+    ]
+    for i, (text, bold) in enumerate(info_lines, 1):
+        cell = ws_info.cell(row=i, column=1, value=text)
+        if bold:
+            cell.font = Font(bold=True, size=13 if i == 1 else 11)
+
+    ws_g = wb.create_sheet('Gastos')
+    style_header(ws_g, HEADERS_PLANTILLA_GASTOS)
+    nombre_ejemplo = consorcios[0]['nombre'] if consorcios else 'Edificio Ejemplo 123'
+    ejemplo = [nombre_ejemplo, '2026-06-05', 'Factura Edesur junio 2026 (borrar fila)', 15430.50,
+               'electricidad', '', '', '2026-06-20', 'No', '', 'transferencia', 'No', '', '', 'Factura B-0001-00012345']
+    for c, val in enumerate(ejemplo, 1):
+        ws_g.cell(row=2, column=c, value=val).font = example_font
+
+    lista_dv(ws_g, CATEGORIAS_GASTO, 'E2:E2000')
+    lista_dv(ws_g, ('Si', 'No'), 'I2:I2000')
+    lista_dv(ws_g, METODOS_PAGO_GASTO, 'K2:K2000')
+    lista_dv(ws_g, ('Si', 'No'), 'L2:L2000')
+    lista_dv(ws_g, FRECUENCIAS_GASTO, 'M2:M2000')
+
+    ws_c = wb.create_sheet('Consorcios existentes')
+    style_header(ws_c, ['nombre', 'direccion'])
+    for r, c in enumerate(consorcios, 2):
+        ws_c.cell(row=r, column=1, value=c.get('nombre', ''))
+        ws_c.cell(row=r, column=2, value=c.get('direccion', ''))
+    if consorcios:
+        # Rango y no lista literal: la validación por texto de openpyxl se corta
+        # a 255 caracteres y con ocho edificios ya deja nombres partidos al medio.
+        dv_con = DataValidation(
+            type='list', allow_blank=True, showErrorMessage=False,
+            formula1=f"'Consorcios existentes'!$A$2:$A${len(consorcios) + 1}")
+        ws_g.add_data_validation(dv_con)
+        dv_con.add('A2:A2000')
+    else:
+        ws_c.cell(row=2, column=1, value='(todavía no tenés consorcios cargados)').font = example_font
+
+    ws_p = wb.create_sheet('Proveedores existentes')
+    style_header(ws_p, ['nombre', 'rubro'])
+    for r, p in enumerate(proveedores, 2):
+        ws_p.cell(row=r, column=1, value=p.get('nombre', ''))
+        ws_p.cell(row=r, column=2, value=p.get('rubro', ''))
+    if not proveedores:
+        ws_p.cell(row=2, column=1, value='(todavía no tenés proveedores cargados)').font = example_font
+
+    ws_u = wb.create_sheet('Unidades existentes')
+    style_header(ws_u, ['consorcio', 'unidad', 'piso'])
+    for r, u in enumerate(unidades, 2):
+        ws_u.cell(row=r, column=1, value=u.get('consorcio', ''))
+        ws_u.cell(row=r, column=2, value=u.get('numero', ''))
+        ws_u.cell(row=r, column=3, value=u.get('piso', ''))
+    if not unidades:
+        ws_u.cell(row=2, column=1, value='(todavía no tenés unidades cargadas)').font = example_font
+
+    wb.active = 0
+    return wb
+
 def make_pdf(title: str, headers: list, rows: list) -> io.BytesIO:
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib import colors
@@ -2510,10 +2799,8 @@ IMPORTANTE:
             result['monto'] = None
 
         # Categoria
-        valid_cats = ('electricidad','gas','agua','limpieza','ascensor','seguro',
-                      'honorarios','impuesto','mantenimiento','sueldos','otro')
         cat = str(data.get('categoria', '') or '').lower().strip()
-        result['categoria'] = cat if cat in valid_cats else 'otro'
+        result['categoria'] = cat if cat in CATEGORIAS_GASTO else 'otro'
 
         # Fechas
         for fk in ('fecha_gasto', 'fecha_vencimiento'):
@@ -2561,6 +2848,215 @@ def api_gastos_export():
         return pdf_response(buf, 'gastos.pdf')
     wb = make_excel(headers, rows, 'Gastos')
     return excel_response(wb, 'gastos.xlsx')
+
+
+@app.route('/api/gastos/plantilla')
+@require_auth(allowed_roles=['admin'])
+def descargar_plantilla_gastos():
+    admin_id = get_admin_id()
+    consorcios = supabase.table('consorcios').select('id,nombre,direccion') \
+        .eq('admin_id', admin_id).order('nombre').execute().data or []
+    proveedores = supabase.table('proveedores').select('nombre,rubro') \
+        .eq('admin_id', admin_id).order('nombre').execute().data or []
+
+    # Las UF van en la plantilla para que el administrador sepa qué escribir en
+    # la columna "unidad": sin la lista, el gasto particular se carga a ciegas.
+    unidades = []
+    if consorcios:
+        nombres = {c['id']: c['nombre'] for c in consorcios}
+        filas = supabase.table('unidades_funcionales').select('consorcio_id,numero,piso') \
+            .in_('consorcio_id', list(nombres)).order('numero').execute().data or []
+        unidades = [{'consorcio': nombres.get(u['consorcio_id'], ''),
+                     'numero': u.get('numero', ''), 'piso': u.get('piso', '')} for u in filas]
+        unidades.sort(key=lambda u: (u['consorcio'], u['numero']))
+
+    wb = build_gastos_template(consorcios, proveedores, unidades)
+    return excel_response(wb, 'plantilla_gastos.xlsx')
+
+
+@app.route('/api/gastos/carga-masiva', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_gastos_carga_masiva():
+    """Importa una planilla de gastos, fila por fila y sin crear referencias.
+
+    Una fila con un error no aborta la carga: se reporta y las demás entran. Es
+    la diferencia entre que el administrador corrija tres renglones y que
+    vuelva a empezar de cero por un typo en la fila 148.
+    """
+    admin_id = get_admin_id()
+    file = request.files.get('file')
+    if not file:
+        return jsonify({'error': 'No se envió archivo'}), 400
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(file.read()), data_only=True)
+    except Exception:
+        return jsonify({'error': 'No se pudo leer el archivo. Verificá que sea el .xlsx de la plantilla.'}), 400
+
+    # "Gastos" es la hoja de la plantilla; si no está se usa la primera, que es
+    # lo que llega cuando el archivo salió de exportar y tiene una sola hoja.
+    ws = wb['Gastos'] if 'Gastos' in wb.sheetnames else wb[wb.sheetnames[0]]
+    columnas, filas = leer_filas_por_encabezado(ws, ALIAS_COLUMNAS_GASTO)
+
+    faltantes = [c for c in COLUMNAS_GASTO_OBLIGATORIAS if c not in columnas]
+    if faltantes:
+        nombres = {'consorcio': 'consorcio', 'fecha_gasto': 'fecha',
+                   'descripcion': 'descripcion', 'monto': 'monto'}
+        return jsonify({'error': 'Al archivo le faltan columnas obligatorias: '
+                        + ', '.join(nombres[c] for c in faltantes)
+                        + '. Descargá la plantilla y usá esos encabezados.'}), 400
+
+    # ── Referencias: nada de esto se crea, sólo se busca ──────────────────────
+    consorcios = supabase.table('consorcios').select('id,nombre').eq('admin_id', admin_id).execute().data or []
+    mapa_consorcios = {c['nombre'].strip().lower(): c['id'] for c in consorcios}
+    proveedores = supabase.table('proveedores').select('id,nombre').eq('admin_id', admin_id).execute().data or []
+    mapa_proveedores = {p['nombre'].strip().lower(): p['id'] for p in proveedores}
+
+    mapa_unidades = {}
+    if consorcios:
+        ufs = supabase.table('unidades_funcionales').select('id,consorcio_id,numero') \
+            .in_('consorcio_id', [c['id'] for c in consorcios]).execute().data or []
+        mapa_unidades = {(u['consorcio_id'], (u.get('numero') or '').strip().lower()): u['id'] for u in ufs}
+
+    errores = []
+    pendientes = []   # (clave_dedup, payload)
+    consorcios_tocados = set()
+
+    for i, fila in filas:
+        nombre_con = _texto_celda(fila.get('consorcio'))
+        descripcion = _texto_celda(fila.get('descripcion'))
+        if es_fila_ejemplo(nombre_con) or es_fila_ejemplo(descripcion):
+            continue
+
+        if not nombre_con:
+            errores.append({'fila': i, 'mensaje': 'Falta el consorcio'})
+            continue
+        con_id = mapa_consorcios.get(nombre_con.lower())
+        if not con_id:
+            errores.append({'fila': i, 'mensaje': f'Consorcio no encontrado: "{nombre_con}"'})
+            continue
+        if not descripcion:
+            errores.append({'fila': i, 'mensaje': 'Falta la descripción del gasto'})
+            continue
+
+        try:
+            monto = _monto_excel(fila.get('monto'))
+            fecha_gasto = _fecha_excel(fila.get('fecha_gasto'))
+            if not fecha_gasto:
+                raise ValueError('Falta la fecha del gasto')
+            fecha_vto = _fecha_excel(fila.get('fecha_vencimiento'))
+            fecha_pago = _fecha_excel(fila.get('fecha_pago'))
+            pagado = _bool_excel(fila.get('pagado'), 'pagado')
+            recurrente = _bool_excel(fila.get('recurrente'), 'recurrente')
+        except ValueError as e:
+            errores.append({'fila': i, 'mensaje': str(e)})
+            continue
+
+        prov_id = None
+        nombre_prov = _texto_celda(fila.get('proveedor'))
+        if nombre_prov:
+            prov_id = mapa_proveedores.get(nombre_prov.lower())
+            if not prov_id:
+                errores.append({'fila': i, 'mensaje': f'Proveedor no encontrado: "{nombre_prov}". '
+                                                      'Cargalo en Proveedores antes de importar.'})
+                continue
+
+        unidad_id = None
+        nombre_uf = _texto_celda(fila.get('unidad'))
+        if nombre_uf:
+            unidad_id = mapa_unidades.get((con_id, nombre_uf.lower()))
+            if not unidad_id:
+                errores.append({'fila': i, 'mensaje': f'La unidad "{nombre_uf}" no existe en '
+                                                      f'"{nombre_con}"'})
+                continue
+
+        categoria = _texto_celda(fila.get('categoria')).lower()
+        if categoria not in CATEGORIAS_GASTO:
+            categoria = 'otro'
+
+        # Una fecha de pago cargada es la respuesta a "¿está pagado?": pedirle
+        # además que tilde la columna sería preguntar dos veces lo mismo.
+        if fecha_pago:
+            pagado = True
+
+        frecuencia, dia_carga = '', None
+        if recurrente:
+            frecuencia = _texto_celda(fila.get('frecuencia')).lower()
+            if frecuencia not in FRECUENCIAS_GASTO:
+                frecuencia = 'mensual'
+            dia = _texto_celda(fila.get('dia_carga'))
+            if dia.isdigit() and 1 <= int(dia) <= 31:
+                dia_carga = int(dia)
+
+        consorcios_tocados.add(con_id)
+        pendientes.append(((con_id, fecha_gasto, descripcion.lower(), monto), {
+            'consorcio_id': con_id,
+            'proveedor_id': prov_id,
+            'unidad_id': unidad_id,
+            'descripcion': descripcion,
+            'categoria': categoria,
+            'monto': monto,
+            'fecha_gasto': fecha_gasto,
+            'fecha_vencimiento': fecha_vto,
+            'pagado': pagado,
+            'fecha_pago': fecha_pago,
+            'metodo_pago': _texto_celda(fila.get('metodo_pago')).lower(),
+            'recurrente': recurrente,
+            'frecuencia': frecuencia,
+            'dia_carga': dia_carga,
+            'notas': _texto_celda(fila.get('notas')),
+            'admin_id': admin_id,
+        }))
+
+    # ── Deduplicación ────────────────────────────────────────────────────────
+    # Mismo consorcio, misma fecha, misma descripción y mismo monto es el mismo
+    # gasto. Sin esto, el archivo subido dos veces —el caso normal cuando la
+    # primera vez trajo errores y el administrador corrige y reintenta— deja el
+    # edificio con todos los gastos duplicados y la liquidación al doble.
+    ya_existen = set()
+    if consorcios_tocados:
+        # Acotado al rango de fechas del archivo y no al historial entero: una
+        # importación es casi siempre un período, y PostgREST corta los
+        # resultados en 1000 filas. Un administrador con años de gastos
+        # cargados recibiría una lista truncada y la deduplicación dejaría
+        # pasar justo los repetidos más viejos.
+        fechas = [clave[1] for clave, _ in pendientes]
+        previos = supabase.table('gastos').select('consorcio_id,fecha_gasto,descripcion,monto') \
+            .eq('admin_id', admin_id).in_('consorcio_id', list(consorcios_tocados)) \
+            .gte('fecha_gasto', min(fechas)).lte('fecha_gasto', max(fechas)).execute().data or []
+        for g in previos:
+            try:
+                monto_previo = round(float(g.get('monto') or 0), 2)
+            except (TypeError, ValueError):
+                continue
+            ya_existen.add((g.get('consorcio_id'), g.get('fecha_gasto'),
+                            (g.get('descripcion') or '').strip().lower(), monto_previo))
+
+    a_insertar, omitidos, vistos = [], 0, set()
+    for clave, payload in pendientes:
+        if clave in ya_existen or clave in vistos:
+            omitidos += 1
+            continue
+        vistos.add(clave)
+        a_insertar.append(payload)
+
+    if a_insertar:
+        try:
+            supabase.table('gastos').insert(a_insertar).execute()
+        except Exception as e:
+            if _falta_schema_v9(str(e)):
+                return jsonify({'error': f'{ERROR_FALTA_V9} [{e}]'}), 409
+            if _falta_schema_v12(str(e)):
+                return jsonify({'error': f'{ERROR_FALTA_V12} [{e}]'}), 409
+            raise
+
+    return jsonify({
+        'gastos_creados': len(a_insertar),
+        'gastos_omitidos': omitidos,
+        'consorcios_afectados': len({g['consorcio_id'] for g in a_insertar}),
+        'monto_total': round(sum(g['monto'] for g in a_insertar), 2),
+        'errores': errores,
+    })
 
 
 # ══════════════════════════════════════════════════════════════════════════════

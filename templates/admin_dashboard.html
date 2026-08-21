@@ -479,6 +479,7 @@
         <div style="display:flex;gap:8px;">
             <button class="btn-s btn-sm" onclick="exportGastos('excel')"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Excel</button>
             <button class="btn-s btn-sm" onclick="exportGastos('pdf')"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>PDF</button>
+            <button class="btn-s btn-sm" onclick="openBulkGastosModal()"><svg class="ic ic-sm"><use href="#ic-subir"></use></svg>Carga masiva</button>
             <button class="btn-p btn-sm" onclick="openGastoChoice()">+ Nuevo gasto</button>
         </div>
     </div>
@@ -1005,8 +1006,8 @@
             <div id="bulk-step-upload">
                 <div class="form-group">
                     <label class="form-label">1. Descargá la plantilla</label>
-                    <div class="section-info" style="display:flex;justify-content:space-between;align-items:center;gap:14px;">
-                        <span>Bajá el Excel, completá los datos y volvé a subirlo. Podés crear varios consorcios y sus unidades funcionales en un mismo archivo.</span>
+                    <div class="section-info" style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px;">
+                        <span style="flex:1 1 260px;min-width:0;">Bajá el Excel, completá los datos y volvé a subirlo. Podés crear varios consorcios y sus unidades funcionales en un mismo archivo.</span>
                         <a class="btn-s btn-sm" href="/api/consorcios/plantilla" style="white-space:nowrap;"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Descargar plantilla</a>
                     </div>
                 </div>
@@ -1033,6 +1034,57 @@
         <div class="modal-footer" id="bulk-footer-results" style="display:none;">
             <button class="btn-s" onclick="resetBulkModal()">Subir otro archivo</button>
             <button class="btn-p" onclick="closeModal('modal-bulk')">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Carga masiva de gastos: mismo circuito que el de consorcios, con la
+     diferencia de que acá nada se crea de paso — consorcios, proveedores y UF
+     tienen que existir antes y el archivo sólo los referencia. -->
+<div class="modal-overlay" id="modal-bulk-gastos">
+    <div class="modal-box wide">
+        <div class="modal-head"><h3>Carga masiva de Gastos</h3><button class="modal-close" onclick="closeModal('modal-bulk-gastos')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
+        <div class="modal-body">
+
+            <div id="bulk-gastos-step-upload">
+                <div class="form-group">
+                    <label class="form-label">1. Descargá la plantilla</label>
+                    <div class="section-info" style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px;">
+                        <span style="flex:1 1 260px;min-width:0;">Bajá el Excel, completá una fila por gasto y volvé a subirlo. Trae tus consorcios, proveedores y unidades listados para elegir de un desplegable.</span>
+                        <a class="btn-s btn-sm" href="/api/gastos/plantilla" style="white-space:nowrap;"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Descargar plantilla</a>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Qué lleva cada fila</label>
+                    <div class="section-info" style="display:block;">
+                        <b>Obligatorios:</b> consorcio, fecha, descripcion, monto.<br>
+                        <b>Opcionales:</b> categoria, proveedor, unidad, fecha_vencimiento, pagado, fecha_pago, metodo_pago, recurrente, frecuencia, dia_carga, notas.<br>
+                        <span class="text-muted">El consorcio, el proveedor y la unidad tienen que existir de antes: se buscan por nombre y no se crean. Un gasto repetido (mismo consorcio, fecha, descripción y monto) se omite en vez de duplicarse.</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">2. Subí la plantilla completa</label>
+                    <div class="upload-zone" onclick="document.getElementById('bulk-gastos-file').click()">
+                        <div style="margin-bottom:10px;color:var(--nd-terracota-hondo)"><svg class="ic ic-xl"><use href="#ic-carpeta"></use></svg></div>
+                        <div style="font-size:.84rem;color:var(--muted)" id="bulk-gastos-file-label">Hacé clic para seleccionar el archivo (.xlsx)</div>
+                    </div>
+                    <input type="file" id="bulk-gastos-file" accept=".xlsx" style="display:none" onchange="document.getElementById('bulk-gastos-file-label').textContent=this.files[0]?.name||'Seleccionar'">
+                </div>
+            </div>
+
+            <div id="bulk-gastos-step-results" style="display:none;">
+                <div class="kpi-row" id="bulk-gastos-results-kpis"></div>
+                <div id="bulk-gastos-results-errors"></div>
+            </div>
+
+        </div>
+        <div class="modal-footer" id="bulk-gastos-footer-upload">
+            <button class="btn-s" onclick="closeModal('modal-bulk-gastos')">Cancelar</button>
+            <button class="btn-p" onclick="uploadBulkGastos()">Procesar carga</button>
+        </div>
+        <div class="modal-footer" id="bulk-gastos-footer-results" style="display:none;">
+            <button class="btn-s" onclick="resetBulkGastosModal()">Subir otro archivo</button>
+            <button class="btn-p" onclick="closeModal('modal-bulk-gastos')">Cerrar</button>
         </div>
     </div>
 </div>
@@ -1150,6 +1202,8 @@
                         <option value="seguro">Seguro</option>
                         <option value="honorarios">Honorarios</option>
                         <option value="impuesto">Impuesto</option>
+                        <option value="mantenimiento">Mantenimiento</option>
+                        <option value="sueldos">Sueldos</option>
                         <option value="otro">Otro</option>
                     </select>
                 </div>
@@ -2888,6 +2942,67 @@ function exportGastos(fmt) {
     const desde = $('filter-gastos-desde')?.value; if(desde) params.set('desde',desde);
     const hasta = $('filter-gastos-hasta')?.value; if(hasta) params.set('hasta',hasta);
     window.location.href = '/api/gastos/export?'+params;
+}
+
+/* ── Carga masiva de gastos ──────────────────────────────────────────────────
+   Espejo del flujo de consorcios: mismo modal en dos pasos y misma pantalla de
+   resultados. Lo que cambia es qué se reporta — acá el número que importa es
+   cuánta plata entró, porque de eso depende la liquidación del mes. */
+function openBulkGastosModal() {
+    resetBulkGastosModal();
+    openModal('modal-bulk-gastos');
+}
+
+function resetBulkGastosModal() {
+    $('bulk-gastos-file').value = '';
+    $('bulk-gastos-file-label').textContent = 'Hacé clic para seleccionar el archivo (.xlsx)';
+    $('bulk-gastos-step-upload').style.display = '';
+    $('bulk-gastos-step-results').style.display = 'none';
+    $('bulk-gastos-footer-upload').style.display = '';
+    $('bulk-gastos-footer-results').style.display = 'none';
+}
+
+async function uploadBulkGastos() {
+    const file = $('bulk-gastos-file').files[0];
+    if (!file) { toast('Seleccioná un archivo','warn'); return; }
+    const fd = new FormData(); fd.append('file', file);
+    try {
+        const r = await fetch('/api/gastos/carga-masiva', {method:'POST', body:fd});
+        const d = await r.json().catch(()=>({}));
+        if (!r.ok) { toast(d.error || 'Error al procesar el archivo','err'); return; }
+        renderBulkGastosResults(d);
+        toast('Carga masiva procesada');
+        await loadGastos();
+    } catch(e) { toast('Error al importar','err'); }
+}
+
+function renderBulkGastosResults(d) {
+    $('bulk-gastos-step-upload').style.display = 'none';
+    $('bulk-gastos-step-results').style.display = '';
+    $('bulk-gastos-footer-upload').style.display = 'none';
+    $('bulk-gastos-footer-results').style.display = '';
+
+    $('bulk-gastos-results-kpis').innerHTML = `
+        <div class="kpi"><div class="kpi-val">${d.gastos_creados}</div><div class="kpi-label">Gastos creados</div></div>
+        <div class="kpi"><div class="kpi-val">${d.gastos_omitidos}</div><div class="kpi-label">Omitidos (ya existían)</div></div>
+        <div class="kpi"><div class="kpi-val">${d.consorcios_afectados}</div><div class="kpi-label">Consorcios afectados</div></div>
+        <div class="kpi"><div class="kpi-val" style="font-size:1.15rem;">${fmt(Math.round(d.monto_total))}</div><div class="kpi-label">Total importado</div></div>`;
+
+    const errBox = $('bulk-gastos-results-errors');
+    if (!d.errores || !d.errores.length) {
+        errBox.innerHTML = '<div class="section-info">No se encontraron errores en el archivo.</div>';
+        return;
+    }
+    errBox.innerHTML = `
+        <div class="card" style="margin-top:4px;">
+            <div class="card-h"><span class="card-t">Filas no importadas (${d.errores.length})</span></div>
+            <div style="max-height:220px;overflow-y:auto;">
+                <table class="tbl">
+                    <thead><tr><th>Fila</th><th>Motivo</th></tr></thead>
+                    <tbody>${d.errores.map(e => `<tr><td>${e.fila}</td><td>${escHtml(e.mensaje)}</td></tr>`).join('')}</tbody>
+                </table>
+            </div>
+        </div>`;
 }
 
 // ── COBROS ─────────────────────────────────────────────────────────────────────
