@@ -1,19 +1,18 @@
 -- ============================================================
---  Niddo — Supabase Schema v15 (capacidad y cupo de amenities)
+--  Niddo — Supabase Schema v15 (teléfono del vecino)
 --  Ejecutar en: Supabase Dashboard → SQL Editor
---  Requiere haber ejecutado v1 → v12 y la v14 antes
+--  Requiere haber ejecutado v1 → v14 antes
 -- ============================================================
 --
---  `amenities.capacidad_maxima` existe desde v3 y el admin la carga desde el
---  panel ("Ej: 30"), pero nunca se leyó: son personas, y la reserva no decía
---  cuántas venían, así que no había contra qué compararla.
+--  El vecino no tenía dónde dejar un teléfono. `administradores` sí tiene la
+--  columna desde v2, así que esto empareja las dos tablas y habilita el
+--  PUT /api/me: hasta ahora el perfil del vecino era de sólo lectura y para
+--  corregir un nombre mal escrito había que entrar a la base.
 --
---  `max_reservas_mes` es nuevo y va en el amenity, no en una constante del
---  código: cuántas veces por mes se puede tomar el SUM es una decisión de cada
---  edificio. NULL = sin límite, que es como se comporta hoy.
+--  Nació como v14 cuando la v13 todavía no estaba mergeada. Al entrar mobile
+--  v2, v13 pasó a ser la de RLS y v14 la del roadmap, así que ésta corre el
+--  número. No toca nada de esas dos: se puede correr antes o después.
 
-ALTER TABLE reservas_amenities ADD COLUMN IF NOT EXISTS cantidad_personas INTEGER;
-ALTER TABLE amenities           ADD COLUMN IF NOT EXISTS max_reservas_mes  INTEGER;
+ALTER TABLE vecinos ADD COLUMN IF NOT EXISTS telefono TEXT;
 
-COMMENT ON COLUMN reservas_amenities.cantidad_personas IS 'Cuántas personas van, para contrastar con amenities.capacidad_maxima';
-COMMENT ON COLUMN amenities.max_reservas_mes IS 'Tope de reservas por vecino y por mes en este espacio. NULL = sin límite';
+COMMENT ON COLUMN vecinos.telefono IS 'Contacto del vecino, editable por él mismo desde Mi Perfil';

@@ -27,16 +27,21 @@ def test_baja_el_pdf_de_su_cuenta(client):
     assert r.data[:4] == b'%PDF'
 
 
-def test_no_hay_parametro_para_pedir_otra_unidad(client, base):
-    """Pasar unidad_id ajeno no cambia nada: el parámetro se ignora."""
+def test_no_exporta_la_cuenta_de_otra_unidad(client, base):
+    """El parámetro se acepta, pero pasa por unidad_propia: el ajeno corta."""
     base['cobros'].append({
         'id': 'cobro-2', 'consorcio_id': 'cons-2', 'unidad_id': 'uf-2',
         'estado': 'pendiente', 'total': 999, 'monto_base': 999,
         'interes_mora': 0, 'periodo': '2026-08',
     })
-    propio = client.get('/api/vecinos/cobros/export').data
-    ajeno = client.get('/api/vecinos/cobros/export?unidad_id=uf-2').data
-    assert len(propio) == len(ajeno)
+    r = client.get('/api/vecinos/cobros/export?unidad_id=uf-2')
+    assert r.status_code == 404
+
+
+def test_exporta_pidiendo_su_propia_unidad(client):
+    r = client.get('/api/vecinos/cobros/export?unidad_id=uf-1')
+    assert r.status_code == 200
+    assert r.data[:2] == b'PK'
 
 
 def test_sin_unidad_asignada_avisa_en_vez_de_romper(client, base):

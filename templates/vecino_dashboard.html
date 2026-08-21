@@ -734,7 +734,7 @@ const fmtD=d=>d?new Date(d+'T00:00:00').toLocaleDateString('es-AR'):'–';
 const badgeMap={pagado:'ok',pendiente:'pending',vencido:'danger',en_mora:'danger',activo:'ok',en_proceso:'pending',resuelto:'ok',cerrado:'muted',activa:'ok',cerrada:'muted',confirmada:'ok',cancelada:'danger'};
 const ebadge = e => {
     const clm = {pagado:'ok', pendiente:'pending', vencido:'danger', en_mora:'danger', activo:'ok', en_proceso:'pending', resuelto:'ok', cerrado:'muted', aceptado:'ok', rechazado:'danger', vencida:'muted'};
-    return `<span class="state-dot" title="${e||''}"><span class="dot ${clm[e]||'muted'}"></span><span style="font-size:0.75rem;font-weight:600">${e||'–'}</span></span>`;
+    return `<span class="state-dot" title="${esc(e||'')}"><span class="dot ${clm[e]||'muted'}"></span><span style="font-size:0.75rem;font-weight:600">${esc(e||'–')}</span></span>`;
 };
 
 async function api(url,opts={}){
@@ -837,12 +837,12 @@ function renderMediosWgt(medios){
     el.innerHTML = medios.map((m, idx) => `
         <div class="acc-item" style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px">
             <button class="acc-btn" onclick="toggleAcc(this)" style="padding:10px 14px;font-size:0.85rem">
-                <span><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>${m.nombre}</span>
+                <span><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>${esc(m.nombre)}</span>
                 <span class="acc-arr">▼</span>
             </button>
             <div class="acc-body" style="padding:12px 14px;background:var(--surface2)">
-                <p style="font-size:0.82rem;color:var(--text2);line-height:1.5;margin-bottom:8px">${m.descripcion||''}</p>
-                <button class="btn btn-secondary btn-xs" onclick="copiarTexto('${m.descripcion?.replace(/'/g, "\\'").replace(/\n/g, " ")}', this)"><svg class="ic ic-sm"><use href="#ic-doc"></use></svg>Copiar Datos</button>
+                <p style="font-size:0.82rem;color:var(--text2);line-height:1.5;margin-bottom:8px">${esc(m.descripcion||'')}</p>
+                <button class="btn btn-secondary btn-xs" onclick="copiarTexto('${esc(m.descripcion?.replace(/'/g, "\\'").replace(/\n/g, " "))}', this)"><svg class="ic ic-sm"><use href="#ic-doc"></use></svg>Copiar Datos</button>
             </div>
         </div>
     `).join('');
@@ -881,12 +881,12 @@ function renderComsRecientes(coms){
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
                 <div style="display:flex;align-items:center;gap:8px">
                     ${c.importante?'<span style="color:var(--amber)">⭐</span>':''}
-                    <span style="font-weight:700;font-size:0.85rem">${c.titulo}</span>
+                    <span style="font-weight:700;font-size:0.85rem">${esc(c.titulo)}</span>
                     ${!c.leido?'<span class="badge info" style="font-size:0.6rem">Nuevo</span>':''}
                 </div>
                 <span style="font-size:0.75rem;color:var(--muted)">${relativeTime(c.created_at)}</span>
             </div>
-            <div style="font-size:0.78rem;color:var(--text2);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${c.cuerpo}</div>
+            <div style="font-size:0.78rem;color:var(--text2);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc(c.cuerpo)}</div>
         </div>
     `).join('');
 }
@@ -901,14 +901,14 @@ function filterComs(f){S.comFilter=f;document.getElementById('com-detail').inner
 function renderComsList(){
     const el=document.getElementById('com-list');
     if(!S.coms.length){el.innerHTML='<div style="padding:24px;color:var(--muted);text-align:center;font-size:0.85rem">Sin comunicados</div>';return}
-    el.innerHTML=S.coms.map(c=>`<div class="md-item" id="ci-${c.id}" onclick="openCom('${c.id}')"><div class="md-it">${c.importante?'⭐ ':''}${c.titulo}${!c.leido?'<span class="badge info" style="margin-left:6px;font-size:0.58rem">Nuevo</span>':''}</div><div class="md-im"><span>${new Date(c.created_at).toLocaleDateString('es-AR')}</span>${c.importante?'<span class="badge pending" style="font-size:0.58rem">Importante</span>':''}</div></div>`).join('')
+    el.innerHTML=S.coms.map(c=>`<div class="md-item" id="ci-${c.id}" onclick="openCom('${c.id}')"><div class="md-it">${c.importante?'⭐ ':''}${esc(c.titulo)}${!c.leido?'<span class="badge info" style="margin-left:6px;font-size:0.58rem">Nuevo</span>':''}</div><div class="md-im"><span>${new Date(c.created_at).toLocaleDateString('es-AR')}</span>${c.importante?'<span class="badge pending" style="font-size:0.58rem">Importante</span>':''}</div></div>`).join('')
 }
 async function openCom(id){
     document.querySelectorAll('.md-item').forEach(i=>i.classList.remove('active'));
     const it=document.getElementById('ci-'+id);if(it)it.classList.add('active');
     const c=S.coms.find(x=>x.id===id);if(!c)return;
     if(!c.leido){try{await api('/api/comunicados/'+id+'/leer',{method:'POST'});c.leido=true;renderComsList()}catch(e){}}
-    document.getElementById('com-detail').innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">${c.importante?'<span style="color:var(--amber);font-size:1.1rem">⭐</span>':''}<h2 style="font-size:1.1rem;font-weight:800">${c.titulo}</h2></div><div style="color:var(--muted);font-size:0.78rem;margin-bottom:18px">${new Date(c.created_at).toLocaleDateString('es-AR',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div><div style="font-size:0.88rem;line-height:1.8;color:var(--text2);white-space:pre-wrap">${c.cuerpo}</div>`
+    document.getElementById('com-detail').innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">${c.importante?'<span style="color:var(--amber);font-size:1.1rem">⭐</span>':''}<h2 style="font-size:1.1rem;font-weight:800">${esc(c.titulo)}</h2></div><div style="color:var(--muted);font-size:0.78rem;margin-bottom:18px">${new Date(c.created_at).toLocaleDateString('es-AR',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div><div style="font-size:0.88rem;line-height:1.8;color:var(--text2);white-space:pre-wrap">${esc(c.cuerpo)}</div>`
 }
 
 async function loadExpensas(){await loadCobros();await loadAvisos();populatePagoCobros()}
@@ -1099,9 +1099,9 @@ async function loadGastos(){
             totalAcumulado += g.monto || 0;
             return `<tr class="data-row">
                 <td data-val="${g.fecha_gasto || ''}">${fmtD(g.fecha_gasto)}</td>
-                <td>${g.descripcion||'–'}</td>
-                <td data-val="${g.proveedores?.nombre||''}">${g.proveedores?.nombre||'–'}</td>
-                <td>${g.categoria||'–'}</td>
+                <td>${esc(g.descripcion||'–')}</td>
+                <td data-val="${esc(g.proveedores?.nombre||'')}">${esc(g.proveedores?.nombre||'–')}</td>
+                <td>${esc(g.categoria||'–')}</td>
                 <td data-val="${g.monto || 0}"><strong>${fmt$(g.monto)}</strong></td>
                 <td data-val="${g.fecha_vencimiento || ''}">${fmtD(g.fecha_vencimiento)}</td>
                 <td>${g.pagado?'<span class="badge ok">Sí</span>':'<span class="badge pending">No</span>'}</td>
@@ -1126,8 +1126,8 @@ async function loadGastos(){
         listG.innerHTML = data.map(g => `<div class="nd-row" style="cursor:default">
             <span class="nd-row-ic ok"><svg class="ic"><use href="#ic-balance"></use></svg></span>
             <span class="nd-row-main">
-                <span class="nd-row-t">${g.descripcion || '–'}</span>
-                <span class="nd-row-s">${g.proveedores?.nombre || 'Sin proveedor'} · ${fmtD(g.fecha_gasto)}</span>
+                <span class="nd-row-t">${esc(g.descripcion || '–')}</span>
+                <span class="nd-row-s">${esc(g.proveedores?.nombre || 'Sin proveedor')} · ${fmtD(g.fecha_gasto)}</span>
             </span>
             <span class="nd-row-amt">${fmt$(g.monto)}</span>
         </div>`).join('');
@@ -1143,12 +1143,12 @@ async function loadReclamos(){
 function renderRecList(){
     const el=document.getElementById('rec-list');
     if(!S.recs.length){el.innerHTML='<div style="padding:32px;text-align:center;color:var(--muted)"><div style="margin-bottom:8px;color:var(--nd-verde)"><svg class="ic ic-xl"><use href="#ic-pagado"></use></svg></div><div style="font-size:0.85rem">Sin reclamos registrados</div></div>';return}
-    el.innerHTML=S.recs.map(r=>`<div class="md-item" id="ri-${r.id}" onclick="openRec('${r.id}')"><div class="md-it">${r.titulo}</div><div class="md-im">${ebadge(r.estado)}<span>${new Date(r.created_at).toLocaleDateString('es-AR')}</span></div></div>`).join('')
+    el.innerHTML=S.recs.map(r=>`<div class="md-item" id="ri-${r.id}" onclick="openRec('${r.id}')"><div class="md-it">${esc(r.titulo)}</div><div class="md-im">${ebadge(r.estado)}<span>${new Date(r.created_at).toLocaleDateString('es-AR')}</span></div></div>`).join('')
 }
 function openRec(id){
     document.querySelectorAll('.md-item').forEach(i=>i.classList.remove('active'));const it=document.getElementById('ri-'+id);if(it)it.classList.add('active');
     const r=S.recs.find(x=>x.id===id);if(!r)return;
-    document.getElementById('rec-detail').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px"><h2 style="font-size:1rem;font-weight:800">${r.titulo}</h2>${ebadge(r.estado)}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;font-size:0.78rem;color:var(--muted)"><span>${r.categoria}</span><span>${new Date(r.created_at).toLocaleDateString('es-AR')}</span><span>${new Date(r.updated_at).toLocaleDateString('es-AR')}</span></div><div style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:16px;font-size:0.85rem;line-height:1.7;color:var(--text2)">${r.descripcion}</div>${r.respuesta_admin?`<div style="background:var(--blue-dim);border:1px solid rgba(47,111,94,0.2);border-radius:8px;padding:14px;margin-bottom:16px"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--blue);margin-bottom:6px">Respuesta Admin</div><div style="font-size:0.85rem;color:var(--text2);line-height:1.7">${r.respuesta_admin}</div></div>`:''} ${r.adjunto_nombre?`<a href="/api/reclamos/${r.id}/adjunto" target="_blank" class="btn btn-secondary btn-sm" style="margin-bottom:14px"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>${r.adjunto_nombre}</a>`:''}<div style="display:flex;gap:8px">${r.estado==='activo'?`<button class="btn btn-danger btn-sm" onclick="cancelarRec('${r.id}')">Cancelar Reclamo</button>`:''}</div>`
+    document.getElementById('rec-detail').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px"><h2 style="font-size:1rem;font-weight:800">${esc(r.titulo)}</h2>${ebadge(r.estado)}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;font-size:0.78rem;color:var(--muted)"><span>${esc(r.categoria)}</span><span>${new Date(r.created_at).toLocaleDateString('es-AR')}</span><span>${new Date(r.updated_at).toLocaleDateString('es-AR')}</span></div><div style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:16px;font-size:0.85rem;line-height:1.7;color:var(--text2)">${esc(r.descripcion)}</div>${r.respuesta_admin?`<div style="background:var(--blue-dim);border:1px solid rgba(47,111,94,0.2);border-radius:8px;padding:14px;margin-bottom:16px"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--blue);margin-bottom:6px">Respuesta Admin</div><div style="font-size:0.85rem;color:var(--text2);line-height:1.7">${esc(r.respuesta_admin)}</div></div>`:''} ${r.adjunto_nombre?`<a href="/api/reclamos/${r.id}/adjunto" target="_blank" class="btn btn-secondary btn-sm" style="margin-bottom:14px"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>${esc(r.adjunto_nombre)}</a>`:''}<div style="display:flex;gap:8px">${r.estado==='activo'?`<button class="btn btn-danger btn-sm" onclick="cancelarRec('${r.id}')">Cancelar Reclamo</button>`:''}</div>`
 }
 async function cancelarRec(id){
     if(!confirm('¿Cancelar este reclamo?'))return;
@@ -1207,14 +1207,14 @@ function renderVots(){
     if(!S.vots.length){c.innerHTML='<div style="text-align:center;padding:48px;color:var(--muted)"><div style="margin-bottom:10px;opacity:0.35"><svg class="ic ic-xl"><use href="#ic-urna"></use></svg></div><div>No hay votaciones en este momento</div></div>';return}
     c.innerHTML=S.vots.map(v=>{
         const tot=v.total_votos||0;const opc=v.opciones||['Si','No','Abstención'];
-        const barras=opc.map(op=>{const cnt=(v.conteo_votos||{})[op]||0;const pct=tot>0?Math.round(cnt/tot*100):0;const clm={'Si':'yes','No':'no','Abstención':'abs'};return`<div class="vot-bar-w"><div class="vot-bar-l"><span>${op}</span><span>${cnt} votos (${pct}%)</span></div><div class="vot-bar"><div class="vot-bar-f ${clm[op]||'abs'}" style="width:${pct}%"></div></div></div>`}).join('');
+        const barras=opc.map(op=>{const cnt=(v.conteo_votos||{})[op]||0;const pct=tot>0?Math.round(cnt/tot*100):0;const clm={'Si':'yes','No':'no','Abstención':'abs'};return`<div class="vot-bar-w"><div class="vot-bar-l"><span>${esc(op)}</span><span>${cnt} votos (${pct}%)</span></div><div class="vot-bar"><div class="vot-bar-f ${clm[op]||'abs'}" style="width:${pct}%"></div></div></div>`}).join('');
         // `vigente` lo decide el backend, con la misma regla que usa para
         // aceptar el voto: si lo calculara acá, la pantalla podría ofrecer un
         // botón que el servidor va a rechazar.
         const bloq=v.ya_vote||!v.vigente;
-        const btns=bloq?'':opc.map(op=>`<button class="vot-btn" onclick="votar('${v.id}','${op}')">${op}</button>`).join('');
-        const yaVote=v.ya_vote?`<div style="color:var(--teal);font-size:0.8rem;margin-top:8px">Ya votaste: <strong>${v.mi_opcion||'–'}</strong></div>`:'';
-        return`<div class="vot-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div class="vot-title">${esc(v.titulo)}</div>${ebadge(v.vencida?'vencida':v.estado)}</div><div class="vot-desc">${esc(v.descripcion)||''}</div>${v.fecha_limite?`<div style="font-size:0.75rem;color:var(--muted);margin-bottom:10px">${v.vencida?'Venció':'Vence'}: ${fmtD(v.fecha_limite)} · ${tot} votos emitidos</div>`:''}${v.falta_quorum?`<div style="font-size:0.75rem;color:var(--amber);margin-bottom:10px">Faltan ${v.falta_quorum} votos para llegar al quórum</div>`:''} ${barras}${yaVote}${!bloq?`<div class="vot-btns">${btns}</div>`:''}</div>`
+        const btns=bloq?'':opc.map(op=>`<button class="vot-btn" onclick="votar('${v.id}','${esc(op)}')">${esc(op)}</button>`).join('');
+        const yaVote=v.ya_vote?`<div style="color:var(--teal);font-size:0.8rem;margin-top:8px">Ya votaste: <strong>${esc(v.mi_opcion||'–')}</strong></div>`:'';
+        return`<div class="vot-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div class="vot-title">${esc(v.titulo)}</div>${ebadge(v.vencida?'vencida':v.estado)}</div><div class="vot-desc">${esc(v.descripcion||'')}</div>${v.fecha_limite?`<div style="font-size:0.75rem;color:var(--muted);margin-bottom:10px">${v.vencida?'Venció':'Vence'}: ${fmtD(v.fecha_limite)} · ${tot} votos emitidos</div>`:''}${v.falta_quorum?`<div style="font-size:0.75rem;color:var(--amber);margin-bottom:10px">Faltan ${v.falta_quorum} votos para llegar al quórum</div>`:''} ${barras}${yaVote}${!bloq?`<div class="vot-btns">${btns}</div>`:''}</div>`
     }).join('')
 }
 async function votar(vid,opcion){
@@ -1241,7 +1241,7 @@ async function loadReservas(){
 }
 async function loadMisReservas(){
     const tb=document.getElementById('tb-reservas');tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Cargando...</td></tr>';
-    try{const d=await api('/api/reservas_amenities?only_mine=true');if(!d.length){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Sin reservas registradas</td></tr>';return}tb.innerHTML=d.map(r=>`<tr><td>${r.amenities?.nombre||'–'}</td><td>${fmtD(r.fecha)}</td><td>${r.hora_inicio?.substring(0,5)} – ${r.hora_fin?.substring(0,5)}</td><td>${ebadge(r.estado)}</td><td>${r.estado==='confirmada'?`<button class="btn btn-danger btn-xs" onclick="cancelarReserva('${r.id}')">Cancelar</button>`:'–'}</td></tr>`).join('');
+    try{const d=await api('/api/reservas_amenities?only_mine=true');if(!d.length){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Sin reservas registradas</td></tr>';return}tb.innerHTML=d.map(r=>`<tr><td>${esc(r.amenities?.nombre||'–')}</td><td>${fmtD(r.fecha)}</td><td>${r.hora_inicio?.substring(0,5)} – ${r.hora_fin?.substring(0,5)}</td><td>${ebadge(r.estado)}</td><td>${r.estado==='confirmada'?`<button class="btn btn-danger btn-xs" onclick="cancelarReserva('${r.id}')">Cancelar</button>`:'–'}</td></tr>`).join('');
 
         /* La lista que se lee en mobile, del mismo `d` que arma los <tr>. */
         const wrapR = tb.closest('.table-wrap');
@@ -1252,7 +1252,7 @@ async function loadMisReservas(){
             return `<div class="nd-row" style="cursor:default">
                 <span class="nd-row-ic ${activa ? 'ok' : ''}"><svg class="ic"><use href="#ic-reserva"></use></svg></span>
                 <span class="nd-row-main">
-                    <span class="nd-row-t">${r.amenities?.nombre || 'Amenity'}</span>
+                    <span class="nd-row-t">${esc(r.amenities?.nombre || 'Amenity')}</span>
                     <span class="nd-row-s"><span class="dot ${activa ? 'ok' : 'muted'}"></span>${fmtD(r.fecha)} · ${r.hora_inicio?.substring(0,5) || ''}–${r.hora_fin?.substring(0,5) || ''}</span>
                 </span>
                 ${activa ? `<button class="btn btn-danger btn-xs" onclick="cancelarReserva('${r.id}')">Cancelar</button>` : ''}
@@ -1373,7 +1373,7 @@ async function loadArchivos(){
     const c=document.getElementById('archivos-acc');c.innerHTML='<div style="color:var(--muted);font-size:0.85rem;padding:12px">Cargando archivos...</div>';
     try{
         const data=await api('/api/archivos');const byc={};data.forEach(a=>{if(!byc[a.categoria])byc[a.categoria]=[];byc[a.categoria].push(a)});
-        c.innerHTML=CATS.map(cat=>{const files=byc[cat.k]||[];return`<div class="acc-item"><button class="acc-btn" onclick="toggleAcc(this)"><span>${cat.l} <span style="color:var(--muted);font-weight:400;font-size:0.78rem">(${files.length})</span></span><span class="acc-arr">▼</span></button><div class="acc-body">${files.length===0?'<p style="color:var(--muted);font-size:0.83rem;padding:4px 0">Sin archivos en esta categoría</p>':files.map(f=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2)"><div><div style="font-size:0.85rem;font-weight:600"><svg class="ic ic-sm"><use href="#ic-doc"></use></svg>${f.nombre}</div><div style="font-size:0.72rem;color:var(--muted)">${new Date(f.created_at).toLocaleDateString('es-AR')} · ${f.mime_type}</div></div><a class="btn btn-secondary btn-xs" href="/api/archivos/${f.id}/descargar" download="${f.nombre}">⬇ Descargar</a></div>`).join('')}</div></div>`}).join('')
+        c.innerHTML=CATS.map(cat=>{const files=byc[cat.k]||[];return`<div class="acc-item"><button class="acc-btn" onclick="toggleAcc(this)"><span>${cat.l} <span style="color:var(--muted);font-weight:400;font-size:0.78rem">(${files.length})</span></span><span class="acc-arr">▼</span></button><div class="acc-body">${files.length===0?'<p style="color:var(--muted);font-size:0.83rem;padding:4px 0">Sin archivos en esta categoría</p>':files.map(f=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2)"><div><div style="font-size:0.85rem;font-weight:600"><svg class="ic ic-sm"><use href="#ic-doc"></use></svg>${esc(f.nombre)}</div><div style="font-size:0.72rem;color:var(--muted)">${new Date(f.created_at).toLocaleDateString('es-AR')} · ${f.mime_type}</div></div><a class="btn btn-secondary btn-xs" href="/api/archivos/${f.id}/descargar" download="${esc(f.nombre)}">⬇ Descargar</a></div>`).join('')}</div></div>`}).join('')
     }catch(e){c.innerHTML='<div style="color:var(--nd-terracota-hondo);font-size:0.85rem;padding:12px">Error al cargar archivos</div>'}
 }
 function toggleAcc(btn){btn.classList.toggle('open');btn.nextElementSibling.classList.toggle('open')}
@@ -1396,7 +1396,7 @@ async function loadPerfil(){
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
         <div style="width:52px;height:52px;border-radius:50%;background:var(--nd-verde);display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:800;color:white">${esc((v.nombre||v.email||'?').charAt(0).toUpperCase())}</div>
         <div>
-            <div style="font-size:1rem;font-weight:800">${esc(v.nombre)||'–'}</div>
+            <div style="font-size:1rem;font-weight:800">${esc(v.nombre||'–')}</div>
             <div style="color:var(--muted);font-size:0.83rem">${esc(v.email)}</div>
             <div style="margin-top:4px">${ebadge('activo')}</div>
         </div>
@@ -1404,8 +1404,8 @@ async function loadPerfil(){
 
     <form id="form-perfil" onsubmit="event.preventDefault();guardarPerfil()" style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
         <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:12px">Mis Datos</div>
-        <div class="fg"><label class="fl">Nombre</label><input type="text" id="pf-nombre" class="fc" value="${esc(v.nombre)}" maxlength="120" required></div>
-        <div class="fg"><label class="fl">Teléfono</label><input type="tel" id="pf-telefono" class="fc" value="${esc(v.telefono)}" maxlength="40" placeholder="+54 9 11 ..."></div>
+        <div class="fg"><label class="fl">Nombre</label><input type="text" id="pf-nombre" class="fc" value="${esc(v.nombre||'')}" maxlength="120" required></div>
+        <div class="fg"><label class="fl">Teléfono</label><input type="tel" id="pf-telefono" class="fc" value="${esc(v.telefono||'')}" maxlength="40" placeholder="+54 9 11 ..."></div>
         <div class="fg" style="margin-bottom:0">
             <label class="fl">Email</label>
             <input type="email" class="fc" value="${esc(v.email)}" disabled>
@@ -1419,8 +1419,8 @@ async function loadPerfil(){
         ${S.unidades.map(u=>{
             const con=u.consorcios||{};const uf=u.unidades_funcionales||{};
             return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px">
-                <div style="font-weight:700;margin-bottom:4px"><svg class="ic ic-sm"><use href="#ic-edificio"></use></svg>${esc(con.nombre)||'–'}</div>
-                <div style="font-size:0.8rem;color:var(--muted)">Unidad ${esc(uf.numero)||'–'} · Piso ${esc(uf.piso)||'–'} · ${esc(u.rol)||'propietario'}</div>
+                <div style="font-weight:700;margin-bottom:4px"><svg class="ic ic-sm"><use href="#ic-edificio"></use></svg>${esc(con.nombre||'–')}</div>
+                <div style="font-size:0.8rem;color:var(--muted)">Unidad ${esc(uf.numero||'–')} · Piso ${esc(uf.piso||'–')} · ${esc(u.rol||'propietario')}</div>
                 ${con.encargado_nombre?`<div style="font-size:0.78rem;color:var(--text2);margin-top:4px">${esc(con.encargado_nombre)} ${con.encargado_tel?'· '+esc(con.encargado_tel):''}</div>`:''}
             </div>`;
         }).join('')}

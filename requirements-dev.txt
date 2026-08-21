@@ -1,2 +1,9 @@
-# Sólo para correr los tests: la app en producción usa requirements.txt.
-pytest>=8.0
+# Dependencias de desarrollo. Aparte de requirements.txt a propósito: Vercel
+# instala ese archivo en cada build y no tiene por qué cargar el runner de
+# tests en la función de producción.
+#
+#   pip install -r requirements-dev.txt
+#   pytest
+
+-r requirements.txt
+pytest==8.3.4
