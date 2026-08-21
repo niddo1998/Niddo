@@ -127,7 +127,7 @@ footer.note b{ color:var(--text-dim); }
       <div class="top-titles">
         <span class="eyebrow">Mapa conceptual · Niddo</span>
         <h1 class="display">Funcionalidades por categoría — estado real</h1>
-        <p>Vive acá en Superadmin y persiste en Supabase (tabla roadmap_estado) — lo que marques queda guardado para siempre, no por navegador. El punto de partida sale de releer el código, no de una lista de deseos: última pasada sobre <span class="mono">main</span> el 21/08/2026, ya con mobile v2 mergeado, más lo cerrado en <span class="mono">claude/vecino-fixes-vqxc95</span>. Si algo lo marcaste a mano, tu marca gana sobre el seed; “Reiniciar a estado real” borra tus marcas y te deja lo que dice el repo.</p>
+        <p>Vive acá en Superadmin y persiste en Supabase (tabla roadmap_estado) — lo que marques queda guardado para siempre, no por navegador. El punto de partida sale de releer el código, no de una lista de deseos: última pasada sobre <span class="mono">main</span> el 21/08/2026, más el bloque de liquidación y expensas, contrastado contra cuatro liquidaciones reales del mercado. Si algo lo marcaste a mano, tu marca gana sobre el seed; “Reiniciar a estado real” borra tus marcas y te deja lo que dice el repo.</p>
       </div>
       <button id="reset-btn">Reiniciar a estado real</button>
     </div>
@@ -157,11 +157,11 @@ footer.note b{ color:var(--text-dim); }
 const CATEGORIES = [
   { id:"exp", code:"EXP", name:"Liquidación de expensas", hue:16, funcs:[
     { name:"Calcular expensa mensual automática", role:"admin", tech:["Supabase"], items:[
-      {t:"Definir % de copropiedad por unidad", s:"planned", note:"Sigue sin poder cargarse en la UF: api_ufs_create/update no incluyen porcentaje_a ni porcentaje_c en el payload, así que quedan en 0 y el prorrateo cae en reparto lineal. Se puede corregir liquidación por liquidación con PUT /api/liquidaciones/&lt;lid&gt;/prorrateo/&lt;pid&gt;, pero ese endpoint tampoco tiene pantalla"},
-      {t:"Prorratear gastos comunes vs. exclusivos", s:"built"},
-      {t:"Aplicar fondo de reserva", s:"planned", note:"La columna saldo_superfondo existe y el PUT la acepta, pero no se calcula en ningún lado ni el panel la carga"},
-      {t:"Calcular intereses por mora", s:"planned", note:"El campo interes_mora viaja hasta el cupón y el resumen, pero se inserta siempre en 0 (cobros/generar y el prorrateo de la liquidación) y solo cambia si el admin lo edita a mano por PUT /api/cobros/&lt;id&gt;. No hay cálculo automático ni tasa configurable — la de Configuración está hardcodeada en el HTML"},
-      {t:"Generar vencimientos (1° y 2°)", s:"built", note:"Las dos fechas se cargan y se imprimen. Ojo: el recargo del 2° vencimiento (interes_2_vto) se muestra como \"+X%\" en el resumen pero no se aplica a ningún total"}
+      {t:"Definir % de copropiedad por unidad", s:"built", note:"Cuatro coeficientes (A, B, C, E) cargables en el alta y la edición de cada UF. Era el bloqueo de todo: las columnas existían desde v7 y ningún endpoint las aceptaba. Si los de un coeficiente no suman 100, ese se reparte lineal — sin cargar nada la app se comporta igual que antes"},
+      {t:"Prorratear gastos comunes vs. exclusivos", s:"built", note:"Y ahora también por coeficiente: cada gasto declara con cuál se reparte, así el ascensor puede ir por uno donde la cochera pesa 0 y el seguro por otro donde pesa. Es lo que hacen SIPAC, Octopus, Expensas Flow y Consorcio Abierto"},
+      {t:"Aplicar fondo de reserva", s:"planned", note:"saldo_superfondo sigue existiendo sin calcularse. Ninguno de los cuatro documentos de referencia lo trae como columna del prorrateo, así que primero hay que definir si es un porcentaje sobre la expensa o un monto fijo del consorcio"},
+      {t:"Calcular intereses por mora", s:"planned", note:"El prorrateo ya calcula el interés sobre el saldo impago del período anterior, con la tasa del consorcio (Configuración dejó de ser decorativa). Falta la otra mitad: nada pasa un cobro a vencido/en_mora al vencerse, así que el interés sólo aparece cuando se emite la liquidación siguiente"},
+      {t:"Generar vencimientos (1° y 2°)", s:"built", note:"El recargo del 2° vencimiento ahora se aplica: total_segundo_vto = total × (1 + recargo%), verificado contra los cuatro sistemas. Antes se imprimía \"+X%\" al lado de la fecha y no se calculaba en ningún lado"}
     ]},
     { name:"Gestionar gastos extraordinarios", role:"admin", tech:[], items:[
       {t:"Diferenciar de gastos ordinarios", s:"none"},
@@ -169,12 +169,12 @@ const CATEGORIES = [
       {t:"Notificar a propietarios afectados", s:"none"}
     ]},
     { name:"Emitir liquidación en formato normativo", role:"admin", tech:["reportlab"], items:[
-      {t:"Formato \"Mis Expensas\" (CABA/PBA)", s:"none"},
-      {t:"QR / link a comprobantes de gastos", s:"none"},
-      {t:"Exportar PDF individual por unidad", s:"planned", note:"El resumen por UF se genera en HTML (preview del panel y cuerpo del mail). Los PDF de reportlab existen para consorcio, gastos, cobros, balance y el cupón del vecino — para el resumen de liquidación no"}
+      {t:"Formato \"Mis Expensas\" (CABA/PBA)", s:"built", note:"El PDF adjunto sigue la estructura de los cuatro sistemas: encabezado con consorcio y administración (CUIT y matrícula RPA/RPAC incluidos), rubros con proveedor, CUIT, comprobante y fecha de pago por gasto, subtotales por coeficiente, los cuadros del art. 10 con su cita, y la tabla de prorrateo con todas las unidades"},
+      {t:"QR / link a comprobantes de gastos", s:"none", note:"De los cuatro relevados sólo Expensas Flow trae QR, y no es de pago: uno lleva a ARCA para consultar aportes sin clave fiscal y otro al portal de vecinos. Prioridad baja"},
+      {t:"Exportar PDF individual por unidad", s:"planned", note:"Ya sale el PDF de la liquidación COMPLETA adjunto al mail, que es lo que la ley obliga a rendir y lo que mandan los cuatro. El recorte a una sola unidad sigue siendo HTML: es un extra de comodidad, no un requisito"}
     ]},
     { name:"Enviar la liquidación", role:"cruzado", tech:["Resend"], items:[
-      {t:"Envío por mail", s:"built"},
+      {t:"Envío por mail", s:"built", note:"Con el PDF de la liquidación completa adjunto. Se arma una vez por envío y no uno por unidad: es idéntico para todos. Si el PDF falla, los mails salen igual sin adjunto — quedarse sin avisar es peor"},
       {t:"Envío por WhatsApp", s:"none", note:"Deshabilitado en la UI (\"próximamente\")"},
       {t:"Notificación push en la app", s:"none"},
       {t:"Programar el envío mensual", s:"planned", note:"El modal \"Agendar\" guarda día, hora, canal y activo en envio_programado vía POST /api/envio-programado/&lt;cid&gt;. No hay cron ni worker: nadie lee esa tabla, así que la programación no dispara nada"}
@@ -190,11 +190,11 @@ const CATEGORIES = [
     { name:"Conciliar pagos automáticamente", role:"admin", tech:[], items:[
       {t:"Matchear pago con unidad funcional", s:"none"},
       {t:"Resolver cobros no identificados", s:"none"},
-      {t:"Actualizar cuenta corriente en tiempo real", s:"none"},
+      {t:"Actualizar cuenta corriente en tiempo real", s:"planned", note:"Emitir la liquidación ya crea el cobro de cada unidad con su total prorrateado, así que la cuenta del vecino refleja lo que dice el mail. Lo que falta es el otro lado: que registrar un pago la cierre sola"},
       {t:"Aviso de pago del vecino → confirmación del admin", s:"planned", note:"El vecino informa el pago y ahora ve el estado en que quedó. Del lado admin, GET /api/admin/avisos-pago y PUT existen y el vocabulario de estados ya está cerrado, pero sigue sin pantalla: el aviso llega y no lo revisa nadie. Es la misma forma que tenía Reclamos antes de tener sección propia"}
     ]},
     { name:"Gestionar morosidad", role:"admin", tech:["Supabase"], items:[
-      {t:"Calcular deuda e intereses acumulados", s:"planned", note:"El panel de morosidad lista los cobros en estado vencido/en_mora, pero ningún proceso pasa un cobro a esos estados al vencerse ni acumula intereses. Hoy la lista solo se llena si alguien edita el estado a mano"},
+      {t:"Calcular deuda e intereses acumulados", s:"planned", note:"El interés ya se calcula con la tasa del consorcio al emitir la liquidación siguiente. Sigue faltando que algo pase el cobro a vencido/en_mora el día del vencimiento: hasta entonces el panel de morosidad se llena sólo a mano"},
       {t:"Generar recordatorios automáticos", s:"none"},
       {t:"Armar planes de pago", s:"none"}
     ]},
@@ -225,7 +225,8 @@ const CATEGORIES = [
       {t:"Confirmar y recibir recordatorio", s:"planned", note:"La confirmación ya sale por mail con espacio, día, horario y condiciones de uso. El recordatorio previo al turno no: necesita el cron que tampoco existe para la mora ni para el envío programado"},
       {t:"Cancelar reserva", s:"built", note:"Bien acotado: el DELETE comprueba que la reserva sea del vecino antes de borrarla"},
       {t:"Validar que el amenity sea de su consorcio", s:"built", note:"amenity_visible() en las tres rutas de reservas. Las reservas no guardan el consorcio: cuelgan del amenity, y ese salto es el único que dice de quién es un quincho"},
-      {t:"Respetar capacidad máxima y cupo por vecino", s:"built", note:"La reserva ahora lleva cantidad_personas (v15) y se contrasta con capacidad_maxima. El tope mensual es max_reservas_mes, cargado por el admin en cada espacio en vez de una constante del código: se cuenta sobre el mes de la fecha reservada, por espacio, y una reserva cancelada no lo gasta. Las fechas pasadas también se rechazan"}
+      {t:"Respetar capacidad máxima y cupo por vecino", s:"built", note:"La reserva ahora lleva cantidad_personas (v15) y se contrasta con capacidad_maxima. El tope mensual es max_reservas_mes, cargado por el admin en cada espacio en vez de una constante del código: se cuenta sobre el mes de la fecha reservada, por espacio, y una reserva cancelada no lo gasta. Las fechas pasadas también se rechazan"},
+      {t:"Que la reserva se cobre en la expensa", s:"built", note:"Consorcio Abierto le da columna propia en el prorrateo (\"USO AMENITIES\") y tiene sentido: el SUM lo paga quien lo usa, no el edificio. Un amenity con precio_uso cargado se le factura a la unidad que reservó. Sin precio —como están todos hoy— no cobra nada"}
     ]},
     { name:"Votar y participar", role:"vecino", tech:["Supabase"], items:[
       {t:"Ver encuestas / votaciones activas", s:"built"},
@@ -267,7 +268,7 @@ const CATEGORIES = [
       {t:"Auditoría de acciones por usuario", s:"none", note:"Existe superadmin_auditoria, pero solo registra lo que hace el superadmin (aprobaciones, rechazos, impersonaciones). Del equipo del administrador no se guarda nada"}
     ]},
     { name:"Configurar vencimientos y recordatorios", role:"admin", tech:[], items:[
-      {t:"Definir reglas por consorcio", s:"none", note:"\"Configuración\" es decorativa: botón sin handler, valores hardcodeados en el HTML"},
+      {t:"Definir reglas por consorcio", s:"built", note:"Configuración pasó a ser por consorcio y guarda de verdad: tasa de mora, días de gracia, recargo del 2° vencimiento, CUIT, clave SUTERH y datos bancarios. Todo eso lo lee el prorrateo o sale impreso en la liquidación"},
       {t:"Automatizar avisos a propietarios", s:"none"}
     ]}
   ]},
@@ -330,7 +331,7 @@ const CATEGORIES = [
   ]},
   { id:"ctb", code:"CTB", name:"Contabilidad, balances y reportes", hue:67, funcs:[
     { name:"Generar balance del consorcio", role:"admin", tech:["reportlab"], items:[
-      {t:"Consolidar ingresos y egresos", s:"built", note:"Ojo: Balance suma Cobros, no Liquidaciones — pueden divergir sin aviso"},
+      {t:"Consolidar ingresos y egresos", s:"built", note:"Balance sigue sumando Cobros, pero ya no divergen: los cobros nacen del prorrateo de la liquidación. Antes se cargaban a mano con un monto plano igual para todas las unidades"},
       {t:"Actualizar en tiempo real", s:"built"},
       {t:"Exportar PDF / Excel", s:"built"}
     ]},
@@ -376,8 +377,9 @@ const CATEGORIES = [
     ]}
   ]},
   { id:"nrm", code:"NRM", name:"Cumplimiento normativo", hue:92, funcs:[
-    { name:"Cumplir formato de liquidación", role:"admin", tech:[], items:[
-      {t:"QR obligatorio (CABA)", s:"none"},
+    { name:"Cumplir formato de liquidación", role:"admin", tech:["reportlab"], items:[
+      {t:"Emitir en el formato \"Mis Expensas\"", s:"built", note:"El PDF adjunto sigue la estructura de SIPAC, Octopus, Expensas Flow y Consorcio Abierto, con las citas al art. 10 de la Ley 941 en cada cuadro. Contarlo acá y en EXP es a propósito: es requisito normativo y funcionalidad de producto a la vez"},
+      {t:"QR obligatorio (CABA)", s:"none", note:"De los cuatro relevados sólo Expensas Flow trae QR, y no es de pago: uno lleva a ARCA a consultar aportes sin clave fiscal y otro al portal de vecinos. Prioridad baja"},
       {t:"Certificado de deuda y créditos", s:"none"}
     ]}
   ]},

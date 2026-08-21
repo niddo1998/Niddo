@@ -190,7 +190,11 @@ footer.note b{ color:var(--text-dim); }
   </div>
 
   <footer class="note">
-    <b>Lo que cambió respecto a la versión anterior:</b> el frontend no es Next.js — es Flask + Jinja2 con JS vanilla embebido, server-rendered. El rol lo elige el usuario con un click, no lo emite Auth0. Bind pasó de "decidido" a "a definir": no hay ninguna pasarela de pago integrada, el cobro es manual. Sumé Resend (mails), Groq Vision + PyMuPDF (OCR, ya funcionando) y reportlab/openpyxl (exports), que estaban en el repo y no en el mapa. Proveedor (huérfano) sigue en el flujo porque la landing lo promete como portal de producto. Superadmin no está acá: es una herramienta interna solo para el equipo de desarrollo, no pasa por este flujo de auth de cara al usuario — está detallado en el mapa Admin × Vecino, no en este.
+    <b>Cómo leer esto:</b> el frontend no es Next.js — es Flask + Jinja2 con JS vanilla embebido, server-rendered. El rol lo elige el usuario con un click, no lo emite Auth0. Bind figura como "a definir" porque no hay ninguna pasarela de pago integrada: el cobro es manual. Proveedor (huérfano) sigue en el flujo porque la landing lo promete como portal de producto. Superadmin no está acá: es una herramienta interna del equipo, no pasa por este flujo de auth de cara al usuario — está en el mapa Admin × Vecino.
+    <br><br>
+    <b>Lo último que se movió:</b> reportlab pasó de hacer exports sueltos a generar la liquidación completa en formato "Mis Expensas" (<span class="mono">liquidacion_pdf.py</span>), que es lo que la Ley 941 obliga a rendir y lo que mandan SIPAC, Octopus, Expensas Flow y Consorcio Abierto. Por eso NRM dejó de estar en gris. El prorrateo pasó a repartir por cuatro coeficientes (A, B, C, E) en vez de uno, que es lo que necesita un edificio con cocheras o locales. Y emitir la liquidación ahora crea los cobros: antes eran dos mundos separados y el número del mail podía no coincidir con el de la app del vecino.
+    <br><br>
+    <b>El riesgo que queda del lado de la infraestructura:</b> el envío genera el PDF y manda N mails dentro de una sola request de Vercel, que corre con el <span class="mono">maxDuration</span> por defecto. Con un consorcio grande eso puede cortarse por timeout. El PDF se arma una sola vez para amortiguarlo, pero la solución de fondo es partir el envío en lotes.
   </footer>
 </div>
 
@@ -208,7 +212,7 @@ const CATEGORIES = [
   { id:"ia",  code:"IA",  name:"Inteligencia artificial", hue:285, uses:["groq"], estado:"built" },
   { id:"int", code:"INT", name:"Integraciones", hue:55, uses:["afip-agip","supabase"], estado:"notbuilt" },
   { id:"bar", code:"BAR", name:"Barrios y control de accesos", hue:130, uses:["supabase"], estado:"notbuilt" },
-  { id:"nrm", code:"NRM", name:"Cumplimiento normativo", hue:350, uses:["supabase"], estado:"notbuilt" }
+  { id:"nrm", code:"NRM", name:"Cumplimiento normativo", hue:350, uses:["reportlab","supabase"], estado:"partial" }
 ];
 
 const FOUNDATION = [
