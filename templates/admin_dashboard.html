@@ -607,13 +607,13 @@
 </div>
 
 <!-- Modal: rechazar una solicitud de alta -->
-<div class="modal" id="modal-rechazar-vecino">
-    <div class="modal-box" style="max-width:520px">
-        <div class="modal-h">
+<div class="modal-overlay" id="modal-rechazar-vecino">
+    <div class="modal-box">
+        <div class="modal-head">
             <h3>Rechazar solicitud</h3>
-            <button class="modal-x" onclick="closeModal('modal-rechazar-vecino')">&times;</button>
+            <button class="modal-close" onclick="closeModal('modal-rechazar-vecino')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
         </div>
-        <div class="modal-b">
+        <div class="modal-body">
             <input type="hidden" id="m-rech-vecino-id">
             <p id="m-rech-info" style="font-size:.85rem;color:var(--muted);margin-bottom:14px"></p>
             <div class="form-group">
@@ -625,7 +625,7 @@
                 </div>
             </div>
         </div>
-        <div class="modal-f">
+        <div class="modal-footer">
             <button class="btn-s" onclick="closeModal('modal-rechazar-vecino')">Cancelar</button>
             <button class="btn-danger" onclick="confirmarRechazoVecino()">Rechazar solicitud</button>
         </div>
@@ -657,13 +657,13 @@
 </div>
 
 <!-- Modal: atender un reclamo -->
-<div class="modal" id="modal-reclamo">
-    <div class="modal-box" style="max-width:620px">
-        <div class="modal-h">
+<div class="modal-overlay" id="modal-reclamo">
+    <div class="modal-box wide">
+        <div class="modal-head">
             <h3 id="m-rec-titulo">Reclamo</h3>
-            <button class="modal-x" onclick="closeModal('modal-reclamo')">&times;</button>
+            <button class="modal-close" onclick="closeModal('modal-reclamo')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
         </div>
-        <div class="modal-b">
+        <div class="modal-body">
             <div id="m-rec-meta" style="font-size:0.82rem;color:var(--muted);margin-bottom:12px"></div>
             <div id="m-rec-desc" style="background:var(--nd-crema);border-radius:8px;padding:14px;margin-bottom:14px;font-size:0.9rem;line-height:1.7;white-space:pre-wrap"></div>
             <div id="m-rec-adjunto" style="margin-bottom:16px"></div>
@@ -681,7 +681,7 @@
                 <textarea class="form-ctrl" id="m-rec-respuesta" rows="4" placeholder="Lo que escribas acá lo ve el vecino en su portal"></textarea>
             </div>
         </div>
-        <div class="modal-f">
+        <div class="modal-footer">
             <button class="btn-s" onclick="closeModal('modal-reclamo')">Cancelar</button>
             <button class="btn-p" onclick="guardarReclamo()">Guardar y responder</button>
         </div>
