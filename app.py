@@ -2156,6 +2156,11 @@ def api_gastos_create():
         'frecuencia': d.get('frecuencia', ''),
         'dia_carga': _dia_carga(d),
         'notas': d.get('notas', ''),
+        # Por qué coeficiente se reparte, y el comprobante que la Ley 941 pide
+        # rendir junto al gasto. 'A' es como se repartía todo hasta ahora.
+        'coeficiente': (d.get('coeficiente') or 'A').upper(),
+        'comprobante_tipo': d.get('comprobante_tipo', ''),
+        'comprobante_numero': d.get('comprobante_numero', ''),
         'admin_id': admin_id,
     }
     # El gasto queda con el `admin_id` de quien lo carga, así que un consorcio
@@ -2208,7 +2213,7 @@ def api_gastos_update(gid):
     d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
     allowed = ('consorcio_id','proveedor_id','unidad_id','descripcion','categoria','monto','fecha_gasto',
                 'fecha_vencimiento','pagado','fecha_pago','metodo_pago','recurrente','frecuencia',
-                'dia_carga','notas')
+                'dia_carga','notas','coeficiente','comprobante_tipo','comprobante_numero')
     payload = {}
     for k in allowed:
         if k in d:
@@ -4308,7 +4313,7 @@ def _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id, gastos
     """
     desde, hasta = _periodo_rango(periodo)
 
-    gastos = supabase.table('gastos').select('*') \
+    gastos = supabase.table('gastos').select('*, proveedores(nombre, cuit)') \
         .eq('consorcio_id', consorcio_id) \
         .eq('admin_id', admin_id) \
         .gte('fecha_gasto', desde) \
@@ -4326,6 +4331,7 @@ def _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id, gastos
         num, nombre = CATEGORIA_A_RUBRO.get(cat, (10, 'Otros gastos'))
         if num not in rubros_dict:
             rubros_dict[num] = {'nombre': nombre, 'items': []}
+        prov = g.get('proveedores') or {}
         rubros_dict[num]['items'].append({
             'descripcion': g.get('descripcion', ''),
             'monto': float(g.get('monto', 0)),
@@ -4333,6 +4339,16 @@ def _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id, gastos
             # El alcance se congela acá: el prorrateo se calcula sobre los ítems,
             # así que editar el gasto después no cambia una liquidación emitida.
             'unidad_id': g.get('unidad_id'),
+            # Y por lo mismo se congela el coeficiente: recategorizar un gasto
+            # el mes que viene no puede mover una liquidación ya emitida.
+            'coeficiente': (g.get('coeficiente') or 'A').upper(),
+            # El detalle que la Ley 941 obliga a rendir y que hasta ahora se
+            # perdía: el resumen mostraba categoría e importe, nada más.
+            'proveedor_nombre': prov.get('nombre') or '',
+            'proveedor_cuit': prov.get('cuit') or '',
+            'comprobante_tipo': g.get('comprobante_tipo') or '',
+            'comprobante_numero': g.get('comprobante_numero') or '',
+            'fecha_pago': g.get('fecha_pago'),
         })
 
     total_general = sum(
@@ -4362,36 +4378,60 @@ def _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id, gastos
                 'monto': it['monto'],
                 'gasto_id': it['gasto_id'],
                 'unidad_id': it['unidad_id'],
+                'coeficiente': it['coeficiente'],
+                'proveedor_nombre': it['proveedor_nombre'],
+                'proveedor_cuit': it['proveedor_cuit'],
+                'comprobante_tipo': it['comprobante_tipo'],
+                'comprobante_numero': it['comprobante_numero'],
+                'fecha_pago': it['fecha_pago'],
             } for it in r['items']]
             if items_payload:
                 supabase.table('liquidacion_items').insert(items_payload).execute()
 
 
-def _egresos_por_alcance(liq_id):
-    """Separa los egresos de la liquidación en generales y particulares por UF.
+COEFICIENTES = ('A', 'B', 'C', 'E')
 
-    Devuelve (total_general, {unidad_id: monto}). Sólo el total general se
-    prorratea; lo particular se le carga entero a su unidad.
+
+def _egresos_por_alcance(liq_id):
+    """Separa los egresos de la liquidación por coeficiente y por UF.
+
+    Devuelve ({coeficiente: total}, {unidad_id: monto}). Lo general se reparte
+    según el coeficiente que declara cada gasto; lo particular —el gasto con
+    `unidad_id`, que es la reparación de una sola unidad— se le carga entero a
+    esa UF sin pasar por ningún reparto.
+
+    El coeficiente es lo que hace que un edificio con cocheras y locales pueda
+    liquidar bien: la factura del ascensor va por uno donde la cochera pesa 0,
+    y el seguro por otro donde pesa. Los cuatro sistemas del mercado imprimen
+    "SUBTOTALES POR COEFICIENTE" justamente por esto.
     """
     rubros = supabase.table('liquidacion_rubros').select('id') \
         .eq('liquidacion_id', liq_id).execute().data
     rubro_ids = [r['id'] for r in rubros]
     if not rubro_ids:
-        return 0.0, {}
+        return {c: 0.0 for c in COEFICIENTES}, {}
 
-    items = supabase.table('liquidacion_items').select('monto, unidad_id') \
+    items = supabase.table('liquidacion_items').select('monto, unidad_id, coeficiente') \
         .in_('rubro_id', rubro_ids).execute().data
 
-    total_general = 0.0
+    por_coeficiente = {c: 0.0 for c in COEFICIENTES}
     particulares = {}
     for it in items:
         monto = float(it.get('monto') or 0)
         unidad_id = it.get('unidad_id')
         if unidad_id:
             particulares[unidad_id] = round(particulares.get(unidad_id, 0.0) + monto, 2)
-        else:
-            total_general += monto
-    return round(total_general, 2), particulares
+            continue
+        # Un ítem sin coeficiente es de antes de la v18: se reparte por A, que
+        # era el único reparto que existía. Así una liquidación vieja sigue
+        # dando el mismo número que daba.
+        coef = (it.get('coeficiente') or 'A').upper()
+        if coef not in por_coeficiente:
+            coef = 'A'
+        por_coeficiente[coef] += monto
+
+    return ({c: round(v, 2) for c, v in por_coeficiente.items()},
+            particulares)
 
 
 def _repartir(total, pesos):
@@ -4420,46 +4460,129 @@ def _repartir(total, pesos):
     return partes, ajustes
 
 
+def _cargos_de_amenities(consorcio_id, periodo, uf_ids):
+    """Lo que cada UF debe por reservar amenities en el período.
+
+    Consorcio Abierto le da columna propia en el prorrateo ("USO AMENITIES") y
+    tiene sentido: la reserva del SUM la paga quien la usa, no el edificio.
+
+    Sólo cuenta lo confirmado y con precio cargado. Un amenity sin `precio_uso`
+    es gratis, que es como se comportan todos hoy, así que esto no le cobra
+    nada a nadie hasta que el administrador ponga un número.
+    """
+    if not uf_ids:
+        return {}
+    desde = f'{periodo}-01'
+    y, m = periodo.split('-')[:2]
+    hasta = f'{int(y)+1}-01-01' if int(m) == 12 else f'{y}-{int(m)+1:02d}-01'
+
+    try:
+        amenities = supabase.table('amenities').select('id, precio_uso') \
+            .eq('consorcio_id', consorcio_id).execute().data or []
+    except Exception:
+        # Sin la columna (entorno sin v18) el cargo es 0 y la liquidación sale
+        # igual que antes, en vez de romperse entera por un extra.
+        return {}
+    precios = {a['id']: float(a.get('precio_uso') or 0) for a in amenities}
+    cobrables = [aid for aid, p in precios.items() if p > 0]
+    if not cobrables:
+        return {}
+
+    reservas = supabase.table('reservas_amenities') \
+        .select('amenity_id, vecino_id, fecha') \
+        .in_('amenity_id', cobrables).eq('estado', 'confirmada') \
+        .gte('fecha', desde).lt('fecha', hasta).execute().data or []
+    if not reservas:
+        return {}
+
+    # La reserva cuelga del vecino; el cargo, de la unidad. El salto es
+    # `vecinos.unidad_id`.
+    vecino_ids = list({r['vecino_id'] for r in reservas if r.get('vecino_id')})
+    if not vecino_ids:
+        return {}
+    vecinos = supabase.table('vecinos').select('id, unidad_id') \
+        .in_('id', vecino_ids).execute().data or []
+    unidad_de = {v['id']: v.get('unidad_id') for v in vecinos}
+
+    cargos = {}
+    for r in reservas:
+        uid = unidad_de.get(r.get('vecino_id'))
+        if uid and uid in uf_ids:
+            cargos[uid] = round(cargos.get(uid, 0.0) + precios[r['amenity_id']], 2)
+    return cargos
+
+
+def _pesos_del_coeficiente(ufs, coef):
+    """Los pesos con que se reparte un coeficiente entre las UFs.
+
+    Si los porcentajes cargados cierran en 100 se usan esos; si están todos en
+    0 —que es como vienen— se reparte lineal. La tolerancia de 0,5 absorbe el
+    redondeo de cargar 33,333 tres veces.
+
+    Devuelve (pesos, porcentajes_efectivos). Antes se multiplicaba directo por
+    el porcentaje, así que sin cargarlo cada unidad recibía $0.
+    """
+    columna = f'porcentaje_{coef.lower()}'
+    cargados = [float(uf.get(columna) or 0) for uf in ufs]
+    if abs(sum(cargados) - 100) <= 0.5:
+        return cargados, cargados
+    n = len(ufs)
+    return [1.0] * n, [round(100 / n, 3)] * n
+
+
 def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
     """Genera la tabla de prorrateo para cada UF del consorcio.
 
-    El gasto general del consorcio se reparte en partes iguales entre todas las
-    UFs (prorrateo lineal). Si en algún momento se cargan los porcentajes de
-    `unidades_funcionales.porcentaje_a` y suman 100, se usan esos en su lugar;
-    mientras estén todos en 0 —que es como vienen— el reparto lineal es el que
-    manda. Antes se multiplicaba directo por ese porcentaje, así que sin cargar
-    daba $0 a cada unidad.
+    La fórmula sale de contrastar los cuatro sistemas del mercado, y da igual
+    en los cuatro:
 
-    Los gastos específicos de una UF (el juego de llaves que pidió sólo ella) no
-    entran en el reparto: se le suman enteros a esa unidad en `gastos_particulares`.
+        total 1er vto = Σ(expensa de cada coeficiente)
+                      + gastos particulares de la unidad
+                      + saldo pendiente + intereses
+                      + uso de amenities − descuentos
+                      + redondeo
+        total 2do vto = total 1er vto × (1 + recargo%)
+
+    El redondeo es una columna propia y no un descarte: la suma de lo que se
+    le cobra a las UFs tiene que dar exactamente lo gastado.
+
+    El saldo puede quedar negativo —el vecino pagó de más— y se arrastra como
+    crédito. Antes se cortaba en 0 y ese pago de más se perdía.
 
     En una reliquidación del mismo período (numero_revision > 1) NO se vuelve a
-    arrastrar el saldo del mes anterior: ya se le cobró al vecino en la revisión 1
-    y volver a incluirlo le facturaría dos veces la misma deuda vieja. La revisión
-    complementaria factura únicamente los gastos nuevos que se le sumaron.
+    arrastrar el saldo del mes anterior: ya se le cobró en la revisión 1, y
+    volver a incluirlo le facturaría dos veces la misma deuda vieja.
     """
     ufs = supabase.table('unidades_funcionales').select('*') \
         .eq('consorcio_id', consorcio_id).order('numero').execute().data
     if not ufs:
         return
 
-    total_general, particulares = _egresos_por_alcance(liq_id)
+    por_coeficiente, particulares = _egresos_por_alcance(liq_id)
 
-    # Base del reparto: porcentajes cargados si cierran en 100, lineal si no.
-    # La tolerancia de 0.5 absorbe el redondeo de cargar 33.333 tres veces.
-    pcts_cargados = [float(uf.get('porcentaje_a') or 0) for uf in ufs]
-    usar_porcentajes = abs(sum(pcts_cargados) - 100) <= 0.5
+    consorcio = supabase.table('consorcios') \
+        .select('tasa_interes_mora, dias_gracia_mora, recargo_segundo_vto') \
+        .eq('id', consorcio_id).execute().data
+    consorcio = consorcio[0] if consorcio else {}
+    tasa_interes = float(consorcio.get('tasa_interes_mora') or 0)
+    recargo_2do = float(consorcio.get('recargo_segundo_vto') or 0)
 
-    if usar_porcentajes:
-        pesos = pcts_cargados
-        pcts_efectivos = pcts_cargados
-    else:
-        pesos = [1.0] * len(ufs)
-        pcts_efectivos = [round(100 / len(ufs), 3)] * len(ufs)
+    # El recargo del 2do vencimiento puede venir pisado en la liquidación:
+    # `interes_2_vto` es por liquidación y el del consorcio es el default.
+    liq = supabase.table('liquidaciones').select('interes_2_vto') \
+        .eq('id', liq_id).execute().data
+    if liq and liq[0].get('interes_2_vto'):
+        recargo_2do = float(liq[0]['interes_2_vto'])
 
-    expensas, ajustes = _repartir(total_general, pesos)
+    # Un reparto por coeficiente, cada uno con sus propios pesos y su redondeo.
+    repartos = {}
+    for coef in COEFICIENTES:
+        total = por_coeficiente.get(coef, 0.0)
+        pesos, pcts = _pesos_del_coeficiente(ufs, coef)
+        montos, ajustes = _repartir(total, pesos)
+        repartos[coef] = {'montos': montos, 'ajustes': ajustes, 'pcts': pcts}
 
-    # Buscar cobros del período anterior para saldos
+    # Cobros del período anterior, para el saldo y los intereses.
     year, month = periodo.split('-')[:2]
     if int(month) == 1:
         periodo_ant = f'{int(year)-1}-12'
@@ -4469,31 +4592,40 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
     uf_ids = [uf['id'] for uf in ufs]
     cobros_ant_por_uf = {}
     if uf_ids and numero_revision <= 1:
-        cobros_ant = supabase.table('cobros').select('unidad_id, total, estado, fecha_pago') \
+        cobros_ant = supabase.table('cobros') \
+            .select('unidad_id, total, estado, fecha_pago') \
             .in_('unidad_id', uf_ids).eq('periodo', periodo_ant).execute().data
         for c in cobros_ant:
             cobros_ant_por_uf.setdefault(c['unidad_id'], c)
 
+    amenities_por_uf = _cargos_de_amenities(consorcio_id, periodo, uf_ids)
+
     prorrateo_rows = []
     for i, uf in enumerate(ufs):
-        pct_a = pcts_efectivos[i]
-        pct_c = float(uf.get('porcentaje_c') or 0)
-        expensa_a = expensas[i]
-        adicional = round(total_general * pct_c / 100, 2) if pct_c > 0 else 0
         particular = particulares.get(uf['id'], 0.0)
 
-        # Buscar saldo anterior (cobro del período anterior)
         c = cobros_ant_por_uf.get(uf['id'])
-        saldo_ant = 0
-        pago = 0
+        saldo_ant = 0.0
+        pago = 0.0
         if c:
+            saldo_ant = float(c.get('total', 0))
             if c.get('estado') == 'pagado':
                 pago = float(c.get('total', 0))
-            else:
-                saldo_ant = float(c.get('total', 0))
 
-        saldo_pend = round(saldo_ant - pago, 2) if saldo_ant > 0 else 0
-        total_unidad = round(expensa_a + adicional + particular + saldo_pend, 2)
+        # Puede quedar negativo: es un crédito y se arrastra a favor del vecino.
+        saldo_pend = round(saldo_ant - pago, 2)
+
+        # Interés sólo sobre deuda real, nunca sobre un saldo a favor.
+        interes = round(saldo_pend * tasa_interes / 100, 2) if saldo_pend > 0 and tasa_interes else 0.0
+
+        amenities = amenities_por_uf.get(uf['id'], 0.0)
+
+        expensas = {c2: repartos[c2]['montos'][i] for c2 in COEFICIENTES}
+        redondeo = round(sum(repartos[c2]['ajustes'][i] for c2 in COEFICIENTES), 2)
+
+        total_unidad = round(
+            sum(expensas.values()) + particular + saldo_pend + interes + amenities, 2)
+        total_2do = round(total_unidad * (1 + recargo_2do / 100), 2) if recargo_2do else total_unidad
 
         prorrateo_rows.append({
             'liquidacion_id': liq_id,
@@ -4501,15 +4633,24 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
             'saldo_anterior': saldo_ant,
             'pago_realizado': pago,
             'saldo_pendiente': saldo_pend,
-            'interes_mora': 0,
-            'porcentaje_a': pct_a,
-            'expensa_a': expensa_a,
-            'porcentaje_c': pct_c,
-            'adicional_ordinaria': adicional,
+            'interes_mora': interes,
+            'porcentaje_a': repartos['A']['pcts'][i],
+            'expensa_a': expensas['A'],
+            'porcentaje_b': repartos['B']['pcts'][i],
+            'expensa_b': expensas['B'],
+            # `adicional_ordinaria` es el nombre que le puso v7 al reparto del
+            # coeficiente C. Se conserva para no romper lo ya emitido.
+            'porcentaje_c': repartos['C']['pcts'][i],
+            'adicional_ordinaria': expensas['C'],
+            'porcentaje_e': repartos['E']['pcts'][i],
+            'expensa_e': expensas['E'],
             'gastos_particulares': particular,
+            'uso_amenities': amenities,
+            'descuentos': 0,
             'extraordinaria': 0,
-            'redondeo': ajustes[i],
+            'redondeo': redondeo,
             'total_unidad': total_unidad,
+            'total_segundo_vto': total_2do,
         })
 
     if prorrateo_rows:
