@@ -237,22 +237,28 @@
     <div class="ov-card">
         <div class="ov-icon"><svg class="ic ic-xl"><use href="#ic-edificio"></use></svg></div>
         <div class="ov-title">¡Bienvenido a Niddo!</div>
-        <div class="ov-sub">Para acceder al dashboard, asociá tu cuenta a tu consorcio y unidad funcional.</div>
+        <div class="ov-sub">Decinos cuál es tu unidad. La administración de tu edificio la confirma y te habilita el acceso.</div>
+        <div id="ob-rechazo" style="display:none;text-align:left;background:var(--nd-terracota-dim);border:1px solid rgba(196,80,43,0.25);padding:10px 12px;border-radius:8px;font-size:0.82rem;line-height:1.5;color:var(--nd-terracota-hondo);margin-bottom:14px"></div>
         <div style="text-align:left;margin-bottom:18px">
             <div class="fg"><label class="fl">1. Consorcio / Edificio</label><select id="ob-con" class="fc" onchange="onObConChanged()"><option value="">Cargando...</option></select></div>
             <div class="fg"><label class="fl">2. Unidad Funcional</label><select id="ob-uf" class="fc" disabled><option value="">Seleccioná un consorcio primero</option></select></div>
             <div class="fg"><label class="fl">3. Tu rol</label><select id="ob-rol" class="fc"><option value="propietario">Propietario / Dueño</option><option value="inquilino">Inquilino</option></select></div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><input type="checkbox" id="ob-nouf" onchange="toggleNoUF()" style="width:16px;height:16px;cursor:pointer"><label for="ob-nouf" style="font-size:0.83rem;cursor:pointer">No encuentro mi unidad (asignación manual)</label></div>
-            <div id="ob-nouf-msg" style="display:none;background:rgba(242,183,5,0.08);border:1px solid rgba(242,183,5,0.2);padding:10px;border-radius:8px;font-size:0.8rem;color:var(--amber);line-height:1.4;margin-bottom:8px"><svg class="ic ic-sm"><use href="#ic-alerta"></use></svg>Tu acceso quedará pendiente hasta que el administrador te asigne una unidad.</div>
+            <div id="ob-nouf-msg" style="display:none;background:rgba(242,183,5,0.08);border:1px solid rgba(242,183,5,0.2);padding:10px;border-radius:8px;font-size:0.8rem;color:var(--amber);line-height:1.4;margin-bottom:8px"><svg class="ic ic-sm"><use href="#ic-alerta"></use></svg>El administrador va a elegir tu unidad cuando revise la solicitud.</div>
         </div>
-        <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px" onclick="guardarAsociacion()">Asociar y Comenzar →</button>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px" onclick="guardarAsociacion()">Enviar solicitud →</button>
+        <div style="font-size:0.75rem;color:var(--muted);margin-top:10px;line-height:1.5">Vas a poder entrar cuando la administración confirme que la unidad es tuya. Te avisamos por mail.</div>
     </div>
 </div>
 <div class="full-overlay" id="pending-overlay">
     <div class="ov-card">
         <div class="ov-icon">⏳</div>
-        <div class="ov-title">Solicitud en Espera</div>
-        <div class="ov-sub">Tu solicitud fue enviada. El administrador del edificio debe asignarte una unidad antes de continuar.</div>
+        <div class="ov-title">Esperando al administrador</div>
+        <div class="ov-sub" id="pending-detalle">Tu solicitud fue enviada.</div>
+        <div class="ov-sub" style="font-size:0.8rem">
+            Te avisamos por mail apenas la revise. Hasta entonces no vas a ver las expensas
+            ni los datos del edificio.
+        </div>
         <button class="btn btn-secondary" style="width:100%;justify-content:center" onclick="window.location.href='/auth/logout'"><svg class="ic"><use href="#ic-salir"></use></svg>Cerrar Sesión</button>
     </div>
 </div>
@@ -766,8 +772,9 @@ async function init(){
     document.getElementById('btn-av').textContent=ini;
     document.getElementById('dd-name').textContent=v.nombre||v.email;
     document.getElementById('dd-email').textContent=v.email||'';
-    if(!v.consorcio_id){showOnboarding();return}
-    if(v.unidad==='Pendiente'){document.getElementById('pending-overlay').classList.add('visible');return}
+    /* consorcio_id sólo se escribe cuando el administrador aprueba, así que
+       tenerlo es la definición de estar adentro. Lo demás es la sala de espera. */
+    if(!v.consorcio_id){await mostrarEstadoAlta();return}
     await loadMisUnidades();
     if(S.unidades.length===1)S.activeU=S.unidades[0];
     updateHeader();
@@ -1444,6 +1451,33 @@ async function guardarPerfil(){
 }
 
 
+/* Sin consorcio hay tres situaciones distintas y antes se veían todas igual:
+   el que nunca pidió, el que está esperando y el que fue rechazado. */
+async function mostrarEstadoAlta(){
+    let sol={};
+    try{sol=await api('/api/vecinos/mi-solicitud')}catch(e){}
+
+    if(sol.estado==='pendiente'){
+        const donde=[sol.consorcio,sol.unidad?'UF '+sol.unidad:null].filter(Boolean).join(' · ');
+        document.getElementById('pending-detalle').textContent=
+            donde?`Pediste entrar a ${donde}.`
+                 :'Tu solicitud fue enviada.';
+        document.getElementById('pending-overlay').classList.add('visible');
+        return;
+    }
+
+    // Rechazado o sin pedir nunca: las dos terminan en el alta. La diferencia
+    // es que al rechazado hay que decirle por qué antes de que vuelva a elegir.
+    if(sol.estado==='rechazado'){
+        const box=document.getElementById('ob-rechazo');
+        box.innerHTML=`<strong>Tu solicitud anterior no fue aprobada.</strong>` +
+            (sol.motivo_rechazo?`<br>${esc(sol.motivo_rechazo)}`
+                               :'<br>No nos dejaron un motivo. Si creés que es un error, hablá con la administración.');
+        box.style.display='block';
+    }
+    showOnboarding();
+}
+
 async function showOnboarding(){
     document.getElementById('onboarding-overlay').classList.add('visible');
     try{const d=await api('/api/public/consorcios');const sel=document.getElementById('ob-con');sel.innerHTML='<option value="">Seleccioná un consorcio...</option>';d.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.nombre;sel.appendChild(o)})}catch(e){}
@@ -1460,7 +1494,7 @@ async function guardarAsociacion(){
     const cid=document.getElementById('ob-con').value;const uid=document.getElementById('ob-uf').value;const rol=document.getElementById('ob-rol').value;const nouf=document.getElementById('ob-nouf').checked;
     if(!cid){toast('Seleccioná un consorcio','warn');return}
     if(!uid&&!nouf){toast('Seleccioná tu unidad o marcá la opción de asignación manual','warn');return}
-    try{await api('/api/vecinos/asociar',{method:'POST',body:JSON.stringify({consorcio_id:cid,unidad_id:uid||null,rol})});toast('Asociación guardada','ok');setTimeout(()=>location.reload(),800)}
+    try{await api('/api/vecinos/asociar',{method:'POST',body:JSON.stringify({consorcio_id:cid,unidad_id:uid||null,rol})});toast('Solicitud enviada — te avisamos cuando la aprueben','ok');setTimeout(()=>location.reload(),1200)}
     catch(e){toast(e.message,'err')}
 }
 

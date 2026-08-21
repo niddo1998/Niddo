@@ -664,12 +664,23 @@ def _vecino_sin_consorcio():
     se vuelve a pasar por ahí, y dejar la puerta abierta era lo que permitía
     que cualquier vecino enumerara los edificios y las unidades de toda la
     plataforma.
+
+    Con la solicitud esperando aprobación la puerta se cierra igual: el
+    pendiente ya eligió, no tiene nada más que elegir, y si quedara abierta le
+    alcanzaría con pedir el alta y no volver a tocarla para seguir enumerando
+    la plataforma indefinidamente.
     """
     vecino_id = get_vecino_id()
     if not vecino_id:
         return False
-    res = supabase.table('vecinos').select('consorcio_id').eq('id', vecino_id).execute()
-    return bool(res.data) and not res.data[0].get('consorcio_id')
+    res = supabase.table('vecinos').select('consorcio_id, estado_asociacion') \
+        .eq('id', vecino_id).execute()
+    if not res.data:
+        return False
+    fila = res.data[0]
+    if fila.get('estado_asociacion') == 'pendiente':
+        return False
+    return not fila.get('consorcio_id')
 
 
 RUTA_SALIR_IMPERSONACION = '/superadmin/impersonar/salir'
@@ -925,6 +936,97 @@ def _mail_reserva_confirmada(reserva: dict, amenity_id: str) -> None:
     _enviar_mail([email],
                  f'Reserva confirmada — {espacio} el {reserva.get("fecha", "")}',
                  _mail_shell('Tu reserva quedó confirmada', cuerpo))
+
+
+def _mail_solicitud_vecino(vecino_id: str, consorcio_id: str, unidad_id) -> None:
+    """Le avisa al administrador que alguien pidió entrar a su edificio.
+
+    Sin esto la bandeja se llena y nadie se entera: el vecino queda esperando
+    a que el administrador entre al panel por casualidad.
+    """
+    try:
+        vecino = supabase.table('vecinos').select('nombre, email, telefono') \
+            .eq('id', vecino_id).single().execute().data or {}
+        consorcio = supabase.table('consorcios').select('nombre, admin_id') \
+            .eq('id', consorcio_id).single().execute().data or {}
+        admin = supabase.table('administradores').select('email, email_contacto') \
+            .eq('id', consorcio.get('admin_id')).single().execute().data or {}
+    except Exception:
+        app.logger.exception('No se pudo armar el aviso de solicitud de %s', vecino_id)
+        return
+
+    destino = admin.get('email_contacto') or admin.get('email')
+    if not destino:
+        return
+
+    unidad = '—'
+    if unidad_id:
+        u = supabase.table('unidades_funcionales').select('numero') \
+            .eq('id', unidad_id).execute().data
+        unidad = u[0]['numero'] if u else '—'
+    else:
+        unidad = 'No supo cuál era la suya'
+
+    cuerpo = f"""
+      <p style="margin:0 0 18px"><strong>{vecino.get('nombre') or vecino.get('email')}</strong>
+      pidió acceso a <strong>{consorcio.get('nombre', '')}</strong>.</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:22px">
+        <tr><td style="padding:7px 0;color:#574C42;width:130px">Unidad que dice</td><td style="padding:7px 0"><strong>{unidad}</strong></td></tr>
+        <tr><td style="padding:7px 0;color:#574C42">Email</td><td style="padding:7px 0">{vecino.get('email', '')}</td></tr>
+        <tr><td style="padding:7px 0;color:#574C42">Teléfono</td><td style="padding:7px 0">{vecino.get('telefono') or '—'}</td></tr>
+      </table>
+      <a href="{url_for('dashboard', role='admin', _external=True)}"
+         style="display:inline-block;background:#E8734A;color:#fff;text-decoration:none;
+         padding:12px 24px;border-radius:12px;font-weight:700">Revisar en el panel</a>
+      <p style="margin:20px 0 0;color:#574C42;font-size:13px">
+        Hasta que lo apruebes no ve nada del edificio: ni expensas, ni gastos, ni comunicados.
+        Confirmá que la unidad sea de verdad suya antes de dejarlo entrar.
+      </p>"""
+    _enviar_mail([destino],
+                 f'Alguien pidió acceso a {consorcio.get("nombre", "tu edificio")}',
+                 _mail_shell('Nueva solicitud de un vecino', cuerpo))
+
+
+def _mail_alta_vecino_resuelta(vecino: dict, aprobado: bool, consorcio_id: str,
+                               unidad=None, motivo: str = '') -> None:
+    """Le dice al vecino cómo salió su solicitud, y si salió mal, por qué."""
+    email = vecino.get('email')
+    if not email:
+        return
+    consorcio = supabase.table('consorcios').select('nombre') \
+        .eq('id', consorcio_id).execute().data
+    nombre_con = consorcio[0]['nombre'] if consorcio else ''
+    nombre = (vecino.get('nombre') or '').split(' ')[0]
+    saludo = f'Hola {nombre},' if nombre else 'Hola,'
+
+    if aprobado:
+        cuerpo = f"""
+          <p style="margin:0 0 16px">{saludo}</p>
+          <p style="margin:0 0 22px">La administración confirmó tu unidad
+          <strong>{unidad}</strong> en <strong>{nombre_con}</strong>. Ya podés entrar
+          y ver tus expensas, reclamos, reservas y comunicados.</p>
+          <a href="{url_for('dashboard', role='vecino', _external=True)}"
+             style="display:inline-block;background:#E8734A;color:#fff;text-decoration:none;
+             padding:12px 24px;border-radius:12px;font-weight:700">Entrar a Niddo</a>"""
+        asunto = f'Ya podés entrar — {nombre_con}'
+        titulo = 'Tu unidad quedó confirmada'
+    else:
+        explicacion = (f'<p style="margin:0 0 22px"><strong>Motivo:</strong> {motivo}</p>'
+                       if motivo else
+                       '<p style="margin:0 0 22px">No nos dejaron un motivo. Si creés que '
+                       'es un error, hablá con la administración de tu edificio.</p>')
+        cuerpo = f"""
+          <p style="margin:0 0 16px">{saludo}</p>
+          <p style="margin:0 0 16px">La administración de <strong>{nombre_con}</strong> no
+          aprobó tu solicitud.</p>
+          {explicacion}
+          <p style="margin:0;color:#574C42;font-size:13px">
+            Tu cuenta sigue activa: podés volver a pedir el alta eligiendo otra unidad.
+          </p>"""
+        asunto = f'Tu solicitud en {nombre_con} no fue aprobada'
+        titulo = 'Sobre tu solicitud'
+
+    _enviar_mail([email], asunto, _mail_shell(titulo, cuerpo))
 
 
 def _mail_respuesta_reclamo(reclamo: dict, estado_nuevo: str, respuesta: str) -> None:
@@ -2921,7 +3023,19 @@ def api_public_unidades_libres(cid):
 @app.route('/api/vecinos/asociar', methods=['POST'])
 @require_auth(allowed_roles=['vecino'])
 def api_vecinos_asociar():
-    d = request.json
+    """El vecino pide entrar a una unidad. No entra: queda pendiente.
+
+    Antes esta misma request lo metía adentro. Con un login alcanzaba para
+    quedarse con cualquier unidad libre de cualquier edificio de la lista y
+    ver sus expensas al instante.
+
+    Lo importante de acá abajo es lo que NO se escribe: `consorcio_id` y
+    `unidad_id` siguen en NULL hasta que el administrador apruebe. Son las dos
+    columnas de las que cuelga todo el acceso del vecino, así que dejarlas
+    vacías es el gate — no hace falta que cada endpoint se acuerde de filtrar
+    por estado.
+    """
+    d = request.json or {}
     consorcio_id = d.get('consorcio_id')
     unidad_id = d.get('unidad_id')
     rol = d.get('rol', 'propietario')
@@ -2933,89 +3047,201 @@ def api_vecinos_asociar():
     if not vecino_id:
         return jsonify({'error': 'No se pudo identificar tu perfil de vecino'}), 404
 
-    if not unidad_id:
-        # Modo: No encuentro mi unidad -> Registrar 'Pendiente' de asignación por admin
-        supabase.table('vecinos').update({
-            'consorcio_id': consorcio_id,
-            'unidad': 'Pendiente',
-            'rol': rol
-        }).eq('id', vecino_id).execute()
-        return jsonify({'ok': True})
+    actual = supabase.table('vecinos').select('estado_asociacion, consorcio_id') \
+        .eq('id', vecino_id).single().execute().data or {}
+    if actual.get('consorcio_id'):
+        return jsonify({'error': 'Ya estás asociado a una unidad'}), 409
+    if actual.get('estado_asociacion') == 'pendiente':
+        return jsonify({'error': 'Ya tenés una solicitud esperando aprobación'}), 409
 
-    uf_res = supabase.table('unidades_funcionales')\
-        .select('*')\
-        .eq('id', unidad_id)\
-        .eq('consorcio_id', consorcio_id)\
-        .single()\
-        .execute()
-
-    if not uf_res.data:
-        return jsonify({'error': 'La unidad seleccionada no existe'}), 400
-
-    uf = uf_res.data
+    if unidad_id:
+        uf = supabase.table('unidades_funcionales').select('id, numero, vecino_id') \
+            .eq('id', unidad_id).eq('consorcio_id', consorcio_id).execute().data
+        if not uf:
+            return jsonify({'error': 'La unidad seleccionada no existe'}), 400
 
     supabase.table('vecinos').update({
-        'consorcio_id': consorcio_id,
-        'unidad': uf['numero'],
-        'unidad_id': unidad_id,
-        'rol': rol
+        'estado_asociacion': 'pendiente',
+        'consorcio_solicitado_id': consorcio_id,
+        'unidad_solicitada_id': unidad_id or None,
+        'solicitud_at': now_iso(),
+        'motivo_rechazo': None,
+        'rol': rol,
+        # 'Pendiente' era el modo viejo de marcar la espera y todavía lo lee la
+        # pantalla del vecino. Se sigue escribiendo para no romperla.
+        'unidad': 'Pendiente',
     }).eq('id', vecino_id).execute()
 
-    # Si la unidad no tiene vecino asignado, asignarle este (compatibilidad)
-    if not uf.get('vecino_id'):
-        supabase.table('unidades_funcionales').update({
-            'vecino_id': vecino_id
-        }).eq('id', unidad_id).execute()
+    _mail_solicitud_vecino(vecino_id, consorcio_id, unidad_id)
+    return jsonify({'ok': True, 'estado': 'pendiente'})
 
-    return jsonify({'ok': True})
+
+@app.route('/api/vecinos/mi-solicitud')
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_mi_solicitud():
+    """En qué quedó la solicitud, para que la espera no sea una pared muda."""
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify({})
+    v = supabase.table('vecinos') \
+        .select('estado_asociacion, consorcio_solicitado_id, unidad_solicitada_id, '
+                'solicitud_at, motivo_rechazo, consorcio_id') \
+        .eq('id', vecino_id).single().execute().data or {}
+
+    consorcio = unidad = None
+    if v.get('consorcio_solicitado_id'):
+        c = supabase.table('consorcios').select('nombre') \
+            .eq('id', v['consorcio_solicitado_id']).execute().data
+        consorcio = c[0]['nombre'] if c else None
+    if v.get('unidad_solicitada_id'):
+        u = supabase.table('unidades_funcionales').select('numero') \
+            .eq('id', v['unidad_solicitada_id']).execute().data
+        unidad = u[0]['numero'] if u else None
+
+    return jsonify({
+        'estado': v.get('estado_asociacion'),
+        'consorcio': consorcio,
+        'unidad': unidad,
+        'solicitud_at': v.get('solicitud_at'),
+        'motivo_rechazo': v.get('motivo_rechazo'),
+    })
 
 
 @app.route('/api/consorcios/<cid>/vecinos/pendientes', methods=['GET'])
 @require_auth(allowed_roles=['admin'])
 def api_consorcio_vecinos_pendientes(cid):
+    """Los que están esperando que este administrador los deje entrar."""
     consorcio_propio(cid, 'id')
-    res = supabase.table('vecinos')\
-        .select('*')\
-        .eq('consorcio_id', cid)\
-        .eq('unidad', 'Pendiente')\
-        .execute()
-    return jsonify(res.data)
+    pendientes = supabase.table('vecinos') \
+        .select('id, nombre, email, telefono, rol, unidad_solicitada_id, solicitud_at') \
+        .eq('consorcio_solicitado_id', cid) \
+        .eq('estado_asociacion', 'pendiente') \
+        .execute().data or []
+
+    # El número de la unidad que pidieron, en una query y no una por vecino.
+    ids = [v['unidad_solicitada_id'] for v in pendientes if v.get('unidad_solicitada_id')]
+    numeros = {}
+    if ids:
+        ufs = supabase.table('unidades_funcionales').select('id, numero') \
+            .in_('id', ids).execute().data or []
+        numeros = {u['id']: u['numero'] for u in ufs}
+    for v in pendientes:
+        v['unidad_solicitada'] = numeros.get(v.get('unidad_solicitada_id'))
+    return jsonify(pendientes)
+
+
+def _aprobar_vecino(cid, vid, unidad_id=None):
+    """Mete al vecino adentro: es el único lugar que escribe consorcio_id.
+
+    `unidad_id` lo manda el administrador cuando corrige la unidad pedida, o
+    cuando el vecino dijo "no encuentro la mía" y no pidió ninguna.
+    """
+    vecino = supabase.table('vecinos') \
+        .select('id, nombre, email, estado_asociacion, consorcio_solicitado_id, unidad_solicitada_id') \
+        .eq('id', vid).execute().data
+    vecino = vecino[0] if vecino else None
+    if not vecino or vecino.get('consorcio_solicitado_id') != cid:
+        _no_es_tuyo()
+    if vecino.get('estado_asociacion') != 'pendiente':
+        return None, (jsonify({'error': 'Esta solicitud ya fue resuelta'}), 409)
+
+    unidad_id = unidad_id or vecino.get('unidad_solicitada_id')
+    if not unidad_id:
+        return None, (jsonify({'error': 'Elegí qué unidad asignarle: este vecino no supo cuál era la suya'}), 400)
+
+    uf = supabase.table('unidades_funcionales').select('id, numero, vecino_id') \
+        .eq('id', unidad_id).eq('consorcio_id', cid).execute().data
+    if not uf:
+        return None, (jsonify({'error': 'La unidad seleccionada no existe en este consorcio'}), 400)
+    uf = uf[0]
+
+    supabase.table('vecinos').update({
+        'estado_asociacion': 'aprobado',
+        'consorcio_id': cid,
+        'unidad_id': unidad_id,
+        'unidad': uf['numero'],
+        'motivo_rechazo': None,
+    }).eq('id', vid).execute()
+
+    # Compatibilidad con el vecino "principal" de la unidad, que es anterior a
+    # vecinos_unidades y todavía lo leen algunas pantallas.
+    if not uf.get('vecino_id'):
+        supabase.table('unidades_funcionales').update({'vecino_id': vid}) \
+            .eq('id', unidad_id).execute()
+
+    return {'vecino': vecino, 'uf': uf}, None
+
+
+@app.route('/api/consorcios/<cid>/vecinos/<vid>/aprobar', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_consorcio_vecino_aprobar(cid, vid):
+    consorcio_propio(cid, 'id')
+    datos, error = _aprobar_vecino(cid, vid, (request.json or {}).get('unidad_id'))
+    if error:
+        return error
+    try:
+        _mail_alta_vecino_resuelta(datos['vecino'], True, cid, datos['uf']['numero'])
+    except Exception:
+        app.logger.exception('Falló el aviso de aprobación del vecino %s', vid)
+    return jsonify({'ok': True, 'unidad': datos['uf']['numero']})
+
+
+@app.route('/api/consorcios/<cid>/vecinos/<vid>/rechazar', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_consorcio_vecino_rechazar(cid, vid):
+    """Rechaza la solicitud y deja al vecino en condiciones de volver a pedir.
+
+    No se le borra la cuenta ni se lo bloquea: puede haberse equivocado de
+    unidad. Se limpian las columnas de solicitud para que el alta le vuelva a
+    aparecer, con el motivo a la vista.
+    """
+    consorcio_propio(cid, 'id')
+    motivo = ((request.json or {}).get('motivo') or '').strip()
+
+    vecino = supabase.table('vecinos') \
+        .select('id, nombre, email, estado_asociacion, consorcio_solicitado_id') \
+        .eq('id', vid).execute().data
+    vecino = vecino[0] if vecino else None
+    if not vecino or vecino.get('consorcio_solicitado_id') != cid:
+        _no_es_tuyo()
+    if vecino.get('estado_asociacion') != 'pendiente':
+        return jsonify({'error': 'Esta solicitud ya fue resuelta'}), 409
+
+    supabase.table('vecinos').update({
+        'estado_asociacion': 'rechazado',
+        'consorcio_solicitado_id': None,
+        'unidad_solicitada_id': None,
+        'motivo_rechazo': motivo or None,
+        'unidad': None,
+    }).eq('id', vid).execute()
+
+    try:
+        _mail_alta_vecino_resuelta(vecino, False, cid, None, motivo)
+    except Exception:
+        app.logger.exception('Falló el aviso de rechazo del vecino %s', vid)
+    return jsonify({'ok': True})
 
 
 @app.route('/api/consorcios/<cid>/vecinos/<vid>/asignar-unidad', methods=['POST'])
 @require_auth(allowed_roles=['admin'])
 def api_consorcio_vecino_asignar(cid, vid):
-    consorcio_propio(cid, 'id')
-    d = request.json
-    unidad_id = d.get('unidad_id')
+    """Alias de /aprobar con unidad explícita.
 
+    Se mantiene porque es lo que llama el panel desde antes de que existiera la
+    aprobación; ahora aprueba, que es lo que el administrador creía estar
+    haciendo cuando asignaba la unidad.
+    """
+    consorcio_propio(cid, 'id')
+    unidad_id = (request.json or {}).get('unidad_id')
     if not unidad_id:
         return jsonify({'error': 'La unidad es requerida'}), 400
-
-    uf_res = supabase.table('unidades_funcionales')\
-        .select('*')\
-        .eq('id', unidad_id)\
-        .eq('consorcio_id', cid)\
-        .single()\
-        .execute()
-
-    if not uf_res.data:
-        return jsonify({'error': 'La unidad seleccionada no existe'}), 400
-
-    uf = uf_res.data
-
-    # Vincular al vecino con el número de unidad y su ID de unidad
-    supabase.table('vecinos').update({
-        'unidad': uf['numero'],
-        'unidad_id': unidad_id
-    }).eq('id', vid).eq('consorcio_id', cid).execute()
-
-    # Si la unidad no tiene vecino_id principal asignado, ponle este (compatibilidad)
-    if not uf.get('vecino_id'):
-        supabase.table('unidades_funcionales').update({
-            'vecino_id': vid
-        }).eq('id', unidad_id).execute()
-
+    datos, error = _aprobar_vecino(cid, vid, unidad_id)
+    if error:
+        return error
+    try:
+        _mail_alta_vecino_resuelta(datos['vecino'], True, cid, datos['uf']['numero'])
+    except Exception:
+        app.logger.exception('Falló el aviso de aprobación del vecino %s', vid)
     return jsonify({'ok': True})
 
 

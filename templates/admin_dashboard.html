@@ -452,10 +452,13 @@
         
         <!-- Solicitudes de vecinos pendientes -->
         <div class="card" id="consorcio-vecinos-pendientes-card" style="display:none; margin-bottom: 20px; border-left: 3px solid var(--red);">
-            <div class="card-h"><span class="card-t" style="color:var(--red);">⏳ Solicitudes de Vecinos Pendientes</span></div>
+            <div class="card-h">
+                <span class="card-t" style="color:var(--red);">⏳ Solicitudes de vecinos</span>
+                <span style="font-size:.72rem;color:var(--muted)">Hasta que las apruebes, estas personas no ven nada del edificio</span>
+            </div>
             <table class="tbl">
-                <thead><tr><th>Nombre</th><th>Email</th><th>Estado</th><th>Acciones</th></tr></thead>
-                <tbody id="tbody-vecinos-pendientes"><tr><td colspan="4" class="tbl-empty">No hay solicitudes pendientes</td></tr></tbody>
+                <thead><tr><th>Nombre</th><th>Contacto</th><th>Unidad que dice</th><th>Pidió el</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-vecinos-pendientes"><tr><td colspan="5" class="tbl-empty">No hay solicitudes pendientes</td></tr></tbody>
             </table>
         </div>
 
@@ -599,6 +602,32 @@
                 <thead><tr><th>Consorcio</th><th>Descripción</th><th>Categoría</th><th>Monto</th></tr></thead>
                 <tbody id="tbody-bal-gastos"><tr><td colspan="4" class="tbl-empty">—</td></tr></tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: rechazar una solicitud de alta -->
+<div class="modal" id="modal-rechazar-vecino">
+    <div class="modal-box" style="max-width:520px">
+        <div class="modal-h">
+            <h3>Rechazar solicitud</h3>
+            <button class="modal-x" onclick="closeModal('modal-rechazar-vecino')">&times;</button>
+        </div>
+        <div class="modal-b">
+            <input type="hidden" id="m-rech-vecino-id">
+            <p id="m-rech-info" style="font-size:.85rem;color:var(--muted);margin-bottom:14px"></p>
+            <div class="form-group">
+                <label class="form-label">Motivo</label>
+                <textarea class="form-ctrl" id="m-rech-motivo" rows="3" placeholder="Ej: esa unidad la ocupa otro propietario"></textarea>
+                <div style="font-size:.72rem;color:var(--muted);margin-top:4px">
+                    Se lo mandamos por mail. Sin motivo, el vecino no sabe si equivocarse de unidad
+                    o llamar por teléfono.
+                </div>
+            </div>
+        </div>
+        <div class="modal-f">
+            <button class="btn-s" onclick="closeModal('modal-rechazar-vecino')">Cancelar</button>
+            <button class="btn-danger" onclick="confirmarRechazoVecino()">Rechazar solicitud</button>
         </div>
     </div>
 </div>
@@ -1780,16 +1809,65 @@ async function loadPendingNeighbors() {
         }
         
         card.style.display = 'block';
-        tb.innerHTML = list.map(v => `
+        tb.innerHTML = list.map(v => {
+            // El vecino ya dijo qué unidad es la suya: mostrarla es lo que
+            // convierte esto en una decisión y no en un trámite a ciegas.
+            const pidio = v.unidad_solicitada
+                ? `<strong>UF ${escHtml(v.unidad_solicitada)}</strong>`
+                : '<span class="b b-y">No supo cuál</span>';
+            const accion = v.unidad_solicitada
+                ? `<button class="btn-p btn-sm" onclick="aprobarVecino('${v.id}')">Aprobar</button>`
+                : `<button class="btn-teal btn-sm" onclick="openAsignarUFModal('${v.id}')">Elegir UF y aprobar</button>`;
+            return `
             <tr>
                 <td><strong>${escHtml(v.nombre || '—')}</strong></td>
-                <td>${escHtml(v.email)}</td>
-                <td><span class="b b-y">Pendiente de asignación</span></td>
-                <td>
-                    <button class="btn-teal btn-sm" onclick="openAsignarUFModal('${v.id}')">Asignar UF</button>
+                <td>${escHtml(v.email)}${v.telefono ? '<br><span class="text-muted text-sm">' + escHtml(v.telefono) + '</span>' : ''}</td>
+                <td>${pidio}</td>
+                <td>${v.solicitud_at ? new Date(v.solicitud_at).toLocaleDateString('es-AR') : '—'}</td>
+                <td style="display:flex;gap:6px">
+                    ${accion}
+                    <button class="btn-danger btn-sm" onclick="openRechazarVecino('${v.id}')">Rechazar</button>
                 </td>
-            </tr>
-        `).join('');
+            </tr>`;
+        }).join('');
+    } catch(e) { toast(e.message, 'err'); }
+}
+
+async function aprobarVecino(vid) {
+    const v = pendingNeighborsList.find(x => x.id === vid);
+    if (!v) return;
+    if (!confirm(`¿Confirmás que ${v.nombre || v.email} es de la UF ${v.unidad_solicitada}?\n\n` +
+                 `Al aprobar pasa a ver las expensas de esa unidad y los datos del edificio.`)) return;
+    try {
+        await api(`/api/consorcios/${currentConsorioId}/vecinos/${vid}/aprobar`, {
+            method: 'POST', body: JSON.stringify({})
+        });
+        toast('Vecino aprobado — ya puede entrar');
+        await loadUFs();
+        await loadPendingNeighbors();
+    } catch(e) { toast(e.message, 'err'); }
+}
+
+function openRechazarVecino(vid) {
+    const v = pendingNeighborsList.find(x => x.id === vid);
+    if (!v) return;
+    $('m-rech-vecino-id').value = vid;
+    $('m-rech-info').textContent =
+        `${v.nombre || v.email} pidió la UF ${v.unidad_solicitada || '(no supo cuál)'}.`;
+    $('m-rech-motivo').value = '';
+    openModal('modal-rechazar-vecino');
+}
+
+async function confirmarRechazoVecino() {
+    const vid = $('m-rech-vecino-id').value;
+    try {
+        await api(`/api/consorcios/${currentConsorioId}/vecinos/${vid}/rechazar`, {
+            method: 'POST',
+            body: JSON.stringify({ motivo: $('m-rech-motivo').value.trim() })
+        });
+        closeModal('modal-rechazar-vecino');
+        toast('Solicitud rechazada');
+        await loadPendingNeighbors();
     } catch(e) { toast(e.message, 'err'); }
 }
 

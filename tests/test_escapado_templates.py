@@ -28,12 +28,18 @@ CAMPOS_DE_TEXTO = (
 
 ESCAPADORES = ('esc(', 'escHtml(', 'escapar(')
 
-# Únicas dos excepciones, y las dos por motivo verificable:
+# Cada excepción va con el motivo verificable de por qué no aplica:
 EXCEPCIONES = {
     # Escapa adentro: `return escHtml(cat)`.
     'categoriaBadge(g.categoria)',
     # No pinta la categoría: pinta la palabra ' selected'.
     "d.categoria === c ? ' selected' : ''",
+    # Los dos usos de la bandeja de solicitudes de alta no van a innerHTML:
+    # uno es el texto de un confirm() y el otro se asigna por textContent.
+    # Escaparlos sería el error opuesto — al vecino apellidado "Ferrer & Cía"
+    # le aparecería "Ferrer &amp; Cía" en el cartel. Si alguna vez esta misma
+    # expresión se pinta con innerHTML, hay que sacarla de acá.
+    'v.nombre || v.email',
 }
 
 
