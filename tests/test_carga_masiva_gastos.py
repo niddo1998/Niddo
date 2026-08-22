@@ -19,9 +19,15 @@ import pytest
 
 XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
+# La copia a mano es a propósito: si alguien toca la plantilla, este test lo
+# frena y obliga a decidir si el import también tiene que leer la columna
+# nueva. Coeficiente y comprobante entraron por ahí — los agregó la
+# liquidación en formato "Mis Expensas" y sin esto la carga masiva habría
+# seguido dejando trescientos gastos sin ellos.
 HEADERS = ['consorcio*', 'fecha*', 'descripcion*', 'monto*', 'categoria', 'proveedor',
            'unidad', 'fecha_vencimiento', 'pagado', 'fecha_pago', 'metodo_pago',
-           'recurrente', 'frecuencia', 'dia_carga', 'notas']
+           'recurrente', 'frecuencia', 'dia_carga', 'coeficiente',
+           'comprobante_tipo', 'comprobante_numero', 'notas']
 
 
 @pytest.fixture
@@ -122,7 +128,7 @@ def test_importa_todos_los_campos_opcionales(admin, datos):
     r = subir(admin, planilla([[
         'Mío', '2026-06-05', 'Factura Edesur junio', 15430.50, 'electricidad', 'Edesur',
         '1A', '2026-06-20', 'Sí', '2026-06-18', 'transferencia', 'Sí', 'bimestral', 10,
-        'Factura B-0001-00012345']]))
+        'E', 'LSP A', '0014-23144929', 'Factura B-0001-00012345']]))
     assert r.get_json()['errores'] == []
     g = datos['gastos'][0]
     assert g['categoria'] == 'electricidad'
@@ -133,6 +139,8 @@ def test_importa_todos_los_campos_opcionales(admin, datos):
     assert g['metodo_pago'] == 'transferencia'
     assert (g['recurrente'], g['frecuencia'], g['dia_carga']) == (True, 'bimestral', 10)
     assert g['notas'] == 'Factura B-0001-00012345'
+    assert g['coeficiente'] == 'E'
+    assert (g['comprobante_tipo'], g['comprobante_numero']) == ('LSP A', '0014-23144929')
 
 
 def test_el_gasto_queda_a_nombre_del_administrador_que_lo_sube(admin, datos):
@@ -460,3 +468,53 @@ def test_la_plantilla_que_se_baja_se_completa_y_se_sube(admin, datos):
     luz, limpieza = datos['gastos']
     assert (luz['proveedor_id'], luz['unidad_id'], luz['pagado']) == ('prov-1', 'uf-1', True)
     assert (limpieza['recurrente'], limpieza['frecuencia'], limpieza['dia_carga']) == (True, 'mensual', 5)
+
+
+# ── Coeficiente y comprobante ────────────────────────────────────────────────
+# La carga masiva y el prorrateo por coeficientes se hicieron en paralelo y no
+# se conocían: trescientos gastos importados de una planilla entraban todos por
+# el reparto A y sin el comprobante que la Ley 941 obliga a imprimir.
+
+def _fila(**extra):
+    """Una fila mínima, con las columnas que se quieran encima."""
+    base = {'consorcio': 'Mío', 'fecha': '2026-08-01',
+            'descripcion': 'Un gasto', 'monto': 1000}
+    base.update(extra)
+    return [base.get(h.rstrip('*'), '') for h in HEADERS]
+
+
+@pytest.mark.parametrize('escrito,guardado', [
+    ('E', 'E'),
+    ('b', 'B'),          # se normaliza a mayúscula
+    ('Z', 'A'),          # inválido: cae en A en vez de voltear la fila
+    ('', 'A'),           # planilla vieja, sin la columna
+])
+def test_el_coeficiente_se_importa_y_se_normaliza(admin, datos, escrito, guardado):
+    r = subir(admin, planilla([_fila(coeficiente=escrito)]))
+    assert r.get_json()['errores'] == []
+    assert datos['gastos'][0]['coeficiente'] == guardado
+
+
+def test_una_letra_mal_tipeada_no_frena_el_resto_del_archivo(admin, datos):
+    """Es la diferencia entre importar 299 gastos y no importar ninguno."""
+    r = subir(admin, planilla([
+        _fila(descripcion='Uno', coeficiente='Z'),
+        _fila(descripcion='Dos', coeficiente='E'),
+    ]))
+    assert r.get_json()['errores'] == []
+    assert [g['coeficiente'] for g in datos['gastos']] == ['A', 'E']
+
+
+def test_importa_el_comprobante(admin, datos):
+    subir(admin, planilla([_fila(comprobante_tipo='LSP A',
+                                 comprobante_numero='0014-23144929')]))
+    g = datos['gastos'][0]
+    assert (g['comprobante_tipo'], g['comprobante_numero']) == ('LSP A', '0014-23144929')
+
+
+def test_el_alias_del_comprobante_tambien_entra(admin, datos):
+    """"nro_comprobante" es como lo titula la mitad de las planillas."""
+    headers = [h for h in HEADERS if h != 'comprobante_numero'] + ['nro_comprobante']
+    fila = _fila()[:-4] + ['', '', '', '0001-00099']
+    subir(admin, planilla([fila], headers=headers))
+    assert datos['gastos'][0]['comprobante_numero'] == '0001-00099'

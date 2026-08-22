@@ -344,6 +344,11 @@ def build_carga_masiva_template(consorcios_existentes: list):
 
 CATEGORIAS_GASTO = ('electricidad', 'gas', 'agua', 'limpieza', 'ascensor', 'seguro',
                     'honorarios', 'impuesto', 'mantenimiento', 'sueldos', 'otro')
+
+# Los coeficientes de reparto. Cada gasto declara por cuál se prorratea y cada
+# unidad tiene su porcentaje para cada uno: es lo que permite que el ascensor
+# vaya por uno donde la cochera pesa 0 y el seguro por otro donde pesa.
+COEFICIENTES = ('A', 'B', 'C', 'E')
 METODOS_PAGO_GASTO = ('transferencia', 'cheque', 'efectivo', 'debito')
 FRECUENCIAS_GASTO = ('mensual', 'bimestral', 'trimestral', 'anual')
 
@@ -366,6 +371,14 @@ ALIAS_COLUMNAS_GASTO = {
     'frecuencia': 'frecuencia',
     'dia_carga': 'dia_carga', 'dia_de_carga': 'dia_carga',
     'notas': 'notas', 'observaciones': 'notas',
+    # Las tres que la liquidación necesita. Sin coeficiente, trescientos gastos
+    # cargados por planilla entran todos por el reparto A; sin comprobante, el
+    # PDF imprime "—" en la columna que la Ley 941 obliga a rendir.
+    'coeficiente': 'coeficiente', 'coef': 'coeficiente',
+    'comprobante_tipo': 'comprobante_tipo', 'tipo_comprobante': 'comprobante_tipo',
+    'tipo_de_comprobante': 'comprobante_tipo',
+    'comprobante_numero': 'comprobante_numero', 'numero_comprobante': 'comprobante_numero',
+    'nro_comprobante': 'comprobante_numero', 'comprobante': 'comprobante_numero',
 }
 
 COLUMNAS_GASTO_OBLIGATORIAS = ('consorcio', 'fecha_gasto', 'descripcion', 'monto')
@@ -373,7 +386,8 @@ COLUMNAS_GASTO_OBLIGATORIAS = ('consorcio', 'fecha_gasto', 'descripcion', 'monto
 HEADERS_PLANTILLA_GASTOS = [
     'consorcio*', 'fecha*', 'descripcion*', 'monto*', 'categoria', 'proveedor',
     'unidad', 'fecha_vencimiento', 'pagado', 'fecha_pago', 'metodo_pago',
-    'recurrente', 'frecuencia', 'dia_carga', 'notas',
+    'recurrente', 'frecuencia', 'dia_carga', 'coeficiente',
+    'comprobante_tipo', 'comprobante_numero', 'notas',
 ]
 
 FORMATOS_FECHA = ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%d/%m/%y', '%Y/%m/%d')
@@ -2988,6 +3002,13 @@ def api_gastos_carga_masiva():
             if dia.isdigit() and 1 <= int(dia) <= 31:
                 dia_carga = int(dia)
 
+        # Un coeficiente que no existe se corrige a A en vez de rechazar la fila:
+        # es la diferencia entre importar 299 gastos y no importar ninguno por
+        # una letra mal tipeada. A es además como se repartía todo antes de v18.
+        coeficiente = _texto_celda(fila.get('coeficiente')).upper()
+        if coeficiente not in COEFICIENTES:
+            coeficiente = 'A'
+
         consorcios_tocados.add(con_id)
         pendientes.append(((con_id, fecha_gasto, descripcion.lower(), monto), {
             'consorcio_id': con_id,
@@ -3004,6 +3025,9 @@ def api_gastos_carga_masiva():
             'recurrente': recurrente,
             'frecuencia': frecuencia,
             'dia_carga': dia_carga,
+            'coeficiente': coeficiente,
+            'comprobante_tipo': _texto_celda(fila.get('comprobante_tipo')),
+            'comprobante_numero': _texto_celda(fila.get('comprobante_numero')),
             'notas': _texto_celda(fila.get('notas')),
             'admin_id': admin_id,
         }))
@@ -4905,9 +4929,6 @@ def _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id, gastos
             } for it in r['items']]
             if items_payload:
                 supabase.table('liquidacion_items').insert(items_payload).execute()
-
-
-COEFICIENTES = ('A', 'B', 'C', 'E')
 
 
 def _egresos_por_alcance(liq_id):
