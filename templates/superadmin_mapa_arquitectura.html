@@ -194,6 +194,8 @@ footer.note b{ color:var(--text-dim); }
     <br><br>
     <b>Lo último que se movió:</b> reportlab pasó de hacer exports sueltos a generar la liquidación completa en formato "Mis Expensas" (<span class="mono">liquidacion_pdf.py</span>), que es lo que la Ley 941 obliga a rendir y lo que mandan SIPAC, Octopus, Expensas Flow y Consorcio Abierto. Por eso NRM dejó de estar en gris. El prorrateo pasó a repartir por cuatro coeficientes (A, B, C, E) en vez de uno, que es lo que necesita un edificio con cocheras o locales. Y emitir la liquidación ahora crea los cobros: antes eran dos mundos separados y el número del mail podía no coincidir con el de la app del vecino.
     <br><br>
+    <b>Sobre las tiendas:</b> hoy el portal del vecino es web y se ve bien en un teléfono, pero no hay <b>nada</b> de PWA — ni manifest, ni service worker, ni los meta de app móvil. El camino barato es esa base primero (instalable, pantalla completa, push; iOS lo soporta desde 16.4) y recién después envolverla con Capacitor. Reescribir en nativo tiraría el frontend entero. Y hay una trampa conocida: Apple rechaza los wrappers que son sólo un sitio abierto adentro (Guideline 4.2), así que el wrapper tiene que usar cámara, push y biométrico de verdad — que es lo que la PWA deja preparado.
+    <br><br>
     <b>El riesgo que queda del lado de la infraestructura:</b> el envío genera el PDF y manda N mails dentro de una sola request de Vercel, que corre con el <span class="mono">maxDuration</span> por defecto. Con un consorcio grande eso puede cortarse por timeout. El PDF se arma una sola vez para amortiguarlo, pero la solución de fondo es partir el envío en lotes.
   </footer>
 </div>
@@ -202,7 +204,7 @@ footer.note b{ color:var(--text-dim); }
 const CATEGORIES = [
   { id:"exp", code:"EXP", name:"Liquidación de expensas", hue:32, uses:["supabase","reportlab"], estado:"built" },
   { id:"cob", code:"COB", name:"Cobranzas y medios de pago", hue:152, uses:["supabase","bind"], estado:"partial" },
-  { id:"vec", code:"VEC", name:"Portal / app vecinos", hue:205, uses:["flask","supabase"], estado:"built" },
+  { id:"vec", code:"VEC", name:"Portal / app vecinos", hue:205, uses:["flask","supabase","pwa","capacitor"], estado:"built" },
   { id:"adm", code:"ADM", name:"Gestión operativa admin", hue:255, uses:["flask","supabase"], estado:"built" },
   { id:"com", code:"COM", name:"Comunicación", hue:330, uses:["supabase","whatsapp"], estado:"partial" },
   { id:"mnt", code:"MNT", name:"Mantenimiento y reclamos", hue:15, uses:["supabase","storage"], estado:"partial" },
@@ -226,7 +228,9 @@ const FOUNDATION = [
   { id:"bind",      name:"Bind",               role:"Cobros — sin integrar",   decided:false },
   { id:"whatsapp",  name:"WhatsApp API",       role:"Comunicación",            decided:false },
   { id:"afip-agip", name:"AFIP / AGIP",        role:"Integración fiscal",      decided:false },
-  { id:"storage",   name:"Storage de archivos", role:"Hoy: base64 en Postgres", decided:false }
+  { id:"storage",   name:"Storage de archivos", role:"Hoy: base64 en Postgres", decided:false },
+  { id:"pwa",       name:"PWA",                role:"App instalable — sin base", decided:false },
+  { id:"capacitor", name:"Capacitor",          role:"App Store / Play — a definir", decided:false }
 ];
 
 const hue = c => `hsl(${c.hue} 58% 58%)`;

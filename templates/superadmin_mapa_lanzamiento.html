@@ -164,7 +164,11 @@ const DESPUES = [
   { t:"Mensajería real (comunicados)", e:"parcial", quien:"mio",
     nota:"El backend está completo y el vecino ya los lee. Falta la pantalla del admin para redactarlos. De lo que queda, es lo más barato por lo que entrega." },
   { t:"Recordatorios y avisos automáticos", e:"falta", quien:"mio",
-    nota:"Comunicado nuevo, expensa disponible, recordatorio de reserva. Necesita el mismo disparador que la mora, más una tabla de preferencias para no spamear." },
+    nota:"Comunicado nuevo, expensa disponible, recordatorio de reserva. Necesita el mismo disparador que la mora, más una tabla de preferencias para no spamear. Es además el prerrequisito de los dos ítems de abajo: sin algo que notificar, una app en el teléfono no agrega nada sobre el navegador." },
+  { t:"App instalable en el teléfono (PWA)", e:"falta", quien:"mio",
+    nota:"Hoy no hay <b>nada</b> de base: ni manifest, ni service worker, ni los meta de app móvil. Con eso el vecino agrega Niddo a su pantalla de inicio, abre a pantalla completa y recibe push —iOS lo soporta desde 16.4 para apps agregadas al inicio—. Sin tiendas, sin revisión, sin cuotas anuales: es el 80% del valor de tener app al 10% del costo, y es el paso previo obligado del que sigue." },
+  { t:"Publicar en App Store y Google Play", e:"falta", quien:"tuyo",
+    nota:"El camino realista es envolver el web con Capacitor, no reescribir en nativo. <b>Ojo con la trampa</b>: Apple rechaza los wrappers que son sólo un sitio web abierto adentro (Guideline 4.2, «minimum functionality»). Para pasar la revisión hace falta que use capacidades del teléfono de verdad —push nativo, cámara para el comprobante y el reclamo, biométrico— que es justamente lo que la PWA de arriba deja preparado. Sumale las cuentas de desarrollador (Apple es anual, Google es un pago único; verificá los montos vigentes), los ciclos de revisión y que cada cambio pasa a tener release en vez de deploy." },
   { t:"Bandeja de avisos de pago del admin", e:"parcial", quien:"mio",
     nota:"El vecino informa el pago y lo ve reflejado; del lado admin los endpoints existen sin pantalla. Es la misma forma que tenía Reclamos antes de tener sección propia." },
   { t:"Multi-unidad para el mismo vecino", e:"falta", quien:"mio",
@@ -229,7 +233,7 @@ html += `</div>`;
 // ── Bloque 2: lo que viene después, por urgencia ──
 html += `<div class="bloque">
   <h2 class="display">Después de lanzar</h2>
-  <div class="intro">En orden de <b>qué te va a pedir el primer cliente</b>, no de dificultad. Estar abajo no es ser menos valioso: es ser menos urgente.</div>
+  <div class="intro">En orden de <b>qué te va a pedir el primer cliente</b>, no de dificultad. Estar abajo no es ser menos valioso: es ser menos urgente. Los ítems 4 a 6 son una sola cadena: sin avisos que mandar, la app instalable no agrega nada; y sin la app instalable, el wrapper de las tiendas no pasa la revisión de Apple.</div>
   ${DESPUES.map((it, i) => itemHTML(it, i + 1)).join('')}
 </div>`;
 

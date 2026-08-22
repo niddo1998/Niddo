@@ -252,7 +252,8 @@ const CATEGORIES = [
       {t:"Avisar cuando hay un comunicado nuevo", s:"none", note:"El comunicado se publica y el vecino se entera si entra a mirar"},
       {t:"Avisar cuando le responden un reclamo", s:"built", note:"Sale del PUT del admin, después de guardar y sin poder voltear la respuesta si Resend está caído"},
       {t:"Confirmación y recordatorio de reserva", s:"planned", note:"La confirmación sí. El recordatorio previo al turno espera el cron"},
-      {t:"Notificación push", s:"none"}
+      {t:"Notificación push", s:"none", note:"Necesita la base de PWA, que hoy no existe: ni manifest, ni service worker, ni los meta de app móvil. iOS la soporta desde 16.4 para apps agregadas a la pantalla de inicio, así que no hace falta estar en las tiendas para tenerla"},
+      {t:"Estar en App Store y Google Play", s:"none", note:"El camino realista es envolver el web con Capacitor, no reescribir en nativo. La trampa: Apple rechaza los wrappers que son sólo un sitio abierto adentro (Guideline 4.2), así que primero hay que tener push, cámara y biométrico de verdad — todo lo que deja preparado la PWA"}
     ]}
   ]},
   { id:"adm", code:"ADM", name:"Gestión operativa / app del administrador", hue:117, funcs:[
