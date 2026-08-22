@@ -1878,6 +1878,19 @@ def superadmin_mapa_arquitectura():
     return render_template('superadmin_mapa_arquitectura.html')
 
 
+@app.route('/superadmin/mapa/lanzamiento')
+@require_superadmin
+def superadmin_mapa_lanzamiento():
+    """Qué falta para el primer administrador real, y qué viene después.
+
+    Las otras tres pestañas responden "¿qué hay construido?". Ésta responde
+    otra cosa y por eso mezcla código con lo que no lo es —textos legales, un
+    dominio verificado, una cuenta de monitoreo—, que es donde suelen morir
+    los lanzamientos.
+    """
+    return render_template('superadmin_mapa_lanzamiento.html')
+
+
 @app.route('/api/superadmin/roadmap', methods=['GET'])
 @require_superadmin
 def api_superadmin_roadmap():

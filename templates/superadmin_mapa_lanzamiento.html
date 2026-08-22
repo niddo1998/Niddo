@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Camino al lanzamiento | Niddo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
+<style>
+/* Los tokens de marca viven en niddo-brand.css. Acá sólo se nombran los roles
+   propios de esta vista: el estado de cada cosa y el peso de cada bloque. */
+:root{
+  --card:        var(--surface);
+  --border-soft: var(--border2);
+  --text-dim:    var(--nd-gris-calido);
+  --text-faint:  #7A6B5F;   /* el #8A7B6E del manual no llega a AA sobre crema */
+  --listo:       var(--nd-verde);
+  --parcial:     var(--nd-amarillo);
+  --falta:       var(--nd-terracota);
+  --bloqueante:  var(--nd-terracota-hondo);
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{ background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; }
+.display{ font-family:var(--font-display); }
+.mono{ font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing:.02em; }
+
+#app{ max-width:900px; margin:0 auto; padding:28px 20px 90px; }
+
+header.top{ padding-bottom:20px; margin-bottom:26px; border-bottom:1px solid var(--border-soft); }
+.eyebrow{ color:var(--nd-terracota-hondo); font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; margin-bottom:8px; display:block; }
+.top h1{ font-family:var(--font-display); font-size:22px; font-weight:600; letter-spacing:-.01em; }
+.top p{ color:var(--text-dim); font-size:13px; margin-top:8px; max-width:640px; line-height:1.6; }
+
+/* El veredicto: lo primero que se lee. */
+.veredicto{ margin-top:18px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  background:var(--nd-terracota-dim); border:1px solid var(--nd-terracota); border-radius:var(--r-md); padding:14px 18px; }
+.veredicto .n{ font-family:var(--font-display); font-size:30px; font-weight:600; color:var(--nd-terracota-hondo); line-height:1; }
+.veredicto .txt{ font-size:13px; line-height:1.55; color:var(--nd-tinta-calida); flex:1 1 260px; }
+
+.bloque{ margin-bottom:34px; }
+.bloque > h2{ font-family:var(--font-display); font-size:17px; font-weight:600; margin-bottom:4px; }
+.bloque > .intro{ font-size:12.5px; color:var(--text-dim); line-height:1.6; margin-bottom:16px; max-width:640px; }
+
+.grupo{ margin-bottom:20px; }
+.grupo-h{ display:flex; align-items:baseline; gap:10px; margin-bottom:8px; }
+.grupo-h .t{ font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--text-faint); }
+.grupo-h .l{ flex:1; height:1px; background:var(--border-soft); }
+
+.item{ display:flex; gap:12px; align-items:flex-start; background:var(--card); border:1px solid var(--border);
+  border-left:3px solid var(--border); border-radius:var(--r-sm); padding:11px 14px; margin-bottom:7px; }
+.item[data-e="listo"]{ border-left-color:var(--listo); }
+.item[data-e="parcial"]{ border-left-color:var(--parcial); }
+.item[data-e="falta"]{ border-left-color:var(--falta); }
+.item[data-e="bloqueante"]{ border-left-color:var(--bloqueante); background:var(--nd-terracota-dim); }
+
+.orden{ font-family:var(--font-display); font-size:13px; font-weight:600; color:var(--text-faint);
+  min-width:20px; text-align:right; padding-top:1px; }
+.cuerpo{ flex:1; min-width:0; }
+.linea{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.titulo{ font-size:13.5px; font-weight:700; }
+.chip{ font-size:9.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase;
+  padding:2px 7px; border-radius:var(--r-pill); white-space:nowrap; }
+.chip.listo{ background:var(--nd-verde-dim); color:var(--nd-verde-bosque); }
+.chip.parcial{ background:var(--nd-amarillo-dim); color:var(--nd-tinta-calida); }
+.chip.falta{ background:var(--surface2); color:var(--text-dim); }
+.chip.bloqueante{ background:var(--nd-terracota-hondo); color:#fff; }
+.chip.esfuerzo{ background:transparent; border:1px solid var(--border); color:var(--text-faint); font-weight:700; }
+/* "código" va neutro y no verde: en verde competía con el chip de estado
+   —"LISTO" y "CÓDIGO" se leían igual— y el estado es lo que primero importa.
+   "tuyo" sí resalta, porque es la columna que no se puede paralelizar. */
+.chip.mio{ background:transparent; border:1px solid var(--border); color:var(--text-faint); font-weight:700; }
+.chip.tuyo{ background:var(--nd-amarillo-dim); color:var(--nd-tinta-calida); }
+.nota{ font-size:11.5px; color:var(--text-dim); line-height:1.5; margin-top:5px; }
+.nota b{ color:var(--text); }
+
+.resumen-grupo{ font-size:11px; color:var(--text-faint); margin-top:2px; }
+
+footer.note{ margin-top:20px; padding-top:18px; border-top:1px solid var(--border-soft);
+  font-size:11.5px; color:var(--text-faint); line-height:1.65; }
+footer.note b{ color:var(--text-dim); }
+
+@media (max-width:600px){
+  .top h1{ font-size:19px; }
+  .item{ padding:10px 12px; }
+  .orden{ display:none; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <span class="eyebrow">Mapa conceptual · Niddo</span>
+    <h1 class="display">Camino al lanzamiento</h1>
+    <p>Las otras tres pestañas responden “¿qué hay construido?”. Ésta responde otra cosa: <b>qué separa a Niddo de tener un administrador real usándolo</b>. Por eso mezcla código con cosas que no son código —textos legales, un dominio verificado, una cuenta de monitoreo—, que es donde suelen morir los lanzamientos.</p>
+    <div class="veredicto">
+      <span class="n mono" id="v-bloqueantes">–</span>
+      <span class="txt" id="v-texto">–</span>
+    </div>
+  </header>
+
+  <div id="contenido"></div>
+
+  <footer class="note">
+    <b>Cómo leer los estados:</b> <span class="chip listo">listo</span> funciona y está verificado ·
+    <span class="chip parcial">parcial</span> anda pero le falta la otra mitad ·
+    <span class="chip falta">falta</span> no existe ·
+    <span class="chip bloqueante">bloqueante</span> impide lanzar, no es opinión.
+    <br><br>
+    <b>Y de quién es cada cosa:</b> <span class="chip mio">código</span> lo resuelvo yo ·
+    <span class="chip tuyo">tuyo</span> necesita una decisión, una cuenta, una tarjeta o un abogado. La segunda columna es la que
+    no se puede paralelizar conmigo, así que conviene empezarla antes.
+    <br><br>
+    El orden del bloque de abajo no es por dificultad sino por <b>qué te va a pedir el primer cliente</b>. Un ítem tarde en la lista no es menos valioso: es menos urgente.
+  </footer>
+</div>
+
+<script>
+/* Una sola pestaña y no dos: lo útil de esta vista es poder comparar de un
+   vistazo lo que frena el lanzamiento con lo que viene después. Partirlo en
+   dos tabs obliga a alternar justo para hacer esa comparación. */
+
+const PARA_LANZAR = [
+  { grupo:"El circuito del mes", intro:"Que un administrador pueda cerrar un mes de punta a punta.", items:[
+    { t:"Cargar gastos, con OCR y carga masiva", e:"listo", quien:"mio",
+      nota:"Groq Vision lee la factura; la planilla .xlsx entra de a cientos, con coeficiente y comprobante." },
+    { t:"Liquidar con prorrateo por coeficientes", e:"listo", quien:"mio",
+      nota:"A, B, C y E, contrastado contra SIPAC, Octopus, Expensas Flow y Consorcio Abierto." },
+    { t:"Emitir el PDF en formato «Mis Expensas»", e:"listo", quien:"mio",
+      nota:"Con el detalle por gasto y las citas al art. 10 de la Ley 941 que la norma obliga a rendir." },
+    { t:"Que la liquidación genere la deuda del vecino", e:"listo", quien:"mio",
+      nota:"El total del mail y el de la app son el mismo número. Hasta hace poco eran dos mundos separados." },
+    { t:"Registrar el pago y cerrar el círculo", e:"parcial", quien:"mio",
+      nota:"El vecino informa con comprobante y el admin lo marca a mano. Alcanza para el primer mes; no escala a diez edificios." },
+  ]},
+  { grupo:"Que no se rompa delante de un cliente", intro:"Lo que falla en producción y no en los tests.", items:[
+    { t:"El envío se corta por timeout", e:"bloqueante", quien:"mio", esfuerzo:"media tarde",
+      nota:"Medido: el PDF tarda 0,36 s con 40 unidades, no es el problema. El problema son <b>dos llamadas de red por unidad en secuencia</b> —Resend y Supabase—: ~16 s para 40 UF contra los 10 s del plan Hobby de Vercel. El envío se corta a la mitad y la liquidación queda a medio publicar." },
+    { t:"Monitoreo de errores", e:"bloqueante", quien:"tuyo", esfuerzo:"1 hora",
+      nota:"No hay Sentry ni equivalente. Si algo falla un domingo no te enterás nunca: te enterás cuando el administrador te escribe. Con un cliente se aguanta preguntando; con tres, no." },
+    { t:"Probar un mes real de punta a punta", e:"bloqueante", quien:"tuyo", esfuerzo:"medio día",
+      nota:"Los 389 tests corren contra un doble de Supabase. <b>Nunca se hizo un mes completo con datos reales</b>: cargar, liquidar, enviar, que el vecino lo vea y registrar el pago. Es el control que más chances tiene de encontrar algo." },
+    { t:"Dominio verificado en Resend (SPF/DKIM)", e:"falta", quien:"tuyo", esfuerzo:"1 hora",
+      nota:"No lo puedo verificar desde acá. Si no está, la mitad de las liquidaciones caen en spam y el administrador se entera por teléfono." },
+  ]},
+  { grupo:"Legal y datos", intro:"Estás guardando datos de personas que no son tus clientes: los vecinos de tus clientes.", items:[
+    { t:"Términos y condiciones + política de privacidad", e:"bloqueante", quien:"tuyo",
+      nota:"Nombres, CUIT, mails, teléfonos, deudas y comprobantes. En Argentina eso cae bajo la Ley 25.326, y hay que declarar a Auth0, Supabase, Resend y Groq como subprocesadores. No es código: es texto y una página." },
+    { t:"Aislamiento entre administradores", e:"listo", quien:"mio",
+      nota:"Chequeo de pertenencia request por request, RLS en las 26 tablas y tests que lo protegen." },
+    { t:"Que el alta de un vecino la apruebe el admin", e:"listo", quien:"mio",
+      nota:"Hasta que lo aprueben no ve nada del edificio. Antes con un login alcanzaba para quedarse con cualquier unidad libre." },
+    { t:"Backups de la base", e:"falta", quien:"tuyo",
+      nota:"Depende del plan de Supabase, no lo puedo ver desde acá. Verificá que estén y que sepas restaurar uno." },
+  ]},
+];
+
+const DESPUES = [
+  { t:"Que el vecino pague desde la app", e:"falta", quien:"tuyo",
+    nota:"Es lo primero que te van a pedir, y lo que más depende de afuera: pasarela, conciliación automática y cuenta corriente que se cierre sola. La decisión de con quién integrar es tuya; el código es de las cosas más grandes que quedan." },
+  { t:"Mora automática", e:"parcial", quien:"mio",
+    nota:"El interés ya se calcula con la tasa del consorcio al emitir la liquidación siguiente. Falta que algo pase el cobro a vencido el día del vencimiento. Mirá cómo se resolvieron los gastos recurrentes: sin cron, con generación perezosa." },
+  { t:"Mensajería real (comunicados)", e:"parcial", quien:"mio",
+    nota:"El backend está completo y el vecino ya los lee. Falta la pantalla del admin para redactarlos. De lo que queda, es lo más barato por lo que entrega." },
+  { t:"Recordatorios y avisos automáticos", e:"falta", quien:"mio",
+    nota:"Comunicado nuevo, expensa disponible, recordatorio de reserva. Necesita el mismo disparador que la mora, más una tabla de preferencias para no spamear." },
+  { t:"Bandeja de avisos de pago del admin", e:"parcial", quien:"mio",
+    nota:"El vecino informa el pago y lo ve reflejado; del lado admin los endpoints existen sin pantalla. Es la misma forma que tenía Reclamos antes de tener sección propia." },
+  { t:"Multi-unidad para el mismo vecino", e:"falta", quien:"mio",
+    nota:"El dueño de dos deptos hoy ve uno solo. `vecinos_unidades` tiene lector y ningún escritor. Aparece recién cuando tengas un cliente con propietarios de varias unidades." },
+  { t:"Fondo de reserva", e:"falta", quien:"tuyo",
+    nota:"La columna existe y no se calcula. Ninguna de las cuatro liquidaciones de referencia lo trae como columna del prorrateo, así que primero hay que definir si es un porcentaje sobre la expensa o un monto fijo. Es decisión, no código." },
+  { t:"ABM de archivos y votaciones desde el admin", e:"parcial", quien:"mio",
+    nota:"Endpoints listos, sin pantalla. El vecino ya ve y descarga lo que esté cargado." },
+  { t:"Rendición anual y balance normativo", e:"parcial", quien:"mio",
+    nota:"El balance consolida y exporta. Falta la rendición completa con respaldos, que se pide una vez al año — por eso está acá abajo y no arriba." },
+  { t:"Sueldos con convenio SUTERH", e:"falta", quien:"mio",
+    nota:"Es un producto adentro del producto: convenio, básicos, adicionales, recibo, libro de sueldos y F931. Muchos administradores lo liquidan aparte y no lo van a mover." },
+  { t:"Roles y permisos del equipo del admin", e:"falta", quien:"mio",
+    nota:"Aparece cuando un cliente tenga empleados que necesiten entrar con permisos distintos. Con administradores de una persona no se nota." },
+  { t:"Integraciones con AFIP / AGIP", e:"falta", quien:"tuyo",
+    nota:"Alto costo de integración y padrones que cambian. Vale la pena cuando el volumen lo justifique." },
+  { t:"Barrios privados y control de accesos", e:"falta", quien:"mio",
+    nota:"Es otro segmento, no una funcionalidad más: invitados, app de guardia, patentes. Entra si decidís ir a barrios." },
+  { t:"QR en la liquidación", e:"falta", quien:"mio",
+    nota:"De los cuatro sistemas relevados sólo Expensas Flow lo usa, y no es de pago: uno lleva a ARCA y otro a su portal. Por eso está último." },
+];
+
+const ETIQUETA = { listo:"listo", parcial:"parcial", falta:"falta", bloqueante:"bloqueante" };
+const QUIEN = { mio:"código", tuyo:"tuyo" };
+
+function chip(clase, texto){ return `<span class="chip ${clase}">${texto}</span>`; }
+
+function itemHTML(it, orden){
+  return `<div class="item" data-e="${it.e}">
+    ${orden ? `<span class="orden mono">${orden}</span>` : ''}
+    <div class="cuerpo">
+      <div class="linea">
+        <span class="titulo">${it.t}</span>
+        ${chip(it.e, ETIQUETA[it.e])}
+        ${chip(it.quien, QUIEN[it.quien])}
+        ${it.esfuerzo ? chip('esfuerzo', it.esfuerzo) : ''}
+      </div>
+      ${it.nota ? `<div class="nota">${it.nota}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+const cont = document.getElementById('contenido');
+let html = '';
+
+// ── Bloque 1: lo que frena el lanzamiento ──
+html += `<div class="bloque">
+  <h2 class="display">Para lanzar</h2>
+  <div class="intro">Todo lo de acá tiene que estar antes del primer administrador real. Lo que no está en esta lista, por definición, puede esperar.</div>`;
+
+PARA_LANZAR.forEach(g => {
+  const bloqueantes = g.items.filter(i => i.e === 'bloqueante').length;
+  const listos = g.items.filter(i => i.e === 'listo').length;
+  html += `<div class="grupo">
+    <div class="grupo-h"><span class="t">${g.grupo}</span><span class="l"></span></div>
+    <div class="resumen-grupo">${g.intro} — ${listos} de ${g.items.length} listo${listos === 1 ? '' : 's'}${bloqueantes ? ` · ${bloqueantes} bloqueante${bloqueantes === 1 ? '' : 's'}` : ''}</div>
+    <div style="margin-top:8px">${g.items.map(i => itemHTML(i)).join('')}</div>
+  </div>`;
+});
+html += `</div>`;
+
+// ── Bloque 2: lo que viene después, por urgencia ──
+html += `<div class="bloque">
+  <h2 class="display">Después de lanzar</h2>
+  <div class="intro">En orden de <b>qué te va a pedir el primer cliente</b>, no de dificultad. Estar abajo no es ser menos valioso: es ser menos urgente.</div>
+  ${DESPUES.map((it, i) => itemHTML(it, i + 1)).join('')}
+</div>`;
+
+cont.innerHTML = html;
+
+// ── El veredicto de arriba se cuenta solo ──
+const todos = PARA_LANZAR.flatMap(g => g.items);
+const bloqueantes = todos.filter(i => i.e === 'bloqueante');
+const listos = todos.filter(i => i.e === 'listo').length;
+document.getElementById('v-bloqueantes').textContent = bloqueantes.length;
+document.getElementById('v-texto').innerHTML = bloqueantes.length
+  ? `bloqueantes para lanzar, sobre ${todos.length} cosas necesarias (${listos} ya listas).
+     <b>${bloqueantes.filter(i => i.quien === 'tuyo').length} de ellos no los puedo resolver yo</b>: necesitan una cuenta, una decisión o un abogado, así que conviene arrancarlos en paralelo.`
+  : `No queda nada bloqueando el lanzamiento. Las ${todos.length} cosas necesarias están cubiertas.`;
+</script>
+</body>
+</html>

@@ -38,28 +38,31 @@ iframe.view-frame.active{ visibility:visible; pointer-events:auto; }
       <button data-src="{{ url_for('superadmin_mapa_categorias') }}" class="active">Por categoría</button>
       <button data-src="{{ url_for('superadmin_mapa_admin_vecino') }}">Admin × Vecino</button>
       <button data-src="{{ url_for('superadmin_mapa_arquitectura') }}">Arquitectura</button>
+      <button data-src="{{ url_for('superadmin_mapa_lanzamiento') }}">Lanzamiento</button>
     </nav>
   </header>
   <div id="stage">
     <iframe id="frame-cat" class="view-frame active" src="{{ url_for('superadmin_mapa_categorias') }}" title="Funcionalidades por categoría"></iframe>
     <iframe id="frame-av" class="view-frame" title="Admin por Vecino"></iframe>
     <iframe id="frame-arch" class="view-frame" title="Arquitectura técnica"></iframe>
+    <iframe id="frame-lan" class="view-frame" title="Camino al lanzamiento"></iframe>
   </div>
 </div>
 <script>
 const frames = {
   cat: document.getElementById('frame-cat'),
   av: document.getElementById('frame-av'),
-  arch: document.getElementById('frame-arch')
+  arch: document.getElementById('frame-arch'),
+  lan: document.getElementById('frame-lan')
 };
-const loadedOnce = { cat: true, av: false, arch: false };
+const loadedOnce = { cat: true, av: false, arch: false, lan: false };
 
 document.getElementById('tabs').addEventListener('click', (e)=>{
   const btn = e.target.closest('button[data-src]');
   if(!btn) return;
   const buttons = [...document.querySelectorAll('#tabs button')];
   const idx = buttons.indexOf(btn);
-  const key = ['cat','av','arch'][idx];
+  const key = ['cat','av','arch','lan'][idx];
 
   buttons.forEach(b=>b.classList.toggle('active', b===btn));
   Object.entries(frames).forEach(([k, frame])=> frame.classList.toggle('active', k===key));
