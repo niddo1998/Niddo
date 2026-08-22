@@ -309,7 +309,8 @@ const CATEGORIES = [
       {t:"OCR de factura (monto, proveedor, fecha)", s:"built", note:"Groq Vision + PyMuPDF, incluso en lote"},
       {t:"Asignar centro de costo", s:"built"},
       {t:"Adjuntar comprobante", s:"built"},
-      {t:"Regenerar el gasto recurrente cada período", s:"built", note:"generar_recurrentes() en recurrentes.py, idempotente y perezosa: la dispara la request que entra a Gastos, no un cron. Vale la pena mirar ese patrón antes de montar infraestructura para la mora o el envío programado"}
+      {t:"Regenerar el gasto recurrente cada período", s:"built", note:"generar_recurrentes() en recurrentes.py, idempotente y perezosa: la dispara la request que entra a Gastos, no un cron. Vale la pena mirar ese patrón antes de montar infraestructura para la mora o el envío programado"},
+      {t:"Carga masiva de gastos por Excel", s:"built", note:"Mismo circuito que el de consorcios: plantilla .xlsx (/api/gastos/plantilla) + import (/api/gastos/carga-masiva). Obligatorios consorcio, fecha, descripcion y monto; el resto opcional. No crea consorcios, proveedores ni UF — los busca por nombre y reporta la fila que apunta a algo que no existe. Deduplica por (consorcio, fecha, descripción, monto) y lee las columnas por encabezado, así que el Excel que baja \"Exportar\" se puede volver a subir. Lo que no viaja en el archivo son los comprobantes adjuntos"}
     ]},
     { name:"Pagar a proveedores", role:"admin", tech:[], items:[
       {t:"Generar orden de pago", s:"none"},
