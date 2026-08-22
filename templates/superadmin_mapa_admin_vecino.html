@@ -230,13 +230,14 @@ footer.note b{ color:var(--text-dim); }
 <script>
 const ADMIN = [
   { id:"a1",  label:"Liquidar expensas", link:"v1", estado:"built", items:[
-    {t:"Definir % de copropiedad por unidad", s:"planned", note:"porcentaje_a/c no están en el payload de alta/edición de la UF — quedan en 0 y el prorrateo cae en reparto lineal"},
+    {t:"Definir % de copropiedad por unidad", s:"built", note:"Cuatro coeficientes (A, B, C, E) cargables en el alta y la edición de la UF. Era el bloqueo: las columnas existían desde v7 y ningún endpoint las aceptaba"},
     {t:"Prorratear gastos comunes vs. exclusivos", s:"built"},
-    {t:"Calcular intereses por mora", s:"planned", note:"interes_mora se inserta siempre en 0 y solo cambia editándolo a mano: no hay cálculo automático ni tasa configurable"},
-    {t:"Aplicar fondo de reserva", s:"planned", note:"saldo_superfondo existe como columna pero no se calcula ni se carga"},
-    {t:"Exportar PDF/Excel individual por unidad", s:"planned", note:"El resumen por UF es HTML (preview + cuerpo del mail); PDF hay para gastos, cobros, balance y cupón, no para el resumen"},
-    {t:"Enviar por mail (WhatsApp deshabilitado)", s:"built"},
-    {t:"Programar el envío mensual", s:"planned", note:"El modal \"Agendar\" guarda en envio_programado, pero no hay cron que lea esa tabla"}
+    {t:"Calcular intereses por mora", s:"planned", note:"El prorrateo ya lo calcula sobre el saldo impago, con la tasa del consorcio. Falta que algo pase el cobro a vencido el día del vencimiento: hasta entonces el interés sólo aparece al emitir la liquidación siguiente"},
+    {t:"Aplicar fondo de reserva", s:"planned", note:"saldo_superfondo sigue sin calcularse. Ninguna de las cuatro liquidaciones de referencia lo trae como columna del prorrateo, así que primero hay que definir si es un porcentaje o un monto fijo"},
+    {t:"Exportar PDF/Excel individual por unidad", s:"planned", note:"Ya sale la liquidación COMPLETA en PDF adjunta al mail, que es lo que la ley obliga a rendir. El recorte a una sola unidad sigue en HTML: es comodidad, no requisito"},
+    {t:"Enviar por mail (WhatsApp deshabilitado)", s:"built", note:"Con el PDF de la liquidación completa adjunto, en formato \"Mis Expensas\""},
+    {t:"Programar el envío mensual", s:"planned", note:"El modal \"Agendar\" guarda en envio_programado y nadie lo ejecuta. Antes de montar un cron conviene mirar cómo se resolvieron los gastos recurrentes: generación perezosa disparada por la request, sin scheduler"},
+    {t:"Que la liquidación genere la deuda del vecino", s:"built", note:"Emitir crea el cobro de cada unidad con su total prorrateado. Antes eran dos mundos: el mail llevaba el total y la cuenta del vecino un monto plano cargado a mano, y podían no coincidir"}
   ]},
   { id:"a2",  label:"Cargar gastos y facturas (OCR)", link:null, estado:"built", items:[
     {t:"OCR de factura con Groq Vision (monto, proveedor, fecha)", s:"built"},
@@ -252,11 +253,11 @@ const ADMIN = [
   { id:"a4",  label:"Conciliar cobranzas", link:"v3", estado:"notbuilt", items:[
     {t:"Matchear pago con unidad funcional", s:"none"},
     {t:"Resolver cobros no identificados", s:"none"},
-    {t:"Actualizar cuenta corriente automáticamente", s:"none"},
+    {t:"Actualizar cuenta corriente automáticamente", s:"planned", note:"La cuenta ya refleja lo que dice el mail, porque el cobro nace del prorrateo. Falta el otro lado: que registrar un pago la cierre sola"},
     {t:"Revisar el aviso de pago que mandó el vecino", s:"planned", note:"GET/PUT /api/admin/avisos-pago existen sin pantalla: el vecino avisa y del otro lado no lo ve nadie"}
   ]},
   { id:"a5",  label:"Gestionar morosidad y planes de pago", link:"v2", estado:"partial", items:[
-    {t:"Calcular deuda e intereses acumulados", s:"planned", note:"El panel lista cobros vencido/en_mora, pero nada los pasa a ese estado al vencerse ni acumula intereses"},
+    {t:"Calcular deuda e intereses acumulados", s:"planned", note:"El interés ya se calcula con la tasa del consorcio al emitir la liquidación siguiente. Sigue faltando que algo pase el cobro a vencido/en_mora el día del vencimiento"},
     {t:"Generar recordatorios automáticos", s:"none"},
     {t:"Armar planes de pago", s:"none"}
   ]},
@@ -276,9 +277,9 @@ const ADMIN = [
     {t:"Programar envío", s:"planned", note:"Existe solo para liquidaciones (envio_programado) y sin ejecutor; para comunicados no hay ni campo"}
   ]},
   { id:"a9",  label:"Gestionar reclamos", link:"v4", estado:"partial", items:[
-    {t:"Recibir y categorizar", s:"planned", note:"El reclamo llega a la base; sin pantalla admin para verlo"},
+    {t:"Recibir y categorizar", s:"built", note:"Sección Reclamos con filtros por edificio y estado, y contador de sin atender en la nav"},
     {t:"Asignar a proveedor o encargado", s:"none"},
-    {t:"Cambiar estado y notificar al vecino", s:"planned", note:"Endpoint PUT existe, sin UI"}
+    {t:"Cambiar estado y notificar al vecino", s:"built", note:"Modal de respuesta + mail al vecino. Resolver o cerrar exige escribirle algo: cerrar en silencio le dejaba un reclamo \"resuelto\" sin saber qué se hizo"}
   ]},
   { id:"a10", label:"Configurar amenities y disponibilidad", link:"v5", estado:"built", items:[
     {t:"Crear amenity y condiciones de uso", s:"built"},
@@ -287,7 +288,7 @@ const ADMIN = [
   ]},
   { id:"a11", label:"Crear votaciones / encuestas", link:"v6", estado:"partial", items:[
     {t:"Crear votación con opciones", s:"planned", note:"POST/PUT /api/admin/votaciones existe, sin UI"},
-    {t:"Definir fecha límite", s:"none"},
+    {t:"Definir fecha límite", s:"planned", note:"fecha_limite y votos_necesarios ya se hacen cumplir: el listado publica vigente/vencida/falta_quorum y el voto se rechaza pasada la fecha. Falta que el admin pueda cargarlos desde una pantalla"},
     {t:"Ver resultados agregados", s:"none"}
   ]},
   { id:"a12", label:"Administrar documentación", link:"v8", estado:"partial", items:[
@@ -325,28 +326,35 @@ const VEC = [
   { id:"v2",  label:"Ver cuenta corriente y comprobantes", link:"a5", estado:"partial", items:[
     {t:"Historial de liquidaciones", s:"built"},
     {t:"Detalle de gastos del período", s:"built"},
-    {t:"Descargar comprobantes", s:"planned", note:"El cupón por cobro y el adjunto del gasto sí bajan; la exportación masiva sigue siendo un stub (dlCobros() muestra \"próximamente\")"}
+    {t:"Descargar comprobantes", s:"built", note:"El cupón por cobro, el adjunto del gasto y la cuenta corriente entera en Excel o PDF. La ruta de exportación no acepta una unidad ajena por query string"},
+    {t:"Ver en qué quedó el pago que informó", s:"built", note:"Tabla \"Pagos que informaste\" con su estado. El endpoint existía desde v6 y ninguna pantalla lo llamaba"}
   ]},
   { id:"v3",  label:"Informar un pago", link:"a4", estado:"built", items:[
     {t:"Declarar monto y fecha de pago", s:"built"},
     {t:"Adjuntar comprobante", s:"built"},
-    {t:"Elegir medio de pago usado", s:"built"}
+    {t:"Elegir medio de pago usado", s:"built"},
+    {t:"Enterarse de si se lo aceptaron", s:"built", note:"El estado quedó acotado a pendiente / aceptado / rechazado, que son los tres que la pantalla del vecino sabe pintar"}
   ]},
   { id:"v4",  label:"Crear reclamo", link:"a9", estado:"built", items:[
     {t:"Crear con foto y descripción", s:"built"},
     {t:"Elegir categoría", s:"built"},
     {t:"Ver estado: recibido → en curso → resuelto", s:"built"},
-    {t:"Historial de reclamos propios", s:"built"}
+    {t:"Historial de reclamos propios", s:"built"},
+    {t:"Leer la respuesta del administrador", s:"built", note:"Ya había dónde mostrarla; lo que faltaba era la pantalla del admin para escribirla"},
+    {t:"Que le avisen por mail cuando le responden", s:"built"}
   ]},
   { id:"v5",  label:"Reservar amenities", link:"a10", estado:"built", items:[
     {t:"Ver disponibilidad en calendario", s:"built"},
     {t:"Elegir horario / turno", s:"built"},
-    {t:"Cancelar reserva", s:"built"}
+    {t:"Cancelar reserva", s:"built"},
+    {t:"Recibir la confirmación por mail", s:"built", note:"Con espacio, día, horario y condiciones de uso. Antes la única confirmación era un toast en pantalla"},
+    {t:"Declarar cuánta gente va", s:"built", note:"Se contrasta con la capacidad del amenity, que se cargaba desde v3 y no la leía nadie"}
   ]},
   { id:"v6",  label:"Votar / responder encuestas", link:"a11", estado:"built", items:[
     {t:"Ver votaciones activas", s:"built"},
     {t:"Emitir voto (uno por unidad)", s:"built"},
-    {t:"Ver resultados", s:"built"}
+    {t:"Ver resultados", s:"built"},
+    {t:"Que la votación se cierre en la fecha límite", s:"built", note:"fecha_limite y votos_necesarios estaban en el schema desde v6 sin que nadie los leyera"}
   ]},
   { id:"v7",  label:"Recibir comunicados", link:"a8", estado:"built", items:[
     {t:"Ver comunicados publicados", s:"built"},
@@ -366,12 +374,19 @@ const VEC = [
     {t:"Solicitar presupuesto", s:"none"}
   ]},
   { id:"v11", label:"Ver estado del consorcio (caja, fondo de reserva)", link:"a7", estado:"notbuilt", items:[
-    {t:"Ver saldo de caja y banco", s:"none"},
+    {t:"Ver saldo de caja y banco", s:"planned", note:"El PDF de la liquidación ya trae el resumen de movimientos bancarios y el estado patrimonial, así que le llega por mail. En el portal no hay pantalla"},
     {t:"Ver fondo de reserva", s:"none"}
   ]},
   { id:"v12", label:"Chatear con la administración", link:"a16", estado:"notbuilt", items:[
     {t:"Chat directo", s:"none"},
     {t:"Historial de conversación", s:"none"}
+  ]},
+  { id:"v13", label:"Darse de alta y mantener su perfil", link:null, estado:"partial", items:[
+    {t:"Pedir el alta eligiendo edificio y unidad", s:"built"},
+    {t:"Esperar la aprobación del administrador", s:"built", note:"Hasta que lo aprueben no ve nada del edificio. Antes con un login alcanzaba para quedarse con cualquier unidad libre y ver sus expensas al instante"},
+    {t:"Ver el motivo si lo rechazan y volver a pedir", s:"built"},
+    {t:"Corregir su nombre y dejar un teléfono", s:"built", note:"PUT /api/me con lista blanca por rol. La columna telefono no existía"},
+    {t:"Manejar más de una unidad", s:"none", note:"vecinos_unidades tiene un solo lector y ningún escritor: la segunda unidad sólo entra a mano en la base"}
   ]}
 ];
 const SUPER = [
