@@ -301,9 +301,11 @@ const ADMIN = [
     {t:"Libro de visitas digital", s:"none"}
   ]},
   { id:"a14", label:"Tablero de control multi-consorcio", link:null, estado:"built", items:[
-    {t:"Tablero centralizado con KPIs", s:"built"},
+    {t:"En qué paso del cierre está cada edificio", s:"built", note:"Una fila por consorcio con el stepper de cuatro pasos y el próximo paso como botón. El paso lo deriva /api/dashboard/resumen con la misma regla que el teléfono"},
+    {t:"Bandeja de lo que espera por el administrador", s:"built", note:"Envíos que rebotaron, solicitudes de vecinos, tarifas sin confirmar, pagos informados, reclamos y facturas vencidas — todo lo que antes había que ir a buscar a su pantalla"},
+    {t:"% cobrado, deuda vencida y egresos vs. mes anterior", s:"built"},
+    {t:"Agenda de los próximos 14 días", s:"built", note:"Vencimientos de facturas y de expensas, envío programado y reservas en una sola línea"},
     {t:"Cambiar entre consorcios", s:"built"},
-    {t:"Alertas de gastos pendientes y mora", s:"built", note:"Ojo: el contador de mora de /api/dashboard/kpis no filtra por admin_id — cuenta los cobros de todos los administradores"},
     {t:"Carga masiva de consorcios y UF por Excel", s:"built"}
   ]},
   { id:"a15", label:"Gestionar roles y permisos del equipo", link:null, estado:"notbuilt", items:[
