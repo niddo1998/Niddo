@@ -16,7 +16,7 @@ from markupsafe import escape
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
-from recurrentes import periodos_pendientes
+from recurrentes import periodos_pendientes, ultimo_dia_del_mes
 
 
 # ── Config ─────────────────────────────────────────────────────────────────────
@@ -3834,14 +3834,423 @@ def api_vecinos_gastos():
 
 
 # ── API: datos del dashboard ───────────────────────────────────────────────────
-@app.route('/api/dashboard/kpis')
+#
+# El panel de inicio es la única pantalla a la que no se llega buscando algo: se
+# entra a ella. Por eso arma de un saque las cuatro preguntas que un
+# administrador se hace a la mañana —en qué punto del mes está cada edificio,
+# qué espera por él, cuánta plata entró y salió, y qué vence esta quincena— en
+# vez de repartirlas en cuatro pantallas a las que hay que acordarse de entrar.
+
+# Cuántos días mira la agenda hacia adelante. Dos semanas es lo que entra en una
+# tarjeta sin scroll y alcanza para el segundo vencimiento de la expensa, que es
+# el evento más lejano que le importa a alguien un lunes a la mañana.
+DIAS_DE_AGENDA = 14
+
+
+def _periodo_de(fecha: date) -> str:
+    return f'{fecha.year:04d}-{fecha.month:02d}'
+
+
+def _mes_anterior(periodo: str) -> str:
+    anio, mes = (int(x) for x in periodo.split('-')[:2])
+    return f'{anio - 1:04d}-12' if mes == 1 else f'{anio:04d}-{mes - 1:02d}'
+
+
+def _num(valor) -> float:
+    """Un numeric de Postgres, que puede llegar como None, str o Decimal."""
+    try:
+        return float(valor or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _proximo_dia_del_mes(hoy: date, dia):
+    """La próxima vez que cae ese día del mes, contando desde hoy.
+
+    Recorta al último día en los meses cortos por el mismo motivo que los gastos
+    recurrentes: un envío agendado el 31 tiene que salir igual en febrero.
+    """
+    try:
+        dia = int(dia or 0)
+    except (TypeError, ValueError):
+        return None
+    if not 1 <= dia <= 31:
+        return None
+    este = date(hoy.year, hoy.month, min(dia, ultimo_dia_del_mes(hoy.year, hoy.month)))
+    if este >= hoy:
+        return este
+    anio, mes = (hoy.year + 1, 1) if hoy.month == 12 else (hoy.year, hoy.month + 1)
+    return date(anio, mes, min(dia, ultimo_dia_del_mes(anio, mes)))
+
+
+def _opcional(nombre: str, degradado: list, defecto, consulta):
+    """Corre una consulta que puede fallar porque falta correr una migración.
+
+    El panel es la pantalla de entrada: si una columna que llegó en la v16 no
+    está, lo correcto es mostrar el resto y decir qué falta, no devolver un 500
+    y dejar al administrador con la pantalla en blanco. Lo que no se pudo leer
+    viaja en `degradado` para que la pantalla lo aclare, en vez de mostrar un
+    cero que se lee igual que un dato bueno.
+    """
+    try:
+        return consulta()
+    except Exception as e:                     # noqa: BLE001 — el motivo, arriba
+        app.logger.warning('dashboard: bloque "%s" no disponible: %s', nombre, e)
+        degradado.append(nombre)
+        return defecto
+
+
+def _paso_cierre(liq) -> int:
+    """En cuál de los cuatro pasos del cierre está esa liquidación.
+
+    Los pasos son los del cierre de mes: 1 gastos, 2 prorrateo, 3 vencimientos,
+    4 enviar. Devuelve 0 cuando todavía no hay liquidación del período.
+
+    Replica a propósito la regla de `ndCierrePasoInicial()`, que es la que usa
+    el teléfono: si el escritorio dijera un paso y el móvil otro para la misma
+    liquidación, el stepper de una pantalla contradiría al de la otra.
+    """
+    if not liq:
+        return 0
+    if liq.get('estado') in ('publicada', 'cerrada'):
+        return 4
+    if liq.get('fecha_vencimiento_1'):
+        return 3
+    return 1
+
+
+# Qué se ve y qué se ofrece en cada estado del semáforo. El texto de la acción
+# es el próximo paso concreto y no el nombre de la sección: "Generar
+# liquidación" dice qué hacer, "Liquidaciones" sólo dice adónde ir.
+CIERRE_ETIQUETAS = {
+    'sin_gastos':   ('Sin gastos del período',  'Cargar gastos',        'gastos'),
+    'gastos':       ('Gastos cargados',         'Generar liquidación',  'liquidaciones'),
+    'prorrateo':    ('Liquidación en borrador', 'Revisar el prorrateo', 'liquidaciones'),
+    'vencimientos': ('Vencimientos cargados',   'Enviar los resúmenes', 'liquidaciones'),
+    'enviada':      ('Resúmenes enviados',      'Ver el estado',        'liquidaciones'),
+}
+
+
+def _estado_cierre(liq, gastos_del_mes: int, enviados: int) -> str:
+    if enviados or _paso_cierre(liq) == 4:
+        return 'enviada'
+    paso = _paso_cierre(liq)
+    if paso == 3:
+        return 'vencimientos'
+    if paso >= 1:
+        return 'prorrateo'
+    return 'gastos' if gastos_del_mes else 'sin_gastos'
+
+
+def _resumen_vacio(hoy: date, periodo: str):
+    """La respuesta de un administrador recién aprobado, sin edificios todavía.
+
+    Sale por su propia puerta porque un `.in_()` con lista vacía no filtra nada
+    en algunos backends: seguir de largo con `cids = []` no devolvería cero
+    filas sino las de toda la plataforma.
+    """
+    return jsonify({
+        'hoy': hoy.isoformat(), 'periodo': periodo, 'sin_consorcios': True,
+        'consorcios': [], 'atencion': [], 'agenda': [], 'degradado': [],
+        'plata': {'deuda_total': 0, 'deuda_vencida': 0, 'ufs_en_mora': 0,
+                  'egresos_mes': 0, 'egresos_mes_anterior': 0,
+                  'variacion_egresos': None, 'honorarios_mes': 0,
+                  'cobrado_pct': None, 'cobrado_periodo': None,
+                  'cobrado_monto': 0, 'emitido_monto': 0},
+    })
+
+
+@app.route('/api/dashboard/resumen')
 @require_auth(allowed_roles=['admin'])
-def api_dashboard_kpis():
+def api_dashboard_resumen():
+    """Todo lo que muestra el panel de inicio, en una sola llamada.
+
+    Una sola y no cinco porque las cinco tarjetas se pintan juntas: partirlo en
+    un endpoint por bloque serían cinco viajes en serie para dibujar una
+    pantalla que no sirve a medias.
+    """
     admin_id = get_admin_id()
-    consorcios_count = len(supabase.table('consorcios').select('id').eq('admin_id', admin_id).execute().data)
-    gastos_pendientes = len(supabase.table('gastos').select('id').eq('admin_id', admin_id).eq('pagado', False).execute().data)
-    mora_count = len(supabase.table('cobros').select('id').in_('estado', ['vencido','en_mora']).execute().data)
-    return jsonify({'consorcios': consorcios_count, 'gastos_pendientes': gastos_pendientes, 'en_mora': mora_count})
+    hoy = date.today()
+    hoy_iso = hoy.isoformat()
+    periodo = _periodo_de(hoy)
+    anterior = _mes_anterior(periodo)
+    degradado = []
+
+    cons = supabase.table('consorcios').select('id, nombre, direccion') \
+        .eq('admin_id', admin_id).execute().data or []
+    cids = [c['id'] for c in cons]
+    if not cids:
+        return _resumen_vacio(hoy, periodo)
+
+    # ── Gastos ────────────────────────────────────────────────────────────────
+    # Dos consultas y no una: los del bimestre alimentan los totales del mes, y
+    # los impagos hay que mirarlos sin cota de fecha, porque una factura que
+    # venció hace cuatro meses sigue estando impaga hoy.
+    gastos_recientes = supabase.table('gastos') \
+        .select('id, monto, fecha_gasto, categoria, consorcio_id') \
+        .eq('admin_id', admin_id).gte('fecha_gasto', f'{anterior}-01').execute().data or []
+    gastos_impagos = supabase.table('gastos') \
+        .select('id, monto, descripcion, fecha_vencimiento, consorcio_id') \
+        .eq('admin_id', admin_id).eq('pagado', False).execute().data or []
+
+    def _del_periodo(gastos, per):
+        return [g for g in gastos if str(g.get('fecha_gasto') or '')[:7] == per]
+
+    gastos_mes = _del_periodo(gastos_recientes, periodo)
+    egresos_mes = sum(_num(g.get('monto')) for g in gastos_mes)
+    egresos_previos = sum(_num(g.get('monto')) for g in _del_periodo(gastos_recientes, anterior))
+    honorarios_mes = sum(_num(g.get('monto')) for g in gastos_mes
+                         if (g.get('categoria') or '') == 'honorarios')
+
+    gastos_por_consorcio = {}
+    for g in gastos_mes:
+        acum = gastos_por_consorcio.setdefault(g.get('consorcio_id'), {'n': 0, 'total': 0.0})
+        acum['n'] += 1
+        acum['total'] += _num(g.get('monto'))
+
+    gastos_vencidos = [g for g in gastos_impagos
+                       if str(g.get('fecha_vencimiento') or '')[:10] < hoy_iso
+                       and g.get('fecha_vencimiento')]
+
+    # ── Cobros ────────────────────────────────────────────────────────────────
+    # La mora se calcula por fecha y no por `estado`: nada en la app pasa un
+    # cobro a 'vencido' el día del vencimiento, así que contar los que están en
+    # ese estado da cero para siempre. Mientras la mora no se materialice sola,
+    # el vencido es el pendiente cuya fecha ya pasó.
+    impagos = supabase.table('cobros') \
+        .select('id, total, estado, periodo, fecha_vencimiento, consorcio_id, unidad_id') \
+        .in_('consorcio_id', cids).neq('estado', 'pagado').execute().data or []
+    cobros_recientes = supabase.table('cobros') \
+        .select('id, total, estado, periodo, consorcio_id') \
+        .in_('consorcio_id', cids).gte('periodo', anterior).execute().data or []
+
+    vencidos = [c for c in impagos
+                if c.get('fecha_vencimiento')
+                and str(c['fecha_vencimiento'])[:10] < hoy_iso]
+    deuda_total = sum(_num(c.get('total')) for c in impagos)
+    deuda_vencida = sum(_num(c.get('total')) for c in vencidos)
+    ufs_en_mora = len({c['unidad_id'] for c in vencidos if c.get('unidad_id')})
+
+    mora_por_consorcio = {}
+    for c in vencidos:
+        acum = mora_por_consorcio.setdefault(c.get('consorcio_id'), {'ufs': set(), 'monto': 0.0})
+        if c.get('unidad_id'):
+            acum['ufs'].add(c['unidad_id'])
+        acum['monto'] += _num(c.get('total'))
+
+    # El porcentaje se mide contra el último período que efectivamente emitió
+    # cobros. Medirlo siempre contra el mes corriente daría 0% los primeros días
+    # de cada mes, cuando todavía no se emitió nada: una caída que no ocurrió.
+    periodos_con_cobros = sorted({c['periodo'] for c in cobros_recientes if c.get('periodo')})
+    cobrado_periodo = periodos_con_cobros[-1] if periodos_con_cobros else None
+    del_periodo = [c for c in cobros_recientes if c.get('periodo') == cobrado_periodo]
+    emitido_monto = sum(_num(c.get('total')) for c in del_periodo)
+    cobrado_monto = sum(_num(c.get('total')) for c in del_periodo if c.get('estado') == 'pagado')
+    cobrado_pct = round(cobrado_monto / emitido_monto * 100, 1) if emitido_monto else None
+
+    # ── Liquidaciones del período y sus envíos ────────────────────────────────
+    liqs = supabase.table('liquidaciones') \
+        .select('id, consorcio_id, periodo, estado, numero_revision, total_egresos, '
+                'saldo_final, fecha_vencimiento_1, fecha_vencimiento_2') \
+        .eq('admin_id', admin_id).gte('periodo', anterior).execute().data or []
+
+    # De las varias revisiones del mismo mes manda la última: es la que se emitió.
+    liq_del_mes = {}
+    for l in liqs:
+        if l.get('periodo') != periodo:
+            continue
+        previa = liq_del_mes.get(l.get('consorcio_id'))
+        if not previa or int(l.get('numero_revision') or 1) >= int(previa.get('numero_revision') or 1):
+            liq_del_mes[l.get('consorcio_id')] = l
+
+    envios_por_liq = {}
+    ids_liq = [l['id'] for l in liq_del_mes.values() if l.get('id')]
+    if ids_liq:
+        envios = supabase.table('resumen_envios').select('id, liquidacion_id, estado') \
+            .in_('liquidacion_id', ids_liq).execute().data or []
+        for e in envios:
+            acum = envios_por_liq.setdefault(e.get('liquidacion_id'),
+                                             {'enviados': 0, 'fallidos': 0, 'pendientes': 0})
+            if e.get('estado') in ('enviado', 'leido'):
+                acum['enviados'] += 1
+            elif e.get('estado') == 'fallido':
+                acum['fallidos'] += 1
+            else:
+                acum['pendientes'] += 1
+
+    ufs = supabase.table('unidades_funcionales').select('id, consorcio_id') \
+        .in_('consorcio_id', cids).execute().data or []
+    ufs_por_consorcio = {}
+    for u in ufs:
+        cid = u.get('consorcio_id')
+        ufs_por_consorcio[cid] = ufs_por_consorcio.get(cid, 0) + 1
+
+    # ── Semáforo de cierre, una fila por edificio ─────────────────────────────
+    fallidos_total = 0
+    semaforo = []
+    vacio = {'enviados': 0, 'fallidos': 0, 'pendientes': 0}
+    for c in cons:
+        liq = liq_del_mes.get(c['id'])
+        env = envios_por_liq.get((liq or {}).get('id'), vacio)
+        fallidos_total += env['fallidos']
+        gm = gastos_por_consorcio.get(c['id'], {'n': 0, 'total': 0.0})
+        estado = _estado_cierre(liq, gm['n'], env['enviados'])
+        etiqueta, accion, seccion = CIERRE_ETIQUETAS[estado]
+        mora = mora_por_consorcio.get(c['id'], {'ufs': set(), 'monto': 0.0})
+        semaforo.append({
+            'id': c['id'],
+            'nombre': c.get('nombre') or '',
+            'direccion': c.get('direccion') or '',
+            'ufs': ufs_por_consorcio.get(c['id'], 0),
+            'paso': _paso_cierre(liq),
+            'estado': estado, 'etiqueta': etiqueta, 'accion': accion, 'seccion': seccion,
+            'liquidacion_id': (liq or {}).get('id'),
+            'gastos_mes': gm['n'],
+            'total_gastos_mes': round(gm['total'], 2),
+            'total_liquidado': _num((liq or {}).get('total_egresos')),
+            'saldo_final': _num((liq or {}).get('saldo_final')),
+            'envios': dict(env),
+            'ufs_en_mora': len(mora['ufs']),
+            'monto_en_mora': round(mora['monto'], 2),
+        })
+
+    # ── Bandeja: lo que espera por él ─────────────────────────────────────────
+    # Cada ítem ya existe en la base y hoy vive detrás de una pantalla que hay
+    # que acordarse de abrir. Lo que agrega la bandeja no es el dato: es que
+    # deje de depender de la memoria del administrador.
+    tarifas = _opcional('tarifas', degradado, [], lambda: supabase.table('gastos')
+                        .select('id').eq('admin_id', admin_id)
+                        .eq('tarifa_confirmada', False).execute().data or [])
+    solicitudes = _opcional('solicitudes', degradado, [], lambda: supabase.table('vecinos')
+                            .select('id, solicitud_at, consorcio_solicitado_id')
+                            .in_('consorcio_solicitado_id', cids)
+                            .eq('estado_asociacion', 'pendiente').execute().data or [])
+    reclamos = _opcional('reclamos', degradado, [], lambda: supabase.table('reclamos')
+                         .select('id, created_at, consorcio_id').in_('consorcio_id', cids)
+                         .eq('estado', 'activo').execute().data or [])
+    avisos = _opcional('avisos', degradado, [], lambda: supabase.table('avisos_pago')
+                       .select('id, created_at, monto, consorcio_id').in_('consorcio_id', cids)
+                       .eq('estado', 'pendiente').execute().data or [])
+
+    def _dias_del_mas_viejo(filas, campo):
+        """Días desde lo más viejo del montón. Es lo que vuelve urgente a un 3."""
+        fechas = [str(f[campo])[:10] for f in filas if f.get(campo)]
+        if not fechas:
+            return None
+        try:
+            return (hoy - date.fromisoformat(min(fechas))).days
+        except ValueError:
+            return None
+
+    atencion = []
+
+    def sumar(tipo, cantidad, titulo, detalle, seccion, monto=None, dias=None):
+        if cantidad:
+            atencion.append({'tipo': tipo, 'cantidad': cantidad, 'titulo': titulo,
+                             'detalle': detalle, 'seccion': seccion,
+                             'monto': round(monto, 2) if monto is not None else None,
+                             'dias': dias})
+
+    # El orden es el del daño que hace no mirarlo. Un mail que rebotó es una
+    # expensa que el vecino nunca vio y va a reclamar por teléfono; una tarifa
+    # sin confirmar todavía se puede corregir antes de emitir.
+    sumar('envios_fallidos', fallidos_total, 'resúmenes que no llegaron',
+          'El mail rebotó: esos vecinos no vieron su expensa', 'liquidaciones')
+    sumar('solicitudes', len(solicitudes), 'vecinos esperando aprobación',
+          'Hasta que los apruebes no ven nada del edificio', 'consorcios',
+          dias=_dias_del_mas_viejo(solicitudes, 'solicitud_at'))
+    sumar('tarifas', len(tarifas), 'tarifas sin confirmar',
+          'Recurrentes generados con el monto del mes pasado', 'gastos')
+    sumar('avisos_pago', len(avisos), 'pagos informados sin revisar',
+          'Declarados por vecinos, sin aceptar ni rechazar', 'cobros',
+          monto=sum(_num(a.get('monto')) for a in avisos),
+          dias=_dias_del_mas_viejo(avisos, 'created_at'))
+    sumar('reclamos', len(reclamos), 'reclamos sin atender',
+          'Nadie los tocó todavía', 'reclamos',
+          dias=_dias_del_mas_viejo(reclamos, 'created_at'))
+    sumar('gastos_vencidos', len(gastos_vencidos), 'facturas vencidas sin pagar',
+          'Pasó el vencimiento y siguen sin marcarse como pagadas', 'gastos',
+          monto=sum(_num(g.get('monto')) for g in gastos_vencidos))
+
+    # ── Agenda: los próximos catorce días ─────────────────────────────────────
+    nombre_de = {c['id']: c.get('nombre') or '' for c in cons}
+    hasta_iso = (hoy + timedelta(days=DIAS_DE_AGENDA)).isoformat()
+    agenda = []
+
+    def agendar(fecha, tipo, titulo, detalle, cid=None, monto=None):
+        f = str(fecha or '')[:10]
+        if f and hoy_iso <= f <= hasta_iso:
+            agenda.append({'fecha': f, 'tipo': tipo, 'titulo': titulo,
+                           'detalle': detalle, 'consorcio': nombre_de.get(cid, ''),
+                           'monto': round(monto, 2) if monto is not None else None})
+
+    for g in gastos_impagos:
+        agendar(g.get('fecha_vencimiento'), 'gasto',
+                g.get('descripcion') or 'Factura a pagar', 'Vence el pago',
+                g.get('consorcio_id'), _num(g.get('monto')))
+
+    for l in liqs:
+        titulo = f'Expensas {l.get("periodo") or ""}'.strip()
+        agendar(l.get('fecha_vencimiento_1'), 'vencimiento', titulo,
+                '1er vencimiento', l.get('consorcio_id'))
+        agendar(l.get('fecha_vencimiento_2'), 'vencimiento', titulo,
+                '2do vencimiento', l.get('consorcio_id'))
+
+    programados = _opcional('envio_programado', degradado, [],
+                            lambda: supabase.table('envio_programado')
+                            .select('consorcio_id, dia_mes, hora_envio, activo')
+                            .in_('consorcio_id', cids).execute().data or [])
+    for p in programados:
+        if not p.get('activo'):
+            continue
+        agendar(_proximo_dia_del_mes(hoy, p.get('dia_mes')), 'envio',
+                'Envío automático de resúmenes',
+                f'A las {str(p.get("hora_envio") or "09:00")[:5]}', p.get('consorcio_id'))
+
+    def _reservas():
+        amen = supabase.table('amenities').select('id, nombre, consorcio_id') \
+            .in_('consorcio_id', cids).execute().data or []
+        if not amen:
+            return []
+        por_id = {a['id']: a for a in amen}
+        filas = supabase.table('reservas_amenities') \
+            .select('id, amenity_id, fecha, hora_inicio, estado') \
+            .in_('amenity_id', list(por_id)).gte('fecha', hoy_iso) \
+            .lte('fecha', hasta_iso).execute().data or []
+        return [(f, por_id.get(f.get('amenity_id')) or {}) for f in filas]
+
+    for reserva, amenity in _opcional('reservas', degradado, [], _reservas):
+        if reserva.get('estado') == 'cancelada':
+            continue
+        agendar(reserva.get('fecha'), 'reserva', amenity.get('nombre') or 'Reserva',
+                f'Reservado {str(reserva.get("hora_inicio") or "")[:5]}'.strip(),
+                amenity.get('consorcio_id'))
+
+    agenda.sort(key=lambda x: (x['fecha'], x['tipo'], x['titulo']))
+
+    return jsonify({
+        'hoy': hoy_iso,
+        'periodo': periodo,
+        'sin_consorcios': False,
+        'consorcios': semaforo,
+        'atencion': atencion,
+        'agenda': agenda,
+        'plata': {
+            'deuda_total': round(deuda_total, 2),
+            'deuda_vencida': round(deuda_vencida, 2),
+            'ufs_en_mora': ufs_en_mora,
+            'egresos_mes': round(egresos_mes, 2),
+            'egresos_mes_anterior': round(egresos_previos, 2),
+            'variacion_egresos': (round((egresos_mes - egresos_previos) / egresos_previos * 100, 1)
+                                  if egresos_previos else None),
+            'honorarios_mes': round(honorarios_mes, 2),
+            'cobrado_pct': cobrado_pct,
+            'cobrado_periodo': cobrado_periodo,
+            'cobrado_monto': round(cobrado_monto, 2),
+            'emitido_monto': round(emitido_monto, 2),
+        },
+        'degradado': sorted(set(degradado)),
+    })
 
 
 # ── API: perfil ────────────────────────────────────────────────────────────────
