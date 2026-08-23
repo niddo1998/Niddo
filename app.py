@@ -3904,40 +3904,48 @@ def _paso_cierre(liq) -> int:
     """En cuál de los cuatro pasos del cierre está esa liquidación.
 
     Los pasos son los del cierre de mes: 1 gastos, 2 prorrateo, 3 vencimientos,
-    4 enviar. Devuelve 0 cuando todavía no hay liquidación del período.
+    4 enviar. Sin liquidación todavía se está en el 1, cargando los gastos.
 
-    Replica a propósito la regla de `ndCierrePasoInicial()`, que es la que usa
-    el teléfono: si el escritorio dijera un paso y el móvil otro para la misma
-    liquidación, el stepper de una pantalla contradiría al de la otra.
+    Una liquidación en borrador va al 2 y no al 1 porque nace con el prorrateo
+    ya calculado —lo hace el POST que la crea—, así que lo que falta revisar es
+    el reparto, no los gastos. `ndCierrePasoInicial()` aplica la misma regla en
+    el teléfono: si cada pantalla dijera un paso distinto para la misma
+    liquidación, un stepper contradiría al otro.
     """
     if not liq:
-        return 0
+        return 1
     if liq.get('estado') in ('publicada', 'cerrada'):
         return 4
     if liq.get('fecha_vencimiento_1'):
         return 3
-    return 1
+    return 2
 
 
 # Qué se ve y qué se ofrece en cada estado del semáforo. El texto de la acción
 # es el próximo paso concreto y no el nombre de la sección: "Generar
 # liquidación" dice qué hacer, "Liquidaciones" sólo dice adónde ir.
+#
+# El cuarto campo es qué hace el botón, y lo decide el servidor y no la
+# pantalla: `ir` cambia de sección, `nueva_liquidacion` abre el modal de alta y
+# `abrir_liquidacion` entra al detalle de la que ya existe. Sin ese campo el
+# front tenía que adivinarlo de la sección, y "liquidaciones" sin un id abría el
+# alta aunque lo que hiciera falta fuera abrir una liquidación existente.
 CIERRE_ETIQUETAS = {
-    'sin_gastos':   ('Sin gastos del período',  'Cargar gastos',        'gastos'),
-    'gastos':       ('Gastos cargados',         'Generar liquidación',  'liquidaciones'),
-    'prorrateo':    ('Liquidación en borrador', 'Revisar el prorrateo', 'liquidaciones'),
-    'vencimientos': ('Vencimientos cargados',   'Enviar los resúmenes', 'liquidaciones'),
-    'enviada':      ('Resúmenes enviados',      'Ver el estado',        'liquidaciones'),
+    'sin_gastos':   ('Sin gastos del período',  'Cargar gastos',        'gastos',        'ir'),
+    'gastos':       ('Gastos cargados',         'Generar liquidación',  'liquidaciones', 'nueva_liquidacion'),
+    'prorrateo':    ('Liquidación en borrador', 'Revisar el prorrateo', 'liquidaciones', 'abrir_liquidacion'),
+    'vencimientos': ('Vencimientos cargados',   'Enviar los resúmenes', 'liquidaciones', 'abrir_liquidacion'),
+    'enviada':      ('Resúmenes enviados',      'Ver el estado',        'liquidaciones', 'abrir_liquidacion'),
 }
 
 
 def _estado_cierre(liq, gastos_del_mes: int, enviados: int) -> str:
-    if enviados or _paso_cierre(liq) == 4:
-        return 'enviada'
     paso = _paso_cierre(liq)
+    if enviados or paso == 4:
+        return 'enviada'
     if paso == 3:
         return 'vencimientos'
-    if paso >= 1:
+    if paso == 2:
         return 'prorrateo'
     return 'gastos' if gastos_del_mes else 'sin_gastos'
 
@@ -4087,15 +4095,18 @@ def api_dashboard_resumen():
 
     # ── Semáforo de cierre, una fila por edificio ─────────────────────────────
     fallidos_total = 0
+    liqs_con_fallos = []
     semaforo = []
     vacio = {'enviados': 0, 'fallidos': 0, 'pendientes': 0}
     for c in cons:
         liq = liq_del_mes.get(c['id'])
         env = envios_por_liq.get((liq or {}).get('id'), vacio)
         fallidos_total += env['fallidos']
+        if env['fallidos'] and liq:
+            liqs_con_fallos.append(liq['id'])
         gm = gastos_por_consorcio.get(c['id'], {'n': 0, 'total': 0.0})
         estado = _estado_cierre(liq, gm['n'], env['enviados'])
-        etiqueta, accion, seccion = CIERRE_ETIQUETAS[estado]
+        etiqueta, accion, seccion, accion_tipo = CIERRE_ETIQUETAS[estado]
         mora = mora_por_consorcio.get(c['id'], {'ufs': set(), 'monto': 0.0})
         semaforo.append({
             'id': c['id'],
@@ -4103,7 +4114,8 @@ def api_dashboard_resumen():
             'direccion': c.get('direccion') or '',
             'ufs': ufs_por_consorcio.get(c['id'], 0),
             'paso': _paso_cierre(liq),
-            'estado': estado, 'etiqueta': etiqueta, 'accion': accion, 'seccion': seccion,
+            'estado': estado, 'etiqueta': etiqueta, 'accion': accion,
+            'seccion': seccion, 'accion_tipo': accion_tipo,
             'liquidacion_id': (liq or {}).get('id'),
             'gastos_mes': gm['n'],
             'total_gastos_mes': round(gm['total'], 2),
@@ -4144,32 +4156,49 @@ def api_dashboard_resumen():
 
     atencion = []
 
-    def sumar(tipo, cantidad, titulo, detalle, seccion, monto=None, dias=None):
+    def sumar(tipo, cantidad, singular, plural, detalle, seccion,
+              monto=None, dias=None, liquidacion_id=None):
+        """Agrega una fila a la bandeja. El título viaja ya conjugado.
+
+        Singular y plural se eligen acá y no en la pantalla porque el número y
+        el sustantivo son una sola frase —"1 reclamo sin atender"—, y partirla
+        en dos deja al front armando gramática castellana con un ternario.
+        """
         if cantidad:
-            atencion.append({'tipo': tipo, 'cantidad': cantidad, 'titulo': titulo,
+            atencion.append({'tipo': tipo, 'cantidad': cantidad,
+                             'titulo': singular if cantidad == 1 else plural,
                              'detalle': detalle, 'seccion': seccion,
                              'monto': round(monto, 2) if monto is not None else None,
-                             'dias': dias})
+                             'dias': dias, 'liquidacion_id': liquidacion_id})
 
     # El orden es el del daño que hace no mirarlo. Un mail que rebotó es una
     # expensa que el vecino nunca vio y va a reclamar por teléfono; una tarifa
     # sin confirmar todavía se puede corregir antes de emitir.
-    sumar('envios_fallidos', fallidos_total, 'resúmenes que no llegaron',
-          'El mail rebotó: esos vecinos no vieron su expensa', 'liquidaciones')
-    sumar('solicitudes', len(solicitudes), 'vecinos esperando aprobación',
+    # Con un solo edificio afectado el click puede caer directo en su detalle;
+    # con varios no hay un destino único y se abre el listado.
+    sumar('envios_fallidos', fallidos_total,
+          'resumen que no llegó', 'resúmenes que no llegaron',
+          'El mail rebotó: esos vecinos no vieron su expensa', 'liquidaciones',
+          liquidacion_id=liqs_con_fallos[0] if len(liqs_con_fallos) == 1 else None)
+    sumar('solicitudes', len(solicitudes),
+          'vecino esperando aprobación', 'vecinos esperando aprobación',
           'Hasta que los apruebes no ven nada del edificio', 'consorcios',
           dias=_dias_del_mas_viejo(solicitudes, 'solicitud_at'))
-    sumar('tarifas', len(tarifas), 'tarifas sin confirmar',
+    sumar('tarifas', len(tarifas),
+          'tarifa sin confirmar', 'tarifas sin confirmar',
           'Recurrentes generados con el monto del mes pasado', 'gastos')
-    sumar('avisos_pago', len(avisos), 'pagos informados sin revisar',
+    sumar('avisos_pago', len(avisos),
+          'pago informado sin revisar', 'pagos informados sin revisar',
           'Declarados por vecinos, sin aceptar ni rechazar', 'cobros',
           monto=sum(_num(a.get('monto')) for a in avisos),
           dias=_dias_del_mas_viejo(avisos, 'created_at'))
-    sumar('reclamos', len(reclamos), 'reclamos sin atender',
-          'Nadie los tocó todavía', 'reclamos',
+    sumar('reclamos', len(reclamos),
+          'reclamo sin atender', 'reclamos sin atender',
+          'Nadie lo tocó todavía', 'reclamos',
           dias=_dias_del_mas_viejo(reclamos, 'created_at'))
-    sumar('gastos_vencidos', len(gastos_vencidos), 'facturas vencidas sin pagar',
-          'Pasó el vencimiento y siguen sin marcarse como pagadas', 'gastos',
+    sumar('gastos_vencidos', len(gastos_vencidos),
+          'factura vencida sin pagar', 'facturas vencidas sin pagar',
+          'Pasó el vencimiento y sigue sin marcarse como pagada', 'gastos',
           monto=sum(_num(g.get('monto')) for g in gastos_vencidos))
 
     # ── Agenda: los próximos catorce días ─────────────────────────────────────

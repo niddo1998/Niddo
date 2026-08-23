@@ -176,6 +176,69 @@
         .kpi-label { font-size: .72rem; color: var(--muted); margin-top: 3px; }
         .kpi-sub { font-size: .7rem; color: var(--muted); margin-top: 5px; }
 
+        /* ── Panel de inicio ──
+           Las filas son <div> o <button> y no <table>: la misma marca tiene que
+           leerse en 1440px y en 360px, y una tabla a 360 obliga a scroll
+           horizontal o a esconder columnas. */
+        .dash-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+        .dash-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+        @media (max-width: 1100px) { .dash-cols { grid-template-columns: 1fr; } }
+
+        .dash-row {
+            display: flex; align-items: center; gap: 12px; width: 100%;
+            padding: 11px 16px; border-bottom: 1px solid var(--border);
+            background: transparent; border-left: none; border-right: none; border-top: none;
+            font-family: var(--font); text-align: left; color: var(--text);
+        }
+        .dash-row:last-child { border-bottom: none; }
+        button.dash-row { cursor: pointer; transition: background .15s; }
+        button.dash-row:hover { background: var(--surface2); }
+        .dash-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+        .dash-row-t { font-size: .84rem; font-weight: 700; }
+        .dash-row-s { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+        .dash-row-end { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+        .dash-nota { font-size: .7rem; color: var(--muted); white-space: nowrap; }
+        .dash-monto { font-size: .78rem; white-space: nowrap; }
+
+        /* Los cuatro pasos del cierre, en el mismo orden que el stepper del
+           teléfono: gastos, prorrateo, vencimientos, enviar. */
+        .dash-pasos { display: flex; gap: 3px; flex-shrink: 0; }
+        .dash-pasos i { width: 15px; height: 4px; border-radius: 2px; background: var(--border2); }
+        .dash-pasos i.hecho  { background: var(--nd-verde); }
+        .dash-pasos i.actual { background: var(--nd-terracota); }
+
+        /* El primero de la bandeja es el que más daño hace ignorar. */
+        .dash-alerta.urgente { box-shadow: inset 3px 0 0 var(--nd-terracota-hondo); }
+        .dash-num {
+            font-family: var(--font-display); font-size: 1.1rem; font-weight: 700;
+            min-width: 28px; text-align: right; flex-shrink: 0;
+        }
+
+        .dash-fecha {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            width: 38px; flex-shrink: 0; border-radius: 10px; padding: 4px 0;
+            background: var(--surface2); line-height: 1.1;
+        }
+        .dash-fecha b { font-family: var(--font-display); font-size: .95rem; }
+        .dash-fecha span { font-size: .6rem; color: var(--muted); text-transform: uppercase; }
+        .dash-fecha.hoy { background: var(--nd-terracota-dim); }
+        .dash-fecha.hoy b, .dash-fecha.hoy span { color: var(--nd-terracota-hondo); }
+
+        /* En el teléfono el cierre lo cuenta la tarjeta de "Hoy", que muestra el
+           consorcio del contexto activo. Repetir acá la lista de todos sería
+           decir dos veces lo mismo en la pantalla donde menos lugar hay. */
+        @media (max-width: 900px) {
+            .dash-escritorio { display: none; }
+            /* Cuatro KPIs con importes de siete cifras no entran en una fila con
+               wrap: el tercero desbordaba y metía scroll horizontal. Dos
+               columnas fijas y el número un punto más chico. Va sobre #dash-plata
+               y no sobre .kpi-row para no tocar las otras secciones. */
+            #dash-plata { display: grid; grid-template-columns: 1fr 1fr; }
+            #dash-plata .kpi { min-width: 0; padding: 12px 14px; }
+            #dash-plata .kpi-val { font-size: 1.15rem; }
+            .dash-acciones { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+        }
+
         /* ── Card ── */
         .card { background: var(--surface); border-radius: 16px; border: 1px solid var(--border); margin-bottom: 14px; overflow: hidden; }
         .card-h { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
@@ -363,7 +426,7 @@
     <a href="/" class="nd-logo sidebar-brand">nidd<span class="o">o</span></a>
     <div class="sidebar-nav">
         <div class="nav-section-label">General</div>
-        <a class="nav-link active" onclick="show('dashboard',this)"><svg class="ic"><use href="#ic-panel"></use></svg>Dashboard</a>
+        <a class="nav-link active" onclick="show('dashboard',this)"><svg class="ic"><use href="#ic-panel"></use></svg>Panel</a>
         <a class="nav-link" onclick="show('consorcios',this)"><svg class="ic"><use href="#ic-edificio"></use></svg>Consorcios</a>
 
         <div class="nav-section-label">Operaciones</div>
@@ -410,14 +473,42 @@
 <!-- ═══ DASHBOARD ═══ -->
 <div id="sec-dashboard" class="section active">
     <div class="page-header">
-        <div><h1 class="page-title">Dashboard</h1><p class="page-sub" id="dash-fecha"></p></div>
+        <div><h1 class="page-title">Panel</h1><p class="page-sub" id="dash-fecha"></p></div>
+        <div class="dash-acciones">
+            <button class="btn-s btn-sm" onclick="openGastoChoice()"><svg class="ic ic-sm"><use href="#ic-expensa"></use></svg>Cargar gasto</button>
+            <button class="btn-s btn-sm" onclick="dashNuevaLiquidacion()"><svg class="ic ic-sm"><use href="#ic-liquidacion"></use></svg>Nueva liquidación</button>
+            <button class="btn-s btn-sm" onclick="show('cobros')"><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>Cobros</button>
+            <button class="btn-s btn-sm" onclick="loadDashboard()" aria-label="Actualizar" title="Actualizar"><svg class="ic ic-sm"><use href="#ic-rayo"></use></svg></button>
+        </div>
     </div>
-    <div class="kpi-row" id="dash-kpis">
-        <div class="kpi"><div class="kpi-val" id="kpi-consorcios">—</div><div class="kpi-label">Consorcios activos</div></div>
-        <div class="kpi"><div class="kpi-val" id="kpi-gastos" style="color:var(--nd-tinta-calida)">—</div><div class="kpi-label">Gastos pendientes</div></div>
-        <div class="kpi"><div class="kpi-val" id="kpi-mora" style="color:var(--nd-terracota-hondo)">—</div><div class="kpi-label">Vecinos en mora</div></div>
+
+    <!-- Un bloque que no se pudo leer se dice, en vez de mostrar un cero que se
+         lee igual que un dato bueno. -->
+    <div class="section-info" id="dash-degradado" style="display:none;">
+        <svg class="ic ic-sm"><use href="#ic-alerta"></use></svg><span id="dash-degradado-txt"></span>
     </div>
-    <div class="section-info"><svg class="ic ic-sm"><use href="#ic-info"></use></svg>Usá el panel lateral para gestionar consorcios, gastos, cobros y proveedores. Los datos se cargan en tiempo real desde Supabase.</div>
+
+    <div class="card dash-escritorio">
+        <div class="card-h">
+            <span class="card-t">El mes en cada edificio</span>
+            <span class="dash-nota" id="dash-periodo">—</span>
+        </div>
+        <div id="dash-semaforo"><div class="tbl-empty">Cargando...</div></div>
+    </div>
+
+    <!-- La tarjeta de "Hoy" del teléfono se inserta arriba de este .kpi-row. -->
+    <div class="kpi-row" id="dash-plata"></div>
+
+    <div class="dash-cols">
+        <div class="card">
+            <div class="card-h"><span class="card-t">Requiere tu atención</span></div>
+            <div id="dash-atencion"><div class="tbl-empty">Cargando...</div></div>
+        </div>
+        <div class="card">
+            <div class="card-h"><span class="card-t">Próximos 14 días</span></div>
+            <div id="dash-agenda"><div class="tbl-empty">Cargando...</div></div>
+        </div>
+    </div>
 </div>
 
 <!-- ═══ CONSORCIOS ═══ -->
@@ -1646,16 +1737,222 @@ function poblarDiasCarga() {
     }
 }
 
-// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+// ── PANEL DE INICIO ───────────────────────────────────────────────────────────
+/* Las cinco tarjetas se piden en una sola llamada porque se pintan juntas: la
+   pantalla no sirve a medias, así que un endpoint por bloque serían cinco
+   viajes en serie para dibujar lo mismo. */
 async function loadDashboard() {
     $('dash-fecha').textContent = new Date().toLocaleDateString('es-AR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    let d;
     try {
-        const d = await api('/api/dashboard/kpis');
-        $('kpi-consorcios').textContent = d.consorcios;
-        $('kpi-gastos').textContent = d.gastos_pendientes;
-        $('kpi-mora').textContent = d.en_mora;
-    } catch {}
+        d = await api('/api/dashboard/resumen');
+    } catch (e) {
+        $('dash-semaforo').innerHTML =
+            `<div class="tbl-empty">No se pudo cargar el panel: ${escHtml(e.message)}</div>`;
+        return;
+    }
+    dashDegradado(d.degradado);
+    dashSemaforo(d);
+    dashPlata(d.plata);
+    dashAtencion(d.atencion);
+    dashAgenda(d.agenda, d.hoy);
     if (ndMobile()) ndCierreHoy();
+}
+
+const DASH_BLOQUES = {
+    tarifas: 'las tarifas por confirmar', solicitudes: 'las solicitudes de vecinos',
+    reclamos: 'los reclamos', avisos: 'los pagos informados',
+    envio_programado: 'el envío programado', reservas: 'las reservas',
+};
+
+function dashDegradado(lista) {
+    const el = $('dash-degradado');
+    if (!lista || !lista.length) { el.style.display = 'none'; return; }
+    $('dash-degradado-txt').textContent =
+        'No se pudo leer ' + lista.map(x => DASH_BLOQUES[x] || x).join(', ') +
+        '. Suele ser una migración de Supabase sin correr. El resto del panel es correcto.';
+    el.style.display = 'flex';
+}
+
+// ── Bloque A: el mes en cada edificio ─────────────────────────────────────────
+const dashPlural = (n, singular, plural) => `${n} ${n === 1 ? singular : plural}`;
+
+const DASH_CIERRE_BADGE = {
+    sin_gastos: 'b-gr', gastos: 'b-y', prorrateo: 'b-y',
+    vencimientos: 'b-b', enviada: 'b-g',
+};
+
+function dashSemaforo(d) {
+    $('dash-periodo').textContent = ndPeriodoTexto(d.periodo);
+    const cont = $('dash-semaforo');
+    if (d.sin_consorcios) {
+        cont.innerHTML = `<div class="tbl-empty">Todavía no cargaste ningún edificio.
+            <button class="btn-p btn-sm" style="margin-left:8px;"
+                    onclick="show('consorcios');openConsorioModal()">Crear el primero</button></div>`;
+        return;
+    }
+    cont.innerHTML = d.consorcios.map(c => {
+        /* Los cuatro pasos son los mismos del cierre de mes: el que está en
+           curso va en terracota y los cumplidos en verde. */
+        const pasos = [1,2,3,4].map(n =>
+            `<i class="${n < c.paso ? 'hecho' : n === c.paso ? 'actual' : ''}"></i>`).join('');
+        const avance = c.envios.enviados
+            ? `${c.envios.enviados} de ${c.ufs || c.envios.enviados} resúmenes enviados`
+            : `${dashPlural(c.gastos_mes, 'gasto', 'gastos')} del mes · ${fmt(c.total_gastos_mes)}`;
+        const alertas = [
+            c.envios.fallidos ? `<span class="b b-r">${c.envios.fallidos} rebotaron</span>` : '',
+            c.ufs_en_mora ? `<span class="b b-r">${dashPlural(c.ufs_en_mora, 'UF', 'UFs')} en mora</span>` : '',
+        ].join('');
+        return `<div class="dash-row">
+            <span class="dash-pasos" title="Paso ${c.paso} de 4">${pasos}</span>
+            <span class="dash-row-main">
+                <span class="dash-row-t">${escHtml(c.nombre)}</span>
+                <span class="dash-row-s">${avance} · ${dashPlural(c.ufs, 'UF', 'UFs')}</span>
+            </span>
+            <span class="dash-row-end">
+                ${alertas}
+                <span class="b ${DASH_CIERRE_BADGE[c.estado] || 'b-gr'}">${escHtml(c.etiqueta)}</span>
+                <button class="btn-s btn-sm"
+                        onclick="dashAccion('${c.accion_tipo}','${c.seccion}','${c.liquidacion_id || ''}')">${escHtml(c.accion)}</button>
+            </span>
+        </div>`;
+    }).join('');
+}
+
+/* Qué hace el botón lo decide el servidor (`accion_tipo`) y no esta función.
+   Deducirlo de la sección era lo que hacía que "2 resúmenes que no llegaron"
+   abriera el alta de una liquidación nueva en vez de la que había fallado. */
+async function dashAccion(tipo, seccion, lid) {
+    if (tipo === 'nueva_liquidacion') { await dashNuevaLiquidacion(); return; }
+    if (tipo === 'abrir_liquidacion' && lid) { await ndSeguirCierre(lid); return; }
+    show(seccion);
+}
+
+/* El modal de nueva liquidación llena su <select> desde la lista global de
+   consorcios, que hasta ahora sólo cargaba la sección Consorcios: abierto desde
+   el panel, el desplegable salía vacío. */
+async function dashNuevaLiquidacion() {
+    show('liquidaciones');
+    if (!consorcios.length) await loadConsorcios();
+    openNuevaLiquidacionModal();
+}
+
+// ── Bloque C: los números de plata ────────────────────────────────────────────
+function dashPlata(p) {
+    const hayPct = p.cobrado_pct !== null && p.cobrado_pct !== undefined;
+    const subCobrado = p.cobrado_periodo
+        ? `${fmt(p.cobrado_monto)} de ${fmt(p.emitido_monto)} · ${ndPeriodoTexto(p.cobrado_periodo)}`
+        : 'Todavía no emitiste cobros';
+    const v = p.variacion_egresos;
+    const comparacion = (v === null || v === undefined)
+        ? 'Sin mes anterior para comparar'
+        : `${v > 0 ? '▲' : v < 0 ? '▼' : '='} ${Math.abs(v)}% vs. ${fmt(p.egresos_mes_anterior)}`;
+    /* Gastar más que el mes pasado no es un logro: sube en terracota y baja en
+       verde, al revés de lo que haría un panel de ventas. */
+    const colorV = v > 0 ? 'var(--nd-terracota-hondo)' : v < 0 ? 'var(--nd-verde)' : 'var(--muted)';
+
+    $('dash-plata').innerHTML = `
+        <div class="kpi">
+            <div class="kpi-val" style="color:${hayPct && p.cobrado_pct < 70 ? 'var(--nd-terracota-hondo)' : 'var(--nd-verde)'}">${hayPct ? p.cobrado_pct + '%' : '—'}</div>
+            <div class="kpi-label">Cobrado del período</div>
+            <div class="kpi-sub">${subCobrado}</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-val" style="color:var(--nd-terracota-hondo)">${fmt(p.deuda_vencida)}</div>
+            <div class="kpi-label">Deuda vencida</div>
+            <div class="kpi-sub">${dashPlural(p.ufs_en_mora, 'UF', 'UFs')} en mora · ${fmt(p.deuda_total)} sin cobrar en total</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-val">${fmt(p.egresos_mes)}</div>
+            <div class="kpi-label">Egresos del mes</div>
+            <div class="kpi-sub" style="color:${colorV}">${comparacion}</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi-val">${fmt(p.honorarios_mes)}</div>
+            <div class="kpi-label">Tus honorarios del mes</div>
+            <div class="kpi-sub">Lo cargado con categoría "honorarios"</div>
+        </div>`;
+}
+
+// ── Bloque B: la bandeja ──────────────────────────────────────────────────────
+const DASH_ATENCION_ICONO = {
+    envios_fallidos: 'ic-mail', solicitudes: 'ic-vecino', tarifas: 'ic-expensa',
+    avisos_pago: 'ic-cobro', reclamos: 'ic-alerta', gastos_vencidos: 'ic-pendiente',
+};
+
+function dashAtencion(items) {
+    /* El badge del nav se enteraba sólo si entrabas a Reclamos. El panel es la
+       primera pantalla, así que ahora lo deja bien de entrada. */
+    const rec = items.find(i => i.tipo === 'reclamos');
+    const badge = $('nav-badge-reclamos');
+    if (badge) {
+        badge.textContent = rec ? rec.cantidad : '';
+        badge.style.display = rec ? 'inline-block' : 'none';
+    }
+
+    const cont = $('dash-atencion');
+    if (!items.length) {
+        cont.innerHTML = '<div class="tbl-empty">Nada esperando por vos. Todo al día.</div>';
+        return;
+    }
+    cont.innerHTML = items.map((it, i) => {
+        const detalle = [it.detalle];
+        if (it.monto) detalle.push(fmt(it.monto));
+        if (it.dias !== null && it.dias !== undefined) detalle.push('el más viejo, ' + dashHace(it.dias));
+        const tipo = it.liquidacion_id ? 'abrir_liquidacion' : 'ir';
+        return `<button class="dash-row dash-alerta ${i === 0 ? 'urgente' : ''}"
+                        onclick="dashAccion('${tipo}','${it.seccion}','${it.liquidacion_id || ''}')">
+            <span class="dash-num">${it.cantidad}</span>
+            <span class="dash-row-main">
+                <span class="dash-row-t">${escHtml(it.titulo)}</span>
+                <span class="dash-row-s">${escHtml(detalle.join(' · '))}</span>
+            </span>
+            <span class="dash-row-end"><svg class="ic ic-sm"><use href="#${DASH_ATENCION_ICONO[it.tipo] || 'ic-chevron'}"></use></svg></span>
+        </button>`;
+    }).join('');
+}
+
+function dashHace(dias) {
+    if (dias <= 0) return 'de hoy';
+    return dias === 1 ? 'de ayer' : `de hace ${dias} días`;
+}
+
+// ── Bloque D: los próximos catorce días ───────────────────────────────────────
+const DASH_MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+function dashAgenda(items, hoyISO) {
+    const cont = $('dash-agenda');
+    if (!items.length) {
+        cont.innerHTML = '<div class="tbl-empty">Nada vence en las próximas dos semanas.</div>';
+        return;
+    }
+    cont.innerHTML = items.map(it => {
+        const bajo = [it.detalle, it.consorcio].filter(Boolean).join(' · ');
+        return `<div class="dash-row">
+            <span class="dash-fecha ${it.fecha === hoyISO ? 'hoy' : ''}">
+                <b>${Number(it.fecha.slice(8, 10))}</b><span>${DASH_MESES_CORTOS[Number(it.fecha.slice(5, 7)) - 1]}</span>
+            </span>
+            <span class="dash-row-main">
+                <span class="dash-row-t">${escHtml(it.titulo)}</span>
+                <span class="dash-row-s">${escHtml(bajo)}</span>
+            </span>
+            <span class="dash-row-end">
+                ${it.monto ? `<b class="dash-monto">${fmt(it.monto)}</b>` : ''}
+                <span class="dash-nota">${dashCuando(it.fecha, hoyISO)}</span>
+            </span>
+        </div>`;
+    }).join('');
+}
+
+/* Las dos fechas se parsean igual —medianoche local— así que la resta da el
+   número de días exacto. Con `new Date('2026-08-24')` a secas serían UTC, y en
+   Argentina eso muestra el día anterior. */
+function dashCuando(fecha, hoyISO) {
+    const dias = Math.round(
+        (Date.parse(fecha + 'T00:00:00') - Date.parse(hoyISO + 'T00:00:00')) / 86400000);
+    if (dias <= 0) return 'hoy';
+    if (dias === 1) return 'mañana';
+    return `en ${dias} días`;
 }
 
 /* La tarjeta del mes en curso, arriba de todo en "Hoy". Sin esto el cierre
@@ -1687,7 +1984,7 @@ async function ndCierreHoy() {
                     <div class="lbl">Cierre de mes</div>
                     <div class="nd-hoy-t">Sin liquidación en curso</div>
                     <div class="meta">Empezá el cierre cuando tengas los gastos del período cargados</div>
-                    <button class="nd-hoy-btn" onclick="show('liquidaciones');openNuevaLiquidacionModal()">
+                    <button class="nd-hoy-btn" onclick="dashNuevaLiquidacion()">
                         Nueva liquidación</button>
                 </div>`;
             return;
@@ -3720,11 +4017,15 @@ function ndCierreSiguiente() {
 
 /* En qué paso cae al entrar. No se guarda nada nuevo: se deduce del estado
    de la liquidación, así salir y volver no pierde el lugar. */
+/* Misma regla que `_paso_cierre()` en el servidor, a propósito: si cada
+   pantalla dijera un paso distinto para la misma liquidación, un stepper
+   contradiría al otro. El borrador va al 2 y no al 1 porque nace con el
+   prorrateo ya calculado, así que lo que falta revisar es el reparto. */
 function ndCierrePasoInicial(l) {
     if (!l) return 1;
     if (l.estado === 'publicada' || l.estado === 'cerrada') return 4;
     if (l.fecha_vencimiento_1) return 3;
-    return 1;
+    return 2;
 }
 
 async function loadRubros() {

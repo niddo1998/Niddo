@@ -103,7 +103,7 @@ def test_sin_gastos_del_mes_el_paso_es_cargar_gastos(admin, base):
     fila = _resumen(admin)['consorcios'][0]
     assert fila['estado'] == 'sin_gastos'
     assert fila['accion'] == 'Cargar gastos'
-    assert fila['paso'] == 0
+    assert fila['paso'] == 1     # sin liquidación se está en el primer paso
 
 
 def test_con_gastos_y_sin_liquidacion_toca_liquidar(admin, base):
@@ -129,7 +129,9 @@ def test_liquidacion_en_borrador_pide_revisar_el_prorrateo(admin, base):
                               'fecha_vencimiento_1': None}]
     fila = _resumen(admin)['consorcios'][0]
     assert fila['estado'] == 'prorrateo'
-    assert fila['paso'] == 1
+    # El 2 y no el 1: la liquidación nace con el prorrateo ya calculado, así que
+    # lo que falta revisar es el reparto y no los gastos.
+    assert fila['paso'] == 2
     assert fila['liquidacion_id'] == 'liq-1'
 
 
@@ -429,3 +431,104 @@ def test_una_tabla_que_falla_degrada_el_bloque_y_no_la_pantalla(admin, base,
 ])
 def test_proximo_dia_del_mes(hoy, dia, esperado):
     assert app_mod._proximo_dia_del_mes(hoy, dia) == esperado
+
+
+# ── Los dos steppers dicen lo mismo ───────────────────────────────────────────
+#
+# El paso del cierre se deriva dos veces: `_paso_cierre()` acá y
+# `ndCierrePasoInicial()` en `admin_dashboard.html`, porque el teléfono lo
+# calcula sobre la liquidación que ya tiene en memoria. Dos implementaciones de
+# la misma regla se separan a la primera edición, y el síntoma sería un stepper
+# contradiciendo al otro para la misma liquidación. Este test las compara.
+
+import re
+from pathlib import Path
+
+CASOS = [
+    (None, 1),
+    ({'estado': 'borrador', 'fecha_vencimiento_1': None}, 2),
+    ({'estado': 'borrador', 'fecha_vencimiento_1': '2026-09-10'}, 3),
+    ({'estado': 'publicada', 'fecha_vencimiento_1': None}, 4),
+    ({'estado': 'cerrada', 'fecha_vencimiento_1': '2026-09-10'}, 4),
+]
+
+
+@pytest.mark.parametrize('liq, esperado', CASOS)
+def test_el_servidor_deriva_el_paso_del_cierre(liq, esperado):
+    assert app_mod._paso_cierre(liq) == esperado
+
+
+def test_el_telefono_deriva_el_mismo_paso_que_el_servidor():
+    """Se lee `ndCierrePasoInicial()` del template y se corre contra los casos."""
+    src = (Path(__file__).resolve().parent.parent
+           / 'templates' / 'admin_dashboard.html').read_text()
+    cuerpo = re.search(r'function ndCierrePasoInicial\(l\) \{(.*?)\n\}', src, re.S)
+    assert cuerpo, 'no está ndCierrePasoInicial() en el template'
+
+    # Se traduce el cuerpo del JS a las mismas condiciones, en el mismo orden.
+    lineas = [l.strip() for l in cuerpo.group(1).strip().splitlines()]
+    assert lineas == [
+        'if (!l) return 1;',
+        "if (l.estado === 'publicada' || l.estado === 'cerrada') return 4;",
+        'if (l.fecha_vencimiento_1) return 3;',
+        'return 2;',
+    ], ('ndCierrePasoInicial() cambió: si la regla nueva es la buena, hay que '
+        'mover igual _paso_cierre() en app.py y actualizar este test.')
+
+
+# ── Adónde lleva cada botón ───────────────────────────────────────────────────
+#
+# El destino lo decide el servidor y no la pantalla. Cuando lo deducía el front
+# a partir de la sección, "resúmenes que no llegaron" abría el alta de una
+# liquidación nueva en vez de la que había fallado.
+
+def _fila(admin):
+    return _resumen(admin)['consorcios'][0]
+
+
+def test_sin_liquidacion_el_boton_lleva_a_cargar_gastos(admin, base):
+    base['gastos'] = []
+    assert _fila(admin)['accion_tipo'] == 'ir'
+
+
+def test_con_gastos_el_boton_abre_el_alta_de_liquidacion(admin, base):
+    base['gastos'] = [_gasto()]
+    assert _fila(admin)['accion_tipo'] == 'nueva_liquidacion'
+
+
+def test_con_liquidacion_el_boton_abre_la_que_existe(admin, base):
+    base['liquidaciones'] = [{'id': 'liq-1', 'admin_id': 'admin-1',
+                              'consorcio_id': 'cons-1', 'periodo': PERIODO,
+                              'estado': 'borrador', 'numero_revision': 1,
+                              'fecha_vencimiento_1': None}]
+    fila = _fila(admin)
+    assert fila['accion_tipo'] == 'abrir_liquidacion'
+    assert fila['liquidacion_id'] == 'liq-1'
+
+
+def _liq_fallida(lid, cid):
+    return {'id': lid, 'admin_id': 'admin-1', 'consorcio_id': cid,
+            'periodo': PERIODO, 'estado': 'publicada', 'numero_revision': 1}
+
+
+def test_un_solo_edificio_con_rebotes_lleva_directo_a_su_liquidacion(admin, base):
+    base['liquidaciones'] = [_liq_fallida('liq-1', 'cons-1')]
+    base['resumen_envios'] = [{'id': 'e-1', 'liquidacion_id': 'liq-1', 'estado': 'fallido'}]
+    item = next(i for i in _resumen(admin)['atencion'] if i['tipo'] == 'envios_fallidos')
+    assert item['liquidacion_id'] == 'liq-1'
+
+
+def test_con_varios_edificios_con_rebotes_no_hay_destino_unico(admin, base):
+    base['consorcios'].append({'id': 'cons-3', 'admin_id': 'admin-1', 'nombre': 'Otro mío'})
+    base['liquidaciones'] = [_liq_fallida('liq-1', 'cons-1'), _liq_fallida('liq-3', 'cons-3')]
+    base['resumen_envios'] = [{'id': 'e-1', 'liquidacion_id': 'liq-1', 'estado': 'fallido'},
+                              {'id': 'e-3', 'liquidacion_id': 'liq-3', 'estado': 'fallido'}]
+    item = next(i for i in _resumen(admin)['atencion'] if i['tipo'] == 'envios_fallidos')
+    assert item['cantidad'] == 2 and item['liquidacion_id'] is None
+
+
+def test_la_bandeja_escribe_en_singular_cuando_hay_uno_solo(admin, base):
+    base['reclamos'] = [{'id': 'r-1', 'consorcio_id': 'cons-1', 'estado': 'activo',
+                         'created_at': f'{HOY.isoformat()}T09:00:00+00:00'}]
+    item = next(i for i in _resumen(admin)['atencion'] if i['tipo'] == 'reclamos')
+    assert item['titulo'] == 'reclamo sin atender'
