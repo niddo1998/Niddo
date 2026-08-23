@@ -532,3 +532,24 @@ def test_la_bandeja_escribe_en_singular_cuando_hay_uno_solo(admin, base):
                          'created_at': f'{HOY.isoformat()}T09:00:00+00:00'}]
     item = next(i for i in _resumen(admin)['atencion'] if i['tipo'] == 'reclamos')
     assert item['titulo'] == 'reclamo sin atender'
+
+
+def test_el_paso_y_la_etiqueta_nunca_se_contradicen(admin, base):
+    """Un borrador con envíos hechos es 'enviada': el stepper tiene que decir 4.
+
+    Con `_paso_cierre()` a secas la fila mostraba el stepper en 2 al lado de la
+    etiqueta "Resúmenes enviados".
+    """
+    base['liquidaciones'] = [{'id': 'liq-1', 'admin_id': 'admin-1',
+                              'consorcio_id': 'cons-1', 'periodo': PERIODO,
+                              'estado': 'borrador', 'numero_revision': 1,
+                              'fecha_vencimiento_1': None}]
+    base['resumen_envios'] = [{'id': 'e-1', 'liquidacion_id': 'liq-1', 'estado': 'enviado'}]
+    fila = _resumen(admin)['consorcios'][0]
+    assert fila['estado'] == 'enviada' and fila['paso'] == 4
+
+
+@pytest.mark.parametrize('estado', sorted(app_mod.CIERRE_ETIQUETAS))
+def test_cada_estado_del_semaforo_tiene_su_paso(estado):
+    """Un estado nuevo sin entrada en ESTADO_PASO haría estallar el endpoint."""
+    assert estado in app_mod.ESTADO_PASO

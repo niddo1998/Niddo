@@ -3950,6 +3950,15 @@ def _estado_cierre(liq, gastos_del_mes: int, enviados: int) -> str:
     return 'gastos' if gastos_del_mes else 'sin_gastos'
 
 
+# El paso que se muestra sale del estado y no de `_paso_cierre()` directo. Los
+# dos coinciden salvo en un caso: una liquidación en borrador que ya tiene
+# envíos hechos es 'enviada' con `_paso_cierre()` en 2, y la fila mostraría el
+# stepper a la mitad al lado de la etiqueta "Resúmenes enviados". Derivándolo
+# del estado, el número y la etiqueta no se pueden contradecir.
+ESTADO_PASO = {'sin_gastos': 1, 'gastos': 1, 'prorrateo': 2,
+               'vencimientos': 3, 'enviada': 4}
+
+
 def _resumen_vacio(hoy: date, periodo: str):
     """La respuesta de un administrador recién aprobado, sin edificios todavía.
 
@@ -4113,7 +4122,7 @@ def api_dashboard_resumen():
             'nombre': c.get('nombre') or '',
             'direccion': c.get('direccion') or '',
             'ufs': ufs_por_consorcio.get(c['id'], 0),
-            'paso': _paso_cierre(liq),
+            'paso': ESTADO_PASO[estado],
             'estado': estado, 'etiqueta': etiqueta, 'accion': accion,
             'seccion': seccion, 'accion_tipo': accion_tipo,
             'liquidacion_id': (liq or {}).get('id'),
