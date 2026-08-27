@@ -237,6 +237,9 @@ const ADMIN = [
     {t:"Exportar PDF/Excel individual por unidad", s:"planned", note:"Ya sale la liquidación COMPLETA en PDF adjunta al mail, que es lo que la ley obliga a rendir. El recorte a una sola unidad sigue en HTML: es comodidad, no requisito"},
     {t:"Enviar por mail (WhatsApp deshabilitado)", s:"built", note:"Con el PDF de la liquidación completa adjunto, en formato \"Mis Expensas\""},
     {t:"Programar el envío mensual", s:"planned", note:"El modal \"Agendar\" guarda en envio_programado y nadie lo ejecuta. Antes de montar un cron conviene mirar cómo se resolvieron los gastos recurrentes: generación perezosa disparada por la request, sin scheduler"},
+    {t:"Cargar el CUIT y la matrícula del administrador", s:"planned", note:"El PDF los imprime en el encabezado si vienen con valor y los saltea callado si no. Los tiene la v18 (administradores.cuit, matricula, direccion) y no hay por dónde cargarlos: CAMPOS_PERFIL_EDITABLES['admin'] no los incluye y ninguna plantilla los muestra. La matrícula RPA/RPAC es parte del formato normativo que se está imitando"},
+    {t:"Corregir a mano una fila del prorrateo", s:"planned", note:"PUT /api/liquidaciones/&lt;lid&gt;/prorrateo/&lt;pid&gt; existe y ninguna pantalla lo llama: la tabla de prorrateo es de sólo lectura. Si una unidad quedó con un saldo anterior mal, no hay forma de tocarlo desde la app"},
+    {t:"Cargar la composición del saldo", s:"planned", note:"saldo_bancario, saldo_superfondo y saldo_administrador los acepta el PUT de la liquidación y no los manda ninguna pantalla, así que ese cuadro del PDF sale en cero"},
     {t:"Que la liquidación genere la deuda del vecino", s:"built", note:"Emitir crea el cobro de cada unidad con su total prorrateado. Antes eran dos mundos: el mail llevaba el total y la cuenta del vecino un monto plano cargado a mano, y podían no coincidir"}
   ]},
   { id:"a2",  label:"Cargar gastos y facturas (OCR)", link:null, estado:"built", items:[
@@ -254,9 +257,11 @@ const ADMIN = [
     {t:"Matchear pago con unidad funcional", s:"none"},
     {t:"Resolver cobros no identificados", s:"none"},
     {t:"Actualizar cuenta corriente automáticamente", s:"planned", note:"La cuenta ya refleja lo que dice el mail, porque el cobro nace del prorrateo. Falta el otro lado: que registrar un pago la cierre sola"},
-    {t:"Revisar el aviso de pago que mandó el vecino", s:"planned", note:"GET/PUT /api/admin/avisos-pago existen sin pantalla: el vecino avisa y del otro lado no lo ve nadie"}
+    {t:"Revisar el aviso de pago que mandó el vecino", s:"planned", note:"El panel de inicio ya avisa cuántos hay sin revisar y por cuánta plata, así que dejaron de pasar desapercibidos; aceptarlos o rechazarlos sigue sin pantalla. GET/PUT /api/admin/avisos-pago existen sin pantalla: el vecino avisa y del otro lado no lo ve nadie"}
   ]},
   { id:"a5",  label:"Gestionar morosidad y planes de pago", link:"v2", estado:"partial", items:[
+    {t:"Ver la deuda vencida real", s:"built", note:"El panel la calcula por fecha_vencimiento sin mirar el estado, y la muestra en plata y por edificio. Antes /api/dashboard/kpis contaba por estado —que nadie escribe— y encima sin filtrar por administrador"},
+    {t:"Que el cobro pase solo a vencido", s:"planned", note:"Nada mueve cobros.estado el día del vencimiento. El panel lo esquiva calculándolo, pero el vecino sigue viendo su cobro como \"pendiente\" en su pantalla y la sección Morosidad, que filtra por estado, sigue vacía. Mirá cómo se resolvieron los gastos recurrentes: sin cron, con generación perezosa disparada por la request"},
     {t:"Calcular deuda e intereses acumulados", s:"planned", note:"El interés ya se calcula con la tasa del consorcio al emitir la liquidación siguiente. Sigue faltando que algo pase el cobro a vencido/en_mora el día del vencimiento"},
     {t:"Generar recordatorios automáticos", s:"none"},
     {t:"Armar planes de pago", s:"none"}
@@ -284,7 +289,8 @@ const ADMIN = [
   { id:"a10", label:"Configurar amenities y disponibilidad", link:"v5", estado:"built", items:[
     {t:"Crear amenity y condiciones de uso", s:"built"},
     {t:"Ver y cancelar reservas", s:"built"},
-    {t:"Definir capacidad máxima", s:"built"}
+    {t:"Definir capacidad máxima y cupo por mes", s:"built"},
+    {t:"Ponerle precio al amenity", s:"planned", note:"El prorrateo ya cobra las reservas confirmadas en la columna USO AMENITIES del PDF, pero amenities.precio_uso (v18) no lo acepta ni el POST, ni el PUT, ni el modal: es una columna con lector y sin escritor, así que hoy ninguna reserva cobra nunca"}
   ]},
   { id:"a11", label:"Crear votaciones / encuestas", link:"v6", estado:"partial", items:[
     {t:"Crear votación con opciones", s:"planned", note:"POST/PUT /api/admin/votaciones existe, sin UI"},
@@ -326,7 +332,8 @@ const VEC = [
     {t:"Aceptar tarjeta de débito/crédito", s:"none"}
   ]},
   { id:"v2",  label:"Ver cuenta corriente y comprobantes", link:"a5", estado:"partial", items:[
-    {t:"Historial de liquidaciones", s:"built"},
+    {t:"Historial de lo que se le cobró", s:"built", note:"Período, total y estado, con cupón de pago en PDF por cobro y exportación de la cuenta corriente a Excel"},
+    {t:"Abrir la liquidación del mes", s:"planned", note:"/api/liquidaciones/* es allowed_roles=['admin'] entero, así que la rendición con rubros y los cuadros del art. 10 le llega sólo por mail. Si pierde el mail, desde la app no la recupera"},
     {t:"Detalle de gastos del período", s:"built"},
     {t:"Descargar comprobantes", s:"built", note:"El cupón por cobro, el adjunto del gasto y la cuenta corriente entera en Excel o PDF. La ruta de exportación no acepta una unidad ajena por query string"},
     {t:"Ver en qué quedó el pago que informó", s:"built", note:"Tabla \"Pagos que informaste\" con su estado. El endpoint existía desde v6 y ninguna pantalla lo llamaba"}
