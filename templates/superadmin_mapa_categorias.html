@@ -350,7 +350,7 @@ const CATEGORIES = [
   ]},
   { id:"ia", code:"IA", name:"Inteligencia artificial", hue:155, funcs:[
     { name:"Leer facturas automáticamente", role:"admin", tech:["Groq Vision"], items:[
-      {t:"Extraer proveedor, monto y fecha", s:"built"},
+      {t:"Extraer monto, categoría y fecha", s:"built", note:"El proveedor se dejó de extraer el 28/08/2026: el gasto ya no tiene dónde guardarlo"},
       {t:"Sugerir centro de costo", s:"built"}
     ]},
     { name:"Asistir en comunicación", role:"admin", tech:[], items:[
@@ -389,7 +389,7 @@ const CATEGORIES = [
   ]},
   { id:"seg", code:"SEG", name:"Seguridad y aislamiento entre clientes", hue:5, funcs:[
     { name:"Separar los datos de cada administrador", role:"admin", tech:["Supabase"], items:[
-      {t:"Filtrar consorcios, gastos y liquidaciones por admin_id", s:"built", note:"/api/consorcios, /api/gastos, /api/proveedores y /api/liquidaciones (incluidos PUT y DELETE) sí filtran por el admin de la sesión"},
+      {t:"Filtrar consorcios, gastos y liquidaciones por admin_id", s:"built", note:"/api/consorcios, /api/gastos y /api/liquidaciones (incluidos PUT y DELETE) sí filtran por el admin de la sesión"},
       {t:"Filtrar cobros, morosidad y balance por admin_id", s:"built", note:"cobros no tiene admin_id, así que el dueño se deduce del consorcio con consorcios_propios_ids(). Mobile v2 lo cerró en /api/cobros, /mora y /balance, pero /api/dashboard/kpis quedó afuera y contaba la mora de toda la plataforma —la service_role key saltea la RLS, así que nada lo frenaba—. Ese endpoint ya no existe: lo reemplazó /api/dashboard/resumen, que filtra. Cubierto por test_pertenencia.py y test_dashboard_resumen.py"},
       {t:"Validar que el consorcio del path sea del admin", s:"built", note:"consorcio_propio() en cada ruta que recibe un cid. Corta con 404 y no 403, para no confirmarle a quien tantea UUIDs que ese existe"},
       {t:"Validar que la liquidación del path sea del admin", s:"built", note:"Resuelto en mobile v2, incluidas /resumen, /enviar, /rubros y /prorrateo, que eran por donde se podía leer y hasta mandar por mail la liquidación de otro"},
