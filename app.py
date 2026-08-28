@@ -334,13 +334,15 @@ def build_carga_masiva_template(consorcios_existentes: list):
 # Mismo circuito que la de consorcios —bajás un .xlsx, lo completás, lo subís—
 # pero con dos diferencias que salen de qué es un gasto:
 #
-#  1. El gasto no crea nada de lo que referencia. Consorcio, proveedor y unidad
-#     tienen que existir de antes: el archivo los busca por nombre y la fila que
-#     apunta a algo que no está se reporta en vez de inventarlo. Un proveedor
-#     nuevo por un typo ensucia el maestro para siempre y nadie lo nota.
+#  1. El gasto no crea nada de lo que referencia. Consorcio y unidad tienen que
+#     existir de antes: el archivo los busca por nombre y la fila que apunta a
+#     algo que no está se reporta en vez de inventarlo.
 #  2. Las columnas se leen por encabezado y no por posición, con alias. Así el
 #     Excel que baja "Exportar gastos" se puede volver a subir: sus títulos
-#     ("Fecha", "Método Pago") normalizan a las mismas claves que la plantilla.
+#     ("Fecha", "Categoría") normalizan a las mismas claves que la plantilla.
+#     Las columnas que ya no se piden —proveedor, vencimiento, método de pago,
+#     comprobante— no tienen alias: una planilla vieja se sube igual y esas
+#     columnas simplemente se ignoran.
 
 CATEGORIAS_GASTO = ('electricidad', 'gas', 'agua', 'limpieza', 'ascensor', 'seguro',
                     'honorarios', 'impuesto', 'mantenimiento', 'sueldos', 'otro')
@@ -349,7 +351,6 @@ CATEGORIAS_GASTO = ('electricidad', 'gas', 'agua', 'limpieza', 'ascensor', 'segu
 # unidad tiene su porcentaje para cada uno: es lo que permite que el ascensor
 # vaya por uno donde la cochera pesa 0 y el seguro por otro donde pesa.
 COEFICIENTES = ('A', 'B', 'C', 'E')
-METODOS_PAGO_GASTO = ('transferencia', 'cheque', 'efectivo', 'debito')
 FRECUENCIAS_GASTO = ('mensual', 'bimestral', 'trimestral', 'anual')
 
 # Encabezado normalizado -> clave canónica. Los alias no son cortesía: cubren
@@ -361,33 +362,22 @@ ALIAS_COLUMNAS_GASTO = {
     'descripcion': 'descripcion', 'detalle': 'descripcion', 'concepto': 'descripcion',
     'monto': 'monto', 'importe': 'monto', 'total': 'monto',
     'categoria': 'categoria', 'rubro': 'categoria',
-    'proveedor': 'proveedor',
     'unidad': 'unidad', 'uf': 'unidad', 'unidad_funcional': 'unidad',
-    'fecha_vencimiento': 'fecha_vencimiento', 'vencimiento': 'fecha_vencimiento', 'vto': 'fecha_vencimiento',
     'pagado': 'pagado',
-    'fecha_pago': 'fecha_pago',
-    'metodo_pago': 'metodo_pago', 'metodo_de_pago': 'metodo_pago', 'forma_pago': 'metodo_pago',
     'recurrente': 'recurrente',
     'frecuencia': 'frecuencia',
     'dia_carga': 'dia_carga', 'dia_de_carga': 'dia_carga',
     'notas': 'notas', 'observaciones': 'notas',
-    # Las tres que la liquidación necesita. Sin coeficiente, trescientos gastos
-    # cargados por planilla entran todos por el reparto A; sin comprobante, el
-    # PDF imprime "—" en la columna que la Ley 941 obliga a rendir.
+    # Sin coeficiente, trescientos gastos cargados por planilla entran todos por
+    # el reparto A y después hay que corregirlos de a uno.
     'coeficiente': 'coeficiente', 'coef': 'coeficiente',
-    'comprobante_tipo': 'comprobante_tipo', 'tipo_comprobante': 'comprobante_tipo',
-    'tipo_de_comprobante': 'comprobante_tipo',
-    'comprobante_numero': 'comprobante_numero', 'numero_comprobante': 'comprobante_numero',
-    'nro_comprobante': 'comprobante_numero', 'comprobante': 'comprobante_numero',
 }
 
 COLUMNAS_GASTO_OBLIGATORIAS = ('consorcio', 'fecha_gasto', 'descripcion', 'monto')
 
 HEADERS_PLANTILLA_GASTOS = [
-    'consorcio*', 'fecha*', 'descripcion*', 'monto*', 'categoria', 'proveedor',
-    'unidad', 'fecha_vencimiento', 'pagado', 'fecha_pago', 'metodo_pago',
-    'recurrente', 'frecuencia', 'dia_carga', 'coeficiente',
-    'comprobante_tipo', 'comprobante_numero', 'notas',
+    'consorcio*', 'fecha*', 'descripcion*', 'monto*', 'categoria', 'unidad',
+    'coeficiente', 'pagado', 'recurrente', 'frecuencia', 'dia_carga', 'notas',
 ]
 
 FORMATOS_FECHA = ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%d/%m/%y', '%Y/%m/%d')
@@ -509,7 +499,7 @@ def _bool_excel(valor, campo: str) -> bool:
     raise ValueError(f'Valor inválido en "{campo}": "{valor}". Poné Sí o No.')
 
 
-def build_gastos_template(consorcios: list, proveedores: list, unidades: list):
+def build_gastos_template(consorcios: list, unidades: list):
     """La plantilla .xlsx de carga masiva de gastos.
 
     Las hojas de referencia no son decorativas: la validación de la columna
@@ -548,8 +538,8 @@ def build_gastos_template(consorcios: list, proveedores: list, unidades: list):
         ('', False),
         ('1. Completá la hoja "Gastos": una fila por gasto. Borrá la fila de ejemplo en gris.', False),
         ('2. En "consorcio" elegí del desplegable o escribí el nombre exacto, tal como figura en la hoja', False),
-        ('   "Consorcios existentes". Lo mismo con "proveedor" y "unidad": esta carga no crea consorcios,', False),
-        ('   proveedores ni unidades nuevas, sólo los referencia. Si no existen, cargalos antes.', False),
+        ('   "Consorcios existentes". Lo mismo con "unidad": esta carga no crea consorcios ni unidades', False),
+        ('   nuevas, sólo los referencia. Si no existen, cargalos antes.', False),
         ('3. Guardá el archivo y subilo en el panel. No cambies el nombre de la hoja ni el de las columnas.', False),
         ('', False),
         ('CAMPOS OBLIGATORIOS (sin ellos la fila no se importa):', True),
@@ -560,13 +550,10 @@ def build_gastos_template(consorcios: list, proveedores: list, unidades: list):
         ('', False),
         ('CAMPOS OPCIONALES (si los dejás vacíos el gasto se carga igual):', True),
         (f'   • categoria — una de: {", ".join(CATEGORIAS_GASTO)}. Si va vacía o no coincide, queda "otro".', False),
-        ('   • proveedor — nombre exacto de un proveedor tuyo (hoja "Proveedores existentes").', False),
         ('   • unidad — número de UF si el gasto es de una sola unidad y NO se prorratea entre todas.', False),
         ('     Dejala vacía para el caso normal: gasto general del consorcio.', False),
-        ('   • fecha_vencimiento — cuándo vence el pago.', False),
-        ('   • pagado — Sí / No. Vacío se toma como No.', False),
-        ('   • fecha_pago — cuándo se pagó. Si la completás, el gasto queda marcado como pagado.', False),
-        (f'   • metodo_pago — {", ".join(METODOS_PAGO_GASTO)}.', False),
+        (f'   • coeficiente — {", ".join(COEFICIENTES)}. Con qué porcentaje de cada UF se reparte. Vacío = A.', False),
+        ('   • pagado — Sí / No. Vacío se toma como Sí: el gasto se carga cuando ya se pagó.', False),
         ('   • recurrente — Sí / No. Un gasto recurrente se vuelve a generar solo cada período.', False),
         (f'   • frecuencia — {", ".join(FRECUENCIAS_GASTO)}. Sólo aplica si "recurrente" es Sí (vacío = mensual).', False),
         ('   • dia_carga — día del mes (1 a 31) en que se genera el recurrente. Sólo si "recurrente" es Sí.', False),
@@ -587,15 +574,15 @@ def build_gastos_template(consorcios: list, proveedores: list, unidades: list):
     style_header(ws_g, HEADERS_PLANTILLA_GASTOS)
     nombre_ejemplo = consorcios[0]['nombre'] if consorcios else 'Edificio Ejemplo 123'
     ejemplo = [nombre_ejemplo, '2026-06-05', 'Factura Edesur junio 2026 (borrar fila)', 15430.50,
-               'electricidad', '', '', '2026-06-20', 'No', '', 'transferencia', 'No', '', '', 'Factura B-0001-00012345']
+               'electricidad', '', 'A', 'Si', 'No', '', '', 'Factura B-0001-00012345']
     for c, val in enumerate(ejemplo, 1):
         ws_g.cell(row=2, column=c, value=val).font = example_font
 
     lista_dv(ws_g, CATEGORIAS_GASTO, 'E2:E2000')
+    lista_dv(ws_g, COEFICIENTES, 'G2:G2000')
+    lista_dv(ws_g, ('Si', 'No'), 'H2:H2000')
     lista_dv(ws_g, ('Si', 'No'), 'I2:I2000')
-    lista_dv(ws_g, METODOS_PAGO_GASTO, 'K2:K2000')
-    lista_dv(ws_g, ('Si', 'No'), 'L2:L2000')
-    lista_dv(ws_g, FRECUENCIAS_GASTO, 'M2:M2000')
+    lista_dv(ws_g, FRECUENCIAS_GASTO, 'J2:J2000')
 
     ws_c = wb.create_sheet('Consorcios existentes')
     style_header(ws_c, ['nombre', 'direccion'])
@@ -612,14 +599,6 @@ def build_gastos_template(consorcios: list, proveedores: list, unidades: list):
         dv_con.add('A2:A2000')
     else:
         ws_c.cell(row=2, column=1, value='(todavía no tenés consorcios cargados)').font = example_font
-
-    ws_p = wb.create_sheet('Proveedores existentes')
-    style_header(ws_p, ['nombre', 'rubro'])
-    for r, p in enumerate(proveedores, 2):
-        ws_p.cell(row=r, column=1, value=p.get('nombre', ''))
-        ws_p.cell(row=r, column=2, value=p.get('rubro', ''))
-    if not proveedores:
-        ws_p.cell(row=2, column=1, value='(todavía no tenés proveedores cargados)').font = example_font
 
     ws_u = wb.create_sheet('Unidades existentes')
     style_header(ws_u, ['consorcio', 'unidad', 'piso'])
@@ -2232,64 +2211,6 @@ def export_consorcios_pdf(cid):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# API — PROVEEDORES
-# ══════════════════════════════════════════════════════════════════════════════
-@app.route('/api/proveedores', methods=['GET'])
-@require_auth(allowed_roles=['admin'])
-def api_proveedores_list():
-    admin_id = get_admin_id()
-    res = supabase.table('proveedores').select('*').eq('admin_id', admin_id).order('nombre').execute()
-    return jsonify(res.data)
-
-
-@app.route('/api/proveedores', methods=['POST'])
-@require_auth(allowed_roles=['admin'])
-def api_proveedores_create():
-    admin_id = get_admin_id()
-    d = request.json
-    payload = {
-        'nombre': d.get('nombre', '').strip(),
-        'cuit': d.get('cuit', ''),
-        'rubro': d.get('rubro', ''),
-        'email': d.get('email', ''),
-        'telefono': d.get('telefono', ''),
-        'admin_id': admin_id,
-    }
-    res = supabase.table('proveedores').insert(payload).execute()
-    return jsonify(res.data[0] if res.data else {}), 201
-
-
-@app.route('/api/proveedores/<pid>', methods=['PUT'])
-@require_auth(allowed_roles=['admin'])
-def api_proveedores_update(pid):
-    admin_id = get_admin_id()
-    d = request.json
-    payload = {k: v for k, v in d.items() if k in ('nombre','cuit','rubro','email','telefono') and v is not None}
-    res = supabase.table('proveedores').update(payload).eq('id', pid).eq('admin_id', admin_id).execute()
-    return jsonify(res.data[0] if res.data else {})
-
-
-@app.route('/api/proveedores/<pid>', methods=['DELETE'])
-@require_auth(allowed_roles=['admin'])
-def api_proveedores_delete(pid):
-    admin_id = get_admin_id()
-    supabase.table('proveedores').delete().eq('id', pid).eq('admin_id', admin_id).execute()
-    return jsonify({'ok': True})
-
-
-@app.route('/api/proveedores/<pid>/gastos')
-@require_auth(allowed_roles=['admin'])
-def api_proveedores_gastos(pid):
-    # El filtro por `admin_id` es el que acota: sin él, el historial de un
-    # proveedor compartido —el mismo ascensorista factura a varios edificios—
-    # mezclaba los gastos de todos los administradores que lo tuvieran cargado.
-    res = supabase.table('gastos').select('*, consorcios(nombre)') \
-        .eq('proveedor_id', pid).eq('admin_id', get_admin_id()) \
-        .order('fecha_gasto', desc=True).execute()
-    return jsonify(res.data)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
 # API — GASTOS
 # ══════════════════════════════════════════════════════════════════════════════
 def _falta_schema_v12(msg):
@@ -2409,7 +2330,7 @@ def api_gastos_list():
     admin_id = get_admin_id()
     _generar_recurrentes_silencioso(admin_id)
     q = supabase.table('gastos') \
-        .select('*, consorcios(nombre), proveedores(nombre), unidades_funcionales(numero, piso)') \
+        .select('*, consorcios(nombre), unidades_funcionales(numero, piso)') \
         .eq('admin_id', admin_id)
     if request.args.get('consorcio_id'):
         q = q.eq('consorcio_id', request.args['consorcio_id'])
@@ -2478,7 +2399,6 @@ def api_gastos_create():
     d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
     payload = {
         'consorcio_id': d.get('consorcio_id') or d.get('consorcio_id', ''),
-        'proveedor_id': d.get('proveedor_id') or None,
         # NULL = gasto general del consorcio (el caso normal). Con unidad_id el
         # gasto no se prorratea: se le carga entero a esa UF.
         'unidad_id': d.get('unidad_id') or None,
@@ -2486,19 +2406,14 @@ def api_gastos_create():
         'categoria': d.get('categoria', ''),
         'monto': float(d.get('monto', 0)),
         'fecha_gasto': d.get('fecha_gasto', str(date.today())),
-        'fecha_vencimiento': d.get('fecha_vencimiento') or None,
         'pagado': d.get('pagado') in (True, 'true', 'on', '1'),
-        'fecha_pago': d.get('fecha_pago') or None,
-        'metodo_pago': d.get('metodo_pago', ''),
         'recurrente': d.get('recurrente') in (True, 'true', 'on', '1'),
         'frecuencia': d.get('frecuencia', ''),
         'dia_carga': _dia_carga(d),
         'notas': d.get('notas', ''),
-        # Por qué coeficiente se reparte, y el comprobante que la Ley 941 pide
-        # rendir junto al gasto. 'A' es como se repartía todo hasta ahora.
+        # Por qué coeficiente se reparte. 'A' es como se repartía todo hasta
+        # que aparecieron los demás.
         'coeficiente': (d.get('coeficiente') or 'A').upper(),
-        'comprobante_tipo': d.get('comprobante_tipo', ''),
-        'comprobante_numero': d.get('comprobante_numero', ''),
         'admin_id': admin_id,
     }
     # El gasto queda con el `admin_id` de quien lo carga, así que un consorcio
@@ -2549,9 +2464,11 @@ def api_gastos_create():
 def api_gastos_update(gid):
     admin_id = get_admin_id()
     d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
-    allowed = ('consorcio_id','proveedor_id','unidad_id','descripcion','categoria','monto','fecha_gasto',
-                'fecha_vencimiento','pagado','fecha_pago','metodo_pago','recurrente','frecuencia',
-                'dia_carga','notas','coeficiente','comprobante_tipo','comprobante_numero')
+    # Lo que el formulario dejó de pedir tampoco se acepta acá: un PUT sin esas
+    # claves no las toca, así que el dato viejo de un gasto ya cargado se
+    # conserva en vez de vaciarse al editarle el monto.
+    allowed = ('consorcio_id','unidad_id','descripcion','categoria','monto','fecha_gasto',
+                'pagado','recurrente','frecuencia','dia_carga','notas','coeficiente')
     payload = {}
     for k in allowed:
         if k in d:
@@ -2562,7 +2479,7 @@ def api_gastos_update(gid):
                 v = v in (True, 'true', 'on', '1')
             elif k == 'dia_carga':
                 v = int(v) if str(v).strip().isdigit() and 1 <= int(v) <= 31 else None
-            elif k in ('proveedor_id', 'unidad_id', 'fecha_vencimiento', 'fecha_pago'):
+            elif k == 'unidad_id':
                 v = v or None
             payload[k] = v
 
@@ -2647,7 +2564,7 @@ def api_tarifas_pendientes():
     try:
         gastos = supabase.table('gastos') \
             .select('id, descripcion, categoria, monto, fecha_gasto, periodo_generado, '
-                    'consorcio_id, consorcios(nombre), proveedores(nombre)') \
+                    'consorcio_id, consorcios(nombre)') \
             .eq('admin_id', admin_id).eq('tarifa_confirmada', False) \
             .order('fecha_gasto').execute().data or []
     except Exception as e:
@@ -2773,7 +2690,6 @@ Extraé los siguientes campos y devolvé SOLO un JSON válido (sin markdown, sin
   "monto": número decimal sin símbolo de moneda (ej: 15430.50),
   "categoria": una de estas opciones exactas: "electricidad", "gas", "agua", "limpieza", "ascensor", "seguro", "honorarios", "impuesto", "mantenimiento", "sueldos", "otro",
   "fecha_gasto": "YYYY-MM-DD" (fecha de emisión de la factura),
-  "fecha_vencimiento": "YYYY-MM-DD" o null (fecha de vencimiento de pago),
   "notas": "datos adicionales relevantes (número de factura, cliente, medidor, etc.)"
 }
 
@@ -2815,7 +2731,6 @@ IMPORTANTE:
             'monto': None,
             'categoria': '',
             'fecha_gasto': '',
-            'fecha_vencimiento': '',
             'notas': str(data.get('notas', '') or '').strip(),
         }
 
@@ -2830,7 +2745,7 @@ IMPORTANTE:
         result['categoria'] = cat if cat in CATEGORIAS_GASTO else 'otro'
 
         # Fechas
-        for fk in ('fecha_gasto', 'fecha_vencimiento'):
+        for fk in ('fecha_gasto',):
             val = data.get(fk)
             if val and val != 'null':
                 try:
@@ -2851,7 +2766,7 @@ IMPORTANTE:
 @require_auth(allowed_roles=['admin'])
 def api_gastos_export():
     admin_id = get_admin_id()
-    q = supabase.table('gastos').select('*, consorcios(nombre), proveedores(nombre)').eq('admin_id', admin_id)
+    q = supabase.table('gastos').select('*, consorcios(nombre)').eq('admin_id', admin_id)
     if request.args.get('consorcio_id'):
         q = q.eq('consorcio_id', request.args['consorcio_id'])
     if request.args.get('desde'):
@@ -2860,13 +2775,12 @@ def api_gastos_export():
         q = q.lte('fecha_gasto', request.args['hasta'])
     data = q.order('fecha_gasto', desc=True).execute().data
 
-    headers = ['Fecha', 'Consorcio', 'Descripción', 'Categoría', 'Proveedor', 'Monto', 'Pagado', 'Método Pago', 'Recurrente']
+    headers = ['Fecha', 'Consorcio', 'Descripción', 'Categoría', 'Monto', 'Pagado', 'Recurrente']
     rows = [[
         g.get('fecha_gasto',''), (g.get('consorcios') or {}).get('nombre',''),
         g.get('descripcion',''), g.get('categoria',''),
-        (g.get('proveedores') or {}).get('nombre',''),
         g.get('monto',0), 'Sí' if g.get('pagado') else 'No',
-        g.get('metodo_pago',''), 'Sí' if g.get('recurrente') else 'No'
+        'Sí' if g.get('recurrente') else 'No'
     ] for g in data]
 
     fmt = request.args.get('fmt', 'excel')
@@ -2883,9 +2797,6 @@ def descargar_plantilla_gastos():
     admin_id = get_admin_id()
     consorcios = supabase.table('consorcios').select('id,nombre,direccion') \
         .eq('admin_id', admin_id).order('nombre').execute().data or []
-    proveedores = supabase.table('proveedores').select('nombre,rubro') \
-        .eq('admin_id', admin_id).order('nombre').execute().data or []
-
     # Las UF van en la plantilla para que el administrador sepa qué escribir en
     # la columna "unidad": sin la lista, el gasto particular se carga a ciegas.
     unidades = []
@@ -2897,7 +2808,7 @@ def descargar_plantilla_gastos():
                      'numero': u.get('numero', ''), 'piso': u.get('piso', '')} for u in filas]
         unidades.sort(key=lambda u: (u['consorcio'], u['numero']))
 
-    wb = build_gastos_template(consorcios, proveedores, unidades)
+    wb = build_gastos_template(consorcios, unidades)
     return excel_response(wb, 'plantilla_gastos.xlsx')
 
 
@@ -2936,9 +2847,6 @@ def api_gastos_carga_masiva():
     # ── Referencias: nada de esto se crea, sólo se busca ──────────────────────
     consorcios = supabase.table('consorcios').select('id,nombre').eq('admin_id', admin_id).execute().data or []
     mapa_consorcios = {c['nombre'].strip().lower(): c['id'] for c in consorcios}
-    proveedores = supabase.table('proveedores').select('id,nombre').eq('admin_id', admin_id).execute().data or []
-    mapa_proveedores = {p['nombre'].strip().lower(): p['id'] for p in proveedores}
-
     mapa_unidades = {}
     if consorcios:
         ufs = supabase.table('unidades_funcionales').select('id,consorcio_id,numero') \
@@ -2971,22 +2879,14 @@ def api_gastos_carga_masiva():
             fecha_gasto = _fecha_excel(fila.get('fecha_gasto'))
             if not fecha_gasto:
                 raise ValueError('Falta la fecha del gasto')
-            fecha_vto = _fecha_excel(fila.get('fecha_vencimiento'))
-            fecha_pago = _fecha_excel(fila.get('fecha_pago'))
-            pagado = _bool_excel(fila.get('pagado'), 'pagado')
+            # Igual que el formulario: la celda vacía se toma como pagado,
+            # porque el gasto se carga cuando ya se pagó.
+            celda_pagado = fila.get('pagado')
+            pagado = True if celda_pagado in (None, '') else _bool_excel(celda_pagado, 'pagado')
             recurrente = _bool_excel(fila.get('recurrente'), 'recurrente')
         except ValueError as e:
             errores.append({'fila': i, 'mensaje': str(e)})
             continue
-
-        prov_id = None
-        nombre_prov = _texto_celda(fila.get('proveedor'))
-        if nombre_prov:
-            prov_id = mapa_proveedores.get(nombre_prov.lower())
-            if not prov_id:
-                errores.append({'fila': i, 'mensaje': f'Proveedor no encontrado: "{nombre_prov}". '
-                                                      'Cargalo en Proveedores antes de importar.'})
-                continue
 
         unidad_id = None
         nombre_uf = _texto_celda(fila.get('unidad'))
@@ -3000,11 +2900,6 @@ def api_gastos_carga_masiva():
         categoria = _texto_celda(fila.get('categoria')).lower()
         if categoria not in CATEGORIAS_GASTO:
             categoria = 'otro'
-
-        # Una fecha de pago cargada es la respuesta a "¿está pagado?": pedirle
-        # además que tilde la columna sería preguntar dos veces lo mismo.
-        if fecha_pago:
-            pagado = True
 
         frecuencia, dia_carga = '', None
         if recurrente:
@@ -3025,22 +2920,16 @@ def api_gastos_carga_masiva():
         consorcios_tocados.add(con_id)
         pendientes.append(((con_id, fecha_gasto, descripcion.lower(), monto), {
             'consorcio_id': con_id,
-            'proveedor_id': prov_id,
             'unidad_id': unidad_id,
             'descripcion': descripcion,
             'categoria': categoria,
             'monto': monto,
             'fecha_gasto': fecha_gasto,
-            'fecha_vencimiento': fecha_vto,
             'pagado': pagado,
-            'fecha_pago': fecha_pago,
-            'metodo_pago': _texto_celda(fila.get('metodo_pago')).lower(),
             'recurrente': recurrente,
             'frecuencia': frecuencia,
             'dia_carga': dia_carga,
             'coeficiente': coeficiente,
-            'comprobante_tipo': _texto_celda(fila.get('comprobante_tipo')),
-            'comprobante_numero': _texto_celda(fila.get('comprobante_numero')),
             'notas': _texto_celda(fila.get('notas')),
             'admin_id': admin_id,
         }))
@@ -4528,7 +4417,7 @@ def api_vecinos_gastos_reporte():
     cid = (v.data or {}).get('consorcio_id')
     if not cid:
         return jsonify([])
-    q = supabase.table('gastos').select('id, descripcion, categoria, monto, fecha_gasto, fecha_vencimiento, pagado, metodo_pago, recurrente, frecuencia, notas, archivo_nombre, proveedores(nombre, rubro)').eq('consorcio_id', cid)
+    q = supabase.table('gastos').select('id, descripcion, categoria, monto, fecha_gasto, pagado, recurrente, frecuencia, notas, archivo_nombre').eq('consorcio_id', cid)
     if request.args.get('desde'):
         q = q.gte('fecha_gasto', request.args['desde'])
     if request.args.get('hasta'):
@@ -5199,7 +5088,7 @@ def api_liquidacion_gastos_disponibles():
     desde, hasta = _periodo_rango(periodo)
     gastos = supabase.table('gastos') \
         .select('id, descripcion, categoria, monto, fecha_gasto, pagado, unidad_id, '
-                'tarifa_confirmada, proveedores(nombre), unidades_funcionales(numero)') \
+                'tarifa_confirmada, unidades_funcionales(numero)') \
         .eq('consorcio_id', consorcio_id) \
         .eq('admin_id', admin_id) \
         .gte('fecha_gasto', desde) \

@@ -245,17 +245,25 @@ def test_editar_una_uf_cambia_sus_porcentajes(admin, base):
     assert uf['porcentaje_a'] == 33.333
 
 
-def test_el_gasto_guarda_su_coeficiente_y_comprobante(admin, base):
+def test_el_gasto_guarda_su_coeficiente(admin, base):
     base['gastos'] = []
     r = admin.post('/api/gastos', json={
         'consorcio_id': 'cons-1', 'descripcion': 'Ascensor', 'monto': 1000,
-        'categoria': 'ascensor', 'coeficiente': 'e',
-        'comprobante_tipo': 'Fc. B', 'comprobante_numero': '0001-00099'})
+        'categoria': 'ascensor', 'coeficiente': 'e'})
     assert r.status_code == 201
+    assert base['gastos'][0]['coeficiente'] == 'E'   # se normaliza a mayúscula
+
+
+def test_el_alta_ignora_los_campos_que_el_formulario_dejo_de_pedir(admin, base):
+    """Un cliente viejo que todavía los mande no los mete de vuelta."""
+    base['gastos'] = []
+    admin.post('/api/gastos', json={
+        'consorcio_id': 'cons-1', 'descripcion': 'Ascensor', 'monto': 1000,
+        'proveedor_id': 'prov-1', 'fecha_vencimiento': '2026-09-10',
+        'metodo_pago': 'transferencia', 'comprobante_numero': '0001-00099'})
     g = base['gastos'][0]
-    assert g['coeficiente'] == 'E'            # se normaliza a mayúscula
-    assert g['comprobante_tipo'] == 'Fc. B'
-    assert g['comprobante_numero'] == '0001-00099'
+    assert not {'proveedor_id', 'fecha_vencimiento', 'metodo_pago',
+                'comprobante_numero'} & set(g)
 
 
 def test_un_gasto_sin_coeficiente_nace_en_A(admin, base):

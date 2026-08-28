@@ -301,21 +301,21 @@ const CATEGORIES = [
     ]}
   ]},
   { id:"prv", code:"PRV", name:"Proveedores y gastos", hue:54, funcs:[
-    { name:"Gestionar ficha de proveedor", role:"admin", tech:["Supabase"], items:[
-      {t:"Datos fiscales y de contacto", s:"built"},
-      {t:"Historial de trabajos realizados", s:"planned", note:"El endpoint existe; el frontend todavía no lo llama"},
+    { name:"Gestionar ficha de proveedor", role:"admin", tech:[], items:[
+      {t:"Datos fiscales y de contacto", s:"none", note:"La sección se sacó del panel el 28/08/2026 al simplificar la carga de gastos, junto con las rutas /api/proveedores. La tabla proveedores sigue en la base con lo cargado hasta esa fecha"},
+      {t:"Historial de trabajos realizados", s:"none"},
       {t:"Certificaciones y seguros", s:"none"}
     ]},
     { name:"Cargar gastos", role:"admin", tech:["Groq Vision"], items:[
-      {t:"OCR de factura (monto, proveedor, fecha)", s:"built", note:"Groq Vision + PyMuPDF, incluso en lote"},
+      {t:"OCR de factura (monto, categoría, fecha)", s:"built", note:"Groq Vision + PyMuPDF, incluso en lote"},
       {t:"Asignar centro de costo", s:"built"},
       {t:"Adjuntar comprobante", s:"built"},
       {t:"Regenerar el gasto recurrente cada período", s:"built", note:"generar_recurrentes() en recurrentes.py, idempotente y perezosa: la dispara la request que entra a Gastos, no un cron. Vale la pena mirar ese patrón antes de montar infraestructura para la mora o el envío programado"},
-      {t:"Carga masiva de gastos por Excel", s:"built", note:"Mismo circuito que el de consorcios: plantilla .xlsx (/api/gastos/plantilla) + import (/api/gastos/carga-masiva). Obligatorios consorcio, fecha, descripcion y monto; el resto opcional. No crea consorcios, proveedores ni UF — los busca por nombre y reporta la fila que apunta a algo que no existe. Deduplica por (consorcio, fecha, descripción, monto) y lee las columnas por encabezado, así que el Excel que baja \"Exportar\" se puede volver a subir. Lo que no viaja en el archivo son los comprobantes adjuntos. La planilla incluye además coeficiente de reparto y número de comprobante: se sumaron al integrarla con la liquidación, que se venían haciendo en paralelo y no se conocían"}
+      {t:"Carga masiva de gastos por Excel", s:"built", note:"Mismo circuito que el de consorcios: plantilla .xlsx (/api/gastos/plantilla) + import (/api/gastos/carga-masiva). Obligatorios consorcio, fecha, descripcion y monto; el resto opcional. No crea consorcios ni UF — los busca por nombre y reporta la fila que apunta a algo que no existe. Deduplica por (consorcio, fecha, descripción, monto) y lee las columnas por encabezado, así que el Excel que baja \"Exportar\" se puede volver a subir. Lo que no viaja en el archivo son los comprobantes adjuntos. Desde el 28/08/2026 la planilla pide las mismas columnas que el formulario: sin proveedor, vencimiento, método de pago ni comprobante, y con \"pagado\" vacío tomado como Sí. Una planilla vieja se sube igual: esas columnas ya no tienen alias y se ignoran"}
     ]},
     { name:"Pagar a proveedores", role:"admin", tech:[], items:[
       {t:"Generar orden de pago", s:"none"},
-      {t:"Registrar el pago", s:"built"},
+      {t:"Registrar el pago", s:"built", note:"Es el tilde \"pagado\" del gasto, que desde el 28/08/2026 viene marcado por defecto. No hay orden de pago ni proveedor detrás"},
       {t:"Emitir retenciones si corresponde", s:"none"}
     ]}
   ]},

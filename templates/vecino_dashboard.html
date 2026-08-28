@@ -431,23 +431,21 @@
     
     <div class="table-wrap">
         <div class="table-filters">
-            <input type="text" id="gas-search" class="fc" style="width:100%;max-width:240px;padding:6px 12px" placeholder="Filtrar por descripción o proveedor..." oninput="filterTable('tb-gastos', 'gas-search')">
+            <input type="text" id="gas-search" class="fc" style="width:100%;max-width:240px;padding:6px 12px" placeholder="Filtrar por descripción o categoría..." oninput="filterTable('tb-gastos', 'gas-search')">
         </div>
         <table class="table" id="table-gastos">
             <thead>
                 <tr>
                     <th class="sortable" onclick="sortTable(0, 'table-gastos')">Fecha ↕</th>
                     <th>Descripción</th>
-                    <th class="sortable" onclick="sortTable(2, 'table-gastos')">Proveedor ↕</th>
                     <th>Categoría</th>
-                    <th class="sortable" onclick="sortTable(4, 'table-gastos')">Monto ↕</th>
-                    <th class="sortable" onclick="sortTable(5, 'table-gastos')">Venc. ↕</th>
+                    <th class="sortable" onclick="sortTable(3, 'table-gastos')">Monto ↕</th>
                     <th>Pagado</th>
                     <th><span class="sr-only">Adjunto</span></th>
                 </tr>
             </thead>
             <tbody id="tb-gastos">
-                <tr><td colspan="8" class="tbl-empty">Cargando...</td></tr>
+                <tr><td colspan="6" class="tbl-empty">Cargando...</td></tr>
             </tbody>
         </table>
     </div>
@@ -1093,12 +1091,12 @@ function dlCobros(fmt){
 }
 
 async function loadGastos(){
-    const tb=document.getElementById('tb-gastos');tb.innerHTML='<tr><td colspan="8" class="tbl-empty">Cargando...</td></tr>';
+    const tb=document.getElementById('tb-gastos');tb.innerHTML='<tr><td colspan="6" class="tbl-empty">Cargando...</td></tr>';
     const p=new URLSearchParams();const d=document.getElementById('gas-desde').value;const h=document.getElementById('gas-hasta').value;const c=document.getElementById('gas-cat').value;
     if(d)p.set('desde',d);if(h)p.set('hasta',h);if(c)p.set('categoria',c);
     try{
         const data=await api('/api/vecinos/gastos-reporte?'+p);
-        if(!data.length){tb.innerHTML='<tr><td colspan="8" class="tbl-empty">Sin gastos para el período</td></tr>'; return}
+        if(!data.length){tb.innerHTML='<tr><td colspan="6" class="tbl-empty">Sin gastos para el período</td></tr>'; return}
         
         let totalAcumulado = 0;
         
@@ -1107,10 +1105,8 @@ async function loadGastos(){
             return `<tr class="data-row">
                 <td data-val="${g.fecha_gasto || ''}">${fmtD(g.fecha_gasto)}</td>
                 <td>${esc(g.descripcion||'–')}</td>
-                <td data-val="${esc(g.proveedores?.nombre||'')}">${esc(g.proveedores?.nombre||'–')}</td>
                 <td>${esc(g.categoria||'–')}</td>
                 <td data-val="${g.monto || 0}"><strong>${fmt$(g.monto)}</strong></td>
-                <td data-val="${g.fecha_vencimiento || ''}">${fmtD(g.fecha_vencimiento)}</td>
                 <td>${g.pagado?'<span class="badge ok">Sí</span>':'<span class="badge pending">No</span>'}</td>
                 <td>${g.archivo_nombre?`<a href="/api/gastos/${g.id}/comprobante" target="_blank" style="color:var(--blue);font-size:0.8rem" aria-label="Adjunto" title="Adjunto"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg></a>`:'–'}</td>
             </tr>`;
@@ -1119,9 +1115,9 @@ async function loadGastos(){
         // Add totals row
         rows.push(`<tr class="totales-row">
             <td>Total Registrado</td>
-            <td colspan="3"></td>
+            <td colspan="2"></td>
             <td>${fmt$(totalAcumulado)}</td>
-            <td colspan="3"></td>
+            <td colspan="2"></td>
         </tr>`);
         
         tb.innerHTML=rows.join('');
@@ -1134,11 +1130,11 @@ async function loadGastos(){
             <span class="nd-row-ic ok"><svg class="ic"><use href="#ic-balance"></use></svg></span>
             <span class="nd-row-main">
                 <span class="nd-row-t">${esc(g.descripcion || '–')}</span>
-                <span class="nd-row-s">${esc(g.proveedores?.nombre || 'Sin proveedor')} · ${fmtD(g.fecha_gasto)}</span>
+                <span class="nd-row-s">${esc(g.categoria || 'sin categoría')} · ${fmtD(g.fecha_gasto)}</span>
             </span>
             <span class="nd-row-amt">${fmt$(g.monto)}</span>
         </div>`).join('');
-    }catch(e){tb.innerHTML='<tr><td colspan="8" class="tbl-empty">Error al cargar gastos</td></tr>'}
+    }catch(e){tb.innerHTML='<tr><td colspan="6" class="tbl-empty">Error al cargar gastos</td></tr>'}
 }
 
 async function loadReclamos(){
@@ -1627,7 +1623,7 @@ function filterTable(tbodyId, searchId) {
                 totalInteres += parseFloat(row.cells[2]?.getAttribute('data-val') || 0);
                 totalTotal += parseFloat(row.cells[3]?.getAttribute('data-val') || 0);
             } else if (tbodyId === 'tb-gastos') {
-                totalTotal += parseFloat(row.cells[4]?.getAttribute('data-val') || 0);
+                totalTotal += parseFloat(row.cells[3]?.getAttribute('data-val') || 0);
             }
         } else {
             row.style.display = 'none';

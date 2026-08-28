@@ -290,12 +290,6 @@ def test_el_balance_no_suma_los_cobros_ajenos(client, base):
     assert balance['ingresos'] == 100
 
 
-def test_el_historial_del_proveedor_no_mezcla_administradores(client):
-    """El mismo proveedor puede estar cargado por varios administradores."""
-    gastos = client.get('/api/proveedores/prov-1/gastos').get_json()
-    assert [g['id'] for g in gastos] == ['gasto-1']
-
-
 # ── Escrituras ajenas ─────────────────────────────────────────────────────────
 
 def test_no_se_puede_editar_un_cobro_ajeno(client, base):

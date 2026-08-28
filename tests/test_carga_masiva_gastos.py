@@ -1,10 +1,9 @@
 """La carga masiva de gastos: una planilla larga entra de una vez.
 
 Es el mismo circuito que el de consorcios —bajar la plantilla, completarla,
-subirla— pero un gasto no crea lo que referencia. Consorcio, proveedor y
-unidad tienen que existir de antes, y la fila que apunta a algo que no está se
-reporta en vez de inventarlo: un proveedor nacido de un typo queda para
-siempre en el maestro y nadie lo mira.
+subirla— pero un gasto no crea lo que referencia. Consorcio y unidad tienen
+que existir de antes, y la fila que apunta a algo que no está se reporta en
+vez de inventarlo.
 
 Lo que estos tests cuidan, por orden de qué duele más si se rompe:
   · que no se dupliquen gastos (la liquidación del mes sale al doble),
@@ -21,13 +20,17 @@ XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 # La copia a mano es a propósito: si alguien toca la plantilla, este test lo
 # frena y obliga a decidir si el import también tiene que leer la columna
-# nueva. Coeficiente y comprobante entraron por ahí — los agregó la
-# liquidación en formato "Mis Expensas" y sin esto la carga masiva habría
-# seguido dejando trescientos gastos sin ellos.
-HEADERS = ['consorcio*', 'fecha*', 'descripcion*', 'monto*', 'categoria', 'proveedor',
-           'unidad', 'fecha_vencimiento', 'pagado', 'fecha_pago', 'metodo_pago',
-           'recurrente', 'frecuencia', 'dia_carga', 'coeficiente',
-           'comprobante_tipo', 'comprobante_numero', 'notas']
+# nueva. Son las mismas que pide el formulario: proveedor, vencimiento, método
+# de pago y comprobante se sacaron de los dos lados a la vez.
+HEADERS = ['consorcio*', 'fecha*', 'descripcion*', 'monto*', 'categoria', 'unidad',
+           'coeficiente', 'pagado', 'recurrente', 'frecuencia', 'dia_carga', 'notas']
+
+# Los encabezados que traía la plantilla anterior. Una planilla vieja se sube
+# igual: las columnas que ya no se piden no tienen alias y se ignoran.
+HEADERS_VIEJOS = ['consorcio*', 'fecha*', 'descripcion*', 'monto*', 'categoria', 'proveedor',
+                  'unidad', 'fecha_vencimiento', 'pagado', 'fecha_pago', 'metodo_pago',
+                  'recurrente', 'frecuencia', 'dia_carga', 'coeficiente',
+                  'comprobante_tipo', 'comprobante_numero', 'notas']
 
 
 @pytest.fixture
@@ -42,10 +45,6 @@ def admin(base, app_modulo):
 
 @pytest.fixture
 def datos(base):
-    base['proveedores'] = [
-        {'id': 'prov-1', 'admin_id': 'admin-1', 'nombre': 'Edesur', 'rubro': 'electricidad'},
-        {'id': 'prov-9', 'admin_id': 'admin-2', 'nombre': 'Ajeno SA', 'rubro': 'otro'},
-    ]
     base['gastos'] = []
     return base
 
@@ -78,20 +77,18 @@ def test_la_plantilla_se_baja_con_sus_hojas(admin, datos):
     assert r.mimetype == XLSX
     wb = openpyxl.load_workbook(io.BytesIO(r.data))
     assert wb.sheetnames == ['Instrucciones', 'Gastos', 'Consorcios existentes',
-                             'Proveedores existentes', 'Unidades existentes']
+                             'Unidades existentes']
 
 
 def test_la_plantilla_lista_las_referencias_del_administrador(admin, datos):
-    """Las hojas de referencia son de él: el edificio y el proveedor ajenos no.
+    """Las hojas de referencia son de él: el edificio ajeno no aparece.
 
     Sin el filtro, la plantilla es un listado de los consorcios de todos los
     administradores del sistema entregado en un Excel.
     """
     wb = openpyxl.load_workbook(io.BytesIO(admin.get('/api/gastos/plantilla').data))
     consorcios = [c[0] for c in wb['Consorcios existentes'].iter_rows(min_row=2, values_only=True)]
-    proveedores = [p[0] for p in wb['Proveedores existentes'].iter_rows(min_row=2, values_only=True)]
     assert consorcios == ['Mío']
-    assert proveedores == ['Edesur']
 
 
 def test_los_encabezados_de_la_plantilla_son_los_que_lee_el_import(admin, datos):
@@ -121,26 +118,23 @@ def test_importa_una_fila_con_solo_los_obligatorios(admin, datos):
     assert g['categoria'] == 'otro'
     # Los opcionales vacíos quedan en NULL y no en '': `unidad_id` en cadena
     # vacía no es un gasto general, es un UUID inválido que rompe el INSERT.
-    assert g['unidad_id'] is None and g['proveedor_id'] is None
+    assert g['unidad_id'] is None
+    # Sin columna "pagado" el gasto entra pagado, igual que en el formulario.
+    assert g['pagado'] is True
 
 
 def test_importa_todos_los_campos_opcionales(admin, datos):
     r = subir(admin, planilla([[
-        'Mío', '2026-06-05', 'Factura Edesur junio', 15430.50, 'electricidad', 'Edesur',
-        '1A', '2026-06-20', 'Sí', '2026-06-18', 'transferencia', 'Sí', 'bimestral', 10,
-        'E', 'LSP A', '0014-23144929', 'Factura B-0001-00012345']]))
+        'Mío', '2026-06-05', 'Factura Edesur junio', 15430.50, 'electricidad',
+        '1A', 'E', 'Sí', 'Sí', 'bimestral', 10, 'Factura B-0001-00012345']]))
     assert r.get_json()['errores'] == []
     g = datos['gastos'][0]
     assert g['categoria'] == 'electricidad'
-    assert g['proveedor_id'] == 'prov-1'
     assert g['unidad_id'] == 'uf-1'
-    assert g['fecha_vencimiento'] == '2026-06-20'
-    assert (g['pagado'], g['fecha_pago']) == (True, '2026-06-18')
-    assert g['metodo_pago'] == 'transferencia'
+    assert g['pagado'] is True
     assert (g['recurrente'], g['frecuencia'], g['dia_carga']) == (True, 'bimestral', 10)
     assert g['notas'] == 'Factura B-0001-00012345'
     assert g['coeficiente'] == 'E'
-    assert (g['comprobante_tipo'], g['comprobante_numero']) == ('LSP A', '0014-23144929')
 
 
 def test_el_gasto_queda_a_nombre_del_administrador_que_lo_sube(admin, datos):
@@ -219,24 +213,10 @@ def test_el_consorcio_de_otro_administrador_no_existe_para_esta_carga(admin, dat
     assert datos['gastos'] == []
 
 
-def test_un_proveedor_que_no_existe_corta_la_fila(admin, datos):
-    """No se crea el proveedor: un typo quedaría en el maestro para siempre."""
-    d = subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', 'Edesurr']])).get_json()
-    assert d['gastos_creados'] == 0
-    assert 'proveedor' in d['errores'][0]['mensaje'].lower()
-    assert len(datos['proveedores']) == 2
-
-
-def test_el_proveedor_de_otro_administrador_tampoco(admin, datos):
-    d = subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', 'Ajeno SA']])).get_json()
-    assert d['gastos_creados'] == 0
-    assert 'proveedor' in d['errores'][0]['mensaje'].lower()
-
-
 def test_la_unidad_tiene_que_ser_de_ese_consorcio(admin, datos):
     """`uf-2` existe, pero en el edificio de al lado. El gasto se prorratearía
     en un consorcio y se cobraría en el otro."""
-    d = subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '2B']])).get_json()
+    d = subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '2B']])).get_json()
     assert d['gastos_creados'] == 0
     assert 'unidad' in d['errores'][0]['mensaje'].lower()
 
@@ -307,23 +287,20 @@ def test_acepta_el_monto_como_lo_pega_el_administrador(admin, datos, escrito, es
 
 @pytest.mark.parametrize('escrito, esperado', [
     ('Sí', True), ('si', True), ('SI', True), ('X', True), ('1', True),
-    ('No', False), ('', False), (None, False),
+    ('No', False),
+    # La celda vacía se toma como pagado, igual que el tilde del formulario:
+    # el gasto se carga cuando ya se pagó.
+    ('', True), (None, True),
 ])
 def test_el_pagado_se_escribe_de_muchas_formas(admin, datos, escrito, esperado):
-    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', '', escrito]]))
+    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', escrito]]))
     assert datos['gastos'][0]['pagado'] is esperado
 
 
 def test_un_si_o_no_ilegible_se_reporta(admin, datos):
-    d = subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', '', 'tal vez']])).get_json()
+    d = subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', 'tal vez']])).get_json()
     assert d['gastos_creados'] == 0
     assert 'pagado' in d['errores'][0]['mensaje'].lower()
-
-
-def test_la_fecha_de_pago_da_por_pagado_el_gasto(admin, datos):
-    """Escribir cuándo se pagó y además tildar "pagado" es preguntar dos veces."""
-    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', '', '', '2026-06-18']]))
-    assert datos['gastos'][0]['pagado'] is True
 
 
 def test_una_categoria_que_no_esta_en_la_lista_cae_en_otro(admin, datos):
@@ -341,12 +318,12 @@ def test_la_frecuencia_y_el_dia_solo_valen_en_un_gasto_recurrente(admin, datos):
 
 
 def test_un_recurrente_sin_frecuencia_queda_mensual(admin, datos):
-    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', '', '', '', '', 'Sí']]))
+    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', '', 'Sí']]))
     assert datos['gastos'][0]['frecuencia'] == 'mensual'
 
 
 def test_un_dia_de_carga_fuera_del_mes_no_se_guarda(admin, datos):
-    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', '', '', '', '',
+    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', '',
                             'Sí', 'mensual', 45]]))
     assert datos['gastos'][0]['dia_carga'] is None
 
@@ -354,17 +331,17 @@ def test_un_dia_de_carga_fuera_del_mes_no_se_guarda(admin, datos):
 # ── El archivo exportado se vuelve a subir ────────────────────────────────────
 
 def test_el_excel_que_baja_el_boton_exportar_se_puede_reimportar(admin, datos):
-    """Los encabezados del export ("Fecha", "Método Pago") normalizan a las
+    """Los encabezados del export ("Fecha", "Categoría") normalizan a las
     mismas claves que la plantilla, así que exportar-editar-subir funciona."""
-    headers = ['Fecha', 'Consorcio', 'Descripción', 'Categoría', 'Proveedor',
-               'Monto', 'Pagado', 'Método Pago', 'Recurrente']
+    headers = ['Fecha', 'Consorcio', 'Descripción', 'Categoría',
+               'Monto', 'Pagado', 'Recurrente']
     r = subir(admin, planilla([['2026-06-05', 'Mío', 'Factura Edesur junio',
-                                'electricidad', 'Edesur', 15430.50, 'Sí',
-                                'transferencia', 'No']], headers=headers, hoja='Gastos'))
+                                'electricidad', 15430.50, 'Sí', 'No']],
+                              headers=headers, hoja='Gastos'))
     assert r.get_json()['errores'] == []
     g = datos['gastos'][0]
     assert (g['fecha_gasto'], g['descripcion'], g['monto']) == ('2026-06-05', 'Factura Edesur junio', 15430.50)
-    assert (g['categoria'], g['proveedor_id'], g['pagado']) == ('electricidad', 'prov-1', True)
+    assert (g['categoria'], g['pagado']) == ('electricidad', True)
 
 
 def test_el_orden_de_las_columnas_no_importa(admin, datos):
@@ -454,10 +431,9 @@ def test_la_plantilla_que_se_baja_se_completa_y_se_sube(admin, datos):
     ws = wb['Gastos']
     ws.delete_rows(2)  # la fila de ejemplo, como haría el administrador
     ws.append(['Mío', '2026-06-05', 'Factura Edesur junio', 15430.50, 'electricidad',
-               'Edesur', '1A', '2026-06-20', 'Sí', None, 'transferencia', 'No', None, None,
-               'Factura B-0001-00012345'])
-    ws.append(['Mío', '2026-06-01', 'Limpieza junio', 92000, 'limpieza', None, None,
-               None, 'No', None, None, 'Sí', 'mensual', 5, None])
+               '1A', 'E', 'Sí', 'No', None, None, 'Factura B-0001-00012345'])
+    ws.append(['Mío', '2026-06-01', 'Limpieza junio', 92000, 'limpieza', None,
+               None, 'No', 'Sí', 'mensual', 5, None])
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -466,14 +442,14 @@ def test_la_plantilla_que_se_baja_se_completa_y_se_sube(admin, datos):
     assert (d['gastos_creados'], d['errores']) == (2, [])
     assert d['monto_total'] == 107430.50
     luz, limpieza = datos['gastos']
-    assert (luz['proveedor_id'], luz['unidad_id'], luz['pagado']) == ('prov-1', 'uf-1', True)
+    assert (luz['unidad_id'], luz['coeficiente'], luz['pagado']) == ('uf-1', 'E', True)
     assert (limpieza['recurrente'], limpieza['frecuencia'], limpieza['dia_carga']) == (True, 'mensual', 5)
 
 
-# ── Coeficiente y comprobante ────────────────────────────────────────────────
+# ── Coeficiente ──────────────────────────────────────────────────────────────
 # La carga masiva y el prorrateo por coeficientes se hicieron en paralelo y no
 # se conocían: trescientos gastos importados de una planilla entraban todos por
-# el reparto A y sin el comprobante que la Ley 941 obliga a imprimir.
+# el reparto A.
 
 def _fila(**extra):
     """Una fila mínima, con las columnas que se quieran encima."""
@@ -505,16 +481,21 @@ def test_una_letra_mal_tipeada_no_frena_el_resto_del_archivo(admin, datos):
     assert [g['coeficiente'] for g in datos['gastos']] == ['A', 'E']
 
 
-def test_importa_el_comprobante(admin, datos):
-    subir(admin, planilla([_fila(comprobante_tipo='LSP A',
-                                 comprobante_numero='0014-23144929')]))
+# ── La planilla vieja ────────────────────────────────────────────────────────
+
+def test_la_planilla_anterior_se_sube_y_sus_columnas_de_mas_se_ignoran(admin, datos):
+    """El administrador que tiene la plantilla vieja bajada no queda a pie.
+
+    Proveedor, vencimiento, método de pago y comprobante perdieron su alias: la
+    columna entra al archivo y el parser no la mira. Frenar la fila por un
+    proveedor que ya no se puede dar de alta sería dejarlo sin salida.
+    """
+    fila = ['Mío', '2026-06-05', 'Factura Edesur junio', 15430.50, 'electricidad',
+            'Edesur', '1A', '2026-06-20', 'Sí', '2026-06-18', 'transferencia',
+            'No', None, None, 'E', 'LSP A', '0014-23144929', 'Una nota']
+    r = subir(admin, planilla([fila], headers=HEADERS_VIEJOS))
+    assert r.get_json()['errores'] == []
     g = datos['gastos'][0]
-    assert (g['comprobante_tipo'], g['comprobante_numero']) == ('LSP A', '0014-23144929')
-
-
-def test_el_alias_del_comprobante_tambien_entra(admin, datos):
-    """"nro_comprobante" es como lo titula la mitad de las planillas."""
-    headers = [h for h in HEADERS if h != 'comprobante_numero'] + ['nro_comprobante']
-    fila = _fila()[:-4] + ['', '', '', '0001-00099']
-    subir(admin, planilla([fila], headers=headers))
-    assert datos['gastos'][0]['comprobante_numero'] == '0001-00099'
+    assert (g['unidad_id'], g['coeficiente'], g['pagado']) == ('uf-1', 'E', True)
+    assert g['notas'] == 'Una nota'
+    assert 'proveedor_id' not in g and 'comprobante_numero' not in g

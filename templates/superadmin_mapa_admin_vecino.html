@@ -240,14 +240,14 @@ const ADMIN = [
     {t:"Que la liquidación genere la deuda del vecino", s:"built", note:"Emitir crea el cobro de cada unidad con su total prorrateado. Antes eran dos mundos: el mail llevaba el total y la cuenta del vecino un monto plano cargado a mano, y podían no coincidir"}
   ]},
   { id:"a2",  label:"Cargar gastos y facturas (OCR)", link:null, estado:"built", items:[
-    {t:"OCR de factura con Groq Vision (monto, proveedor, fecha)", s:"built"},
+    {t:"OCR de factura con Groq Vision (monto, categoría, fecha)", s:"built"},
     {t:"Asignar centro de costo", s:"built"},
     {t:"Adjuntar comprobante", s:"built"}
   ]},
-  { id:"a3",  label:"Gestionar proveedores", link:"v10", estado:"built", items:[
-    {t:"Datos fiscales y de contacto", s:"built"},
-    {t:"Historial de trabajos realizados", s:"planned", note:"GET /api/proveedores/&lt;pid&gt;/gastos existe, el frontend no lo llama todavía"},
-    {t:"Registrar pago a proveedor", s:"built"},
+  { id:"a3",  label:"Gestionar proveedores", link:"v10", estado:"notbuilt", items:[
+    {t:"Datos fiscales y de contacto", s:"none", note:"Existió como sección del panel y se sacó el 28/08/2026 al simplificar la carga de gastos: era una tabla que nadie llenaba y un desplegable que siempre decía \"Sin proveedor\". La tabla proveedores sigue en la base con lo cargado"},
+    {t:"Historial de trabajos realizados", s:"none"},
+    {t:"Registrar pago a proveedor", s:"none"},
     {t:"Emitir retenciones", s:"none"}
   ]},
   { id:"a4",  label:"Conciliar cobranzas", link:"v3", estado:"notbuilt", items:[

@@ -25,13 +25,13 @@
             cobros: 'cobros',
             gastos: 'gastos',
             consorcios: 'edificios',
-            liquidaciones: 'mas', proveedores: 'mas', amenities: 'mas',
+            liquidaciones: 'mas', amenities: 'mas',
             balance: 'mas', reclamos: 'mas', mensajeria: 'mas', config: 'mas'
         },
         titles: {
             dashboard: 'Hoy', cobros: 'Cobros', gastos: 'Gastos',
             consorcios: 'Edificios', liquidaciones: 'Liquidaciones',
-            proveedores: 'Proveedores', amenities: 'Amenities',
+            amenities: 'Amenities',
             balance: 'Balance', reclamos: 'Reclamos', mensajeria: 'Mensajería',
             config: 'Configuración'
         },
@@ -60,7 +60,6 @@
                 ]},
                 { label: 'Padrón', items: [
                     { section: 'consorcios',    label: 'Edificios',      icon: 'ic-edificio' },
-                    { section: 'proveedores',   label: 'Proveedores',    icon: 'ic-proveedor' },
                     { section: 'amenities',     label: 'Amenities',      icon: 'ic-reserva' }
                 ]},
                 { label: 'Sistema', items: [
@@ -432,7 +431,6 @@
         <div class="nav-section-label">Operaciones</div>
         <a class="nav-link" onclick="show('gastos',this)"><svg class="ic"><use href="#ic-expensa"></use></svg>Gastos</a>
         <a class="nav-link" onclick="show('cobros',this)"><svg class="ic"><use href="#ic-cobro"></use></svg>Cobros</a>
-        <a class="nav-link" onclick="show('proveedores',this)"><svg class="ic"><use href="#ic-proveedor"></use></svg>Proveedores</a>
         <a class="nav-link" onclick="show('amenities',this)"><svg class="ic"><use href="#ic-reserva"></use></svg>Amenities</a>
         <a class="nav-link" onclick="show('liquidaciones',this)"><svg class="ic"><use href="#ic-liquidacion"></use></svg>Liquidaciones</a>
 
@@ -594,8 +592,8 @@
     <div class="card">
         <div class="card-h"><span class="card-t">Historial</span></div>
         <table class="tbl">
-            <thead><tr><th>Fecha</th><th>Consorcio</th><th>Descripción</th><th>Categoría</th><th>Proveedor</th><th>Monto</th><th>Estado</th><th>Recurrente</th><th>Acciones</th></tr></thead>
-            <tbody id="tbody-gastos"><tr><td colspan="9" class="tbl-empty">Cargando...</td></tr></tbody>
+            <thead><tr><th>Fecha</th><th>Consorcio</th><th>Descripción</th><th>Categoría</th><th>Monto</th><th>Estado</th><th>Recurrente</th><th>Acciones</th></tr></thead>
+            <tbody id="tbody-gastos"><tr><td colspan="8" class="tbl-empty">Cargando...</td></tr></tbody>
         </table>
     </div>
 </div>
@@ -643,21 +641,6 @@
                 <tbody id="tbody-mora"><tr><td colspan="10" class="tbl-empty">Cargando...</td></tr></tbody>
             </table>
         </div>
-    </div>
-</div>
-
-<!-- ═══ PROVEEDORES ═══ -->
-<div id="sec-proveedores" class="section">
-    <div class="page-header">
-        <div><h1 class="page-title">Proveedores</h1><p class="page-sub">Empresas y personas que brindan servicios</p></div>
-        <button class="btn-p btn-sm" onclick="openProveedorModal()">+ Nuevo proveedor</button>
-    </div>
-    <div class="card">
-        <div class="card-h"><span class="card-t">Listado</span></div>
-        <table class="tbl">
-            <thead><tr><th>Nombre</th><th>CUIT</th><th>Rubro</th><th>Email</th><th>Teléfono</th><th>Acciones</th></tr></thead>
-            <tbody id="tbody-proveedores"><tr><td colspan="6" class="tbl-empty">Cargando...</td></tr></tbody>
-        </table>
     </div>
 </div>
 
@@ -1130,8 +1113,8 @@
 </div>
 
 <!-- Modal Carga masiva de gastos: mismo circuito que el de consorcios, con la
-     diferencia de que acá nada se crea de paso — consorcios, proveedores y UF
-     tienen que existir antes y el archivo sólo los referencia. -->
+     diferencia de que acá nada se crea de paso — consorcios y UF tienen que
+     existir antes y el archivo sólo los referencia. -->
 <div class="modal-overlay" id="modal-bulk-gastos">
     <div class="modal-box wide">
         <div class="modal-head"><h3>Carga masiva de Gastos</h3><button class="modal-close" onclick="closeModal('modal-bulk-gastos')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
@@ -1141,7 +1124,7 @@
                 <div class="form-group">
                     <label class="form-label">1. Descargá la plantilla</label>
                     <div class="section-info" style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px;">
-                        <span style="flex:1 1 260px;min-width:0;">Bajá el Excel, completá una fila por gasto y volvé a subirlo. Trae tus consorcios, proveedores y unidades listados para elegir de un desplegable.</span>
+                        <span style="flex:1 1 260px;min-width:0;">Bajá el Excel, completá una fila por gasto y volvé a subirlo. Trae tus consorcios y unidades listados para elegir de un desplegable.</span>
                         <a class="btn-s btn-sm" href="/api/gastos/plantilla" style="white-space:nowrap;"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Descargar plantilla</a>
                     </div>
                 </div>
@@ -1149,8 +1132,8 @@
                     <label class="form-label">Qué lleva cada fila</label>
                     <div class="section-info" style="display:block;">
                         <b>Obligatorios:</b> consorcio, fecha, descripcion, monto.<br>
-                        <b>Opcionales:</b> categoria, proveedor, unidad, fecha_vencimiento, pagado, fecha_pago, metodo_pago, recurrente, frecuencia, dia_carga, notas.<br>
-                        <span class="text-muted">El consorcio, el proveedor y la unidad tienen que existir de antes: se buscan por nombre y no se crean. Un gasto repetido (mismo consorcio, fecha, descripción y monto) se omite en vez de duplicarse.</span>
+                        <b>Opcionales:</b> categoria, unidad, coeficiente, pagado, recurrente, frecuencia, dia_carga, notas.<br>
+                        <span class="text-muted">El consorcio y la unidad tienen que existir de antes: se buscan por nombre y no se crean. Un gasto repetido (mismo consorcio, fecha, descripción y monto) se omite en vez de duplicarse.</span>
                     </div>
                 </div>
                 <div class="form-group">
@@ -1242,7 +1225,7 @@
                         <thead><tr>
                             <th style="width:34px;"></th>
                             <th>Descripción</th><th>Monto</th><th>Categoría</th>
-                            <th>Fecha</th><th>Vencimiento</th><th style="width:64px;">Pagado</th>
+                            <th>Fecha</th><th style="width:64px;">Pagado</th>
                         </tr></thead>
                         <tbody id="tbody-auto-results"></tbody>
                     </table>
@@ -1263,10 +1246,7 @@
         <div class="modal-head"><h3 id="m-gasto-title">Nuevo gasto</h3><button class="modal-close" onclick="closeModal('modal-gasto')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
         <div class="modal-body">
             <input type="hidden" id="m-gasto-id">
-            <div class="form-row">
-                <div class="form-group"><label class="form-label">Consorcio *</label><select class="form-ctrl" id="m-gasto-consorcio" onchange="onGastoConsorcioChange()"></select></div>
-                <div class="form-group"><label class="form-label">Proveedor</label><select class="form-ctrl" id="m-gasto-proveedor"><option value="">Sin proveedor</option></select></div>
-            </div>
+            <div class="form-group"><label class="form-label">Consorcio *</label><select class="form-ctrl" id="m-gasto-consorcio" onchange="onGastoConsorcioChange()"></select></div>
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Alcance del gasto</label>
@@ -1301,26 +1281,8 @@
                 <div class="form-group"><label class="form-label">Monto *</label><input type="number" step="0.01" class="form-ctrl" id="m-gasto-monto" placeholder="0.00"></div>
                 <div class="form-group"><label class="form-label">Fecha</label><input type="date" class="form-ctrl" id="m-gasto-fecha"></div>
             </div>
-            <div class="form-row">
-                <div class="form-group"><label class="form-label">Fecha de vencimiento</label><input type="date" class="form-ctrl" id="m-gasto-vto"></div>
-                <div class="form-group"><label class="form-label">Método de pago</label>
-                    <select class="form-ctrl" id="m-gasto-metodo">
-                        <option value="">—</option>
-                        <option value="transferencia">Transferencia</option>
-                        <option value="cheque">Cheque</option>
-                        <option value="efectivo">Efectivo</option>
-                        <option value="debito">Débito automático</option>
-                    </select>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="checkbox-row"><input type="checkbox" id="m-gasto-pagado"> Marcado como pagado</label>
-                </div>
-                <div class="form-group"><label class="form-label">Fecha de pago</label><input type="date" class="form-ctrl" id="m-gasto-fecha-pago"></div>
-            </div>
             <div class="sep"></div>
-            <div class="form-row3">
+            <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Coeficiente de reparto</label>
                     <select class="form-ctrl" id="m-gasto-coeficiente">
@@ -1332,15 +1294,10 @@
                     <div class="text-muted text-sm" style="margin-top:4px;">Con qué porcentaje de cada UF se reparte. Si no usás varios, dejá A.</div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Tipo de comprobante</label>
-                    <input type="text" class="form-ctrl" id="m-gasto-comp-tipo" placeholder="Fc. B / LSP A / Rc.">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">N° de comprobante</label>
-                    <input type="text" class="form-ctrl" id="m-gasto-comp-numero" placeholder="0001-00001234">
+                    <label class="checkbox-row"><input type="checkbox" id="m-gasto-pagado" checked> Marcado como pagado</label>
+                    <div class="text-muted text-sm" style="margin-top:4px;">Viene tildado: el gasto se carga cuando ya se pagó. Destildalo si todavía no.</div>
                 </div>
             </div>
-            <div class="text-muted text-sm" style="margin:-6px 0 10px;">El comprobante sale impreso en la liquidación: la Ley 941 obliga a rendirlo junto al gasto.</div>
             <div class="form-row3">
                 <div class="form-group">
                     <label class="checkbox-row"><input type="checkbox" id="m-gasto-recurrente" onchange="toggleFrecuencia()"> Gasto recurrente</label>
@@ -1438,39 +1395,6 @@
         <div class="modal-footer">
             <button class="btn-s" onclick="closeModal('modal-generar')">Cancelar</button>
             <button class="btn-teal" onclick="generarCobros()"><svg class="ic ic-sm"><use href="#ic-rayo"></use></svg>Generar</button>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Proveedor -->
-<div class="modal-overlay" id="modal-proveedor">
-    <div class="modal-box">
-        <div class="modal-head"><h3 id="m-prov-title">Nuevo proveedor</h3><button class="modal-close" onclick="closeModal('modal-proveedor')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
-        <div class="modal-body">
-            <input type="hidden" id="m-prov-id">
-            <div class="form-row">
-                <div class="form-group"><label class="form-label">Nombre *</label><input class="form-ctrl" id="m-prov-nombre"></div>
-                <div class="form-group"><label class="form-label">CUIT</label><input class="form-ctrl" id="m-prov-cuit"></div>
-            </div>
-            <div class="form-group"><label class="form-label">Rubro</label>
-                <select class="form-ctrl" id="m-prov-rubro">
-                    <option value="">Seleccionar</option>
-                    <option value="electricidad">Electricidad</option><option value="gas">Gas</option>
-                    <option value="agua">Agua</option><option value="limpieza">Limpieza</option>
-                    <option value="ascensor">Ascensor / Mantenimiento</option><option value="seguro">Seguro</option>
-                    <option value="impermeabilizacion">Impermeabilización</option>
-                    <option value="plomeria">Plomería</option><option value="electricista">Electricista</option>
-                    <option value="otro">Otro</option>
-                </select>
-            </div>
-            <div class="form-row">
-                <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-ctrl" id="m-prov-email"></div>
-                <div class="form-group"><label class="form-label">Teléfono</label><input class="form-ctrl" id="m-prov-tel"></div>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn-s" onclick="closeModal('modal-proveedor')">Cancelar</button>
-            <button class="btn-p" onclick="saveProveedor()">Guardar</button>
         </div>
     </div>
 </div>
@@ -1670,7 +1594,6 @@
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let consorcios = [];
-let proveedores = [];
 let currentConsorioId = null;
 
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -1689,7 +1612,6 @@ function show(id, el) {
     if (id === 'consorcios')   loadConsorcios();
     if (id === 'gastos')       initGastos();
     if (id === 'cobros')       initCobros();
-    if (id === 'proveedores')  loadProveedores();
     if (id === 'balance')      initBalance();
     if (id === 'amenities')    initAmenities();
     if (id === 'liquidaciones') initLiquidaciones();
@@ -2390,7 +2312,6 @@ function exportConsorcio(fmt) {
 // ── GASTOS ─────────────────────────────────────────────────────────────────────
 async function initGastos() {
     if (!consorcios.length) await loadConsorcios();
-    await loadProveedoresOpts();
     await loadGastos();
     await checkTarifasPendientes();
 }
@@ -2418,7 +2339,7 @@ async function checkTarifasPendientes() {
                 <div class="form-row" style="align-items:center;gap:8px;margin-bottom:6px;">
                     <div class="text-sm">
                         ${escHtml(g.descripcion)}
-                        <div class="text-muted text-sm">${g.periodo_generado||''}${(g.proveedores||{}).nombre ? ' · ' + escHtml((g.proveedores||{}).nombre) : ''}</div>
+                        <div class="text-muted text-sm">${g.periodo_generado||''}</div>
                     </div>
                     <input type="number" step="0.01" class="form-ctrl tarifa-monto"
                            data-id="${g.id}" value="${g.monto}">
@@ -2455,14 +2376,6 @@ async function confirmarTarifas() {
     }
 }
 
-async function loadProveedoresOpts() {
-    try {
-        proveedores = await api('/api/proveedores');
-        const opts = '<option value="">Sin proveedor</option>' + proveedores.map(p=>`<option value="${p.id}">${escHtml(p.nombre)}</option>`).join('');
-        $('m-gasto-proveedor').innerHTML = opts;
-    } catch{}
-}
-
 let currentGastos = [];
 
 async function loadGastos() {
@@ -2474,7 +2387,7 @@ async function loadGastos() {
         const data = await api('/api/gastos?'+params);
         currentGastos = data;
         const tb = $('tbody-gastos');
-        if (!data.length) { tb.innerHTML = '<tr><td colspan="9" class="tbl-empty">Sin gastos en el período</td></tr>'; $('gastos-total-label').textContent=''; return; }
+        if (!data.length) { tb.innerHTML = '<tr><td colspan="8" class="tbl-empty">Sin gastos en el período</td></tr>'; $('gastos-total-label').textContent=''; return; }
         const total = data.reduce((s,g)=>s+(g.monto||0),0);
         $('gastos-total-label').textContent = `Total: ${fmt(total)}`;
         tb.innerHTML = data.map(g => `
@@ -2483,7 +2396,6 @@ async function loadGastos() {
                 <td>${escHtml((g.consorcios||{}).nombre||'—')}</td>
                 <td><strong>${escHtml(g.descripcion)}</strong>${g.unidad_id?`<span class="b b-b" style="margin-left:6px;">UF ${escHtml((g.unidades_funcionales||{}).numero||'—')}</span>`:''}${g.notas?`<div class="text-muted text-sm">${escHtml(g.notas)}</div>`:''}</td>
                 <td>${categoriaBadge(g.categoria)}</td>
-                <td>${escHtml((g.proveedores||{}).nombre||'—')}</td>
                 <td><strong>${fmt(g.monto)}</strong>${g.tarifa_confirmada === false ? '<span class="b b-y" style="margin-left:6px;">sin confirmar</span>' : ''}</td>
                 <td>${g.pagado ? '<span class="b b-g">Pagado</span>' : '<span class="b b-y">Pendiente</span>'}</td>
                 <td>${g.recurrente ? `<span class="b b-b">${escHtml(g.frecuencia||'recurrente')}</span>` : (g.gasto_origen_id ? '<span class="b b-b">automático</span>' : '—')}</td>
@@ -2494,14 +2406,14 @@ async function loadGastos() {
                 </div></td>
             </tr>`).join('');
 
-        /* Ídem para gastos: la tabla tiene 9 columnas. */
+        /* Ídem para gastos: la tabla tiene 8 columnas. */
         NiddoMobile.renderList('tbody-gastos', data, g => {
-            const prov = (g.proveedores && g.proveedores.nombre) || 'Sin proveedor';
+            const cat = g.categoria ? escHtml(g.categoria) : 'sin categoría';
             return `<div class="nd-row" style="cursor:default">
                 <span class="nd-row-ic ${g.pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-expensa"></use></svg></span>
                 <span class="nd-row-main">
                     <span class="nd-row-t">${escHtml(g.descripcion || '–')}</span>
-                    <span class="nd-row-s">${prov} · ${g.fecha_gasto || '—'}${g.pagado ? '' : ' · sin aprobar'}</span>
+                    <span class="nd-row-s">${cat} · ${g.fecha_gasto || '—'}${g.pagado ? '' : ' · sin pagar'}</span>
                 </span>
                 <span class="nd-row-amt">${fmt(g.monto)}</span>
             </div>`;
@@ -2677,7 +2589,9 @@ async function extractGastosData() {
             $('auto-progress').textContent = `Analizando ${i + 1} de ${total} — ${file.name}`;
             try {
                 const data = await extractOne(file, consorcioId);
-                autoExtractedResults.push({ file, data, error: null, incluir: true, pagado: false });
+                /* Mismo default que el formulario manual: el gasto se carga
+                   cuando ya se pagó, y el tilde está ahí para destildarlo. */
+                autoExtractedResults.push({ file, data, error: null, incluir: true, pagado: true });
             } catch (e) {
                 autoExtractedResults.push({ file, data: null, error: e.message, incluir: false, pagado: false });
             }
@@ -2721,7 +2635,6 @@ function renderBatchResults() {
             <td><input class="form-ctrl" type="number" step="0.01" style="width:115px;" value="${escHtml(d.monto ?? '')}" oninput="setResultField(${i},'monto',this.value)"></td>
             <td><select class="form-ctrl" style="width:145px;" onchange="setResultField(${i},'categoria',this.value)">${cats}</select></td>
             <td><input class="form-ctrl" type="date" style="width:150px;" value="${escHtml(d.fecha_gasto || '')}" oninput="setResultField(${i},'fecha_gasto',this.value)"></td>
-            <td><input class="form-ctrl" type="date" style="width:150px;" value="${escHtml(d.fecha_vencimiento || '')}" oninput="setResultField(${i},'fecha_vencimiento',this.value)"></td>
             <td style="text-align:center;"><input type="checkbox" ${r.pagado ? 'checked' : ''} onchange="setResultFlag(${i},'pagado',this.checked)"></td>
         </tr>`;
     }).join('');
@@ -2805,11 +2718,6 @@ function ndRenderAuto() {
                        oninput="setResultField(${i},'fecha_gasto',this.value)">
             </div>
             <div class="nd-auto-f">
-                <label>Vence</label>
-                <input type="date" value="${escHtml(d.fecha_vencimiento || '')}"
-                       oninput="setResultField(${i},'fecha_vencimiento',this.value)">
-            </div>
-            <div class="nd-auto-f">
                 <label>Ya está pagado</label>
                 <input type="checkbox" style="flex:0 0 auto;width:22px;height:22px" ${r.pagado ? 'checked' : ''}
                        onchange="setResultFlag(${i},'pagado',this.checked)">
@@ -2831,9 +2739,9 @@ function ndAutoIr(i) {
 /* ══════════════════════════════════════════════════════════════════════
    CARGA RÁPIDA MANUAL — sólo mobile
 
-   El formulario de gasto tiene quince campos. Parado en la calle, sin
-   comprobante, se cargan tres: cuánto, de qué y a quién. Esto pone esos
-   tres adelante con teclado y grilla propios, y deja el resto a un toque.
+   Aun recortado, el formulario de gasto tiene once campos. Parado en la
+   calle, sin comprobante, se cargan dos: cuánto y de qué. Esto pone esos
+   dos adelante con teclado y grilla propios, y deja el resto a un toque.
 
    No hay guardado nuevo: escribe en los mismos campos del formulario y
    guarda con el mismo saveGasto().
@@ -2880,7 +2788,6 @@ function ndCargaRapida() {
     }
 
     const cats = [...$('m-gasto-cat').options].filter(o => o.value);
-    const provs = [...$('m-gasto-proveedor').options].filter(o => o.value);
 
     p.innerHTML = `
         <div class="nd-monto-big" id="nd-monto-vista">$0</div>
@@ -2900,13 +2807,6 @@ function ndCargaRapida() {
                     <span>${escHtml(o.textContent)}</span>
                 </button>`).join('')}
         </div>
-
-        ${provs.length ? `
-        <div class="nd-lbl-sec">Proveedor</div>
-        <div class="nd-chips">
-            ${provs.map(o => `<button type="button" class="nd-chip" data-prov="${o.value}"
-                onclick="ndElegirProv(this)">${escHtml(o.textContent)}</button>`).join('')}
-        </div>` : ''}
 
         <div class="nd-lbl-sec">Descripción</div>
         <input class="form-ctrl" id="nd-rapido-desc" placeholder="Se completa con la categoría"
@@ -2947,13 +2847,6 @@ function ndElegirCat(btn) {
         desc.value = btn.querySelector('span').textContent.trim();
         $('m-gasto-desc').value = desc.value;
     }
-}
-
-function ndElegirProv(btn) {
-    const ya = btn.classList.contains('active');
-    btn.parentElement.querySelectorAll('.nd-chip').forEach(b => b.classList.remove('active'));
-    if (!ya) btn.classList.add('active');
-    $('m-gasto-proveedor').value = ya ? '' : btn.dataset.prov;
 }
 
 function ndVerTodosLosCampos() {
@@ -3005,7 +2898,6 @@ async function saveOneGasto(r, consorcioId) {
     fd.append('descripcion', (d.descripcion || '').trim());
     fd.append('categoria', d.categoria || '');
     fd.append('fecha_gasto', d.fecha_gasto || hoyLocalISO());
-    fd.append('fecha_vencimiento', d.fecha_vencimiento || '');
     fd.append('pagado', r.pagado ? 'true' : 'false');
     fd.append('notas', d.notas || '');
     fd.append('comprobante', r.file);
@@ -3118,8 +3010,6 @@ function openGastoModal(id) {
     $('m-gasto-title').textContent = id ? 'Editar gasto' : 'Nuevo gasto';
     $('m-gasto-comprobante').value = '';
     $('m-gasto-coeficiente').value = 'A';
-    $('m-gasto-comp-tipo').value = '';
-    $('m-gasto-comp-numero').value = '';
     const infoEl = $('m-gasto-comprobante-info');
     infoEl.style.display = 'none';
     infoEl.innerHTML = '';
@@ -3135,11 +3025,11 @@ function openGastoModal(id) {
 
     if (!id) {
         $('m-gasto-consorcio').value = '';
-        $('m-gasto-proveedor').value = '';
         ['m-gasto-desc','m-gasto-monto','m-gasto-notas'].forEach(f=>$(f).value='');
         $('m-gasto-fecha').value = new Date().toISOString().split('T')[0];
-        ['m-gasto-vto','m-gasto-fecha-pago'].forEach(f=>$(f).value='');
-        $('m-gasto-pagado').checked = false;
+        /* El gasto se carga cuando ya se pagó: ese es el caso normal y por eso
+           es el default. El que todavía no se pagó se destilda a mano. */
+        $('m-gasto-pagado').checked = true;
         $('m-gasto-recurrente').checked = false;
         $('m-gasto-dia-carga').value = String(new Date().getDate());
         toggleFrecuencia();
@@ -3147,23 +3037,17 @@ function openGastoModal(id) {
         const g = currentGastos.find(x => x.id === id);
         if (g) {
             $('m-gasto-consorcio').value = g.consorcio_id || '';
-            $('m-gasto-proveedor').value = g.proveedor_id || '';
             $('m-gasto-desc').value = g.descripcion || '';
             $('m-gasto-cat').value = g.categoria || '';
             $('m-gasto-monto').value = g.monto || '';
             $('m-gasto-fecha').value = g.fecha_gasto || '';
-            $('m-gasto-vto').value = g.fecha_vencimiento || '';
-            $('m-gasto-metodo').value = g.metodo_pago || '';
             $('m-gasto-pagado').checked = !!g.pagado;
-            $('m-gasto-fecha-pago').value = g.fecha_pago || '';
             $('m-gasto-recurrente').checked = !!g.recurrente;
             $('m-gasto-frecuencia').value = g.frecuencia || '';
             $('m-gasto-dia-carga').value = String(g.dia_carga || new Date(g.fecha_gasto + 'T00:00:00').getDate() || 1);
             toggleFrecuencia();
             $('m-gasto-notas').value = g.notas || '';
             $('m-gasto-coeficiente').value = g.coeficiente || 'A';
-            $('m-gasto-comp-tipo').value = g.comprobante_tipo || '';
-            $('m-gasto-comp-numero').value = g.comprobante_numero || '';
             if (g.unidad_id) {
                 $('m-gasto-alcance').value = 'uf';
                 toggleGastoAlcance();
@@ -3193,21 +3077,15 @@ async function saveGasto() {
     fd.append('consorcio_id', consorcio_id);
     fd.append('monto', monto);
     fd.append('unidad_id', unidad_id);
-    fd.append('proveedor_id', $('m-gasto-proveedor').value || '');
     fd.append('descripcion', $('m-gasto-desc').value.trim());
     fd.append('categoria', $('m-gasto-cat').value);
     fd.append('fecha_gasto', $('m-gasto-fecha').value);
-    fd.append('fecha_vencimiento', $('m-gasto-vto').value || '');
     fd.append('pagado', $('m-gasto-pagado').checked ? 'true' : 'false');
-    fd.append('fecha_pago', $('m-gasto-fecha-pago').value || '');
-    fd.append('metodo_pago', $('m-gasto-metodo').value);
     fd.append('recurrente', $('m-gasto-recurrente').checked ? 'true' : 'false');
     fd.append('frecuencia', $('m-gasto-frecuencia').value);
     fd.append('dia_carga', $('m-gasto-dia-carga').value || '');
     fd.append('notas', $('m-gasto-notas').value);
     fd.append('coeficiente', $('m-gasto-coeficiente').value);
-    fd.append('comprobante_tipo', $('m-gasto-comp-tipo').value);
-    fd.append('comprobante_numero', $('m-gasto-comp-numero').value);
 
     const fileInput = $('m-gasto-comprobante');
     if (fileInput.files.length > 0) {
@@ -3450,58 +3328,6 @@ function exportCobros() {
     const cid = $('filter-cobros-consorcio')?.value; if(cid) params.set('consorcio_id',cid);
     const periodo = $('filter-cobros-periodo')?.value; if(periodo) params.set('periodo',periodo);
     window.location.href = '/api/cobros/export?'+params;
-}
-
-// ── PROVEEDORES ────────────────────────────────────────────────────────────────
-async function loadProveedores() {
-    try {
-        proveedores = await api('/api/proveedores');
-        const tb = $('tbody-proveedores');
-        if (!proveedores.length) { tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">Sin proveedores. Añadí el primero.</td></tr>'; return; }
-        tb.innerHTML = proveedores.map(p => `
-            <tr>
-                <td><strong>${escHtml(p.nombre)}</strong></td>
-                <td class="text-muted">${escHtml(p.cuit||'—')}</td>
-                <td>${escHtml(p.rubro||'—')}</td>
-                <td class="text-muted">${escHtml(p.email||'—')}</td>
-                <td class="text-muted">${p.telefono||'—'}</td>
-                <td><div class="inline-actions">
-                    <button class="btn-s btn-sm" onclick="openProveedorModal('${p.id}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button>
-                    <button class="btn-danger btn-sm" onclick="deleteProveedor('${p.id}','${escHtml(p.nombre)}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
-                </div></td>
-            </tr>`).join('');
-    } catch(e) { toast(e.message,'err'); }
-}
-
-function openProveedorModal(id) {
-    $('m-prov-id').value = id||'';
-    $('m-prov-title').textContent = id ? 'Editar proveedor' : 'Nuevo proveedor';
-    if (!id) { ['m-prov-nombre','m-prov-cuit','m-prov-email','m-prov-tel'].forEach(f=>$(f).value=''); $('m-prov-rubro').value=''; }
-    else {
-        const p = proveedores.find(x=>x.id===id); if(!p) return;
-        $('m-prov-nombre').value = p.nombre||''; $('m-prov-cuit').value = p.cuit||'';
-        $('m-prov-rubro').value = p.rubro||''; $('m-prov-email').value = p.email||''; $('m-prov-tel').value = p.telefono||'';
-    }
-    openModal('modal-proveedor');
-}
-
-async function saveProveedor() {
-    const nombre = $('m-prov-nombre').value.trim();
-    if (!nombre) { toast('Nombre requerido','warn'); return; }
-    const payload = { nombre, cuit: $('m-prov-cuit').value, rubro: $('m-prov-rubro').value,
-        email: $('m-prov-email').value, telefono: $('m-prov-tel').value };
-    const pid = $('m-prov-id').value;
-    try {
-        if (pid) await api(`/api/proveedores/${pid}`,{method:'PUT',body:JSON.stringify(payload)});
-        else      await api('/api/proveedores',{method:'POST',body:JSON.stringify(payload)});
-        closeModal('modal-proveedor'); toast(pid?'Proveedor actualizado':'Proveedor creado'); await loadProveedores();
-    } catch(e) { toast(e.message,'err'); }
-}
-
-async function deleteProveedor(id,nombre) {
-    if (!confirm(`¿Eliminar "${nombre}"?`)) return;
-    try { await api(`/api/proveedores/${id}`,{method:'DELETE'}); toast('Proveedor eliminado','warn'); await loadProveedores(); }
-    catch(e) { toast(e.message,'err'); }
 }
 
 // ── BALANCE ────────────────────────────────────────────────────────────────────
@@ -3803,9 +3629,8 @@ function renderGastosDisponibles() {
     }
     cont.innerHTML = liqGastos.map(g => {
         const on = liqGastosSel.has(g.id);
-        const prov = (g.proveedores||{}).nombre;
         const uf = g.unidad_id ? `UF ${escHtml((g.unidades_funcionales||{}).numero||'—')}` : null;
-        const sub = [g.fecha_gasto, g.categoria, prov, uf && `sólo ${uf}`].filter(Boolean).join(' · ');
+        const sub = [g.fecha_gasto, g.categoria, uf && `sólo ${uf}`].filter(Boolean).join(' · ');
         /* El gasto sigue viniendo tildado como cualquier otro: esto es sólo un
            aviso de que el monto es el que se copió del período anterior y
            nadie confirmó todavía si la tarifa cambió. */
