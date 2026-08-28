@@ -159,6 +159,7 @@ const CATEGORIES = [
     { name:"Calcular expensa mensual automática", role:"admin", tech:["Supabase"], items:[
       {t:"Definir % de copropiedad por unidad", s:"built", note:"Cuatro coeficientes (A, B, C, E) cargables en el alta y la edición de cada UF. Era el bloqueo de todo: las columnas existían desde v7 y ningún endpoint las aceptaba. Si los de un coeficiente no suman 100, ese se reparte lineal — sin cargar nada la app se comporta igual que antes"},
       {t:"Prorratear gastos comunes vs. exclusivos", s:"built", note:"Y ahora también por coeficiente: cada gasto declara con cuál se reparte, así el ascensor puede ir por uno donde la cochera pesa 0 y el seguro por otro donde pesa. Es lo que hacen SIPAC, Octopus, Expensas Flow y Consorcio Abierto"},
+      {t:"Cargar la composición del saldo (banco / superfondo / administrador)", s:"planned", note:"Las tres columnas llegaron en la v7 y el PUT de la liquidación las acepta, pero ninguna pantalla las manda: el cuadro de composición de saldo del PDF sale en cero en toda liquidación real. Es un &lt;input&gt; por cada una en la pestaña Configuración del cierre, al lado de saldo_inicial y total_ingresos, que sí están"},
       {t:"Aplicar fondo de reserva", s:"planned", note:"saldo_superfondo sigue existiendo sin calcularse. Ninguno de los cuatro documentos de referencia lo trae como columna del prorrateo, así que primero hay que definir si es un porcentaje sobre la expensa o un monto fijo del consorcio"},
       {t:"Calcular intereses por mora", s:"planned", note:"El prorrateo ya calcula el interés sobre el saldo impago del período anterior, con la tasa del consorcio (Configuración dejó de ser decorativa). Falta la otra mitad: nada pasa un cobro a vencido/en_mora al vencerse, así que el interés sólo aparece cuando se emite la liquidación siguiente"},
       {t:"Generar vencimientos (1° y 2°)", s:"built", note:"El recargo del 2° vencimiento ahora se aplica: total_segundo_vto = total × (1 + recargo%), verificado contra los cuatro sistemas. Antes se imprimía \"+X%\" al lado de la fecha y no se calculaba en ningún lado"}
@@ -169,7 +170,8 @@ const CATEGORIES = [
       {t:"Notificar a propietarios afectados", s:"none"}
     ]},
     { name:"Emitir liquidación en formato normativo", role:"admin", tech:["reportlab"], items:[
-      {t:"Formato \"Mis Expensas\" (CABA/PBA)", s:"built", note:"El PDF adjunto sigue la estructura de los cuatro sistemas: encabezado con consorcio y administración (CUIT y matrícula RPA/RPAC incluidos), rubros con proveedor, CUIT, comprobante y fecha de pago por gasto, subtotales por coeficiente, los cuadros del art. 10 con su cita, y la tabla de prorrateo con todas las unidades"},
+      {t:"Formato \"Mis Expensas\" (CABA/PBA)", s:"built", note:"El PDF adjunto sigue la estructura de los cuatro sistemas: encabezado con consorcio y administración (CUIT y matrícula RPA/RPAC incluidos &lt;b&gt;si estuvieran cargados, que hoy no pueden estarlo — ver abajo&lt;/b&gt;), rubros con proveedor, CUIT, comprobante y fecha de pago por gasto, subtotales por coeficiente, los cuadros del art. 10 con su cita, y la tabla de prorrateo con todas las unidades"},
+      {t:"Cargar el CUIT y la matrícula del administrador", s:"planned", note:"&lt;b&gt;El PDF los imprime y no hay por dónde cargarlos.&lt;/b&gt; La v18 agregó administradores.cuit, matricula y direccion; el PDF los pinta en el encabezado &lt;i&gt;si vienen con valor&lt;/i&gt; y los saltea callado si no. Pero CAMPOS_PERFIL_EDITABLES['admin'] es sólo (nombre, nombre_contacto, telefono) y ninguna plantilla tiene los campos, así que salen vacíos siempre. La matrícula RPA/RPAC es parte del formato que se está imitando: es tres campos en Mi perfil y tres strings en una tupla"},
       {t:"QR / link a comprobantes de gastos", s:"none", note:"De los cuatro relevados sólo Expensas Flow trae QR, y no es de pago: uno lleva a ARCA para consultar aportes sin clave fiscal y otro al portal de vecinos. Prioridad baja"},
       {t:"Exportar PDF individual por unidad", s:"planned", note:"Ya sale el PDF de la liquidación COMPLETA adjunto al mail, que es lo que la ley obliga a rendir y lo que mandan los cuatro. El recorte a una sola unidad sigue siendo HTML: es un extra de comodidad, no un requisito"}
     ]},
@@ -191,10 +193,10 @@ const CATEGORIES = [
       {t:"Matchear pago con unidad funcional", s:"none"},
       {t:"Resolver cobros no identificados", s:"none"},
       {t:"Actualizar cuenta corriente en tiempo real", s:"planned", note:"Emitir la liquidación ya crea el cobro de cada unidad con su total prorrateado, así que la cuenta del vecino refleja lo que dice el mail. Lo que falta es el otro lado: que registrar un pago la cierre sola"},
-      {t:"Aviso de pago del vecino → confirmación del admin", s:"planned", note:"El vecino informa el pago y ahora ve el estado en que quedó. Del lado admin, GET /api/admin/avisos-pago y PUT existen y el vocabulario de estados ya está cerrado, pero sigue sin pantalla: el aviso llega y no lo revisa nadie. Es la misma forma que tenía Reclamos antes de tener sección propia"}
+      {t:"Aviso de pago del vecino → confirmación del admin", s:"planned", note:"El vecino informa el pago y ahora ve el estado en que quedó. Del lado admin, GET /api/admin/avisos-pago y PUT existen y el vocabulario de estados ya está cerrado, pero sigue sin pantalla. El panel de inicio ya avisa cuántos hay sin revisar y por cuánta plata, así que dejaron de pasar desapercibidos, pero para aceptarlos o rechazarlos hay que llamar al PUT a mano. Es la misma forma que tenía Reclamos antes de tener sección propia"}
     ]},
     { name:"Gestionar morosidad", role:"admin", tech:["Supabase"], items:[
-      {t:"Calcular deuda e intereses acumulados", s:"planned", note:"El interés ya se calcula con la tasa del consorcio al emitir la liquidación siguiente. Sigue faltando que algo pase el cobro a vencido/en_mora el día del vencimiento: hasta entonces el panel de morosidad se llena sólo a mano"},
+      {t:"Calcular deuda e intereses acumulados", s:"planned", note:"El interés se calcula con la tasa del consorcio al emitir la liquidación siguiente, y el panel del administrador ya muestra la deuda vencida real: la deriva de fecha_vencimiento sin mirar el estado. Lo que sigue faltando es que la columna cobros.estado pase a vencido el día del vencimiento — mientras no ocurra, el vecino ve su cobro como \"pendiente\" en su propia pantalla y la sección Morosidad, que sí filtra por estado, sigue vacía"},
       {t:"Generar recordatorios automáticos", s:"none"},
       {t:"Armar planes de pago", s:"none"}
     ]},
@@ -206,7 +208,7 @@ const CATEGORIES = [
   ]},
   { id:"vec", code:"VEC", name:"Portal / app propietarios y vecinos", hue:29, funcs:[
     { name:"Ver expensa y cuenta corriente", role:"vecino", tech:["Supabase"], items:[
-      {t:"Historial de liquidaciones", s:"built"},
+      {t:"Historial de liquidaciones", s:"planned", note:"Ve el historial de lo que se le cobró —período, total y estado, con cupón de pago en PDF y exportación a Excel—, que es su cuenta corriente. Lo que no puede abrir es la liquidación en sí: /api/liquidaciones/* es allowed_roles=['admin'] entero, así que la rendición con rubros y los cuadros del art. 10 le llega sólo por mail. Si pierde ese mail, desde la app no la recupera"},
       {t:"Detalle de gastos del período", s:"built"},
       {t:"Descargar comprobantes", s:"built", note:"El cupón por cobro, el adjunto del gasto y ahora la cuenta corriente entera en Excel o PDF por /api/vecinos/cobros/export. Esa ruta no toma unidad_id: la unidad sale de la sesión"},
       {t:"Ver en qué quedó el pago que informó", s:"built", note:"Tabla \"Pagos que informaste\" al final de Mis Expensas. El estado que escribe el admin quedó acotado a pendiente / aceptado / rechazado, que son los tres que esta pantalla sabe pintar"}
@@ -226,7 +228,7 @@ const CATEGORIES = [
       {t:"Cancelar reserva", s:"built", note:"Bien acotado: el DELETE comprueba que la reserva sea del vecino antes de borrarla"},
       {t:"Validar que el amenity sea de su consorcio", s:"built", note:"amenity_visible() en las tres rutas de reservas. Las reservas no guardan el consorcio: cuelgan del amenity, y ese salto es el único que dice de quién es un quincho"},
       {t:"Respetar capacidad máxima y cupo por vecino", s:"built", note:"La reserva ahora lleva cantidad_personas (v15) y se contrasta con capacidad_maxima. El tope mensual es max_reservas_mes, cargado por el admin en cada espacio en vez de una constante del código: se cuenta sobre el mes de la fecha reservada, por espacio, y una reserva cancelada no lo gasta. Las fechas pasadas también se rechazan"},
-      {t:"Que la reserva se cobre en la expensa", s:"built", note:"Consorcio Abierto le da columna propia en el prorrateo (\"USO AMENITIES\") y tiene sentido: el SUM lo paga quien lo usa, no el edificio. Un amenity con precio_uso cargado se le factura a la unidad que reservó. Sin precio —como están todos hoy— no cobra nada"}
+      {t:"Que la reserva se cobre en la expensa", s:"built", note:"Consorcio Abierto le da columna propia en el prorrateo (\"USO AMENITIES\") y tiene sentido: el SUM lo paga quien lo usa, no el edificio. Un amenity con precio_uso cargado se le factura a la unidad que reservó. &lt;b&gt;Pero no hay por dónde cargarlo:&lt;/b&gt; la v18 creó amenities.precio_uso y ni el POST, ni el PUT, ni el modal de amenity lo aceptan, así que en la práctica ninguna reserva cobra nunca. Es el mismo patrón que tenían los coeficientes antes de la v17 —columna con lector y sin escritor—: se arregla agregando el campo al payload de las dos rutas y un &lt;input&gt; al modal"}
     ]},
     { name:"Votar y participar", role:"vecino", tech:["Supabase"], items:[
       {t:"Ver encuestas / votaciones activas", s:"built"},
@@ -258,9 +260,9 @@ const CATEGORIES = [
   ]},
   { id:"adm", code:"ADM", name:"Gestión operativa / app del administrador", hue:117, funcs:[
     { name:"Administrar múltiples consorcios", role:"admin", tech:["Supabase"], items:[
-      {t:"Tablero centralizado", s:"built"},
+      {t:"Tablero centralizado", s:"built", note:"Semáforo del cierre con una fila por edificio, bandeja de lo pendiente, cuatro números de plata y agenda de 14 días, todo en un GET /api/dashboard/resumen. Reemplazó a /api/dashboard/kpis, que eran tres contadores"},
       {t:"Cambiar entre consorcios", s:"built"},
-      {t:"Ver alertas por consorcio", s:"built"},
+      {t:"Ver alertas por consorcio", s:"built", note:"Envíos que rebotaron, solicitudes de vecinos, tarifas sin confirmar, pagos informados, reclamos y facturas vencidas. Todo dato que ya existía y vivía detrás de una pantalla que había que acordarse de abrir"},
       {t:"Carga masiva de consorcios y UF por Excel", s:"built", note:"Plantilla .xlsx generada con openpyxl (/api/consorcios/plantilla) + import con deduplicación (/api/consorcios/carga-masiva). La plantilla no trae columna de % de copropiedad"}
     ]},
     { name:"Gestionar equipo y permisos", role:"admin", tech:[], items:[
@@ -388,7 +390,7 @@ const CATEGORIES = [
   { id:"seg", code:"SEG", name:"Seguridad y aislamiento entre clientes", hue:5, funcs:[
     { name:"Separar los datos de cada administrador", role:"admin", tech:["Supabase"], items:[
       {t:"Filtrar consorcios, gastos y liquidaciones por admin_id", s:"built", note:"/api/consorcios, /api/gastos, /api/proveedores y /api/liquidaciones (incluidos PUT y DELETE) sí filtran por el admin de la sesión"},
-      {t:"Filtrar cobros, morosidad y balance por admin_id", s:"built", note:"Resuelto al mergear mobile v2: cobros no tiene admin_id, así que el dueño se deduce del consorcio con consorcios_propios_ids(). Cubierto por tests/test_pertenencia.py"},
+      {t:"Filtrar cobros, morosidad y balance por admin_id", s:"built", note:"cobros no tiene admin_id, así que el dueño se deduce del consorcio con consorcios_propios_ids(). Mobile v2 lo cerró en /api/cobros, /mora y /balance, pero /api/dashboard/kpis quedó afuera y contaba la mora de toda la plataforma —la service_role key saltea la RLS, así que nada lo frenaba—. Ese endpoint ya no existe: lo reemplazó /api/dashboard/resumen, que filtra. Cubierto por test_pertenencia.py y test_dashboard_resumen.py"},
       {t:"Validar que el consorcio del path sea del admin", s:"built", note:"consorcio_propio() en cada ruta que recibe un cid. Corta con 404 y no 403, para no confirmarle a quien tantea UUIDs que ese existe"},
       {t:"Validar que la liquidación del path sea del admin", s:"built", note:"Resuelto en mobile v2, incluidas /resumen, /enviar, /rubros y /prorrateo, que eran por donde se podía leer y hasta mandar por mail la liquidación de otro"},
       {t:"Validar que el cobro sea del vecino que lo pide", s:"built", note:"unidades_del_vecino() + unidad_propia(). El ?unidad_id= de la query se sigue aceptando —hace falta para multi-unidad— pero ahora se comprueba. La exportación de la cuenta corriente usa el mismo par"}
