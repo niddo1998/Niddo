@@ -176,7 +176,7 @@ footer.note b{ color:var(--text-dim); }
         <div class="step role prov-role" id="step-prov">
           <div class="tag mono">sin ruta</div>
           <div class="name">Proveedor</div>
-          <div class="sub">Template huérfano, no implementado</div>
+          <div class="sub">Descartado el 28/08/2026</div>
         </div>
       </div>
 
@@ -190,7 +190,7 @@ footer.note b{ color:var(--text-dim); }
   </div>
 
   <footer class="note">
-    <b>Cómo leer esto:</b> el frontend no es Next.js — es Flask + Jinja2 con JS vanilla embebido, server-rendered. El rol lo elige el usuario con un click, no lo emite Auth0. Bind figura como "a definir" porque no hay ninguna pasarela de pago integrada: el cobro es manual. Proveedor (huérfano) sigue en el flujo porque la landing lo promete como portal de producto: nunca tuvo ruta, y el 28/08/2026 se borró hasta la plantilla que lo dibujaba. Superadmin no está acá: es una herramienta interna del equipo, no pasa por este flujo de auth de cara al usuario — está en el mapa Admin × Vecino.
+    <b>Cómo leer esto:</b> el frontend no es Next.js — es Flask + Jinja2 con JS vanilla embebido, server-rendered. El rol lo elige el usuario con un click, no lo emite Auth0. Bind figura como "a definir" porque no hay ninguna pasarela de pago integrada: el cobro es manual. Proveedor sigue dibujado como callejón sin salida, no como algo por venir: nunca tuvo ruta, y el 28/08/2026 se borró la plantilla que lo dibujaba y se sacó de la landing la promesa del portal. Queda en el mapa para que nadie lo vuelva a proponer sin saber que ya se descartó. Superadmin no está acá: es una herramienta interna del equipo, no pasa por este flujo de auth de cara al usuario — está en el mapa Admin × Vecino.
     <br><br>
     <b>Lo último que se movió:</b> reportlab pasó de hacer exports sueltos a generar la liquidación completa en formato "Mis Expensas" (<span class="mono">liquidacion_pdf.py</span>), que es lo que la Ley 941 obliga a rendir y lo que mandan SIPAC, Octopus, Expensas Flow y Consorcio Abierto. Por eso NRM dejó de estar en gris. El prorrateo pasó a repartir por cuatro coeficientes (A, B, C, E) en vez de uno, que es lo que necesita un edificio con cocheras o locales. Y emitir la liquidación ahora crea los cobros: antes eran dos mundos separados y el número del mail podía no coincidir con el de la app del vecino.
     <br><br>
