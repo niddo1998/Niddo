@@ -2170,11 +2170,13 @@ async function loadPendingNeighbors() {
     } catch(e) { toast(e.message, 'err'); }
 }
 
+/* Sin confirm(): la fila de al lado ya muestra nombre, contacto y la UF que
+   pidió, así que el cartel del browser repetía lo que estabas mirando, con la
+   tipografía del sistema en medio del panel. Rechazar sí abre un modal, porque
+   ahí hay que escribir un motivo. */
 async function aprobarVecino(vid) {
     const v = pendingNeighborsList.find(x => x.id === vid);
     if (!v) return;
-    if (!confirm(`¿Confirmás que ${v.nombre || v.email} es de la UF ${v.unidad_solicitada}?\n\n` +
-                 `Al aprobar pasa a ver las expensas de esa unidad y los datos del edificio.`)) return;
     try {
         await api(`/api/consorcios/${currentConsorioId}/vecinos/${vid}/aprobar`, {
             method: 'POST', body: JSON.stringify({})
