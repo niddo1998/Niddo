@@ -52,13 +52,73 @@ def admin(base, app_modulo):
     return c
 
 
-@pytest.mark.parametrize('estado', ['aceptado', 'rechazado', 'pendiente'])
+@pytest.mark.parametrize('estado', ['rechazado', 'pendiente'])
 def test_el_admin_puede_poner_los_estados_del_vocabulario(admin, base, estado):
     _aviso(base)
     r = admin.put('/api/admin/avisos-pago/aviso-vec-1-pendiente',
                   json={'estado': estado})
     assert r.status_code == 200
     assert base['avisos_pago'][0]['estado'] == estado
+
+
+# ── Aceptar salda la expensa ─────────────────────────────────────────────────
+#
+# Aceptar no es sólo cambiar una palabra: si el cobro sigue pendiente después
+# de que el administrador dio el visto bueno, la deuda queda viva en las dos
+# pantallas y el aviso no sirvió para nada.
+
+def _cobro(base, cid='cons-1'):
+    base['cobros'] = [{'id': 'cobro-x', 'consorcio_id': cid, 'unidad_id': 'uf-1',
+                       'periodo': '2026-08', 'monto_base': 100, 'total': 100,
+                       'estado': 'pendiente', 'fecha_vencimiento': '2026-08-10'}]
+    return base['cobros'][0]
+
+
+def test_aceptar_un_aviso_marca_pagado_su_cobro(admin, base):
+    cobro = _cobro(base)
+    _aviso(base)
+    base['avisos_pago'][0]['cobro_id'] = 'cobro-x'
+    r = admin.put('/api/admin/avisos-pago/aviso-vec-1-pendiente', json={'estado': 'aceptado'})
+    assert r.status_code == 200
+    assert cobro['estado'] == 'pagado'
+    assert cobro['fecha_pago'] == '2026-08-05'   # la que declaró el vecino
+
+
+def test_aceptar_sin_saber_qué_expensa_pide_elegirla(admin, base):
+    """El vecino puede informar un pago suelto, sin cobro asociado."""
+    _cobro(base)
+    _aviso(base)
+    r = admin.put('/api/admin/avisos-pago/aviso-vec-1-pendiente', json={'estado': 'aceptado'})
+    assert r.status_code == 400
+    assert base['avisos_pago'][0]['estado'] == 'pendiente'
+
+
+def test_el_admin_puede_imputar_el_pago_a_una_expensa(admin, base):
+    cobro = _cobro(base)
+    _aviso(base)
+    r = admin.put('/api/admin/avisos-pago/aviso-vec-1-pendiente',
+                  json={'estado': 'aceptado', 'cobro_id': 'cobro-x'})
+    assert r.status_code == 200
+    assert base['avisos_pago'][0]['cobro_id'] == 'cobro-x'
+    assert cobro['estado'] == 'pagado'
+
+
+def test_no_se_puede_saldar_la_expensa_de_otro_edificio(admin, base):
+    """El cobro llega por el body: sin el chequeo, saldaría deuda ajena."""
+    cobro = _cobro(base, cid='cons-2')
+    _aviso(base)
+    r = admin.put('/api/admin/avisos-pago/aviso-vec-1-pendiente',
+                  json={'estado': 'aceptado', 'cobro_id': 'cobro-x'})
+    assert r.status_code == 400
+    assert cobro['estado'] == 'pendiente'
+
+
+def test_rechazar_no_toca_la_deuda(admin, base):
+    cobro = _cobro(base)
+    _aviso(base)
+    base['avisos_pago'][0]['cobro_id'] = 'cobro-x'
+    admin.put('/api/admin/avisos-pago/aviso-vec-1-pendiente', json={'estado': 'rechazado'})
+    assert cobro['estado'] == 'pendiente'
 
 
 @pytest.mark.parametrize('estado', ['revisando', '', None, 'ACEPTADO'])

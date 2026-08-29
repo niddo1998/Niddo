@@ -5124,13 +5124,70 @@ ESTADOS_AVISO_PAGO = ('pendiente', 'aceptado', 'rechazado')
 @app.route('/api/admin/avisos-pago/<aid>', methods=['PUT'])
 @require_auth(allowed_roles=['admin'])
 def api_admin_avisos_pago_update(aid):
+    """Acepta o rechaza un pago informado por un vecino.
+
+    Aceptar no es sólo cambiar una palabra: el vecino avisó que pagó, y si el
+    cobro sigue figurando pendiente después de que el administrador le dio el
+    visto bueno, la deuda queda viva en las dos pantallas y el aviso no sirvió
+    para nada. Por eso aceptar también salda el cobro, con la fecha que declaró
+    el vecino.
+    """
     fila_de_consorcio_propio('avisos_pago', aid)
+    # `fila_de_consorcio_propio` sólo trae id y consorcio_id: para saldar el
+    # cobro hacen falta el cobro al que apunta y la fecha que declaró el vecino.
+    aviso = supabase.table('avisos_pago') \
+        .select('id, consorcio_id, cobro_id, fecha_pago, unidad_id') \
+        .eq('id', aid).single().execute().data or {}
     d = request.json or {}
     estado = d.get('estado')
     if estado not in ESTADOS_AVISO_PAGO:
         return jsonify({'error': f'Estado inválido: {", ".join(ESTADOS_AVISO_PAGO)}'}), 400
-    res = supabase.table('avisos_pago').update({'estado': estado}).eq('id', aid).execute()
-    return jsonify(res.data[0] if res.data else {})
+
+    # El aviso puede venir sin cobro —el vecino informa un pago suelto—, y ahí
+    # la pantalla pide a cuál imputarlo antes de aceptar.
+    cobro_id = d.get('cobro_id') or aviso.get('cobro_id')
+    if estado == 'aceptado' and not cobro_id:
+        return jsonify({'error': 'Elegí a qué expensa corresponde este pago antes de aceptarlo'}), 400
+
+    payload = {'estado': estado}
+    if cobro_id and cobro_id != aviso.get('cobro_id'):
+        payload['cobro_id'] = cobro_id
+
+    res = supabase.table('avisos_pago').update(payload).eq('id', aid).execute()
+    actualizado = res.data[0] if res.data else {}
+
+    cobro = None
+    if estado == 'aceptado' and cobro_id:
+        # El cobro tiene que ser del mismo consorcio que el aviso: sin esto, un
+        # `cobro_id` cualquiera en el body saldaría la deuda de otro edificio.
+        propio = supabase.table('cobros').select('id, consorcio_id') \
+            .eq('id', cobro_id).eq('consorcio_id', aviso.get('consorcio_id')).execute().data
+        if not propio:
+            return jsonify({'error': 'Esa expensa no es de este consorcio'}), 400
+        actualizacion = {'estado': 'pagado'}
+        if aviso.get('fecha_pago'):
+            actualizacion['fecha_pago'] = aviso['fecha_pago']
+        hecho = supabase.table('cobros').update(actualizacion).eq('id', cobro_id).execute()
+        cobro = hecho.data[0] if hecho.data else None
+
+    return jsonify({**actualizado, 'cobro': cobro})
+
+
+@app.route('/api/admin/avisos-pago/<aid>/comprobante')
+@require_auth(allowed_roles=['admin'])
+def api_admin_aviso_comprobante(aid):
+    """El comprobante que subió el vecino, para el que lo va a validar.
+
+    El listado no trae el base64 —cuarenta avisos con una foto adentro cada uno
+    es una respuesta de varios megas—, así que el archivo se pide aparte.
+    """
+    fila_de_consorcio_propio('avisos_pago', aid)
+    fila = supabase.table('avisos_pago').select('adjunto_base64, adjunto_nombre, adjunto_mime') \
+        .eq('id', aid).single().execute().data or {}
+    if not fila.get('adjunto_base64'):
+        return jsonify({'error': 'Este aviso no tiene comprobante adjunto'}), 404
+    return enviar_adjunto(fila['adjunto_base64'], fila.get('adjunto_nombre', 'comprobante'),
+                          fila.get('adjunto_mime'))
 
 
 

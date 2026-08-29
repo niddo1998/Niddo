@@ -686,6 +686,9 @@
     <div class="tabs">
         <button class="tab-btn active" onclick="cobrosTab('resumen',this)">Resumen por consorcio</button>
         <button class="tab-btn" onclick="cobrosTab('mora',this)">Morosidad</button>
+        <button class="tab-btn" id="tab-btn-avisos" onclick="cobrosTab('avisos',this)">
+            Pagos informados <span class="badge-count" id="avisos-badge" style="display:none">0</span>
+        </button>
     </div>
 
     <!-- Resumen -->
@@ -715,6 +718,34 @@
             <table class="tbl">
                 <thead><tr><th>Consorcio</th><th>UF</th><th>Vecino</th><th>Email</th><th>Período</th><th>Deuda base</th><th>Interés</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></thead>
                 <tbody id="tbody-mora"><tr><td colspan="10" class="tbl-empty">Cargando...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pagos informados por los vecinos.
+         El vecino avisa "ya pagué" desde su panel y hasta ahora ese aviso caía
+         en una tabla que ninguna pantalla mostraba: el endpoint existía, el
+         panel lo contaba en la bandeja, y el botón te dejaba en Cobros sin nada
+         que hacer. Acá es donde se valida. -->
+    <div id="tab-avisos" style="display:none;">
+        <div class="filters">
+            <select class="form-ctrl" id="filter-avisos-consorcio" onchange="loadAvisos()"><option value="">Todos</option></select>
+            <select class="form-ctrl" id="filter-avisos-estado" onchange="renderAvisos()">
+                <option value="pendiente">Sin revisar</option>
+                <option value="">Todos</option>
+                <option value="aceptado">Aceptados</option>
+                <option value="rechazado">Rechazados</option>
+            </select>
+            <span class="text-muted text-sm" id="avisos-count-label"></span>
+        </div>
+        <div class="card">
+            <div class="card-h">
+                <span class="card-t">Lo que los vecinos declararon como pagado</span>
+                <span style="font-size:.72rem;color:var(--muted)">Aceptar marca la expensa como pagada</span>
+            </div>
+            <table class="tbl">
+                <thead><tr><th>Informado</th><th>Consorcio</th><th>Vecino</th><th>Monto</th><th>Medio</th><th>Expensa</th><th>Comprobante</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-avisos"><tr><td colspan="9" class="tbl-empty">Cargando...</td></tr></tbody>
             </table>
         </div>
     </div>
@@ -1642,6 +1673,28 @@
     </div>
 </div>
 
+<!-- Modal: a qué expensa corresponde un pago informado suelto -->
+<div class="modal-overlay" id="modal-imputar-pago">
+    <div class="modal-box">
+        <div class="modal-head">
+            <h3>¿De qué expensa es este pago?</h3>
+            <button class="modal-close" onclick="closeModal('modal-imputar-pago')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="m-imputar-aviso-id">
+            <p class="text-muted text-sm" id="m-imputar-info" style="margin:0 0 14px;"></p>
+            <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Expensa a saldar</label>
+                <select class="form-ctrl" id="m-imputar-cobro"></select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-imputar-pago')">Cancelar</button>
+            <button class="btn-p" onclick="confirmarImputacion()">Aceptar el pago</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal: te vas con cambios sin guardar -->
 <div class="modal-overlay" id="modal-sin-guardar">
     <div class="modal-box">
@@ -1959,6 +2012,14 @@ function dashSemaforo(d) {
 async function dashAccion(tipo, seccion, lid) {
     if (tipo === 'nueva_liquidacion') { await dashNuevaLiquidacion(); return; }
     if (tipo === 'abrir_liquidacion' && lid) { await ndSeguirCierre(lid); return; }
+    // Los pagos informados viven en una pestaña de Cobros: dejar al admin en el
+    // resumen, como hacía antes, era mandarlo a una pantalla donde no está lo
+    // que el propio panel le acaba de decir que revise.
+    if (tipo === 'ir' && seccion === 'cobros' && dashUltimoTipo === 'avisos_pago') {
+        show('cobros');
+        await cobrosTab('avisos', null);
+        return;
+    }
     show(seccion);
 }
 
@@ -2009,6 +2070,9 @@ function dashPlata(p) {
 }
 
 // ── Bloque B: la bandeja ──────────────────────────────────────────────────────
+// Qué fila de la bandeja se tocó, para que dashAccion pueda abrir la pestaña
+// correcta cuando dos motivos distintos caen en la misma sección.
+let dashUltimoTipo = null;
 const DASH_ATENCION_ICONO = {
     envios_fallidos: 'ic-mail', solicitudes: 'ic-vecino', tarifas: 'ic-expensa',
     avisos_pago: 'ic-cobro', reclamos: 'ic-alerta', gastos_vencidos: 'ic-pendiente',
@@ -2035,7 +2099,7 @@ function dashAtencion(items) {
         if (it.dias !== null && it.dias !== undefined) detalle.push('el más viejo, ' + dashHace(it.dias));
         const tipo = it.liquidacion_id ? 'abrir_liquidacion' : 'ir';
         return `<button class="dash-row dash-alerta ${i === 0 ? 'urgente' : ''}"
-                        onclick="dashAccion('${tipo}','${it.seccion}','${it.liquidacion_id || ''}')">
+                        onclick="dashUltimoTipo='${it.tipo}';dashAccion('${tipo}','${it.seccion}','${it.liquidacion_id || ''}')">
             <span class="dash-num">${it.cantidad}</span>
             <span class="dash-row-main">
                 <span class="dash-row-t">${escHtml(it.titulo)}</span>
@@ -2189,7 +2253,7 @@ function renderConsorcios() {
 function populateConsorioSelects() {
     const opts = '<option value="">Todos</option>' + consorcios.map(c=>`<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
     const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
-    ['filter-gastos-consorcio','filter-cobros-consorcio','filter-mora-consorcio','filter-balance-consorcio','filter-reclamos-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts; });
+    ['filter-gastos-consorcio','filter-cobros-consorcio','filter-mora-consorcio','filter-balance-consorcio','filter-reclamos-consorcio','filter-avisos-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts; });
     ['m-gasto-consorcio','m-gen-consorcio','filter-amenities-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts2; });
 }
 
@@ -3549,12 +3613,136 @@ async function initCobros() {
 }
 
 async function cobrosTab(tab, el) {
-    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-    el.classList.add('active');
+    document.querySelectorAll('#sec-cobros .tab-btn').forEach(b=>b.classList.remove('active'));
+    if (el) el.classList.add('active');
+    else document.querySelector(`#sec-cobros .tab-btn[onclick*="'${tab}'"]`)?.classList.add('active');
     $('tab-resumen').style.display = tab==='resumen' ? '' : 'none';
-    $('tab-mora').style.display = tab==='mora' ? '' : 'none';
+    $('tab-mora').style.display    = tab==='mora'    ? '' : 'none';
+    $('tab-avisos').style.display  = tab==='avisos'  ? '' : 'none';
     if (tab==='mora') await loadMora();
+    else if (tab==='avisos') await loadAvisos();
     else await loadCobros();
+}
+
+/* ── Pagos informados ─────────────────────────────────────────────────────────
+   El vecino declara "ya pagué, acá está el comprobante" y esto es lo que el
+   administrador mira para darlo por bueno. Aceptar salda la expensa: si el
+   cobro quedara pendiente después del visto bueno, la deuda seguiría viva en
+   las dos pantallas y el aviso no habría servido de nada. */
+let avisos = [];
+const AVISO_BADGE = {pendiente: 'b-y', aceptado: 'b-g', rechazado: 'b-r'};
+const AVISO_LABEL = {pendiente: 'Sin revisar', aceptado: 'Aceptado', rechazado: 'Rechazado'};
+
+async function loadAvisos() {
+    const params = new URLSearchParams();
+    const cid = $('filter-avisos-consorcio')?.value; if (cid) params.set('consorcio_id', cid);
+    try {
+        avisos = await api('/api/admin/avisos-pago?' + params);
+        renderAvisos();
+    } catch (e) {
+        $('tbody-avisos').innerHTML = `<tr><td colspan="9" class="tbl-empty">No se pudieron cargar: ${escHtml(e.message)}</td></tr>`;
+    }
+    actualizarBadgeAvisos();
+}
+
+function actualizarBadgeAvisos() {
+    const sinRevisar = avisos.filter(a => a.estado === 'pendiente').length;
+    const badge = $('avisos-badge');
+    if (!badge) return;
+    badge.textContent = sinRevisar;
+    badge.style.display = sinRevisar ? '' : 'none';
+}
+
+function renderAvisos() {
+    const estado = $('filter-avisos-estado').value;
+    const lista = estado ? avisos.filter(a => a.estado === estado) : avisos;
+    const tb = $('tbody-avisos');
+
+    $('avisos-count-label').textContent = lista.length
+        ? `${lista.length} aviso${lista.length === 1 ? '' : 's'}` : '';
+
+    if (!lista.length) {
+        tb.innerHTML = `<tr><td colspan="9" class="tbl-empty">${
+            estado === 'pendiente' ? 'No hay pagos esperando que los revises.' : 'Sin avisos para ese filtro.'
+        }</td></tr>`;
+        return;
+    }
+
+    tb.innerHTML = lista.map(a => {
+        const v = a.vecinos || {};
+        const con = consorcios.find(c => c.id === a.consorcio_id);
+        const fecha = a.created_at ? new Date(a.created_at).toLocaleDateString('es-AR') : '—';
+        const declarada = a.fecha_pago ? `pagó el ${new Date(a.fecha_pago + 'T00:00:00').toLocaleDateString('es-AR')}` : '';
+        const comprobante = a.adjunto_nombre
+            ? `<a class="btn-s btn-sm" style="text-decoration:none" target="_blank"
+                  href="/api/admin/avisos-pago/${a.id}/comprobante"><svg class="ic ic-sm"><use href="#ic-doc"></use></svg>Ver</a>`
+            : '<span class="text-muted text-sm">sin adjunto</span>';
+        const acciones = a.estado === 'pendiente'
+            ? `<button class="btn-p btn-sm" onclick="aceptarAviso('${a.id}')">Aceptar</button>
+               <button class="btn-danger btn-sm" onclick="resolverAviso('${a.id}','rechazado')">Rechazar</button>`
+            : `<button class="btn-s btn-sm" onclick="resolverAviso('${a.id}','pendiente')">Volver a revisar</button>`;
+        return `<tr>
+            <td>${fecha}${declarada ? `<div class="text-muted text-sm">${escHtml(declarada)}</div>` : ''}</td>
+            <td class="text-muted">${escHtml(con ? con.nombre : '—')}</td>
+            <td><strong>${escHtml(v.nombre || v.email || '—')}</strong>${v.unidad ? `<div class="text-muted text-sm">UF ${escHtml(v.unidad)}</div>` : ''}</td>
+            <td><strong>${fmt(a.monto)}</strong></td>
+            <td class="text-muted">${escHtml(a.medio_pago || '—')}${a.observaciones ? `<div class="text-muted text-sm">${escHtml(a.observaciones)}</div>` : ''}</td>
+            <td>${a.cobro_id ? '<span class="b b-b">Asociada</span>' : '<span class="b b-gr">Pago suelto</span>'}</td>
+            <td>${comprobante}</td>
+            <td><span class="b ${AVISO_BADGE[a.estado] || 'b-gr'}">${AVISO_LABEL[a.estado] || escHtml(a.estado)}</span></td>
+            <td><div class="inline-actions">${acciones}</div></td>
+        </tr>`;
+    }).join('');
+}
+
+async function resolverAviso(aid, estado, cobroId) {
+    try {
+        const body = {estado};
+        if (cobroId) body.cobro_id = cobroId;
+        await api('/api/admin/avisos-pago/' + aid, {method: 'PUT', body: JSON.stringify(body)});
+        toast(estado === 'aceptado' ? 'Pago aceptado — la expensa queda saldada'
+            : estado === 'rechazado' ? 'Aviso rechazado' : 'Aviso devuelto a sin revisar');
+        await loadAvisos();
+        if ($('tab-resumen').style.display !== 'none') await loadCobros();
+    } catch (e) { toast(e.message, 'err'); }
+}
+
+/* Un aviso puede venir sin expensa asociada —el vecino informa un pago suelto—.
+   Ahí hay que preguntar a cuál imputarlo: aceptar a ciegas dejaría el aviso en
+   verde y la deuda intacta. */
+async function aceptarAviso(aid) {
+    const aviso = avisos.find(a => a.id === aid);
+    if (!aviso) return;
+    if (aviso.cobro_id) { await resolverAviso(aid, 'aceptado'); return; }
+
+    $('m-imputar-aviso-id').value = aid;
+    // Concatenado y no template literal: va por textContent, pero el chequeo de
+    // escapado mira toda interpolación y no distingue, y tener el linter en
+    // verde vale más que la comodidad de las backticks.
+    $('m-imputar-info').textContent =
+        ((aviso.vecinos || {}).nombre || 'El vecino') +
+        ' informó ' + fmt(aviso.monto) + ' sin decir de qué expensa.';
+    const sel = $('m-imputar-cobro');
+    sel.innerHTML = '<option value="">Buscando expensas impagas...</option>';
+    openModal('modal-imputar-pago');
+    try {
+        const params = new URLSearchParams({consorcio_id: aviso.consorcio_id});
+        const cobros = (await api('/api/cobros?' + params))
+            .filter(c => c.estado !== 'pagado' && (!aviso.unidad_id || c.unidad_id === aviso.unidad_id));
+        sel.innerHTML = cobros.length
+            ? cobros.map(c => `<option value="${c.id}">${escHtml(c.periodo || '')} — UF ${escHtml((c.unidades_funcionales || {}).numero || '?')} — ${fmt(c.total)}</option>`).join('')
+            : '<option value="">No hay expensas impagas para imputar</option>';
+    } catch (e) {
+        sel.innerHTML = `<option value="">Error: ${escHtml(e.message)}</option>`;
+    }
+}
+
+async function confirmarImputacion() {
+    const aid = $('m-imputar-aviso-id').value;
+    const cobroId = $('m-imputar-cobro').value;
+    if (!cobroId) { toast('Elegí a qué expensa corresponde el pago', 'warn'); return; }
+    closeModal('modal-imputar-pago');
+    await resolverAviso(aid, 'aceptado', cobroId);
 }
 
 async function loadCobros() {
