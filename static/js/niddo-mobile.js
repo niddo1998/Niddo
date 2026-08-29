@@ -75,6 +75,7 @@
         gastos: 'expensas',
         comunicados: 'comunidad',
         reclamos: 'comunidad',
+        mensajes: 'comunidad',
         reservas: 'reservas',
         archivos: 'mas',
         perfil: 'mas'
@@ -140,7 +141,7 @@
 
     var TITLES = CFG.titles || {
         inicio: 'Inicio', expensas: 'Mis expensas', gastos: 'Gastos del consorcio',
-        comunicados: 'Comunicados', reclamos: 'Reclamos',
+        comunicados: 'Comunicados', reclamos: 'Reclamos', mensajes: 'Mensajes',
         reservas: 'Reservas', archivos: 'Archivos', perfil: 'Mi perfil'
     };
 

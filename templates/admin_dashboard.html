@@ -26,13 +26,13 @@
             gastos: 'gastos',
             consorcios: 'edificios',
             liquidaciones: 'mas', amenities: 'mas',
-            balance: 'mas', reclamos: 'mas', mensajeria: 'mas', config: 'mas'
+            balance: 'mas', comunicacion: 'mas', config: 'mas'
         },
         titles: {
             dashboard: 'Hoy', cobros: 'Cobros', gastos: 'Gastos',
             consorcios: 'Edificios', liquidaciones: 'Liquidaciones',
             amenities: 'Amenities',
-            balance: 'Balance', reclamos: 'Reclamos', mensajeria: 'Mensajería',
+            balance: 'Balance', comunicacion: 'Comunicación',
             config: 'Configuración'
         },
         /* El cajón reemplaza a la hoja de "Más". Once secciones no entran en
@@ -64,11 +64,10 @@
                 ]},
                 { label: 'Sistema', items: [
                     { section: 'balance',       label: 'Balance',        icon: 'ic-balance' },
-                    /* Reclamos va pegado a Mensajería y no en Operación: las
-                       dos son la conversación con el vecino, y separarlas
-                       obligaba a acordarse de en qué grupo cayó cada una. */
-                    { section: 'reclamos',      label: 'Reclamos',       icon: 'ic-alerta' },
-                    { section: 'mensajeria',    label: 'Mensajería',     icon: 'ic-mensaje' },
+                    /* Una sola entrada: reclamos, chats y comunicados son la
+                       conversación con el vecino, y tenerlas separadas obligaba
+                       a acordarse de en qué sección había quedado cada cosa. */
+                    { section: 'comunicacion',  label: 'Comunicación',   icon: 'ic-mensaje' },
                     { section: 'config',        label: 'Configuración',  icon: 'ic-config' }
                     {% if es_superadmin %},
                     /* Página propia, no sección: en móvil el sidebar no existe
@@ -333,6 +332,47 @@
         .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
         .filters .form-ctrl { width: auto; }
 
+        /* ── Chat con el vecino ── */
+        .chat-layout { display: grid; grid-template-columns: 300px 1fr; gap: 14px; align-items: start; }
+        .chat-hilos { max-height: 62vh; overflow-y: auto; }
+        .chat-panel { display: flex; flex-direction: column; min-height: 62vh; max-height: 62vh; }
+        .hilo-row {
+            display: flex; gap: 10px; align-items: center; width: 100%;
+            padding: 10px 14px; border: none; background: none; cursor: pointer;
+            border-bottom: 1px solid var(--border); text-align: left; font-family: inherit;
+        }
+        .hilo-row:hover { background: var(--surface2); }
+        .hilo-row.sel { background: var(--nd-terracota-dim); }
+        .hilo-av {
+            width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+            background: var(--nd-verde); color: #fff; font-weight: 800; font-size: .8rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+        /* `display: block` en los tres: son <span>, y un inline no recorta con
+           ellipsis, así que el resumen del último mensaje se estiraba por
+           debajo de la fecha y del contador. */
+        .hilo-main { flex: 1; min-width: 0; display: block; overflow: hidden; }
+        .hilo-t { display: block; font-size: .82rem; font-weight: 700;
+                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hilo-s {
+            display: block; font-size: .74rem; color: var(--muted);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .chat-mensajes { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+        .burbuja { max-width: 74%; padding: 9px 13px; border-radius: 14px; font-size: .85rem; line-height: 1.5; }
+        .burbuja.suya { align-self: flex-start; background: var(--surface2); border-bottom-left-radius: 4px; }
+        .burbuja.mia  { align-self: flex-end; background: var(--nd-terracota-dim); border-bottom-right-radius: 4px; }
+        .burbuja .meta { font-size: .68rem; color: var(--muted); margin-top: 4px; }
+        .burbuja a { color: var(--teal); font-weight: 600; }
+        .chat-escribir { border-top: 1px solid var(--border); padding: 10px 14px; }
+        .chat-fila { display: flex; gap: 8px; align-items: flex-end; }
+        .chat-fila textarea { flex: 1; resize: none; }
+        .chat-adjunto { font-size: .74rem; color: var(--muted); margin-bottom: 6px; }
+        @media (max-width: 900px) {
+            .chat-layout { grid-template-columns: 1fr; }
+            .chat-hilos { max-height: 34vh; }
+        }
+
         /* ── Navegador de meses ── */
         .mes-nav {
             position: relative; display: inline-flex; align-items: center; gap: 2px;
@@ -480,8 +520,7 @@
         <a class="nav-link" onclick="show('balance',this)"><svg class="ic"><use href="#ic-balance"></use></svg>Balance</a>
 
         <div class="nav-section-label">Comunicación</div>
-        <a class="nav-link" onclick="show('reclamos',this)"><svg class="ic"><use href="#ic-alerta"></use></svg>Reclamos <span class="badge-count" id="nav-badge-reclamos" style="display:none"></span></a>
-        <a class="nav-link" onclick="show('mensajeria',this)"><svg class="ic"><use href="#ic-mensaje"></use></svg>Mensajería</a>
+        <a class="nav-link" onclick="show('comunicacion',this)"><svg class="ic"><use href="#ic-mensaje"></use></svg>Comunicación <span class="badge-count" id="nav-badge-reclamos" style="display:none"></span></a>
 
         <div class="nav-section-label">Sistema</div>
         <a class="nav-link" onclick="show('config',this)"><svg class="ic"><use href="#ic-config"></use></svg>Configuración</a>
@@ -815,10 +854,27 @@
 </div>
 
 <!-- ═══ RECLAMOS ═══ -->
-<div id="sec-reclamos" class="section">
+<!-- Todo lo que es hablar con el vecino vive acá: lo que reporta (reclamos),
+     lo que se conversa (mensajes) y lo que se le anuncia (comunicados). Estaban
+     en dos secciones distintas del sidebar y los comunicados en ninguna: el
+     vecino los veía en su panel y el administrador no tenía desde dónde
+     mandarlos. -->
+<div id="sec-comunicacion" class="section">
     <div class="page-header">
-        <div><h1 class="page-title">Reclamos</h1><p class="page-sub">Lo que reportan los vecinos de tus edificios</p></div>
+        <div><h1 class="page-title">Comunicación</h1><p class="page-sub">Reclamos, mensajes y comunicados de tus edificios</p></div>
     </div>
+    <div class="tabs">
+        <button class="tab-btn active" onclick="comTab('reclamos',this)">
+            Reclamos <span class="badge-count" id="com-badge-reclamos" style="display:none">0</span>
+        </button>
+        <button class="tab-btn" onclick="comTab('mensajes',this)">
+            Mensajes <span class="badge-count" id="com-badge-mensajes" style="display:none">0</span>
+        </button>
+        <button class="tab-btn" onclick="comTab('comunicados',this)">Comunicados</button>
+    </div>
+
+    <!-- ── Reclamos ── -->
+    <div id="tab-com-reclamos">
     <div class="filters">
         <select class="form-ctrl" id="filter-reclamos-consorcio" onchange="loadReclamos()"><option value="">Todos los consorcios</option></select>
         <select class="form-ctrl" id="filter-reclamos-estado" onchange="loadReclamos()">
@@ -835,6 +891,61 @@
             <thead><tr><th>Fecha</th><th>Edificio</th><th>Vecino</th><th>Asunto</th><th>Categoría</th><th>Estado</th><th>Acciones</th></tr></thead>
             <tbody id="tbody-reclamos"><tr><td colspan="7" class="tbl-empty">Cargando...</td></tr></tbody>
         </table>
+    </div>
+    </div>
+
+    <!-- ── Mensajes: un hilo por vecino ── -->
+    <div id="tab-com-mensajes" style="display:none;">
+        <div class="filters">
+            <select class="form-ctrl" id="filter-mensajes-consorcio" onchange="loadHilos()"><option value="">Todos los consorcios</option></select>
+            <button class="btn-teal btn-sm" onclick="openNuevoHilo()">+ Escribirle a un vecino</button>
+            <span class="text-muted text-sm" id="mensajes-count-label"></span>
+        </div>
+        <div class="chat-layout">
+            <div class="card chat-hilos">
+                <div class="card-h"><span class="card-t">Conversaciones</span></div>
+                <div id="lista-hilos"><div class="tbl-empty">Cargando...</div></div>
+            </div>
+            <div class="card chat-panel">
+                <div class="card-h">
+                    <span class="card-t" id="chat-titulo">Elegí una conversación</span>
+                    <span class="text-muted text-sm" id="chat-sub"></span>
+                </div>
+                <div class="chat-mensajes" id="chat-mensajes">
+                    <div class="tbl-empty">Las conversaciones con los vecinos aparecen acá.</div>
+                </div>
+                <div class="chat-escribir" id="chat-escribir" style="display:none;">
+                    <div class="chat-adjunto" id="chat-adjunto-nombre" style="display:none;"></div>
+                    <div class="chat-fila">
+                        <button class="btn-s btn-sm" onclick="document.getElementById('chat-archivo').click()"
+                                title="Adjuntar" aria-label="Adjuntar archivo"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg></button>
+                        <input type="file" id="chat-archivo" accept="image/*,.pdf" style="display:none" onchange="chatArchivoElegido(this)">
+                        <textarea class="form-ctrl" id="chat-texto" rows="2" maxlength="4000"
+                                  placeholder="Escribile al vecino..." onkeydown="chatTecla(event)"></textarea>
+                        <button class="btn-p btn-sm" onclick="enviarMensajeAdmin()">Enviar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Comunicados ── -->
+    <div id="tab-com-comunicados" style="display:none;">
+        <div class="filters">
+            <select class="form-ctrl" id="filter-comunicados-consorcio" onchange="loadComunicados()"><option value="">Todos los consorcios</option></select>
+            <button class="btn-p btn-sm" onclick="openComunicadoModal()">+ Nuevo comunicado</button>
+            <span class="text-muted text-sm" id="comunicados-count-label"></span>
+        </div>
+        <div class="card">
+            <div class="card-h">
+                <span class="card-t">Enviados</span>
+                <span style="font-size:.72rem;color:var(--muted)">Los ve todo el edificio en su panel</span>
+            </div>
+            <table class="tbl">
+                <thead><tr><th>Fecha</th><th>Consorcio</th><th>Título</th><th>Mensaje</th><th>Leído por</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-comunicados"><tr><td colspan="6" class="tbl-empty">Cargando...</td></tr></tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -871,10 +982,6 @@
 </div>
 
 <!-- ═══ MENSAJERÍA ═══ -->
-<div id="sec-mensajeria" class="section">
-    <div class="page-header"><div><h1 class="page-title">Mensajería</h1><p class="page-sub">Comunicación con vecinos</p></div></div>
-    <div class="section-info"><svg class="ic ic-sm"><use href="#ic-mensaje"></use></svg>La mensajería estará disponible en la próxima versión. Podrás enviar comunicados a vecinos por consorcio o por unidad.</div>
-</div>
 
 <!-- ═══ CONFIG ═══ -->
 <div id="sec-config" class="section">
@@ -1673,6 +1780,73 @@
     </div>
 </div>
 
+<!-- Modal: escribirle primero a un vecino -->
+<div class="modal-overlay" id="modal-nuevo-hilo">
+    <div class="modal-box">
+        <div class="modal-head">
+            <h3>Escribirle a un vecino</h3>
+            <button class="modal-close" onclick="closeModal('modal-nuevo-hilo')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Vecino</label>
+                <select class="form-ctrl" id="m-nuevo-hilo-vecino"></select>
+                <div class="text-muted text-sm" style="margin-top:6px;">
+                    La conversación es privada entre ustedes dos. Para avisarle algo a todo
+                    el edificio, usá un comunicado.
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-nuevo-hilo')">Cancelar</button>
+            <button class="btn-p" onclick="empezarHilo()">Abrir conversación</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: nuevo comunicado -->
+<div class="modal-overlay" id="modal-comunicado">
+    <div class="modal-box">
+        <div class="modal-head">
+            <h3>Nuevo comunicado</h3>
+            <button class="modal-close" onclick="closeModal('modal-comunicado')"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Edificio *</label>
+                <select class="form-ctrl" id="m-com-consorcio"></select>
+                <div class="text-muted text-sm" style="margin-top:4px;">Lo ven todos los vecinos de ese consorcio en su panel.</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Título *</label>
+                <input class="form-ctrl" id="m-com-titulo" maxlength="140" placeholder="Corte de agua el jueves">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Mensaje *</label>
+                <textarea class="form-ctrl" id="m-com-cuerpo" rows="6" placeholder="Contales qué pasa, cuándo y qué tienen que hacer."></textarea>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer;">
+                    <input type="checkbox" id="m-com-importante" style="width:16px;height:16px;">
+                    Marcarlo como importante
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:.85rem;cursor:pointer;margin-top:8px;">
+                    <input type="checkbox" id="m-com-mail" style="width:16px;height:16px;">
+                    Avisar también por mail
+                </label>
+                <div class="text-muted text-sm" style="margin-top:6px;">
+                    Un corte de agua para mañana no puede esperar a que el vecino entre al panel;
+                    el resto de los comunicados, sí.
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="closeModal('modal-comunicado')">Cancelar</button>
+            <button class="btn-p" onclick="publicarComunicado()">Publicar</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal: a qué expensa corresponde un pago informado suelto -->
 <div class="modal-overlay" id="modal-imputar-pago">
     <div class="modal-box">
@@ -1872,7 +2046,7 @@ function navegar(id, el) {
     if (id === 'balance')      initBalance();
     if (id === 'amenities')    initAmenities();
     if (id === 'liquidaciones') initLiquidaciones();
-    if (id === 'reclamos')     initReclamos();
+    if (id === 'comunicacion') initComunicacion();
     if (id === 'config')       initConfig();
 }
 
@@ -2020,6 +2194,11 @@ async function dashAccion(tipo, seccion, lid) {
         await cobrosTab('avisos', null);
         return;
     }
+    if (tipo === 'ir' && seccion === 'comunicacion') {
+        show('comunicacion');
+        await comTab('reclamos', null);
+        return;
+    }
     show(seccion);
 }
 
@@ -2082,11 +2261,11 @@ function dashAtencion(items) {
     /* El badge del nav se enteraba sólo si entrabas a Reclamos. El panel es la
        primera pantalla, así que ahora lo deja bien de entrada. */
     const rec = items.find(i => i.tipo === 'reclamos');
-    const badge = $('nav-badge-reclamos');
-    if (badge) {
+    [$('nav-badge-reclamos'), $('com-badge-reclamos')].forEach(badge => {
+        if (!badge) return;
         badge.textContent = rec ? rec.cantidad : '';
         badge.style.display = rec ? 'inline-block' : 'none';
-    }
+    });
 
     const cont = $('dash-atencion');
     if (!items.length) {
@@ -2253,7 +2432,8 @@ function renderConsorcios() {
 function populateConsorioSelects() {
     const opts = '<option value="">Todos</option>' + consorcios.map(c=>`<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
     const opts2 = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
-    ['filter-gastos-consorcio','filter-cobros-consorcio','filter-mora-consorcio','filter-balance-consorcio','filter-reclamos-consorcio','filter-avisos-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts; });
+    ['filter-gastos-consorcio','filter-cobros-consorcio','filter-mora-consorcio','filter-balance-consorcio','filter-reclamos-consorcio','filter-avisos-consorcio','filter-mensajes-consorcio',
+     'filter-comunicados-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts; });
     ['m-gasto-consorcio','m-gen-consorcio','filter-amenities-consorcio'].forEach(id => { if($(id)) $(id).innerHTML = opts2; });
 }
 
@@ -4708,6 +4888,297 @@ const RECLAMO_BADGE = {
     cerrado:    'b-gr',
 };
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   COMUNICACIÓN — reclamos, mensajes y comunicados
+
+   Tres cosas que son la misma: hablar con el vecino. Estaban en dos secciones
+   distintas del sidebar y los comunicados en ninguna —el vecino los veía en su
+   panel y no había desde dónde mandarlos—.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+let comTabActual = 'reclamos';
+
+async function initComunicacion() {
+    if (!consorcios.length) await loadConsorcios();
+    await comTab(comTabActual, null);
+    // El badge de mensajes se calcula aunque estés en otra pestaña: es la
+    // única forma de que se vea que alguien escribió.
+    if (comTabActual !== 'mensajes') loadHilos({silencioso: true});
+}
+
+async function comTab(tab, el) {
+    comTabActual = tab;
+    document.querySelectorAll('#sec-comunicacion .tab-btn').forEach(b => b.classList.remove('active'));
+    if (el) el.classList.add('active');
+    else document.querySelector(`#sec-comunicacion .tab-btn[onclick*="'${tab}'"]`)?.classList.add('active');
+
+    $('tab-com-reclamos').style.display    = tab === 'reclamos'    ? '' : 'none';
+    $('tab-com-mensajes').style.display    = tab === 'mensajes'    ? '' : 'none';
+    $('tab-com-comunicados').style.display = tab === 'comunicados' ? '' : 'none';
+
+    if (tab === 'reclamos') await loadReclamos();
+    else if (tab === 'mensajes') await loadHilos();
+    else await loadComunicados();
+}
+
+/* ── Mensajes ─────────────────────────────────────────────────────────────── */
+
+let hilos = [];
+let vecinosDelAdmin = [];
+let hiloAbierto = null;      // vecino_id
+let chatArchivo = null;
+
+const inicialDe = t => (t || '?').trim().charAt(0).toUpperCase();
+
+async function loadHilos(opciones = {}) {
+    const params = new URLSearchParams();
+    const cid = $('filter-mensajes-consorcio')?.value; if (cid) params.set('consorcio_id', cid);
+    try {
+        const data = await api('/api/admin/mensajes?' + params);
+        hilos = data.hilos || [];
+        vecinosDelAdmin = data.vecinos || [];
+    } catch (e) {
+        if (!opciones.silencioso) $('lista-hilos').innerHTML =
+            `<div class="tbl-empty">No se pudo cargar: ${escHtml(e.message)}</div>`;
+        return;
+    }
+    if (!opciones.silencioso) renderHilos();
+    actualizarBadgeMensajes();
+}
+
+function actualizarBadgeMensajes() {
+    const sinLeer = hilos.reduce((s, h) => s + (h.sin_leer || 0), 0);
+    [$('com-badge-mensajes')].forEach(b => {
+        if (!b) return;
+        b.textContent = sinLeer;
+        b.style.display = sinLeer ? 'inline-block' : 'none';
+    });
+}
+
+function renderHilos() {
+    const cont = $('lista-hilos');
+    $('mensajes-count-label').textContent = hilos.length
+        ? `${hilos.length} conversación${hilos.length === 1 ? '' : 'es'}` : '';
+
+    if (!hilos.length) {
+        cont.innerHTML = `<div class="tbl-empty">Todavía no hay conversaciones.
+            Podés escribirle primero a cualquier vecino.</div>`;
+        return;
+    }
+
+    cont.innerHTML = hilos.map(h => {
+        const v = h.vecino || {};
+        const ultimo = h.ultimo || {};
+        const quien = ultimo.autor === 'admin' ? 'Vos: ' : '';
+        const cuerpo = ultimo.cuerpo || (ultimo.adjunto_nombre ? '📎 ' + ultimo.adjunto_nombre : '');
+        const fecha = ultimo.created_at ? new Date(ultimo.created_at).toLocaleDateString('es-AR') : '';
+        return `<button class="hilo-row ${hiloAbierto === h.vecino_id ? 'sel' : ''}"
+                        onclick="abrirHilo('${h.vecino_id}')">
+            <span class="hilo-av">${escHtml(inicialDe(v.nombre || v.email))}</span>
+            <span class="hilo-main">
+                <span class="hilo-t">${escHtml(v.nombre || v.email || 'Vecino')}${v.unidad ? ' · UF ' + escHtml(v.unidad) : ''}</span>
+                <span class="hilo-s">${escHtml(quien + cuerpo)}</span>
+            </span>
+            <span style="text-align:right;flex-shrink:0;">
+                <span class="hilo-s">${fecha}</span>
+                ${h.sin_leer ? `<span class="badge-count" style="display:inline-block;margin-top:3px;">${h.sin_leer}</span>` : ''}
+            </span>
+        </button>`;
+    }).join('');
+}
+
+async function abrirHilo(vid) {
+    hiloAbierto = vid;
+    renderHilos();
+    $('chat-mensajes').innerHTML = '<div class="tbl-empty">Cargando...</div>';
+    $('chat-escribir').style.display = '';
+    try {
+        const data = await api('/api/admin/mensajes/hilo/' + vid);
+        const v = data.vecino || {};
+        $('chat-titulo').textContent = v.nombre || v.email || 'Vecino';
+        $('chat-sub').textContent = v.unidad ? 'UF ' + v.unidad : '';
+        renderMensajes(data.mensajes || []);
+        // Abrirlo es leerlo: el contador tiene que bajar acá y no en el próximo refresco.
+        const h = hilos.find(x => x.vecino_id === vid);
+        if (h) { h.sin_leer = 0; renderHilos(); actualizarBadgeMensajes(); }
+    } catch (e) {
+        $('chat-mensajes').innerHTML = `<div class="tbl-empty">No se pudo abrir: ${escHtml(e.message)}</div>`;
+    }
+}
+
+function renderMensajes(mensajes) {
+    const cont = $('chat-mensajes');
+    if (!mensajes.length) {
+        cont.innerHTML = '<div class="tbl-empty">Todavía no se escribieron. Escribí vos primero.</div>';
+        return;
+    }
+    cont.innerHTML = mensajes.map(m => {
+        const mio = m.autor === 'admin';
+        const cuando = m.created_at
+            ? new Date(m.created_at).toLocaleString('es-AR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'})
+            : '';
+        const adjunto = m.adjunto_nombre
+            ? `<div style="margin-top:6px;"><a href="/api/admin/mensajes/adjunto/${m.id}" target="_blank">📎 ${escHtml(m.adjunto_nombre)}</a></div>`
+            : '';
+        return `<div class="burbuja ${mio ? 'mia' : 'suya'}">
+            ${m.cuerpo ? escHtml(m.cuerpo).replace(/\n/g, '<br>') : ''}
+            ${adjunto}
+            <div class="meta">${cuando}${mio && m.leido_at ? ' · leído' : ''}</div>
+        </div>`;
+    }).join('');
+    // El último mensaje es el que importa: el hilo se abre abajo de todo.
+    cont.scrollTop = cont.scrollHeight;
+}
+
+function chatArchivoElegido(input) {
+    chatArchivo = input.files[0] || null;
+    const el = $('chat-adjunto-nombre');
+    if (!chatArchivo) { el.style.display = 'none'; return; }
+    el.innerHTML = `📎 ${escHtml(chatArchivo.name)} · <a onclick="chatQuitarArchivo()" style="cursor:pointer;color:var(--nd-terracota-hondo);">quitar</a>`;
+    el.style.display = '';
+}
+
+function chatQuitarArchivo() {
+    chatArchivo = null;
+    $('chat-archivo').value = '';
+    $('chat-adjunto-nombre').style.display = 'none';
+}
+
+/* Enter manda, Shift+Enter hace un salto de línea: es lo que la mano ya sabe
+   de cualquier chat. */
+function chatTecla(ev) {
+    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); enviarMensajeAdmin(); }
+}
+
+async function enviarMensajeAdmin() {
+    if (!hiloAbierto) return;
+    const texto = $('chat-texto').value.trim();
+    if (!texto && !chatArchivo) { toast('Escribí algo o adjuntá un archivo', 'warn'); return; }
+
+    const fd = new FormData();
+    fd.append('cuerpo', texto);
+    if (chatArchivo) fd.append('adjunto', chatArchivo);
+
+    try {
+        const r = await fetch('/api/admin/mensajes/hilo/' + hiloAbierto, {method: 'POST', body: fd});
+        if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Error ' + r.status); }
+        $('chat-texto').value = '';
+        chatQuitarArchivo();
+        await abrirHilo(hiloAbierto);
+        await loadHilos({silencioso: true});
+        renderHilos();
+    } catch (e) { toast(e.message, 'err'); }
+}
+
+/* Escribirle primero a alguien con quien no hay hilo todavía. */
+function openNuevoHilo() {
+    const sel = $('m-nuevo-hilo-vecino');
+    const conHilo = new Set(hilos.map(h => h.vecino_id));
+    sel.innerHTML = vecinosDelAdmin.length
+        ? vecinosDelAdmin.map(v => {
+            const con = consorcios.find(c => c.id === v.consorcio_id);
+            const marca = conHilo.has(v.id) ? ' (ya tienen conversación)' : '';
+            return `<option value="${v.id}">${escHtml(v.nombre || v.email)}${v.unidad ? ' — UF ' + escHtml(v.unidad) : ''}${con ? ' — ' + escHtml(con.nombre) : ''}${marca}</option>`;
+        }).join('')
+        : '<option value="">No hay vecinos aprobados todavía</option>';
+    openModal('modal-nuevo-hilo');
+}
+
+async function empezarHilo() {
+    const vid = $('m-nuevo-hilo-vecino').value;
+    if (!vid) { toast('Elegí a quién escribirle', 'warn'); return; }
+    closeModal('modal-nuevo-hilo');
+    await comTab('mensajes', null);
+    // Puede no existir el hilo todavía: abrirlo igual deja la pantalla lista
+    // para escribir, y el hilo nace con el primer mensaje.
+    await abrirHilo(vid);
+    $('chat-texto').focus();
+}
+
+/* ── Comunicados ──────────────────────────────────────────────────────────── */
+
+let comunicados = [];
+
+async function loadComunicados() {
+    const tb = $('tbody-comunicados');
+    tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">Cargando...</td></tr>';
+    try {
+        const params = new URLSearchParams();
+        const cid = $('filter-comunicados-consorcio')?.value; if (cid) params.set('consorcio_id', cid);
+        comunicados = await api('/api/admin/comunicados?' + params);
+    } catch (e) {
+        tb.innerHTML = `<tr><td colspan="6" class="tbl-empty">No se pudieron cargar: ${escHtml(e.message)}</td></tr>`;
+        return;
+    }
+    renderComunicados();
+}
+
+function renderComunicados() {
+    const tb = $('tbody-comunicados');
+    $('comunicados-count-label').textContent = comunicados.length
+        ? `${comunicados.length} comunicado${comunicados.length === 1 ? '' : 's'}` : '';
+
+    if (!comunicados.length) {
+        tb.innerHTML = `<tr><td colspan="6" class="tbl-empty">Todavía no mandaste ninguno.
+            Un comunicado lo ve todo el edificio en su panel.</td></tr>`;
+        return;
+    }
+
+    tb.innerHTML = comunicados.map(c => {
+        const con = consorcios.find(x => x.id === c.consorcio_id);
+        const fecha = c.created_at ? new Date(c.created_at).toLocaleDateString('es-AR') : '—';
+        const cuerpo = (c.cuerpo || '').length > 90 ? c.cuerpo.slice(0, 90) + '…' : (c.cuerpo || '');
+        return `<tr>
+            <td>${fecha}</td>
+            <td class="text-muted">${escHtml(con ? con.nombre : '—')}</td>
+            <td><strong>${escHtml(c.titulo || '')}</strong>${c.importante ? '<span class="b b-y" style="margin-left:6px;">Importante</span>' : ''}</td>
+            <td class="text-muted">${escHtml(cuerpo)}</td>
+            <td class="text-muted">${c.leidos != null ? c.leidos : '—'}</td>
+            <td><div class="inline-actions">
+                <button class="btn-danger btn-sm" onclick="borrarComunicado('${c.id}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
+            </div></td>
+        </tr>`;
+    }).join('');
+}
+
+function openComunicadoModal() {
+    $('m-com-consorcio').innerHTML = '<option value="">Elegí el edificio...</option>' +
+        consorcios.map(c => `<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
+    $('m-com-titulo').value = '';
+    $('m-com-cuerpo').value = '';
+    $('m-com-importante').checked = false;
+    $('m-com-mail').checked = false;
+    openModal('modal-comunicado');
+}
+
+async function publicarComunicado() {
+    const consorcio_id = $('m-com-consorcio').value;
+    const titulo = $('m-com-titulo').value.trim();
+    const cuerpo = $('m-com-cuerpo').value.trim();
+    if (!consorcio_id) { toast('Elegí a qué edificio va', 'warn'); return; }
+    if (!titulo || !cuerpo) { toast('Completá el título y el mensaje', 'warn'); return; }
+
+    try {
+        await api('/api/admin/comunicados', {method: 'POST', body: JSON.stringify({
+            consorcio_id, titulo, cuerpo,
+            importante: $('m-com-importante').checked,
+            enviar_email: $('m-com-mail').checked,
+        })});
+        closeModal('modal-comunicado');
+        toast($('m-com-mail').checked ? 'Comunicado publicado y enviado por mail' : 'Comunicado publicado');
+        await loadComunicados();
+    } catch (e) { toast(e.message, 'err'); }
+}
+
+async function borrarComunicado(id) {
+    if (!confirm('¿Borrar este comunicado? Deja de verse en el panel de los vecinos.')) return;
+    try {
+        await api('/api/admin/comunicados/' + id, {method: 'DELETE'});
+        toast('Comunicado borrado');
+        await loadComunicados();
+    } catch (e) { toast(e.message, 'err'); }
+}
+
 function initReclamos() { loadReclamos(); }
 
 async function loadReclamos() {
@@ -4749,11 +5220,12 @@ function renderReclamos() {
 /* El vecino no puede seguir esperando un reclamo que nadie miró: el contador
    son los que todavía no se tocaron, no el total. */
 function actualizarBadgeReclamos() {
-    const b = $('nav-badge-reclamos');
-    if (!b) return;
     const abiertos = reclamosCargados.filter(r => r.estado === 'activo').length;
-    b.textContent = abiertos;
-    b.style.display = abiertos ? 'inline-block' : 'none';
+    [$('nav-badge-reclamos'), $('com-badge-reclamos')].forEach(b => {
+        if (!b) return;
+        b.textContent = abiertos;
+        b.style.display = abiertos ? 'inline-block' : 'none';
+    });
 }
 
 function abrirReclamo(id) {
@@ -4957,7 +5429,16 @@ async function refrescarSeccionActiva() {
     try {
         if (nombre === 'dashboard') await loadDashboard();
         else if (nombre === 'gastos') await loadGastos();
-        else if (nombre === 'reclamos') await loadReclamos();
+        else if (nombre === 'comunicacion') {
+            if ($('tab-com-mensajes').style.display !== 'none') {
+                // Sin perder el hilo abierto: se recarga la lista y, si hay
+                // una conversación en pantalla, también sus mensajes.
+                await loadHilos();
+                if (hiloAbierto) await abrirHilo(hiloAbierto);
+            }
+            else if ($('tab-com-comunicados').style.display !== 'none') await loadComunicados();
+            else { await loadReclamos(); await loadHilos({silencioso: true}); }
+        }
         else if (nombre === 'balance') await loadBalance();
         else if (nombre === 'cobros') {
             // Cada pestaña tiene lo suyo; el badge de pagos informados se

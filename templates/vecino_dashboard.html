@@ -166,6 +166,18 @@
     .toast.ok{background:var(--teal)} .toast.err{background:var(--red)} .toast.info{background:var(--blue)} .toast.warn{background:var(--amber)}
     
     .md-layout{display:grid;grid-template-columns:290px 1fr;gap:16px;height:calc(100vh - var(--header-h) - 120px)}
+    /* Chat con la administración */
+    .chat-caja{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;height:calc(100vh - var(--header-h) - 150px);min-height:380px}
+    .chat-mensajes{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px}
+    .burbuja{max-width:76%;padding:10px 14px;border-radius:14px;font-size:0.87rem;line-height:1.55}
+    .burbuja.suya{align-self:flex-start;background:var(--surface2);border-bottom-left-radius:4px}
+    .burbuja.mia{align-self:flex-end;background:var(--teal-dim);border-bottom-right-radius:4px}
+    .burbuja .meta{font-size:0.68rem;color:var(--muted);margin-top:4px}
+    .burbuja a{color:var(--teal);font-weight:600}
+    .chat-escribir{border-top:1px solid var(--border);padding:12px 14px}
+    .chat-fila{display:flex;gap:8px;align-items:flex-end}
+    .chat-fila textarea{flex:1;resize:none}
+    .chat-adjunto{font-size:0.75rem;color:var(--muted);margin-bottom:6px}
     .md-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow-y:auto}
     .md-item{padding:14px 16px;border-bottom:1px solid var(--border2);cursor:pointer;transition:all 0.15s}
     .md-item:last-child{border-bottom:none}
@@ -295,6 +307,7 @@
         <button class="nav-btn"        id="nav-gastos"      onclick="showSection('gastos')"><svg class="ic"><use href="#ic-balance"></use></svg>Reporte de Gastos</button>
         <span class="nav-group">Comunidad</span>
         <button class="nav-btn"        id="nav-reclamos"    onclick="showSection('reclamos')"><svg class="ic"><use href="#ic-alerta"></use></svg>Reclamos <span class="nbadge" id="nbadge-rec" style="display:none">0</span></button>
+        <button class="nav-btn"        id="nav-mensajes"    onclick="showSection('mensajes')"><svg class="ic"><use href="#ic-mensaje"></use></svg>Mensajes <span class="nbadge new" id="nbadge-msj" style="display:none">0</span></button>
         <button class="nav-btn"        id="nav-reservas"    onclick="showSection('reservas')"><svg class="ic"><use href="#ic-reserva"></use></svg>Reservas</button>
         <button class="nav-btn"        id="nav-archivos"    onclick="showSection('archivos')"><svg class="ic"><use href="#ic-carpeta"></use></svg>Archivos</button>
     </nav>
@@ -460,6 +473,30 @@
     <div class="md-layout">
         <div class="md-list" id="rec-list"><div style="padding:20px;color:var(--muted);text-align:center;font-size:0.85rem">Cargando...</div></div>
         <div class="md-detail" id="rec-detail"><div class="md-empty"><div class="md-empty-icon"><svg class="ic ic-xl"><use href="#ic-alerta"></use></svg></div><div>Seleccioná un reclamo para ver el detalle</div></div></div>
+    </div>
+</div>
+
+<!-- MENSAJES -->
+<div id="section-mensajes" class="section sw">
+    <div class="pg-head">
+        <div class="pg-title"><svg class="ic"><use href="#ic-mensaje"></use></svg>Mensajes</div>
+        <div class="pg-sub">Hablá directo con la administración de tu edificio</div>
+    </div>
+    <div class="chat-caja">
+        <div class="chat-mensajes" id="msj-lista">
+            <div style="padding:32px;text-align:center;color:var(--muted);font-size:0.85rem">Cargando...</div>
+        </div>
+        <div class="chat-escribir">
+            <div class="chat-adjunto" id="msj-adjunto-nombre" style="display:none"></div>
+            <div class="chat-fila">
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('msj-archivo').click()"
+                        title="Adjuntar" aria-label="Adjuntar archivo"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg></button>
+                <input type="file" id="msj-archivo" accept="image/*,.pdf" style="display:none" onchange="msjArchivoElegido(this)">
+                <textarea class="fc" id="msj-texto" rows="2" maxlength="4000"
+                          placeholder="Escribile a la administración..." onkeydown="msjTecla(event)"></textarea>
+                <button class="btn btn-primary" onclick="enviarMensaje()">Enviar</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -680,7 +717,7 @@ const ALTA = {{ (alta or {}) | tojson }};
 /* Las secciones que se pueden abrir por URL. Refrescar tiene que dejarte donde
    estabas: antes el hash no se escribía nunca, así que cualquier F5 —o volver
    de un adjunto abierto en otra pestaña— te devolvía al inicio. */
-const SECCIONES = ['inicio','comunicados','expensas','gastos','reclamos','reservas','archivos','perfil'];
+const SECCIONES = ['inicio','comunicados','expensas','gastos','reclamos','mensajes','reservas','archivos','perfil'];
 const seccionDelHash = () => {
     const h = decodeURIComponent(location.hash.replace('#',''));
     return SECCIONES.includes(h) ? h : 'inicio';
@@ -738,7 +775,7 @@ function showSection(name){
     // Queda en la URL para que refrescar no te saque de donde estabas.
     if(SECCIONES.includes(name) && seccionDelHash() !== name) location.hash = name;
 
-    const ldr={inicio:loadInicio,comunicados:loadComs,expensas:loadExpensas,gastos:loadGastos,reclamos:loadReclamos,reservas:loadReservas,archivos:loadArchivos,perfil:loadPerfil};
+    const ldr={inicio:loadInicio,comunicados:loadComs,expensas:loadExpensas,gastos:loadGastos,reclamos:loadReclamos,mensajes:loadMensajes,reservas:loadReservas,archivos:loadArchivos,perfil:loadPerfil};
     if(ldr[name])ldr[name]();
 }
 
@@ -815,8 +852,8 @@ async function refrescar(){
     const activa = document.querySelector('.section.active');
     const nombre = activa ? activa.id.replace('section-','') : 'inicio';
     const ldr = {inicio:loadInicio, comunicados:loadComs, expensas:loadExpensas,
-                 gastos:loadGastos, reclamos:loadReclamos, reservas:loadReservas,
-                 archivos:loadArchivos};
+                 gastos:loadGastos, reclamos:loadReclamos, mensajes:loadMensajes,
+                 reservas:loadReservas, archivos:loadArchivos};
     if(ldr[nombre]) try{ await ldr[nombre]() }catch(e){}
     loadBadges();
 }
@@ -975,10 +1012,18 @@ function renderComsRecientes(coms){
     `).join('');
 }
 
-/* Los contadores del sidebar. Votaciones quedó fuera del MVP del vecino y
-   por ahora no hay nada más que contar acá: los comunicados sin leer los
-   escribe loadComs() cuando entrás a la sección. */
-async function loadBadges(){}
+/* Los contadores del sidebar. Los comunicados sin leer los escribe loadComs()
+   al entrar a la sección; los mensajes tienen que verse desde cualquier lado,
+   que para eso son mensajes. */
+async function loadBadges(){
+    try{
+        const {sin_leer}=await api('/api/mensajes/no-leidos');
+        const b=document.getElementById('nbadge-msj');
+        if(!b)return;
+        b.textContent=sin_leer;
+        b.style.display=sin_leer?'inline-block':'none';
+    }catch(e){}
+}
 
 async function loadComs(){
     document.getElementById('com-list').innerHTML='<div style="padding:20px;color:var(--muted);text-align:center;font-size:0.85rem">Cargando...</div>';
@@ -1553,6 +1598,78 @@ async function guardarAsociacion(){
         toast('Solicitud enviada — te avisamos cuando la aprueben','ok');
     }
     catch(e){toast(e.message,'err')}
+}
+
+/* ── MENSAJES ─────────────────────────────────────────────────────────────────
+   El hilo con la administración. Es uno solo y siempre el mismo: no hay que
+   elegir destinatario ni asunto, que es justo lo que hace que la gente escriba
+   en vez de esperar a cruzarse al encargado. */
+let msjArchivo = null;
+
+async function loadMensajes(){
+    const cont=document.getElementById('msj-lista');
+    try{
+        const mensajes=await api('/api/mensajes');
+        renderMensajes(mensajes);
+        // Abrirlo es leerlo: el badge baja acá y no en el próximo refresco.
+        const b=document.getElementById('nbadge-msj');
+        if(b){b.textContent='0';b.style.display='none'}
+    }catch(e){
+        cont.innerHTML='<div style="padding:32px;text-align:center;color:var(--nd-terracota-hondo);font-size:0.85rem">No se pudieron cargar los mensajes</div>';
+    }
+}
+
+function renderMensajes(mensajes){
+    const cont=document.getElementById('msj-lista');
+    if(!mensajes.length){
+        cont.innerHTML='<div style="padding:40px 24px;text-align:center;color:var(--muted);font-size:0.86rem;line-height:1.6">'+
+            '<div style="margin-bottom:10px;opacity:0.35"><svg class="ic ic-xl"><use href="#ic-mensaje"></use></svg></div>'+
+            'Escribile a la administración por cualquier cosa del edificio.<br>Te contestan por acá mismo.</div>';
+        return;
+    }
+    cont.innerHTML=mensajes.map(m=>{
+        const mio=m.autor==='vecino';
+        const cuando=m.created_at?new Date(m.created_at).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+        const adjunto=m.adjunto_nombre
+            ? `<div style="margin-top:6px"><a href="/api/mensajes/${m.id}/adjunto" target="_blank">📎 ${esc(m.adjunto_nombre)}</a></div>`
+            : '';
+        return `<div class="burbuja ${mio?'mia':'suya'}">${m.cuerpo?esc(m.cuerpo).replace(/\n/g,'<br>'):''}${adjunto}<div class="meta">${mio?'Vos':'Administración'} · ${cuando}</div></div>`;
+    }).join('');
+    cont.scrollTop=cont.scrollHeight;
+}
+
+function msjArchivoElegido(input){
+    msjArchivo=input.files[0]||null;
+    const el=document.getElementById('msj-adjunto-nombre');
+    if(!msjArchivo){el.style.display='none';return}
+    el.innerHTML=`📎 ${esc(msjArchivo.name)} · <a onclick="msjQuitarArchivo()" style="cursor:pointer;color:var(--nd-terracota-hondo)">quitar</a>`;
+    el.style.display='block';
+}
+
+function msjQuitarArchivo(){
+    msjArchivo=null;
+    document.getElementById('msj-archivo').value='';
+    document.getElementById('msj-adjunto-nombre').style.display='none';
+}
+
+// Enter manda, Shift+Enter hace un salto de línea.
+function msjTecla(ev){
+    if(ev.key==='Enter'&&!ev.shiftKey){ev.preventDefault();enviarMensaje()}
+}
+
+async function enviarMensaje(){
+    const texto=document.getElementById('msj-texto').value.trim();
+    if(!texto&&!msjArchivo){toast('Escribí algo o adjuntá un archivo','warn');return}
+    const fd=new FormData();
+    fd.append('cuerpo',texto);
+    if(msjArchivo)fd.append('adjunto',msjArchivo);
+    try{
+        const r=await fetch('/api/mensajes',{method:'POST',body:fd});
+        if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||'Error '+r.status)}
+        document.getElementById('msj-texto').value='';
+        msjQuitarArchivo();
+        await loadMensajes();
+    }catch(e){toast(e.message,'err')}
 }
 
 /* ── FORM CONTEXT FILL ── */
