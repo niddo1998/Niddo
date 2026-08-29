@@ -67,14 +67,13 @@
 
     /* ── Tab bar ──────────────────────────────────────────────────────────
        Qué tab se ilumina para cada sección. En el vecino, Comunidad agrupa
-       comunicados, votaciones y reclamos; Más agrupa las que viven en la
+       comunicados y reclamos; Más agrupa las que viven en la
        hoja. */
     var TAB_OF = CFG.tabOf || {
         inicio: 'inicio',
         expensas: 'expensas',
         gastos: 'expensas',
         comunicados: 'comunidad',
-        votaciones: 'comunidad',
         reclamos: 'comunidad',
         reservas: 'reservas',
         archivos: 'mas',
@@ -141,7 +140,7 @@
 
     var TITLES = CFG.titles || {
         inicio: 'Inicio', expensas: 'Mis expensas', gastos: 'Gastos del consorcio',
-        comunicados: 'Comunicados', votaciones: 'Votaciones', reclamos: 'Reclamos',
+        comunicados: 'Comunicados', reclamos: 'Reclamos',
         reservas: 'Reservas', archivos: 'Archivos', perfil: 'Mi perfil'
     };
 

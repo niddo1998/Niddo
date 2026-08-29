@@ -186,18 +186,6 @@
     .ov-title{font-size:1.5rem;font-weight:800;margin-bottom:10px}
     .ov-sub{color:var(--muted);font-size:0.9rem;margin-bottom:24px;line-height:1.6}
     
-    .vot-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:14px}
-    .vot-title{font-size:0.95rem;font-weight:700;margin-bottom:6px}
-    .vot-desc{font-size:0.83rem;color:var(--muted);margin-bottom:14px;line-height:1.5}
-    .vot-bar-w{margin-bottom:8px}
-    .vot-bar-l{font-size:0.73rem;color:var(--muted);margin-bottom:3px;display:flex;justify-content:space-between}
-    .vot-bar{height:6px;border-radius:3px;background:var(--surface3);overflow:hidden}
-    .vot-bar-f{height:100%;border-radius:3px;transition:width 0.6s ease}
-    .vot-bar-f.yes{background:var(--teal)} .vot-bar-f.no{background:var(--red)} .vot-bar-f.abs{background:var(--muted)}
-    .vot-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-    .vot-btn{flex:1;min-width:80px;padding:7px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-size:0.82rem;font-family:var(--font);font-weight:600;transition:all 0.15s}
-    .vot-btn:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-dim)}
-    .vot-btn.voted{background:var(--teal-dim);color:var(--teal);border-color:var(--teal);cursor:default}
     
     .cal-dot{width:10px;height:10px;border-radius:3px;display:inline-block}
     .cal-dot-free{background:var(--teal-dim);border:1px solid var(--teal)}
@@ -297,7 +285,6 @@
         <button class="nav-btn"        id="nav-gastos"      onclick="showSection('gastos')"><svg class="ic"><use href="#ic-balance"></use></svg>Reporte de Gastos</button>
         <span class="nav-group">Comunidad</span>
         <button class="nav-btn"        id="nav-reclamos"    onclick="showSection('reclamos')"><svg class="ic"><use href="#ic-alerta"></use></svg>Reclamos <span class="nbadge" id="nbadge-rec" style="display:none">0</span></button>
-        <button class="nav-btn"        id="nav-votaciones"  onclick="showSection('votaciones')"><svg class="ic"><use href="#ic-urna"></use></svg>Votaciones <span class="nbadge new" id="nbadge-vot" style="display:none">0</span></button>
         <button class="nav-btn"        id="nav-reservas"    onclick="showSection('reservas')"><svg class="ic"><use href="#ic-reserva"></use></svg>Reservas</button>
         <button class="nav-btn"        id="nav-archivos"    onclick="showSection('archivos')"><svg class="ic"><use href="#ic-carpeta"></use></svg>Archivos</button>
     </nav>
@@ -464,17 +451,6 @@
         <div class="md-list" id="rec-list"><div style="padding:20px;color:var(--muted);text-align:center;font-size:0.85rem">Cargando...</div></div>
         <div class="md-detail" id="rec-detail"><div class="md-empty"><div class="md-empty-icon"><svg class="ic ic-xl"><use href="#ic-alerta"></use></svg></div><div>Seleccioná un reclamo para ver el detalle</div></div></div>
     </div>
-</div>
-
-<!-- VOTACIONES -->
-<div id="section-votaciones" class="section sw">
-    <div class="pg-head"><div class="pg-title"><svg class="ic"><use href="#ic-urna"></use></svg>Votaciones <span class="badge-new">Participá</span></div><div class="pg-sub">Decidí junto a tus vecinos en asambleas digitales</div></div>
-    <div style="display:flex;gap:8px;margin-bottom:18px">
-        <button class="btn btn-secondary btn-sm" onclick="filterVots('activa')">Activas</button>
-        <button class="btn btn-secondary btn-sm" onclick="filterVots('cerrada')">Finalizadas</button>
-        <button class="btn btn-secondary btn-sm" onclick="filterVots('')">Todas</button>
-    </div>
-    <div id="vot-container"><div style="color:var(--muted);text-align:center;padding:40px;font-size:0.88rem">Cargando votaciones...</div></div>
 </div>
 
 <!-- RESERVAS -->
@@ -689,7 +665,7 @@
 <div class="toast-container" id="tc"></div>
 
 <script>
-const S = { vecino:null, unidades:[], activeU:null, coms:[], comFilter:'all', recs:[], vots:[], votFilter:'', cobros:[], avisos:[], amenities:[], selAm:null, charts:{}, booked:[], selStart:null, selEnd:null, dragAnchor:null, dragging:false };
+const S = { vecino:null, unidades:[], activeU:null, coms:[], comFilter:'all', recs:[], cobros:[], avisos:[], amenities:[], selAm:null, charts:{}, booked:[], selStart:null, selEnd:null, dragAnchor:null, dragging:false };
 
 function toast(msg, t='ok'){const el=document.createElement('div');el.className='toast '+t;el.textContent=msg;document.getElementById('tc').appendChild(el);setTimeout(()=>el.remove(),3200)}
 function openModal(id){document.getElementById(id).classList.add('open')}
@@ -723,7 +699,7 @@ function showSection(name){
     const bb=document.getElementById('bnav-'+name);if(bb)bb.classList.add('active');
     
     document.getElementById('dd-menu').classList.remove('open');
-    const ldr={comunicados:loadComs,expensas:loadExpensas,gastos:loadGastos,reclamos:loadReclamos,votaciones:loadVots,reservas:loadReservas,archivos:loadArchivos,perfil:loadPerfil};
+    const ldr={comunicados:loadComs,expensas:loadExpensas,gastos:loadGastos,reclamos:loadReclamos,reservas:loadReservas,archivos:loadArchivos,perfil:loadPerfil};
     if(ldr[name])ldr[name]();
 }
 
@@ -896,7 +872,10 @@ function renderComsRecientes(coms){
     `).join('');
 }
 
-async function loadBadges(){try{const v=await api('/api/votaciones?estado=activa');const sv=v.filter(x=>!x.ya_vote);if(sv.length){const b=document.getElementById('nbadge-vot');b.textContent=sv.length;b.style.display='inline-block'}}catch(e){}}
+/* Los contadores del sidebar. Votaciones quedó fuera del MVP del vecino y
+   por ahora no hay nada más que contar acá: los comunicados sin leer los
+   escribe loadComs() cuando entrás a la sección. */
+async function loadBadges(){}
 
 async function loadComs(){
     document.getElementById('com-list').innerHTML='<div style="padding:20px;color:var(--muted);text-align:center;font-size:0.85rem">Cargando...</div>';
@@ -1203,32 +1182,6 @@ async function submitReclamo(){
     }
 }
 
-async function loadVots(){
-    document.getElementById('vot-container').innerHTML='<div style="color:var(--muted);text-align:center;padding:40px">Cargando...</div>';
-    try{const url='/api/votaciones'+(S.votFilter?'?estado='+S.votFilter:'');S.vots=await api(url);renderVots()}
-    catch(e){document.getElementById('vot-container').innerHTML='<div style="color:var(--nd-terracota-hondo);text-align:center;padding:40px">Error al cargar votaciones</div>'}
-}
-function filterVots(f){S.votFilter=f;loadVots()}
-function renderVots(){
-    const c=document.getElementById('vot-container');
-    if(!S.vots.length){c.innerHTML='<div style="text-align:center;padding:48px;color:var(--muted)"><div style="margin-bottom:10px;opacity:0.35"><svg class="ic ic-xl"><use href="#ic-urna"></use></svg></div><div>No hay votaciones en este momento</div></div>';return}
-    c.innerHTML=S.vots.map(v=>{
-        const tot=v.total_votos||0;const opc=v.opciones||['Si','No','Abstención'];
-        const barras=opc.map(op=>{const cnt=(v.conteo_votos||{})[op]||0;const pct=tot>0?Math.round(cnt/tot*100):0;const clm={'Si':'yes','No':'no','Abstención':'abs'};return`<div class="vot-bar-w"><div class="vot-bar-l"><span>${esc(op)}</span><span>${cnt} votos (${pct}%)</span></div><div class="vot-bar"><div class="vot-bar-f ${clm[op]||'abs'}" style="width:${pct}%"></div></div></div>`}).join('');
-        // `vigente` lo decide el backend, con la misma regla que usa para
-        // aceptar el voto: si lo calculara acá, la pantalla podría ofrecer un
-        // botón que el servidor va a rechazar.
-        const bloq=v.ya_vote||!v.vigente;
-        const btns=bloq?'':opc.map(op=>`<button class="vot-btn" onclick="votar('${v.id}','${esc(op)}')">${esc(op)}</button>`).join('');
-        const yaVote=v.ya_vote?`<div style="color:var(--teal);font-size:0.8rem;margin-top:8px">Ya votaste: <strong>${esc(v.mi_opcion||'–')}</strong></div>`:'';
-        return`<div class="vot-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div class="vot-title">${esc(v.titulo)}</div>${ebadge(v.vencida?'vencida':v.estado)}</div><div class="vot-desc">${esc(v.descripcion||'')}</div>${v.fecha_limite?`<div style="font-size:0.75rem;color:var(--muted);margin-bottom:10px">${v.vencida?'Venció':'Vence'}: ${fmtD(v.fecha_limite)} · ${tot} votos emitidos</div>`:''}${v.falta_quorum?`<div style="font-size:0.75rem;color:var(--amber);margin-bottom:10px">Faltan ${v.falta_quorum} votos para llegar al quórum</div>`:''} ${barras}${yaVote}${!bloq?`<div class="vot-btns">${btns}</div>`:''}</div>`
-    }).join('')
-}
-async function votar(vid,opcion){
-    if(!confirm('¿Confirmar voto: "'+opcion+'"? No se puede cambiar.'))return;
-    try{await api('/api/votaciones/'+vid+'/votar',{method:'POST',body:JSON.stringify({opcion})});toast('Voto "'+opcion+'" emitido','ok');await loadVots()}
-    catch(e){toast(e.message,'err')}
-}
 
 // ── Calendario de reservas (estilo Google Calendar: click/arrastre para elegir horario) ──
 const CAL_START=8*60, CAL_END=24*60, CAL_SLOT=30, CAL_SLOTPX=28;
