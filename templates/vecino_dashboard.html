@@ -779,6 +779,51 @@ async function api(url,opts={}){
     return res.json();
 }
 
+/* ── Ponerse al día solo ──────────────────────────────────────────────────────
+   Nada en esta pantalla se enteraba de un cambio hecho del otro lado: el vecino
+   que espera la aprobación miraba una sala de espera fija y tenía que probar
+   F5 cada tanto para ver si ya lo dejaron entrar, y el estado de un reclamo
+   cambiaba en la base sin que la pantalla se moviera.
+
+   Es polling y no tiempo real: media docena de pantallas y un consorcio no
+   justifican websockets, y treinta segundos alcanzan para que "ya está" se
+   sienta inmediato. Nunca corre con la pestaña en segundo plano —ahí no hay
+   nadie mirando— y sí apenas volvés a ella, que es cuando querés estar al día.
+
+   Lo que no se refresca nunca: con un formulario abierto. Recargar la lista de
+   atrás mientras alguien escribe un reclamo es peor que estar desactualizado. */
+const REFRESCO_MS = 30000;
+
+function hayAlgoAbierto(){
+    return !!document.querySelector('.drawer-overlay.open, .modal-overlay.open');
+}
+
+async function refrescarEstadoDelAlta(){
+    try{
+        const sol = await api('/api/vecinos/mi-solicitud');
+        // Aprobado o rechazado: las dos cambian de pantalla, y la pantalla la
+        // arma el servidor, así que se recarga en vez de reconstruirla acá.
+        if(sol.estado && sol.estado !== 'pendiente') location.reload();
+    }catch(e){}
+}
+
+async function refrescar(){
+    if(document.hidden || hayAlgoAbierto()) return;
+    if(!S.vecino) return;
+    if(ALTA.estado === 'pendiente'){ await refrescarEstadoDelAlta(); return; }
+
+    const activa = document.querySelector('.section.active');
+    const nombre = activa ? activa.id.replace('section-','') : 'inicio';
+    const ldr = {inicio:loadInicio, comunicados:loadComs, expensas:loadExpensas,
+                 gastos:loadGastos, reclamos:loadReclamos, reservas:loadReservas,
+                 archivos:loadArchivos};
+    if(ldr[nombre]) try{ await ldr[nombre]() }catch(e){}
+    loadBadges();
+}
+
+setInterval(refrescar, REFRESCO_MS);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) refrescar(); });
+
 async function init(){
     try{
         S.vecino=await api('/api/me');

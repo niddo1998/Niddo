@@ -4933,6 +4933,53 @@ async function guardarAgendado() {
 // Update consorcio count when data loads
 function updatePerfilConsorcios() { $('perfil-consorcios').textContent = consorcios.length; }
 
+/* ── Ponerse al día solo ──────────────────────────────────────────────────────
+   Un vecino informa un pago, otro manda un reclamo, un tercero pide el alta: el
+   panel no se enteraba de nada hasta que alguien apretaba F5. Cada 45 segundos
+   se recarga la sección que estás mirando, y también apenas volvés a la
+   pestaña.
+
+   Tres frenos, todos por la misma razón —no pisarle la pantalla a nadie—:
+   nunca con la pestaña en segundo plano, nunca con un modal abierto, y nunca
+   con cambios sin guardar en un formulario. Configuración no se refresca jamás:
+   es un formulario de punta a punta. */
+const REFRESCO_MS = 45000;
+
+async function refrescarSeccionActiva() {
+    if (document.hidden) return;
+    if (document.querySelector('.modal-overlay.open')) return;
+    if (formConCambios()) return;
+
+    const activa = document.querySelector('.section.active');
+    if (!activa) return;
+    const nombre = activa.id.replace('sec-', '');
+
+    try {
+        if (nombre === 'dashboard') await loadDashboard();
+        else if (nombre === 'gastos') await loadGastos();
+        else if (nombre === 'reclamos') await loadReclamos();
+        else if (nombre === 'balance') await loadBalance();
+        else if (nombre === 'cobros') {
+            // Cada pestaña tiene lo suyo; el badge de pagos informados se
+            // actualiza igual, para que se vea desde las otras dos.
+            if ($('tab-mora').style.display !== 'none') await loadMora();
+            else if ($('tab-avisos').style.display !== 'none') await loadAvisos();
+            else { await loadCobros(); await loadAvisos(); }
+        }
+        else if (nombre === 'consorcios') {
+            // Con el detalle abierto, lo que interesa son las solicitudes de
+            // vecinos: es lo que aparece solo mientras mirás la pantalla.
+            if ($('consorcio-detail').style.display !== 'none') await loadPendingNeighbors();
+            else await loadConsorcios();
+        }
+    } catch (e) { /* un refresco que falla no molesta a nadie: vuelve a intentar */ }
+}
+
+setInterval(refrescarSeccionActiva, REFRESCO_MS);
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refrescarSeccionActiva();
+});
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadConsorcios().then(() => {
     const hash = window.location.hash.substring(1);
