@@ -209,7 +209,7 @@ footer.note b{ color:var(--text-dim); }
   </div>
 
   <footer class="note">
-    <b>El patrón que más importa acá:</b> el vecino puede crear reclamos, votar y recibir comunicados — todo construido. Pero del lado admin, responder reclamos, crear votaciones y enviar comunicados tienen el backend listo (14 endpoints) sin ninguna pantalla que los llame.
+    <b>El patrón que más importa acá:</b> el backend siempre llegó antes que la pantalla. Responder reclamos, enviar comunicados y conversar con el vecino ya tienen su pantalla —la sección Comunicación—; crear votaciones sigue siendo backend sin UI, y las votaciones salieron del MVP del vecino, así que hoy no las ve nadie.
   </footer>
 </div>
 
@@ -277,7 +277,7 @@ const ADMIN = [
     {t:"Exportar PDF / Excel", s:"built"}
   ]},
   { id:"a8",  label:"Enviar comunicados", link:"v7", estado:"partial", items:[
-    {t:"Redactar comunicado", s:"planned", note:"POST /api/admin/comunicados existe, sin UI — \"Mensajería\" es placeholder"},
+    {t:"Redactar comunicado", s:"built", note:"Comunicación → pestaña Comunicados: redactar, marcar importante, avisar por mail y ver cuántos lo abrieron"},
     {t:"Segmentar destinatarios", s:"none"},
     {t:"Programar envío", s:"planned", note:"Existe solo para liquidaciones (envio_programado) y sin ejecutor; para comunicados no hay ni campo"}
   ]},
@@ -359,8 +359,8 @@ const VEC = [
     {t:"Recibir la confirmación por mail", s:"built", note:"Con espacio, día, horario y condiciones de uso. Antes la única confirmación era un toast en pantalla"},
     {t:"Declarar cuánta gente va", s:"built", note:"Se contrasta con la capacidad del amenity, que se cargaba desde v3 y no la leía nadie"}
   ]},
-  { id:"v6",  label:"Votar / responder encuestas", link:"a11", estado:"built", items:[
-    {t:"Ver votaciones activas", s:"built"},
+  { id:"v6",  label:"Votar / responder encuestas", link:"a11", estado:"partial", items:[
+    {t:"Ver votaciones activas", s:"planned", note:"Fuera del MVP: la sección salió del panel del vecino. Tabla, endpoints y tests siguen en pie"},
     {t:"Emitir voto (uno por unidad)", s:"built"},
     {t:"Ver resultados", s:"built"},
     {t:"Que la votación se cierre en la fecha límite", s:"built", note:"fecha_limite y votos_necesarios estaban en el schema desde v6 sin que nadie los leyera"}

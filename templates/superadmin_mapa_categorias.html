@@ -231,7 +231,7 @@ const CATEGORIES = [
       {t:"Que la reserva se cobre en la expensa", s:"built", note:"Consorcio Abierto le da columna propia en el prorrateo (\"USO AMENITIES\") y tiene sentido: el SUM lo paga quien lo usa, no el edificio. Un amenity con precio_uso cargado se le factura a la unidad que reservó. &lt;b&gt;Pero no hay por dónde cargarlo:&lt;/b&gt; la v18 creó amenities.precio_uso y ni el POST, ni el PUT, ni el modal de amenity lo aceptan, así que en la práctica ninguna reserva cobra nunca. Es el mismo patrón que tenían los coeficientes antes de la v17 —columna con lector y sin escritor—: se arregla agregando el campo al payload de las dos rutas y un &lt;input&gt; al modal"}
     ]},
     { name:"Votar y participar", role:"vecino", tech:["Supabase"], items:[
-      {t:"Ver encuestas / votaciones activas", s:"built"},
+      {t:"Ver encuestas / votaciones activas", s:"planned", note:"Fuera del MVP: la sección salió del panel del vecino. Tabla, endpoints y tests siguen en pie"},
       {t:"Emitir voto", s:"built", note:"Un voto por unidad funcional, no por persona"},
       {t:"Ver resultados", s:"built", note:"Se devuelven siempre, también en una votación activa y antes de emitir el voto: el que vota último ve el resultado parcial"},
       {t:"Cerrar la votación al llegar la fecha límite", s:"built", note:"_votacion_vigente() la aplica en las dos puntas: el listado publica vigente / vencida / falta_quorum y el POST del voto la hace cumplir. El límite cuenta inclusive. Cuando exista el cron sólo va a pasar el estado a \"cerrada\" para dejarlo prolijo"},
@@ -277,7 +277,7 @@ const CATEGORIES = [
   ]},
   { id:"com", code:"COM", name:"Comunicación", hue:41, funcs:[
     { name:"Enviar comunicados", role:"cruzado", tech:["Supabase"], items:[
-      {t:"Redactar (texto, imagen, adjunto)", s:"planned", note:"Backend listo (POST /api/admin/comunicados), sin UI — \"Mensajería\" es un placeholder"},
+      {t:"Redactar (texto, adjunto no)", s:"built", note:"Comunicación → pestaña Comunicados. Texto e importante sí; adjuntos todavía no"},
       {t:"Segmentar destinatarios (propietario/inquilino/unidad)", s:"none"},
       {t:"Programar envío", s:"planned", note:"Solo para liquidaciones: envio_programado guarda día/hora/canal por consorcio y nadie lo ejecuta. Para comunicados sueltos no hay ni campo"},
       {t:"Confirmar lectura", s:"built", note:"Tabla comunicados_leidos + el vecino ya ve comunicados con datos reales"}
