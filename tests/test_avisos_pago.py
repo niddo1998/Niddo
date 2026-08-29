@@ -113,6 +113,56 @@ def test_no_se_puede_saldar_la_expensa_de_otro_edificio(admin, base):
     assert cobro['estado'] == 'pendiente'
 
 
+def test_un_cobro_ajeno_tampoco_deja_el_aviso_aceptado(admin, base):
+    """El rechazo tiene que ser anterior a escribir nada.
+
+    Si el aviso se aceptaba primero y el cobro se validaba después, el 400
+    dejaba el aviso aceptado para siempre, apuntando a un cobro de otro
+    edificio y sin ninguna expensa saldada.
+    """
+    _cobro(base, cid='cons-2')
+    _aviso(base)
+    admin.put('/api/admin/avisos-pago/aviso-vec-1-pendiente',
+              json={'estado': 'aceptado', 'cobro_id': 'cobro-x'})
+    assert base['avisos_pago'][0]['estado'] == 'pendiente'
+    assert base['avisos_pago'][0].get('cobro_id') is None
+
+
+# ── Desaceptar devuelve la deuda ─────────────────────────────────────────────
+
+def _aceptado(base):
+    cobro = _cobro(base)
+    _aviso(base)
+    base['avisos_pago'][0]['cobro_id'] = 'cobro-x'
+    base['avisos_pago'][0]['estado'] = 'aceptado'
+    cobro['estado'] = 'pagado'
+    cobro['fecha_pago'] = '2026-08-05'
+    return cobro
+
+
+@pytest.mark.parametrize('estado', ['rechazado', 'pendiente'])
+def test_desaceptar_devuelve_el_cobro_a_pendiente(admin, base, estado):
+    """Aceptar es lo que saldó la expensa; deshacerlo tiene que deshacer eso.
+
+    Sin esto, un pago aceptado por error borraba la deuda para siempre: el
+    aviso volvía a rojo y el cobro se quedaba en pagado.
+    """
+    cobro = _aceptado(base)
+    r = admin.put('/api/admin/avisos-pago/aviso-vec-1-pendiente', json={'estado': estado})
+    assert r.status_code == 200
+    assert cobro['estado'] == 'pendiente'
+    assert cobro['fecha_pago'] is None
+
+
+def test_rechazar_un_aviso_que_nunca_se_acepto_no_toca_nada(admin, base):
+    cobro = _cobro(base)
+    cobro['estado'] = 'pagado'          # lo pagó por otra vía
+    _aviso(base)
+    base['avisos_pago'][0]['cobro_id'] = 'cobro-x'
+    admin.put('/api/admin/avisos-pago/aviso-vec-1-pendiente', json={'estado': 'rechazado'})
+    assert cobro['estado'] == 'pagado'
+
+
 def test_rechazar_no_toca_la_deuda(admin, base):
     cobro = _cobro(base)
     _aviso(base)

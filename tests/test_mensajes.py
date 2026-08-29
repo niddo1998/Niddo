@@ -208,3 +208,25 @@ def test_el_cuerpo_del_comunicado_va_escapado(base, app_modulo, monkeypatch):
 
     assert '<script>alert(1)</script>' not in enviados[0]
     assert '&lt;script&gt;' in enviados[0]
+
+
+def test_el_comunicado_no_le_muestra_a_nadie_la_libreta_del_edificio(base, app_modulo, monkeypatch):
+    """Un mail por vecino, no uno con cuarenta direcciones en el "to".
+
+    Además de la privacidad, Resend corta a los 50 destinatarios: el envío
+    fallaba entero, el error se tragaba, y el administrador quedaba creyendo
+    que el comunicado había salido.
+    """
+    envios = []
+    monkeypatch.setattr(app_modulo, '_enviar_mail',
+                        lambda dest, asunto, html: envios.append(list(dest)))
+    base['vecinos'] = [
+        {'id': 'v1', 'email': 'uno@test', 'consorcio_id': 'cons-1'},
+        {'id': 'v2', 'email': 'dos@test', 'consorcio_id': 'cons-1'},
+        {'id': 'v3', 'email': 'ajeno@test', 'consorcio_id': 'cons-2'},
+    ]
+
+    app_modulo._mail_comunicado({'titulo': 'Aviso', 'cuerpo': 'Hola', 'consorcio_id': 'cons-1'},
+                                {'nombre': 'Mío'})
+
+    assert envios == [['dos@test'], ['uno@test']]

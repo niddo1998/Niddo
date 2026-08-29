@@ -1445,7 +1445,8 @@ def _mail_comunicado(comunicado: dict, consorcio: dict) -> None:
     """
     vecinos = supabase.table('vecinos').select('email, consorcio_id') \
         .eq('consorcio_id', comunicado.get('consorcio_id')).execute().data or []
-    destinatarios = [v['email'] for v in vecinos if (v.get('email') or '').strip()]
+    destinatarios = sorted({(v.get('email') or '').strip()
+                            for v in vecinos if (v.get('email') or '').strip()})
     if not destinatarios:
         return
 
@@ -1466,7 +1467,13 @@ def _mail_comunicado(comunicado: dict, consorcio: dict) -> None:
           También lo tenés en tu panel de Niddo, en Comunicados.
         </p>
         """)
-    _enviar_mail(destinatarios, f"📢 {comunicado.get('titulo', 'Comunicado')} — {consorcio.get('nombre', '')}", html)
+    # Uno por vecino y no un único mail con cuarenta direcciones en el "to":
+    # ahí cada vecino se lleva la libreta de mails de todo el edificio, y
+    # además Resend corta a los 50 destinatarios —el envío falla entero, el
+    # error se traga, y el administrador queda creyendo que salió—.
+    asunto = f"📢 {comunicado.get('titulo', 'Comunicado')} — {consorcio.get('nombre', '')}"
+    for destinatario in destinatarios:
+        _enviar_mail([destinatario], asunto, html)
 
 
 def _mail_respuesta_reclamo(reclamo: dict, estado_nuevo: str, respuesta: str) -> None:
@@ -5434,7 +5441,7 @@ def api_admin_avisos_pago_update(aid):
     # `fila_de_consorcio_propio` sólo trae id y consorcio_id: para saldar el
     # cobro hacen falta el cobro al que apunta y la fecha que declaró el vecino.
     aviso = supabase.table('avisos_pago') \
-        .select('id, consorcio_id, cobro_id, fecha_pago, unidad_id') \
+        .select('id, consorcio_id, cobro_id, fecha_pago, unidad_id, estado') \
         .eq('id', aid).single().execute().data or {}
     d = request.json or {}
     estado = d.get('estado')
@@ -5447,6 +5454,15 @@ def api_admin_avisos_pago_update(aid):
     if estado == 'aceptado' and not cobro_id:
         return jsonify({'error': 'Elegí a qué expensa corresponde este pago antes de aceptarlo'}), 400
 
+    # El cobro se valida ANTES de tocar el aviso. Al revés —que es como estaba—
+    # un `cobro_id` de otro edificio dejaba el aviso aceptado para siempre, con
+    # un cobro ajeno anotado y ninguna expensa saldada.
+    if estado == 'aceptado':
+        propio = supabase.table('cobros').select('id, consorcio_id') \
+            .eq('id', cobro_id).eq('consorcio_id', aviso.get('consorcio_id')).execute().data
+        if not propio:
+            return jsonify({'error': 'Esa expensa no es de este consorcio'}), 400
+
     payload = {'estado': estado}
     if cobro_id and cobro_id != aviso.get('cobro_id'):
         payload['cobro_id'] = cobro_id
@@ -5455,17 +5471,20 @@ def api_admin_avisos_pago_update(aid):
     actualizado = res.data[0] if res.data else {}
 
     cobro = None
-    if estado == 'aceptado' and cobro_id:
-        # El cobro tiene que ser del mismo consorcio que el aviso: sin esto, un
-        # `cobro_id` cualquiera en el body saldaría la deuda de otro edificio.
-        propio = supabase.table('cobros').select('id, consorcio_id') \
-            .eq('id', cobro_id).eq('consorcio_id', aviso.get('consorcio_id')).execute().data
-        if not propio:
-            return jsonify({'error': 'Esa expensa no es de este consorcio'}), 400
+    if estado == 'aceptado':
         actualizacion = {'estado': 'pagado'}
         if aviso.get('fecha_pago'):
             actualizacion['fecha_pago'] = aviso['fecha_pago']
         hecho = supabase.table('cobros').update(actualizacion).eq('id', cobro_id).execute()
+        cobro = hecho.data[0] if hecho.data else None
+
+    # Desaceptar tiene que devolver la deuda. Aceptar es lo que la saldó, así
+    # que rechazar o volver a revisar sin deshacerlo dejaba el cobro en pagado
+    # para siempre: un pago aceptado por error borraba la deuda sin vuelta.
+    elif aviso.get('estado') == 'aceptado' and aviso.get('cobro_id'):
+        hecho = supabase.table('cobros') \
+            .update({'estado': 'pendiente', 'fecha_pago': None}) \
+            .eq('id', aviso['cobro_id']).eq('estado', 'pagado').execute()
         cobro = hecho.data[0] if hecho.data else None
 
     return jsonify({**actualizado, 'cobro': cobro})

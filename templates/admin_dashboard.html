@@ -1994,11 +1994,19 @@ function cancelarSalida() {
        antes de que la guarda decida: si el usuario elige seguir editando, la
        barra de abajo quedaba marcando la sección a la que no fue. Navegar a la
        sección actual la deja donde está —la guarda no se dispara, porque el
-       destino es la misma sección— y de paso resincroniza el tab. */
+       destino es la misma sección— y de paso resincroniza el tab.
+
+       Sólo en mobile: en escritorio no hay tab que arreglar, y `navegar` vuelve
+       a llamar al init de la sección. En Configuración eso reconstruye el
+       <select> de consorcio y lo deja vacío, con el formulario editado a la
+       vista y el Guardar convertido en un no-op silencioso. */
+    if (!(window.NiddoMobile && NiddoMobile.isMobile())) return;
     const activa = document.querySelector('.section.active');
     if (!activa) return;
     const id = activa.id.replace('sec-', '');
+    const elegido = $('cfg-consorcio') ? $('cfg-consorcio').value : '';
     show(id, document.querySelector(`.sidebar-nav a[onclick*="'${id}'"]`));
+    if (elegido && $('cfg-consorcio')) $('cfg-consorcio').value = elegido;
 }
 
 function salirSinGuardar() {
@@ -2016,10 +2024,13 @@ async function guardarYSalir() {
     accionPendiente = null; formPendiente = null;
     // Si el guardado falla, el usuario se queda donde está: sacarlo de la
     // pantalla sería perder lo mismo que vino a salvar.
+    // Cualquier cosa que no sea un `true` explícito es "no se guardó": el
+    // early-out de guardarConfigConsorcio devuelve undefined, y tomarlo por
+    // bueno marcaba el formulario como limpio y tiraba lo editado.
     let guardado = false;
     try { guardado = await FORMULARIOS_VIGILADOS[nombre].guardar(); }
     catch (e) { toast('No se pudo guardar: ' + e.message, 'err'); }
-    if (guardado === false) return;
+    if (guardado !== true) return;
     marcarLimpio(nombre);
     if (accion) accion();
 }
@@ -3889,7 +3900,11 @@ async function resolverAviso(aid, estado, cobroId) {
         const body = {estado};
         if (cobroId) body.cobro_id = cobroId;
         await api('/api/admin/avisos-pago/' + aid, {method: 'PUT', body: JSON.stringify(body)});
+        // Desaceptar devuelve el cobro a pendiente del lado del servidor: el
+        // toast lo dice, porque es plata que vuelve a figurar como deuda.
+        const eraAceptado = (avisos.find(a => a.id === aid) || {}).estado === 'aceptado';
         toast(estado === 'aceptado' ? 'Pago aceptado — la expensa queda saldada'
+            : eraAceptado ? 'Listo — la expensa vuelve a figurar impaga'
             : estado === 'rechazado' ? 'Aviso rechazado' : 'Aviso devuelto a sin revisar');
         await loadAvisos();
         if ($('tab-resumen').style.display !== 'none') await loadCobros();
@@ -5329,7 +5344,7 @@ async function loadConfigConsorcio() {
 
 async function guardarConfigConsorcio() {
     const cid = $('cfg-consorcio').value;
-    if (!cid) return;
+    if (!cid) { toast('Elegí un consorcio antes de guardar', 'warn'); return false; }
     try {
         await api(`/api/consorcios/${cid}`, { method: 'PUT', body: JSON.stringify({
             tasa_interes_mora: +$('cfg-tasa').value || 0,
