@@ -333,6 +333,44 @@
         .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
         .filters .form-ctrl { width: auto; }
 
+        /* ── Navegador de meses ── */
+        .mes-nav {
+            position: relative; display: inline-flex; align-items: center; gap: 2px;
+            background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2px;
+        }
+        .mes-arrow {
+            display: flex; align-items: center; justify-content: center;
+            width: 30px; height: 30px; border: none; background: none; border-radius: 9px;
+            color: var(--muted); cursor: pointer; transition: all .15s;
+        }
+        .mes-arrow:hover { background: var(--surface2); color: var(--text); }
+        .mes-actual {
+            min-width: 132px; padding: 5px 12px; border: none; background: none;
+            font-family: inherit; font-size: .82rem; font-weight: 700; color: var(--text);
+            border-radius: 9px; cursor: pointer; text-transform: capitalize;
+        }
+        .mes-actual:hover { background: var(--surface2); }
+        .mes-pop {
+            display: none; position: absolute; top: calc(100% + 6px); left: 50%;
+            transform: translateX(-50%); z-index: 40; width: 250px; padding: 10px;
+            background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+            box-shadow: 0 12px 32px rgba(42,33,28,.16);
+        }
+        .mes-pop.open { display: block; }
+        .mes-pop-head {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 8px; font-size: .85rem;
+        }
+        .mes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+        .mes-item {
+            padding: 8px 0; border: none; background: none; border-radius: 9px;
+            font-family: inherit; font-size: .78rem; font-weight: 600; color: var(--text2);
+            cursor: pointer; transition: all .15s; text-transform: capitalize;
+        }
+        .mes-item:hover { background: var(--surface2); color: var(--text); }
+        .mes-item.sel { background: var(--nd-terracota); color: #fff; }
+        .mes-item.hoy { box-shadow: inset 0 0 0 1.5px var(--nd-terracota); }
+
         /* ── Modal ── */
         .modal-overlay {
             position: fixed; inset: 0; background: rgba(42,33,28,.55); z-index: 9000;
@@ -582,12 +620,46 @@
     </button>
     <input type="file" id="nd-gasto-foto" accept="image/*" capture="environment"
            style="display:none" onchange="ndGastoConFoto(this)">
+    <!-- Los gastos se miran por mes: el mes corriente al entrar, y los otros a
+         un clic. Las dos fechas sueltas siguen acá abajo, escondidas: son las
+         que leen loadGastos y el export, y el navegador de meses las escribe.
+         El rango exacto queda para el caso raro que las necesita de verdad. -->
     <div class="filters">
         <select class="form-ctrl" id="filter-gastos-consorcio" onchange="loadGastos()">
             <option value="">Todos los consorcios</option>
         </select>
-        <input type="date" class="form-ctrl" id="filter-gastos-desde" onchange="loadGastos()">
-        <input type="date" class="form-ctrl" id="filter-gastos-hasta" onchange="loadGastos()">
+
+        <div class="mes-nav" id="gastos-mes-nav">
+            <button class="mes-arrow" onclick="gastosMoverMes(-1)" aria-label="Mes anterior" title="Mes anterior">
+                <svg class="ic ic-sm"><use href="#ic-volver"></use></svg>
+            </button>
+            <button class="mes-actual" id="gastos-mes-label" onclick="gastosTogglePicker(event)"
+                    aria-haspopup="true" aria-expanded="false">—</button>
+            <button class="mes-arrow" onclick="gastosMoverMes(1)" aria-label="Mes siguiente" title="Mes siguiente">
+                <svg class="ic ic-sm" style="transform:rotate(180deg)"><use href="#ic-volver"></use></svg>
+            </button>
+            <div class="mes-pop" id="gastos-mes-pop">
+                <div class="mes-pop-head">
+                    <button class="mes-arrow" onclick="gastosMoverAnio(-1)" aria-label="Año anterior">
+                        <svg class="ic ic-sm"><use href="#ic-volver"></use></svg>
+                    </button>
+                    <strong id="gastos-pop-anio">2026</strong>
+                    <button class="mes-arrow" onclick="gastosMoverAnio(1)" aria-label="Año siguiente">
+                        <svg class="ic ic-sm" style="transform:rotate(180deg)"><use href="#ic-volver"></use></svg>
+                    </button>
+                </div>
+                <div class="mes-grid" id="gastos-mes-grid"></div>
+            </div>
+        </div>
+
+        <button class="btn-s btn-sm" id="gastos-btn-hoy" style="display:none" onclick="gastosIrAlMesDeHoy()">Volver al mes actual</button>
+        <button class="btn-s btn-sm" id="gastos-btn-rango" onclick="gastosToggleRango()">Rango exacto</button>
+
+        <span class="text-muted text-sm" id="gastos-rango-campos" style="display:none;gap:8px;align-items:center;">
+            <input type="date" class="form-ctrl" id="filter-gastos-desde" onchange="gastosRangoManual()">
+            <input type="date" class="form-ctrl" id="filter-gastos-hasta" onchange="gastosRangoManual()">
+        </span>
+
         <span class="text-muted text-sm" id="gastos-total-label"></span>
     </div>
     <div class="card">
@@ -2325,8 +2397,136 @@ function exportConsorcio(fmt) {
 }
 
 // ── GASTOS ─────────────────────────────────────────────────────────────────────
+/* ── El mes que se está mirando ───────────────────────────────────────────────
+   Los gastos se leen por mes: el corriente al entrar y los demás a un clic.
+   `gastosMes` es la única fuente de verdad mientras el rango exacto está
+   cerrado; cuando se abre pasa a null y mandan las dos fechas. */
+const MESES = ['enero','febrero','marzo','abril','mayo','junio',
+               'julio','agosto','septiembre','octubre','noviembre','diciembre'];
+let gastosMes = null;      // {y, m} con m de 1 a 12
+let gastosPopAnio = null;  // el año que muestra el desplegable, que puede no ser el elegido
+
+const gastosMesDeHoy = () => { const h = new Date(); return {y: h.getFullYear(), m: h.getMonth() + 1}; };
+const dosDigitos = n => String(n).padStart(2, '0');
+const ultimoDiaDelMes = (y, m) => new Date(y, m, 0).getDate();
+
+function gastosAplicarMes(recargar = true) {
+    const {y, m} = gastosMes;
+    $('filter-gastos-desde').value = `${y}-${dosDigitos(m)}-01`;
+    $('filter-gastos-hasta').value = `${y}-${dosDigitos(m)}-${dosDigitos(ultimoDiaDelMes(y, m))}`;
+    gastosPintarMes();
+    if (recargar) loadGastos();
+}
+
+function gastosPintarMes() {
+    const hoy = gastosMesDeHoy();
+    if (!gastosMes) {
+        $('gastos-mes-label').textContent = 'Rango exacto';
+        $('gastos-btn-hoy').style.display = '';
+        return;
+    }
+    $('gastos-mes-label').textContent = `${MESES[gastosMes.m - 1]} ${gastosMes.y}`;
+    const esteMes = gastosMes.y === hoy.y && gastosMes.m === hoy.m;
+    $('gastos-btn-hoy').style.display = esteMes ? 'none' : '';
+}
+
+function gastosMoverMes(delta) {
+    if (!gastosMes) gastosMes = gastosMesDeHoy();
+    let {y, m} = gastosMes;
+    m += delta;
+    if (m < 1) { m = 12; y--; }
+    if (m > 12) { m = 1; y++; }
+    gastosMes = {y, m};
+    gastosCerrarRango();
+    gastosAplicarMes();
+}
+
+function gastosIrAlMesDeHoy() {
+    gastosMes = gastosMesDeHoy();
+    gastosCerrarRango();
+    gastosAplicarMes();
+}
+
+function gastosElegirMes(y, m) {
+    gastosMes = {y, m};
+    $('gastos-mes-pop').classList.remove('open');
+    $('gastos-mes-label').setAttribute('aria-expanded', 'false');
+    gastosCerrarRango();
+    gastosAplicarMes();
+}
+
+/* El desplegable: un año a la vez y los doce meses a la vista. Los futuros
+   entran igual —un gasto puede cargarse con fecha adelantada— así que no se
+   deshabilita ninguno. */
+function gastosTogglePicker(ev) {
+    if (ev) ev.stopPropagation();
+    const pop = $('gastos-mes-pop');
+    const abierto = pop.classList.toggle('open');
+    $('gastos-mes-label').setAttribute('aria-expanded', abierto ? 'true' : 'false');
+    if (!abierto) return;
+    gastosPopAnio = (gastosMes || gastosMesDeHoy()).y;
+    gastosPintarPicker();
+}
+
+function gastosMoverAnio(delta) {
+    gastosPopAnio += delta;
+    gastosPintarPicker();
+}
+
+function gastosPintarPicker() {
+    const hoy = gastosMesDeHoy();
+    $('gastos-pop-anio').textContent = gastosPopAnio;
+    $('gastos-mes-grid').innerHTML = MESES.map((nombre, i) => {
+        const m = i + 1;
+        const sel = gastosMes && gastosMes.y === gastosPopAnio && gastosMes.m === m;
+        const esHoy = hoy.y === gastosPopAnio && hoy.m === m;
+        return `<button class="mes-item${sel ? ' sel' : ''}${esHoy && !sel ? ' hoy' : ''}"
+                        onclick="gastosElegirMes(${gastosPopAnio}, ${m})">${nombre.slice(0, 3)}</button>`;
+    }).join('');
+}
+
+document.addEventListener('click', e => {
+    const nav = $('gastos-mes-nav');
+    if (nav && !nav.contains(e.target)) {
+        $('gastos-mes-pop').classList.remove('open');
+        $('gastos-mes-label').setAttribute('aria-expanded', 'false');
+    }
+});
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') $('gastos-mes-pop')?.classList.remove('open');
+});
+
+/* El rango exacto es la salida de emergencia: dos fechas cualquiera, sin mes. */
+function gastosToggleRango() {
+    const campos = $('gastos-rango-campos');
+    if (campos.style.display === 'none') {
+        campos.style.display = 'inline-flex';
+        $('gastos-btn-rango').textContent = 'Volver a ver por mes';
+        gastosMes = null;
+        gastosPintarMes();
+    } else {
+        gastosIrAlMesDeHoy();
+    }
+}
+
+function gastosCerrarRango() {
+    $('gastos-rango-campos').style.display = 'none';
+    $('gastos-btn-rango').textContent = 'Rango exacto';
+}
+
+function gastosRangoManual() {
+    gastosMes = null;
+    gastosPintarMes();
+    loadGastos();
+}
+
 async function initGastos() {
     if (!consorcios.length) await loadConsorcios();
+    // Sólo la primera vez: volver a Gastos no te saca del mes que estabas viendo.
+    if (!gastosMes && $('gastos-rango-campos').style.display === 'none') {
+        gastosMes = gastosMesDeHoy();
+        gastosAplicarMes(false);
+    }
     await loadGastos();
     await checkTarifasPendientes();
 }
@@ -2402,7 +2602,12 @@ async function loadGastos() {
         const data = await api('/api/gastos?'+params);
         currentGastos = data;
         const tb = $('tbody-gastos');
-        if (!data.length) { tb.innerHTML = '<tr><td colspan="8" class="tbl-empty">Sin gastos en el período</td></tr>'; $('gastos-total-label').textContent=''; return; }
+        if (!data.length) {
+            const donde = gastosMes ? `en ${MESES[gastosMes.m - 1]} de ${gastosMes.y}` : 'en el período elegido';
+            tb.innerHTML = `<tr><td colspan="8" class="tbl-empty">No hay gastos cargados ${donde}.</td></tr>`;
+            $('gastos-total-label').textContent = '';
+            return;
+        }
         const total = data.reduce((s,g)=>s+(g.monto||0),0);
         $('gastos-total-label').textContent = `Total: ${fmt(total)}`;
         tb.innerHTML = data.map(g => `
