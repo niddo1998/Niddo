@@ -379,10 +379,13 @@
         .modal-overlay.open { display: flex; animation: fadeIn .15s ease; }
         .modal-box {
             background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-            width:100%;max-width:560px; max-width: 94vw; max-height: 88vh; overflow-y: auto;
+            /* Las dos declaraciones de max-width que había acá ganaba la
+               segunda, así que todos los modales del panel salían de 94vw: en
+               una pantalla de 1400px, un cartel de dos líneas medía 1300. */
+            width: 100%; max-width: min(560px, 94vw); max-height: 88vh; overflow-y: auto;
             box-shadow: 0 24px 60px rgba(42,33,28,.45); animation: modalIn .2s ease;
         }
-        .modal-box.wide { width:100%;max-width:720px; }
+        .modal-box.wide { width: 100%; max-width: min(720px, 94vw); }
         .modal-head { padding: 14px 18px; border-bottom: 1px solid var(--border);
                       display: flex; justify-content: space-between; align-items: center; }
         .modal-head h3 { font-size: .93rem; font-weight: 700; margin: 0; }
@@ -846,7 +849,7 @@
 <div id="sec-config" class="section">
     <div class="page-header"><div><h1 class="page-title">Configuración</h1><p class="page-sub">Parámetros de liquidación por consorcio</p></div></div>
     <div class="filters">
-        <select class="form-ctrl" id="cfg-consorcio" onchange="loadConfigConsorcio()"><option value="">Elegí un consorcio</option></select>
+        <select class="form-ctrl" id="cfg-consorcio" onchange="cambiarConsorcioConfig(this)"><option value="">Elegí un consorcio</option></select>
     </div>
     <div class="card card-p" id="cfg-card" style="display:none">
         <div class="form-row3">
@@ -1639,6 +1642,26 @@
     </div>
 </div>
 
+<!-- Modal: te vas con cambios sin guardar -->
+<div class="modal-overlay" id="modal-sin-guardar">
+    <div class="modal-box">
+        <div class="modal-head">
+            <h3>Tenés cambios sin guardar</h3>
+            <button class="modal-close" onclick="cancelarSalida()"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button>
+        </div>
+        <div class="modal-body">
+            <p style="margin:0;font-size:.88rem;line-height:1.6;" id="sin-guardar-detalle">
+                Editaste la configuración y todavía no la guardaste. Si salís ahora se pierde.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-s" onclick="cancelarSalida()">Seguir editando</button>
+            <button class="btn-danger" onclick="salirSinGuardar()">Salir sin guardar</button>
+            <button class="btn-p" onclick="guardarYSalir()">Guardar y salir</button>
+        </div>
+    </div>
+</div>
+
 <!-- Toast container -->
 <div class="toast-container" id="toasts"></div>
 
@@ -1669,8 +1692,116 @@
 let consorcios = [];
 let currentConsorioId = null;
 
+/* ── Cambios sin guardar ──────────────────────────────────────────────────────
+   Configuración es un formulario largo con un solo botón Guardar al fondo. Al
+   tocar cualquier otra cosa del sidebar la sección se cambiaba y lo escrito se
+   perdía sin decir nada. Esto es lo único que se interpone.
+
+   La guarda vive en `show`, que es por donde pasa toda la navegación —el
+   sidebar, el cajón de mobile y el hash—, así que no hay que acordarse de
+   ponerla en cada botón. */
+const FORMULARIOS_VIGILADOS = {
+    config: {
+        seccion: 'config',
+        campos: ['cfg-tasa', 'cfg-gracia', 'cfg-recargo', 'cfg-cuit', 'cfg-suterh',
+                 'cfg-titular', 'cfg-banco', 'cfg-cbu', 'cfg-alias'],
+        visible: () => $('cfg-card') && $('cfg-card').style.display !== 'none',
+        guardar: () => guardarConfigConsorcio(),
+        detalle: 'Editaste la configuración del consorcio y todavía no la guardaste. Si salís ahora se pierde.',
+    },
+    liquidacion: {
+        seccion: 'liquidaciones',
+        campos: ['liq-vto1', 'liq-vto2', 'liq-interes2', 'liq-saldo-ini',
+                 'liq-ingresos', 'liq-estado-sel', 'liq-notas'],
+        visible: () => $('liq-detail') && $('liq-detail').style.display !== 'none',
+        guardar: () => guardarConfigLiq(),
+        detalle: 'Editaste la configuración de la liquidación y todavía no la guardaste. Si salís ahora se pierde.',
+    },
+};
+
+const limpios = {};              // nombre -> foto de los campos al cargarlos
+let accionPendiente = null;      // qué hacer si el usuario decide salir igual
+let formPendiente = null;
+
+const _foto = form => form.campos.map(id => ($(id) ? $(id).value : '')).join('\u0001');
+
+/* Marca el formulario como recién cargado o recién guardado: desde acá, todo
+   cambio cuenta. */
+function marcarLimpio(nombre) {
+    const form = FORMULARIOS_VIGILADOS[nombre];
+    if (form) limpios[nombre] = _foto(form);
+}
+
+function formSucio(nombre) {
+    const form = FORMULARIOS_VIGILADOS[nombre];
+    if (!form || limpios[nombre] === undefined) return false;
+    if (!form.visible()) return false;
+    return _foto(form) !== limpios[nombre];
+}
+
+/** El primer formulario con cambios sin guardar, o null. */
+function formConCambios(seccionDestino) {
+    return Object.keys(FORMULARIOS_VIGILADOS).find(nombre => {
+        const form = FORMULARIOS_VIGILADOS[nombre];
+        // Quedarse en la misma sección no es salir.
+        if (seccionDestino && form.seccion === seccionDestino) return false;
+        return formSucio(nombre);
+    }) || null;
+}
+
+/** Corre `accion` salvo que haya cambios sin guardar; ahí primero pregunta. */
+function conCambiosAsalvo(accion, seccionDestino) {
+    const nombre = formConCambios(seccionDestino);
+    if (!nombre) { accion(); return; }
+    formPendiente = nombre;
+    accionPendiente = accion;
+    $('sin-guardar-detalle').textContent = FORMULARIOS_VIGILADOS[nombre].detalle;
+    openModal('modal-sin-guardar');
+}
+
+function cancelarSalida() {
+    closeModal('modal-sin-guardar');
+    accionPendiente = null;
+    formPendiente = null;
+}
+
+function salirSinGuardar() {
+    closeModal('modal-sin-guardar');
+    if (formPendiente) marcarLimpio(formPendiente);
+    const accion = accionPendiente;
+    accionPendiente = null; formPendiente = null;
+    if (accion) accion();
+}
+
+async function guardarYSalir() {
+    const nombre = formPendiente;
+    const accion = accionPendiente;
+    closeModal('modal-sin-guardar');
+    accionPendiente = null; formPendiente = null;
+    // Si el guardado falla, el usuario se queda donde está: sacarlo de la
+    // pantalla sería perder lo mismo que vino a salvar.
+    let guardado = false;
+    try { guardado = await FORMULARIOS_VIGILADOS[nombre].guardar(); }
+    catch (e) { toast('No se pudo guardar: ' + e.message, 'err'); }
+    if (guardado === false) return;
+    marcarLimpio(nombre);
+    if (accion) accion();
+}
+
+/* Cerrar la pestaña o refrescar también se lleva puesto lo editado. El texto lo
+   pone el navegador; nosotros sólo decimos que hay algo en juego. */
+window.addEventListener('beforeunload', e => {
+    if (!formConCambios()) return;
+    e.preventDefault();
+    e.returnValue = '';
+});
+
 // ── Navigation ────────────────────────────────────────────────────────────────
 function show(id, el) {
+    conCambiosAsalvo(() => navegar(id, el), id);
+}
+
+function navegar(id, el) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     const sectionEl = document.getElementById('sec-'+id);
     if (sectionEl) sectionEl.classList.add('active');
@@ -3946,6 +4077,7 @@ async function openLiqDetail(lid) {
         $('liq-ingresos').value = l.total_ingresos || 0;
         $('liq-estado-sel').value = l.estado || 'borrador';
         $('liq-notas').value = l.notas || '';
+        marcarLimpio('liquidacion');
 
         if (ndMobile()) {
             ndCierreMontar();
@@ -4226,7 +4358,8 @@ async function guardarConfigLiq() {
         });
         toast('Liquidación actualizada');
         await openLiqDetail(currentLiqId);
-    } catch(e) { toast(e.message,'err'); }
+        return true;
+    } catch(e) { toast(e.message,'err'); return false; }
 }
 
 // ── Preview ───────────────────────────────────────────────────────────────────
@@ -4479,10 +4612,21 @@ function initConfig() {
         consorcios.map(c => `<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
 }
 
+/* Cambiar de edificio con el formulario a medio escribir pisa lo editado igual
+   que irse de la sección, así que pasa por la misma guarda. Si el usuario elige
+   seguir editando hay que devolver el <select> a donde estaba: ya se movió. */
+let cfgConsorcioCargado = '';
+
+function cambiarConsorcioConfig(sel) {
+    const elegido = sel.value;
+    conCambiosAsalvo(() => { sel.value = elegido; loadConfigConsorcio(); });
+    if (formConCambios()) sel.value = cfgConsorcioCargado;
+}
+
 async function loadConfigConsorcio() {
     const cid = $('cfg-consorcio').value;
     const card = $('cfg-card');
-    if (!cid) { card.style.display = 'none'; return; }
+    if (!cid) { card.style.display = 'none'; delete limpios.config; return; }
     const c = consorcios.find(x => x.id === cid);
     if (!c) return;
     $('cfg-tasa').value = c.tasa_interes_mora ?? 0;
@@ -4495,6 +4639,8 @@ async function loadConfigConsorcio() {
     $('cfg-cbu').value = c.banco_cbu || '';
     $('cfg-alias').value = c.banco_alias || '';
     card.style.display = 'block';
+    cfgConsorcioCargado = cid;
+    marcarLimpio('config');
 }
 
 async function guardarConfigConsorcio() {
@@ -4516,7 +4662,9 @@ async function guardarConfigConsorcio() {
         await loadConsorcios();
         initConfig();
         $('cfg-consorcio').value = cid;
-    } catch (e) { toast(e.message, 'err'); }
+        marcarLimpio('config');
+        return true;
+    } catch (e) { toast(e.message, 'err'); return false; }
 }
 
 /* El mismo PDF que se adjunta al mail. Conviene mirarlo antes de mandarlo a
