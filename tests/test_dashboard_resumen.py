@@ -378,7 +378,10 @@ def test_la_reserva_del_edificio_ajeno_no_entra(admin, base):
 
 
 def test_el_envio_programado_cae_en_su_proximo_dia(admin, base):
-    dia = min(HOY.day + 1, 28)
+    # El día de mañana y no `HOY.day + 1`: del 29 al 31 ese cálculo se recortaba
+    # a 28, que ya pasó, y el próximo 28 cae fuera de los catorce días de la
+    # agenda. El test fallaba tres días por mes sin que nada estuviera roto.
+    dia = (HOY + timedelta(days=1)).day
     base['envio_programado'] = [{'consorcio_id': 'cons-1', 'dia_mes': dia,
                                  'hora_envio': '09:00:00', 'activo': True}]
     envios = _agenda(admin, 'envio')
@@ -386,7 +389,7 @@ def test_el_envio_programado_cae_en_su_proximo_dia(admin, base):
 
 
 def test_el_envio_programado_apagado_no_se_agenda(admin, base):
-    base['envio_programado'] = [{'consorcio_id': 'cons-1', 'dia_mes': min(HOY.day + 1, 28),
+    base['envio_programado'] = [{'consorcio_id': 'cons-1', 'dia_mes': (HOY + timedelta(days=1)).day,
                                  'hora_envio': '09:00:00', 'activo': False}]
     assert _agenda(admin, 'envio') == []
 
