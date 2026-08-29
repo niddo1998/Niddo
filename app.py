@@ -5175,7 +5175,8 @@ def api_liquidaciones_create():
     """
     admin_id = get_admin_id()
     d = request.json
-    consorcio_id = consorcio_propio(d.get('consorcio_id'), 'id')['id']
+    consorcio = consorcio_propio(d.get('consorcio_id'), 'id, recargo_segundo_vto')
+    consorcio_id = consorcio['id']
     periodo = d['periodo']  # "2026-07"
     gastos_ids = d.get('gastos_ids')  # None = todos los gastos del período
 
@@ -5194,7 +5195,13 @@ def api_liquidaciones_create():
         'numero_revision': numero_revision,
         'fecha_vencimiento_1': d.get('fecha_vencimiento_1'),
         'fecha_vencimiento_2': d.get('fecha_vencimiento_2'),
-        'interes_2_vto': d.get('interes_2_vto', 0),
+        # El recargo del 2º vencimiento sale de la configuración del consorcio,
+        # que es donde el administrador lo cargó una vez para todas. Antes el
+        # default era 0 y había que volver a escribirlo en cada liquidación
+        # —o mandarla con recargo cero sin darte cuenta—.
+        'interes_2_vto': (d.get('interes_2_vto')
+                          if d.get('interes_2_vto') is not None
+                          else consorcio.get('recargo_segundo_vto') or 0),
         'saldo_inicial': d.get('saldo_inicial', 0),
         'notas': d.get('notas', ''),
         'estado': 'borrador',

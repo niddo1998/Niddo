@@ -3264,13 +3264,18 @@ async function loadMora() {
         $('mora-count-label').textContent = data.length ? `${data.length} vecino(s) en mora` : 'Sin morosos';
         const tb = $('tbody-mora');
         if (!data.length) { tb.innerHTML = '<tr><td colspan="10" class="tbl-empty">¡Sin morosos!</td></tr>'; return; }
-        const tasa = +($('cfg-tasa')?.value||2);
+        /* La tasa es la del consorcio de cada fila. Antes se leía del input de
+           la pantalla de Configuración: si no habías entrado nunca ahí el
+           campo estaba vacío y el interés se calculaba con un 2% diario
+           inventado por el `||2`, para todos los edificios por igual. */
+        const tasaDe = cid => +(consorcios.find(x => x.id === cid)?.tasa_interes_mora || 0);
         const today = new Date();
         tb.innerHTML = data.map(c => {
             const uf = c.unidades_funcionales||{}; const con = c.consorcios||{};
             const vto = c.fecha_vencimiento ? new Date(c.fecha_vencimiento) : null;
             const dias = vto ? Math.max(0,Math.ceil((today-vto)/(1000*60*60*24))) : '—';
-            const interes = typeof dias === 'number' ? (c.monto_base||0)*tasa/100*dias : 0;
+            const interes = typeof dias === 'number'
+                ? (c.monto_base||0)*tasaDe(c.consorcio_id)/100*dias : 0;
             return `<tr style="background:rgba(196,80,43,.04)">
                 <td>${escHtml(con.nombre||'—')}</td>
                 <td><strong>${escHtml(uf.numero||'—')}</strong></td>
