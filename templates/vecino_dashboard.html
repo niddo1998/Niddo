@@ -1182,7 +1182,11 @@ async function submitReclamo(){
     btn.disabled = true;
     
     try{
-        await fetch('/api/reclamos',{method:'POST',body:fd});
+        // Sin mirar el status, un 400 del servidor terminaba en "Reclamo enviado
+        // con éxito" y el vecino se quedaba esperando una respuesta a algo que
+        // nunca se guardó.
+        const res=await fetch('/api/reclamos',{method:'POST',body:fd});
+        if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error||'Error '+res.status)}
         closeDrawer('drawer-reclamo');
         toast('Reclamo enviado con éxito','ok');
         
@@ -1519,27 +1523,26 @@ function contarCaracteres(idField, idCount) {
 }
 
 /* ── VALIDATION IN TIME ── */
+/* Un campo sin cartel de error se valida igual. El `return` pelado de antes
+   devolvía undefined para el único required que no tiene un div `err-...`
+   —el select de Categoría del reclamo—, así que el formulario entero daba
+   inválido con todo completo y no había forma de enviar un reclamo. */
 function validarCampo(id) {
     const el = document.getElementById(id);
+    if (!el) return true;
     const err = document.getElementById('err-' + id);
-    if (!err) return;
-    
+
+    let ok;
     if (el.type === 'number') {
         const val = parseFloat(el.value);
-        if (isNaN(val) || val <= 0) {
-            err.style.display = 'block';
-            el.style.borderColor = 'var(--red)';
-            return false;
-        }
-    } else if (!el.value || el.value.trim() === '') {
-        err.style.display = 'block';
-        el.style.borderColor = 'var(--red)';
-        return false;
+        ok = !isNaN(val) && val > 0;
+    } else {
+        ok = !!el.value && el.value.trim() !== '';
     }
-    
-    err.style.display = 'none';
-    el.style.borderColor = 'var(--border)';
-    return true;
+
+    if (err) err.style.display = ok ? 'none' : 'block';
+    el.style.borderColor = ok ? 'var(--border)' : 'var(--red)';
+    return ok;
 }
 function validarFormulario(formId) {
     const f = document.getElementById(formId);
