@@ -10,6 +10,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-mobile.css') }}">
+    <script>
+    /* Este template escribe el hash dentro de showSection, así que la capa
+       mobile no tiene que empujar su propia entrada al historial: sin esto,
+       cada navegación dejaba dos y el "atrás" necesitaba dos toques. */
+    window.NIDDO_MOBILE_CONFIG = { usesHash: true };
+    </script>
     <script src="{{ url_for('static', filename='js/niddo-mobile.js') }}" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <style>
@@ -670,6 +676,30 @@
 
 <script>
 const ALTA = {{ (alta or {}) | tojson }};
+
+/* Las secciones que se pueden abrir por URL. Refrescar tiene que dejarte donde
+   estabas: antes el hash no se escribía nunca, así que cualquier F5 —o volver
+   de un adjunto abierto en otra pestaña— te devolvía al inicio. */
+const SECCIONES = ['inicio','comunicados','expensas','gastos','reclamos','reservas','archivos','perfil'];
+const seccionDelHash = () => {
+    const h = decodeURIComponent(location.hash.replace('#',''));
+    return SECCIONES.includes(h) ? h : 'inicio';
+};
+
+/* Sincrónico y antes de cualquier fetch: si la clase `active` se moviera recién
+   cuando contesta la API, se vería el inicio un instante antes de la sección
+   que pediste. */
+(function(){
+    const inicial = seccionDelHash();
+    if (inicial === 'inicio') return;
+    const sec = document.getElementById('section-' + inicial);
+    if (!sec) return;
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    sec.classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    const nb = document.getElementById('nav-' + inicial);
+    if (nb) nb.classList.add('active');
+})();
 const S = { vecino:null, unidades:[], activeU:null, coms:[], comFilter:'all', recs:[], cobros:[], avisos:[], amenities:[], selAm:null, charts:{}, booked:[], selStart:null, selEnd:null, dragAnchor:null, dragging:false };
 
 function toast(msg, t='ok'){const el=document.createElement('div');el.className='toast '+t;el.textContent=msg;document.getElementById('tc').appendChild(el);setTimeout(()=>el.remove(),3200)}
@@ -704,9 +734,24 @@ function showSection(name){
     const bb=document.getElementById('bnav-'+name);if(bb)bb.classList.add('active');
     
     document.getElementById('dd-menu').classList.remove('open');
-    const ldr={comunicados:loadComs,expensas:loadExpensas,gastos:loadGastos,reclamos:loadReclamos,reservas:loadReservas,archivos:loadArchivos,perfil:loadPerfil};
+
+    // Queda en la URL para que refrescar no te saque de donde estabas.
+    if(SECCIONES.includes(name) && seccionDelHash() !== name) location.hash = name;
+
+    const ldr={inicio:loadInicio,comunicados:loadComs,expensas:loadExpensas,gastos:loadGastos,reclamos:loadReclamos,reservas:loadReservas,archivos:loadArchivos,perfil:loadPerfil};
     if(ldr[name])ldr[name]();
 }
+
+/* El botón "atrás" del navegador. En mobile esto lo ata niddo-mobile.js, pero
+   en escritorio ese archivo sale temprano y nadie escuchaba: la URL retrocedía
+   y la pantalla se quedaba quieta. La guarda evita el rebote, porque
+   showSection escribe el hash y eso vuelve a disparar este evento. */
+window.addEventListener('hashchange', () => {
+    const name = seccionDelHash();
+    const activa = document.querySelector('.section.active');
+    if (activa && activa.id === 'section-' + name) return;
+    showSection(name);
+});
 
 // Todo lo que viene de la API se pinta con innerHTML. Sin esto, un reclamo
 // titulado <img src=x onerror=...> ejecuta código en la sesión de quien lo abra,
@@ -758,7 +803,8 @@ async function init(){
     await loadMisUnidades();
     if(S.unidades.length===1)S.activeU=S.unidades[0];
     updateHeader();
-    loadInicio();
+    // La sección ya está pintada; esto es lo que le trae los datos.
+    showSection(seccionDelHash());
     loadBadges();
     setupDragAndDrop();
 }
