@@ -1433,6 +1433,39 @@ def _mail_alta_vecino_resuelta(vecino: dict, aprobado: bool, consorcio_id: str,
     _enviar_mail([email], asunto, _mail_shell(titulo, cuerpo))
 
 
+def _mail_comunicado(comunicado: dict, consorcio: dict) -> None:
+    """Le avisa por mail a todo el edificio que hay un comunicado nuevo.
+
+    Es opcional y lo decide el administrador al publicar: un aviso de corte de
+    agua para mañana no puede depender de que el vecino entre al panel, pero
+    tampoco todos los comunicados merecen un mail.
+
+    Va a los vecinos aprobados del consorcio, con la misma regla de siempre:
+    `consorcio_id` cargado es estar adentro.
+    """
+    vecinos = supabase.table('vecinos').select('email, consorcio_id') \
+        .eq('consorcio_id', comunicado.get('consorcio_id')).execute().data or []
+    destinatarios = [v['email'] for v in vecinos if (v.get('email') or '').strip()]
+    if not destinatarios:
+        return
+
+    cuerpo = escape(comunicado.get('cuerpo', '')).replace('\n', '<br>')
+    html = _mail_shell(
+        escape(comunicado.get('titulo', 'Comunicado')),
+        f"""
+        <p style="margin:0 0 12px;font-size:15px;">
+          Hay un comunicado nuevo de <strong>{escape(consorcio.get('nombre', ''))}</strong>.
+        </p>
+        <div style="background:#f7f5f2;border-radius:10px;padding:16px;font-size:15px;line-height:1.6;">
+          {cuerpo}
+        </div>
+        <p style="margin:16px 0 0;font-size:13px;color:#666;">
+          También lo tenés en tu panel de Niddo, en Comunicados.
+        </p>
+        """)
+    _enviar_mail(destinatarios, f"📢 {comunicado.get('titulo', 'Comunicado')} — {consorcio.get('nombre', '')}", html)
+
+
 def _mail_respuesta_reclamo(reclamo: dict, estado_nuevo: str, respuesta: str) -> None:
     """Le avisa al vecino que su reclamo se movió.
 
@@ -4266,9 +4299,12 @@ def api_dashboard_resumen():
           'Declarados por vecinos, sin aceptar ni rechazar', 'cobros',
           monto=sum(_num(a.get('monto')) for a in avisos),
           dias=_dias_del_mas_viejo(avisos, 'created_at'))
+    # La sección se llama 'comunicacion' desde que reclamos, mensajes y
+    # comunicados viven juntos; el tipo sigue siendo 'reclamos', que es lo que
+    # la pantalla usa para abrir la pestaña correcta.
     sumar('reclamos', len(reclamos),
           'reclamo sin atender', 'reclamos sin atender',
-          'Nadie lo tocó todavía', 'reclamos',
+          'Nadie lo tocó todavía', 'comunicacion',
           dias=_dias_del_mas_viejo(reclamos, 'created_at'))
     sumar('gastos_vencidos', len(gastos_vencidos),
           'factura vencida sin pagar', 'facturas vencidas sin pagar',
@@ -4753,6 +4789,237 @@ def api_reclamos_adjunto(rid):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# API — MENSAJES (chat 1 a 1 entre el administrador y el vecino)
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Un hilo por vecino y no por tema: la conversación con la administración es una
+# sola, como en cualquier chat, y los dos lados pueden escribir primero. El hilo
+# no es una fila en ninguna tabla, es el par (consorcio_id, vecino_id): así no
+# hay estado que sincronizar ni hilos vacíos que limpiar.
+#
+# `leido_at` se escribe cuando el otro lado abre el hilo. De ahí salen los dos
+# badges y es lo único que distingue "te escribieron" de "ya lo viste".
+
+
+def _mensaje_publico(fila: dict) -> dict:
+    """La fila sin el base64 del adjunto.
+
+    Un hilo de treinta mensajes con tres fotos adentro es una respuesta de
+    varios megas por cada vez que alguien abre el chat. El archivo se pide
+    aparte, por su propia ruta.
+    """
+    return {k: v for k, v in (fila or {}).items() if k != 'adjunto_base64'}
+
+
+COLUMNAS_MENSAJE = ('id, consorcio_id, vecino_id, autor, admin_id, cuerpo, '
+                    'adjunto_nombre, adjunto_mime, leido_at, created_at')
+
+
+def _cuerpo_y_adjunto(campo_archivo: str):
+    """Lo que trae un mensaje nuevo: texto, archivo, o los dos.
+
+    Devuelve (cuerpo, extra, error). `extra` son las columnas del adjunto ya
+    validado, para meterlas en el insert.
+    """
+    d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
+    cuerpo = (d.get('cuerpo') or '').strip()
+
+    extra = {}
+    archivo = request.files.get(campo_archivo) if request.files else None
+    if archivo and archivo.filename:
+        try:
+            datos, mime, nombre = validar_adjunto(archivo)
+        except ValueError as e:
+            return None, None, (jsonify({'error': str(e)}), 400)
+        extra = {'adjunto_base64': base64.b64encode(datos).decode('utf-8'),
+                 'adjunto_nombre': nombre, 'adjunto_mime': mime}
+
+    # Un mensaje vacío no es un mensaje; una foto sola sí.
+    if not cuerpo and not extra:
+        return None, None, (jsonify({'error': 'Escribí algo o adjuntá un archivo'}), 400)
+    if len(cuerpo) > 4000:
+        return None, None, (jsonify({'error': 'El mensaje no puede pasar de 4000 caracteres'}), 400)
+    return cuerpo, extra, None
+
+
+def _marcar_leidos(consorcio_id, vecino_id, autor_del_otro):
+    """Marca como leído lo que escribió el otro lado en ese hilo."""
+    try:
+        supabase.table('mensajes').update({'leido_at': now_iso()}) \
+            .eq('consorcio_id', consorcio_id).eq('vecino_id', vecino_id) \
+            .eq('autor', autor_del_otro).is_('leido_at', 'null').execute()
+    except Exception:
+        app.logger.exception('No se pudieron marcar los mensajes como leídos')
+
+
+# ── El lado del vecino ────────────────────────────────────────────────────────
+
+@app.route('/api/mensajes')
+@require_auth(allowed_roles=['vecino'])
+def api_mensajes_hilo():
+    """El hilo del vecino con la administración. Abrirlo es leerlo."""
+    vecino_id = get_vecino_id()
+    v = supabase.table('vecinos').select('consorcio_id').eq('id', vecino_id).single().execute().data or {}
+    consorcio_id = v.get('consorcio_id')
+    if not consorcio_id:
+        return jsonify([])
+
+    filas = supabase.table('mensajes').select(COLUMNAS_MENSAJE) \
+        .eq('consorcio_id', consorcio_id).eq('vecino_id', vecino_id) \
+        .order('created_at').execute().data or []
+    _marcar_leidos(consorcio_id, vecino_id, 'admin')
+    return jsonify([_mensaje_publico(f) for f in filas])
+
+
+@app.route('/api/mensajes', methods=['POST'])
+@require_auth(allowed_roles=['vecino'])
+def api_mensajes_crear():
+    vecino_id = get_vecino_id()
+    v = supabase.table('vecinos').select('consorcio_id').eq('id', vecino_id).single().execute().data or {}
+    consorcio_id = v.get('consorcio_id')
+    if not consorcio_id:
+        return jsonify({'error': 'Todavía no estás asociado a un edificio'}), 403
+
+    cuerpo, extra, error = _cuerpo_y_adjunto('adjunto')
+    if error:
+        return error
+
+    res = supabase.table('mensajes').insert({
+        'consorcio_id': consorcio_id, 'vecino_id': vecino_id,
+        'autor': 'vecino', 'cuerpo': cuerpo, **extra,
+    }).execute()
+    return jsonify(_mensaje_publico(res.data[0] if res.data else {})), 201
+
+
+@app.route('/api/mensajes/no-leidos')
+@require_auth(allowed_roles=['vecino'])
+def api_mensajes_no_leidos():
+    """Cuántos mensajes del administrador todavía no vio. Es el badge."""
+    vecino_id = get_vecino_id()
+    filas = supabase.table('mensajes').select('id, leido_at, autor') \
+        .eq('vecino_id', vecino_id).eq('autor', 'admin').execute().data or []
+    return jsonify({'sin_leer': len([f for f in filas if not f.get('leido_at')])})
+
+
+@app.route('/api/mensajes/<mid>/adjunto')
+@require_auth(allowed_roles=['vecino'])
+def api_mensaje_adjunto(mid):
+    vecino_id = get_vecino_id()
+    fila = supabase.table('mensajes') \
+        .select('vecino_id, adjunto_base64, adjunto_nombre, adjunto_mime') \
+        .eq('id', mid).single().execute().data or {}
+    # El hilo es del vecino: sin esta comparación, cambiar el id en la URL abre
+    # el adjunto del vecino de al lado.
+    if not fila or fila.get('vecino_id') != vecino_id:
+        _no_es_tuyo()
+    if not fila.get('adjunto_base64'):
+        return jsonify({'error': 'Ese mensaje no tiene adjunto'}), 404
+    return enviar_adjunto(fila['adjunto_base64'], fila.get('adjunto_nombre', 'adjunto'),
+                          fila.get('adjunto_mime'))
+
+
+# ── El lado del administrador ─────────────────────────────────────────────────
+
+@app.route('/api/admin/mensajes')
+@require_auth(allowed_roles=['admin'])
+def api_admin_mensajes_hilos():
+    """La bandeja: un renglón por vecino, con lo último y lo que falta leer.
+
+    También devuelve los vecinos con los que todavía no hablaste, porque el
+    administrador tiene que poder escribir primero y no sólo contestar.
+    """
+    admin_id = get_admin_id()
+    cid = request.args.get('consorcio_id')
+    if cid:
+        cids = [consorcio_propio(cid, 'id')['id']]
+    else:
+        cids = consorcios_propios_ids()
+    if not cids:
+        return jsonify({'hilos': [], 'vecinos': []})
+
+    # Los vecinos aprobados de esos consorcios: son los destinatarios posibles.
+    vecinos = supabase.table('vecinos').select('id, nombre, email, unidad, consorcio_id') \
+        .in_('consorcio_id', cids).execute().data or []
+    por_id = {v['id']: v for v in vecinos}
+
+    filas = supabase.table('mensajes').select(COLUMNAS_MENSAJE) \
+        .in_('consorcio_id', cids).order('created_at').execute().data or []
+
+    hilos = {}
+    for f in filas:
+        vid = f.get('vecino_id')
+        hilo = hilos.setdefault(vid, {
+            'vecino_id': vid, 'consorcio_id': f.get('consorcio_id'),
+            'vecino': por_id.get(vid, {}), 'sin_leer': 0, 'total': 0, 'ultimo': None,
+        })
+        hilo['total'] += 1
+        hilo['ultimo'] = _mensaje_publico(f)          # ordenados: el último gana
+        if f.get('autor') == 'vecino' and not f.get('leido_at'):
+            hilo['sin_leer'] += 1
+
+    # Sin leer primero, y después por lo más reciente: es el orden en que un
+    # administrador quiere ver su bandeja.
+    ordenados = sorted(hilos.values(),
+                       key=lambda h: (h['sin_leer'] > 0, (h['ultimo'] or {}).get('created_at') or ''),
+                       reverse=True)
+    return jsonify({'hilos': ordenados, 'vecinos': vecinos})
+
+
+@app.route('/api/admin/mensajes/hilo/<vid>')
+@require_auth(allowed_roles=['admin'])
+def api_admin_mensajes_hilo(vid):
+    vecino = supabase.table('vecinos').select('id, nombre, email, unidad, consorcio_id') \
+        .eq('id', vid).single().execute().data or {}
+    consorcio_id = vecino.get('consorcio_id')
+    if not consorcio_id:
+        _no_es_tuyo()
+    consorcio_propio(consorcio_id, 'id')
+
+    filas = supabase.table('mensajes').select(COLUMNAS_MENSAJE) \
+        .eq('consorcio_id', consorcio_id).eq('vecino_id', vid) \
+        .order('created_at').execute().data or []
+    _marcar_leidos(consorcio_id, vid, 'vecino')
+    return jsonify({'vecino': vecino, 'mensajes': [_mensaje_publico(f) for f in filas]})
+
+
+@app.route('/api/admin/mensajes/hilo/<vid>', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_mensajes_responder(vid):
+    admin_id = get_admin_id()
+    vecino = supabase.table('vecinos').select('id, consorcio_id') \
+        .eq('id', vid).single().execute().data or {}
+    consorcio_id = vecino.get('consorcio_id')
+    if not consorcio_id:
+        _no_es_tuyo()
+    consorcio_propio(consorcio_id, 'id')
+
+    cuerpo, extra, error = _cuerpo_y_adjunto('adjunto')
+    if error:
+        return error
+
+    res = supabase.table('mensajes').insert({
+        'consorcio_id': consorcio_id, 'vecino_id': vid,
+        'autor': 'admin', 'admin_id': admin_id, 'cuerpo': cuerpo, **extra,
+    }).execute()
+    return jsonify(_mensaje_publico(res.data[0] if res.data else {})), 201
+
+
+@app.route('/api/admin/mensajes/adjunto/<mid>')
+@require_auth(allowed_roles=['admin'])
+def api_admin_mensaje_adjunto(mid):
+    fila = supabase.table('mensajes') \
+        .select('consorcio_id, adjunto_base64, adjunto_nombre, adjunto_mime') \
+        .eq('id', mid).single().execute().data or {}
+    if not fila:
+        _no_es_tuyo()
+    consorcio_propio(fila.get('consorcio_id'), 'id')
+    if not fila.get('adjunto_base64'):
+        return jsonify({'error': 'Ese mensaje no tiene adjunto'}), 404
+    return enviar_adjunto(fila['adjunto_base64'], fila.get('adjunto_nombre', 'adjunto'),
+                          fila.get('adjunto_mime'))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # API — VOTACIONES & VOTOS
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -4916,8 +5183,25 @@ def api_admin_comunicados_list():
     admin_id = get_admin_id()
     q = supabase.table('comunicados').select('*').eq('admin_id', admin_id)
     if request.args.get('consorcio_id'):
-        q = q.eq('consorcio_id', request.args['consorcio_id'])
-    return jsonify(q.order('created_at', desc=True).execute().data)
+        q = q.eq('consorcio_id', consorcio_propio(request.args['consorcio_id'], 'id')['id'])
+    filas = q.order('created_at', desc=True).execute().data or []
+
+    # Cuántos vecinos lo abrieron. Es la única señal de que el comunicado sirvió
+    # de algo: sin esto, publicar es tirar un papel abajo de la puerta y no
+    # saber nunca si alguien lo levantó.
+    if filas:
+        try:
+            leidos = supabase.table('comunicados_leidos').select('comunicado_id') \
+                .in_('comunicado_id', [f['id'] for f in filas]).execute().data or []
+            cuenta = {}
+            for l in leidos:
+                cuenta[l['comunicado_id']] = cuenta.get(l['comunicado_id'], 0) + 1
+            for f in filas:
+                f['leidos'] = cuenta.get(f['id'], 0)
+        except Exception:
+            app.logger.exception('No se pudo contar quién leyó los comunicados')
+
+    return jsonify(filas)
 
 
 @app.route('/api/admin/comunicados', methods=['POST'])
@@ -4931,9 +5215,20 @@ def api_admin_comunicados_create():
     # El comunicado lo leen los vecinos del consorcio, no el administrador: sin
     # este chequeo se podía publicar un aviso en la cartelera de un edificio
     # ajeno, firmado por su administración.
-    consorcio_propio(payload['consorcio_id'], 'id')
+    consorcio = consorcio_propio(payload['consorcio_id'], 'id, nombre')
     res = supabase.table('comunicados').insert(payload).execute()
-    return jsonify(res.data[0] if res.data else {}), 201
+    creado = res.data[0] if res.data else {}
+
+    # Avisar por mail es opcional y va después de guardar: el comunicado ya
+    # está publicado en el panel, y que Resend esté caído no puede devolver un
+    # error sobre algo que sí quedó hecho.
+    if d.get('enviar_email'):
+        try:
+            _mail_comunicado(creado, consorcio)
+        except Exception:
+            app.logger.exception('Falló el aviso por mail del comunicado')
+
+    return jsonify(creado), 201
 
 
 @app.route('/api/admin/comunicados/<cid_com>', methods=['DELETE'])
