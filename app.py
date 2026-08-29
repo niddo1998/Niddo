@@ -258,6 +258,30 @@ def es_fila_ejemplo(texto: str) -> bool:
     return MARCA_FILA_EJEMPLO in (texto or '').lower()
 
 
+# La fila de ejemplo de la plantilla de gastos, tal como la escribe
+# `build_gastos_template`. Antes se marcaba metiendo "(borrar fila)" adentro de
+# la descripción: el aviso quedaba escrito en la columna que el administrador
+# lee, al lado del gasto ficticio que ya se distingue solo por estar en gris
+# cursiva. El marcador ahora son los valores mismos —los tres juntos, no uno—,
+# así que la fila que baja la plantilla se ignora y cualquier fila que alguien
+# haya tocado se importa como lo que es.
+EJEMPLO_GASTOS_FECHA = '2026-06-05'
+EJEMPLO_GASTOS_DESCRIPCION = 'Factura Edesur junio 2026'
+EJEMPLO_GASTOS_MONTO = 15430.50
+
+
+def es_fila_ejemplo_gastos(descripcion, fecha_iso, monto) -> bool:
+    """True sólo para la fila de ejemplo intacta que trae la plantilla."""
+    if (descripcion or '').strip().lower() != EJEMPLO_GASTOS_DESCRIPCION.lower():
+        return False
+    if fecha_iso != EJEMPLO_GASTOS_FECHA:
+        return False
+    try:
+        return abs(float(monto) - EJEMPLO_GASTOS_MONTO) < 0.005
+    except (TypeError, ValueError):
+        return False
+
+
 def build_carga_masiva_template(consorcios_existentes: list):
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
@@ -280,7 +304,7 @@ def build_carga_masiva_template(consorcios_existentes: list):
     ws_info.title = 'Instrucciones'
     ws_info.column_dimensions['A'].width = 100
     info_lines = [
-        ('Carga masiva de Consorcios y Unidades Funcionales', True),
+        ("Carga masiva de Consorcios y UF's", True),
         ('', False),
         ('1. Completá la hoja "Consorcios" para crear edificios nuevos. Dejala vacía si solo vas a cargar', False),
         ('   unidades de consorcios que ya existen.', False),
@@ -452,7 +476,7 @@ def _fecha_excel(valor):
             return datetime.strptime(txt, formato).date().isoformat()
         except ValueError:
             continue
-    raise ValueError(f'Fecha inválida: "{valor}". Usá el formato AAAA-MM-DD.')
+    raise ValueError(f'Fecha inválida: "{valor}". Usá el formato DD/MM/AAAA.')
 
 
 def _monto_excel(valor) -> float:
@@ -536,7 +560,7 @@ def build_gastos_template(consorcios: list, unidades: list):
     info_lines = [
         ('Carga masiva de Gastos', True),
         ('', False),
-        ('1. Completá la hoja "Gastos": una fila por gasto. Borrá la fila de ejemplo en gris.', False),
+        ('1. Completá la hoja "Gastos": una fila por gasto. Borrá la fila de ejemplo en gris cursiva.', False),
         ('2. En "consorcio" elegí del desplegable o escribí el nombre exacto, tal como figura en la hoja', False),
         ('   "Consorcios existentes". Lo mismo con "unidad": esta carga no crea consorcios ni unidades', False),
         ('   nuevas, sólo los referencia. Si no existen, cargalos antes.', False),
@@ -544,7 +568,7 @@ def build_gastos_template(consorcios: list, unidades: list):
         ('', False),
         ('CAMPOS OBLIGATORIOS (sin ellos la fila no se importa):', True),
         ('   • consorcio — nombre exacto de un consorcio tuyo.', False),
-        ('   • fecha — fecha del gasto, formato AAAA-MM-DD (también se acepta DD/MM/AAAA).', False),
+        ('   • fecha — fecha del gasto, formato DD/MM/AAAA. Ej: 05/06/2026.', False),
         ('   • descripcion — qué es el gasto. Ej: "Factura Edesur junio 2026".', False),
         ('   • monto — número mayor a cero. Podés escribirlo como 15430.50 o 15.430,50.', False),
         ('', False),
@@ -573,7 +597,7 @@ def build_gastos_template(consorcios: list, unidades: list):
     ws_g = wb.create_sheet('Gastos')
     style_header(ws_g, HEADERS_PLANTILLA_GASTOS)
     nombre_ejemplo = consorcios[0]['nombre'] if consorcios else 'Edificio Ejemplo 123'
-    ejemplo = [nombre_ejemplo, '2026-06-05', 'Factura Edesur junio 2026 (borrar fila)', 15430.50,
+    ejemplo = [nombre_ejemplo, '05/06/2026', EJEMPLO_GASTOS_DESCRIPCION, EJEMPLO_GASTOS_MONTO,
                'electricidad', '', 'A', 'Si', 'No', '', '', 'Factura B-0001-00012345']
     for c, val in enumerate(ejemplo, 1):
         ws_g.cell(row=2, column=c, value=val).font = example_font
@@ -2063,7 +2087,7 @@ def descargar_plantilla_carga_masiva():
     admin_id = get_admin_id()
     existentes = supabase.table('consorcios').select('nombre,direccion').eq('admin_id', admin_id).order('nombre').execute().data or []
     wb = build_carga_masiva_template(existentes)
-    return excel_response(wb, 'plantilla_carga_masiva.xlsx')
+    return excel_response(wb, 'plantilla_consorcios_y_ufs.xlsx')
 
 
 @app.route('/api/consorcios/carga-masiva', methods=['POST'])
@@ -2860,8 +2884,17 @@ def api_gastos_carga_masiva():
     for i, fila in filas:
         nombre_con = _texto_celda(fila.get('consorcio'))
         descripcion = _texto_celda(fila.get('descripcion'))
+        # `es_fila_ejemplo` sigue mirando "(borrar fila)" por las plantillas
+        # viejas que ya se bajaron; la que se baja hoy se reconoce por sus
+        # valores.
         if es_fila_ejemplo(nombre_con) or es_fila_ejemplo(descripcion):
             continue
+        try:
+            if es_fila_ejemplo_gastos(descripcion, _fecha_excel(fila.get('fecha_gasto')),
+                                      fila.get('monto')):
+                continue
+        except ValueError:
+            pass
 
         if not nombre_con:
             errores.append({'fila': i, 'mensaje': 'Falta el consorcio'})
