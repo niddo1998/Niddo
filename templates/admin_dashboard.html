@@ -1301,7 +1301,7 @@
                         <thead><tr>
                             <th style="width:34px;"></th>
                             <th>Descripción</th><th>Monto</th><th>Categoría</th>
-                            <th>Fecha</th><th style="width:64px;">Pagado</th>
+                            <th>Fecha</th><th>Comprobante</th><th style="width:64px;">Pagado</th>
                         </tr></thead>
                         <tbody id="tbody-auto-results"></tbody>
                     </table>
@@ -2745,7 +2745,7 @@ async function loadGastos() {
             <tr>
                 <td>${g.fecha_gasto||'—'}</td>
                 <td>${escHtml((g.consorcios||{}).nombre||'—')}</td>
-                <td><strong>${escHtml(g.descripcion)}</strong>${g.unidad_id?`<span class="b b-b" style="margin-left:6px;">UF ${escHtml((g.unidades_funcionales||{}).numero||'—')}</span>`:''}${g.notas?`<div class="text-muted text-sm">${escHtml(g.notas)}</div>`:''}</td>
+                <td><strong>${escHtml(g.descripcion)}</strong>${g.unidad_id?`<span class="b b-b" style="margin-left:6px;">UF ${escHtml((g.unidades_funcionales||{}).numero||'—')}</span>`:''}${g.comprobante_numero?`<div class="text-muted text-sm">${escHtml([g.comprobante_tipo,g.comprobante_numero].filter(Boolean).join(' '))}</div>`:''}${g.notas?`<div class="text-muted text-sm">${escHtml(g.notas)}</div>`:''}</td>
                 <td>${categoriaBadge(g.categoria)}</td>
                 <td><strong>${fmt(g.monto)}</strong>${g.tarifa_confirmada === false ? '<span class="b b-y" style="margin-left:6px;">sin confirmar</span>' : ''}</td>
                 <td>${g.pagado ? '<span class="b b-g">Pagado</span>' : '<span class="b b-y">Pendiente</span>'}</td>
@@ -2970,7 +2970,7 @@ function renderBatchResults() {
         if (r.error) {
             return `<tr style="background:rgba(192,86,58,.07);">
                 <td></td>
-                <td colspan="5" style="font-size:.8rem;color:var(--nd-terracota-hondo);">
+                <td colspan="6" style="font-size:.8rem;color:var(--nd-terracota-hondo);">
                     <strong>${escHtml(r.file.name)}</strong> — ${escHtml(r.error)}
                 </td>
                 <td style="text-align:center;"><button class="btn-s btn-sm" onclick="retryExtraction(${i})">Reintentar</button></td>
@@ -2986,6 +2986,9 @@ function renderBatchResults() {
             <td><input class="form-ctrl" type="number" step="0.01" style="width:115px;" value="${escHtml(d.monto ?? '')}" oninput="setResultField(${i},'monto',this.value)"></td>
             <td><select class="form-ctrl" style="width:145px;" onchange="setResultField(${i},'categoria',this.value)">${cats}</select></td>
             <td><input class="form-ctrl" type="date" style="width:150px;" value="${escHtml(d.fecha_gasto || '')}" oninput="setResultField(${i},'fecha_gasto',this.value)"></td>
+            <td><input class="form-ctrl" style="width:135px;" placeholder="0001-00012345"
+                       value="${escHtml(d.comprobante_numero || '')}"
+                       oninput="setResultField(${i},'comprobante_numero',this.value)"></td>
             <td style="text-align:center;"><input type="checkbox" ${r.pagado ? 'checked' : ''} onchange="setResultFlag(${i},'pagado',this.checked)"></td>
         </tr>`;
     }).join('');
@@ -3067,6 +3070,11 @@ function ndRenderAuto() {
                 <label>Fecha</label>
                 <input type="date" value="${escHtml(d.fecha_gasto || '')}"
                        oninput="setResultField(${i},'fecha_gasto',this.value)">
+            </div>
+            <div class="nd-auto-f">
+                <label>Comprobante</label>
+                <input placeholder="0001-00012345" value="${escHtml(d.comprobante_numero || '')}"
+                       oninput="setResultField(${i},'comprobante_numero',this.value)">
             </div>
             <div class="nd-auto-f">
                 <label>Ya está pagado</label>
@@ -3251,6 +3259,9 @@ async function saveOneGasto(r, consorcioId) {
     fd.append('fecha_gasto', d.fecha_gasto || hoyLocalISO());
     fd.append('pagado', r.pagado ? 'true' : 'false');
     fd.append('notas', d.notas || '');
+    // Sólo viaja desde acá: el formulario manual no lo pide.
+    fd.append('comprobante_numero', d.comprobante_numero || '');
+    fd.append('comprobante_tipo', d.comprobante_tipo || '');
     fd.append('comprobante', r.file);
     const resp = await fetch('/api/gastos', { method: 'POST', body: fd });
     if (!resp.ok) {

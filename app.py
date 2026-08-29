@@ -2458,6 +2458,12 @@ def api_gastos_create():
         'frecuencia': d.get('frecuencia', ''),
         'dia_carga': _dia_carga(d),
         'notas': d.get('notas', ''),
+        # El número de comprobante no se pide en la carga manual: es un dato que
+        # sale solo de la factura, y tipearlo a mano era friccion pura. Lo
+        # escribe la carga automática, que ya lo está leyendo del papel, y de
+        # ahí sale al detalle de la Ley 941 en la liquidación.
+        'comprobante_numero': (d.get('comprobante_numero') or '').strip(),
+        'comprobante_tipo': (d.get('comprobante_tipo') or '').strip(),
         # Por qué coeficiente se reparte. 'A' es como se repartía todo hasta
         # que aparecieron los demás.
         'coeficiente': (d.get('coeficiente') or 'A').upper(),
@@ -2515,7 +2521,8 @@ def api_gastos_update(gid):
     # claves no las toca, así que el dato viejo de un gasto ya cargado se
     # conserva en vez de vaciarse al editarle el monto.
     allowed = ('consorcio_id','unidad_id','descripcion','categoria','monto','fecha_gasto',
-                'pagado','recurrente','frecuencia','dia_carga','notas','coeficiente')
+                'pagado','recurrente','frecuencia','dia_carga','notas','coeficiente',
+                'comprobante_numero','comprobante_tipo')
     payload = {}
     for k in allowed:
         if k in d:
@@ -2733,17 +2740,30 @@ def api_gastos_extract():
 Extraé los siguientes campos y devolvé SOLO un JSON válido (sin markdown, sin texto adicional):
 
 {
-  "descripcion": "descripción breve del gasto (ej: 'Factura Edesur junio 2026')",
+  "proveedor": "nombre comercial de quien emite la factura (ej: 'Edesur', 'Metrogas', 'Ascensores Otis')",
+  "descripcion": "de qué es el gasto, en una línea corta",
   "monto": número decimal sin símbolo de moneda (ej: 15430.50),
   "categoria": una de estas opciones exactas: "electricidad", "gas", "agua", "limpieza", "ascensor", "seguro", "honorarios", "impuesto", "mantenimiento", "sueldos", "otro",
   "fecha_gasto": "YYYY-MM-DD" (fecha de emisión de la factura),
-  "notas": "datos adicionales relevantes (número de factura, cliente, medidor, etc.)"
+  "comprobante_tipo": "tipo de comprobante tal como figura: 'Factura A', 'Factura B', 'Factura C', 'Ticket', 'Recibo', 'Nota de crédito'",
+  "comprobante_numero": "el número completo del comprobante, con punto de venta si lo tiene (ej: '0001-00012345')",
+  "notas": "datos adicionales relevantes (cliente, medidor, período facturado, etc.)"
 }
+
+CÓMO ESCRIBIR LA DESCRIPCIÓN (es el campo que se ve en el listado de gastos):
+- Armala como "<proveedor> <mes> <año>" cuando la factura sea de un servicio con
+  período: "Edesur junio 2026", "Metrogas mayo 2026".
+- Si no hay período, usá "<proveedor> <qué se compró o contrató>": "Otis
+  mantenimiento ascensor", "Seguros Rivadavia póliza anual".
+- Nunca la dejes vacía ni pongas "Factura" o "Comprobante" a secas: si sólo
+  podés leer el proveedor, la descripción es el proveedor.
+- Sin el número de comprobante adentro: ese va en su propio campo.
 
 IMPORTANTE:
 - El monto debe ser un número, NO un string. Sin puntos de miles, con punto decimal.
 - Las fechas en formato YYYY-MM-DD.
-- Si no podés determinar un campo, poné null.
+- Si no podés determinar un campo, poné null. La descripción es la excepción:
+  ahí siempre va algo, aunque sea sólo el proveedor.
 - Respondé SOLO el JSON, sin markdown ni explicaciones."""
 
     try:
@@ -2773,13 +2793,26 @@ IMPORTANTE:
         data = json.loads(text)
 
         # Sanitize and validate
+        proveedor = str(data.get('proveedor', '') or '').strip()
+        descripcion = str(data.get('descripcion', '') or '').strip()
+        # El modelo a veces devuelve la descripción vacía o con un "Factura"
+        # pelado, y el gasto termina en la lista sin nombre. El proveedor, que
+        # es lo que sí lee siempre, alcanza para reconocerlo.
+        if descripcion.lower() in ('', 'null', 'factura', 'comprobante', 'ticket', 'recibo'):
+            descripcion = proveedor or descripcion
         result = {
-            'descripcion': str(data.get('descripcion', '') or '').strip(),
+            'descripcion': descripcion,
+            'proveedor': proveedor,
             'monto': None,
             'categoria': '',
             'fecha_gasto': '',
+            'comprobante_tipo': str(data.get('comprobante_tipo', '') or '').strip(),
+            'comprobante_numero': str(data.get('comprobante_numero', '') or '').strip(),
             'notas': str(data.get('notas', '') or '').strip(),
         }
+        for k in ('comprobante_tipo', 'comprobante_numero'):
+            if result[k].lower() in ('null', 'none', '-'):
+                result[k] = ''
 
         # Monto
         try:

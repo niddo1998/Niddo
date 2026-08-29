@@ -260,10 +260,32 @@ def test_el_alta_ignora_los_campos_que_el_formulario_dejo_de_pedir(admin, base):
     admin.post('/api/gastos', json={
         'consorcio_id': 'cons-1', 'descripcion': 'Ascensor', 'monto': 1000,
         'proveedor_id': 'prov-1', 'fecha_vencimiento': '2026-09-10',
-        'metodo_pago': 'transferencia', 'comprobante_numero': '0001-00099'})
+        'metodo_pago': 'transferencia'})
     g = base['gastos'][0]
-    assert not {'proveedor_id', 'fecha_vencimiento', 'metodo_pago',
-                'comprobante_numero'} & set(g)
+    assert not {'proveedor_id', 'fecha_vencimiento', 'metodo_pago'} & set(g)
+
+
+def test_el_numero_de_comprobante_si_se_acepta(admin, base):
+    """La excepción: lo escribe la carga automática leyéndolo de la factura.
+
+    No está en el formulario manual —tipearlo era fricción por un dato que el
+    lector saca solo— pero el alta tiene que aceptarlo, porque de ahí sale el
+    detalle por comprobante que la Ley 941 obliga a rendir en la liquidación.
+    """
+    base['gastos'] = []
+    admin.post('/api/gastos', json={
+        'consorcio_id': 'cons-1', 'descripcion': 'Ascensor', 'monto': 1000,
+        'comprobante_tipo': 'Factura B', 'comprobante_numero': '0001-00099'})
+    g = base['gastos'][0]
+    assert g['comprobante_numero'] == '0001-00099'
+    assert g['comprobante_tipo'] == 'Factura B'
+
+
+def test_un_gasto_manual_no_inventa_comprobante(admin, base):
+    base['gastos'] = []
+    admin.post('/api/gastos', json={'consorcio_id': 'cons-1',
+                                    'descripcion': 'Luz', 'monto': 500})
+    assert base['gastos'][0]['comprobante_numero'] == ''
 
 
 def test_un_gasto_sin_coeficiente_nace_en_A(admin, base):
