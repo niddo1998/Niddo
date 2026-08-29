@@ -64,6 +64,28 @@ supabase: Client = create_client(
 )
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+# Espacio duro entre el signo y el número, igual que en el PDF: el importe no se
+# parte en dos líneas ni en el mail más angosto.
+NBSP_MONEDA = '\u00a0'
+
+
+def pesos(n) -> str:
+    """Un importe como se escribe acá: $ 1.234.567,89.
+
+    Los f-strings `${x:,.2f}` que había repartidos por los mails y el cupón
+    escriben el formato yanqui —$1,234.50—, que en un resumen de expensas se
+    lee como mil doscientos treinta y cuatro con cincuenta *centavos de más*.
+    """
+    try:
+        v = float(n or 0)
+    except (TypeError, ValueError):
+        v = 0.0
+    entero, dec = f'{abs(v):,.2f}'.split('.')
+    entero = entero.replace(',', '.')
+    signo = '-' if v < 0 else ''
+    return f'{signo}${NBSP_MONEDA}{entero},{dec}'
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -4438,7 +4460,7 @@ def api_vecinos_cupon_pago(rid):
     elements.append(Paragraph(f"<b>Unidad:</b> {uf_data.get('numero', '')} (Piso {uf_data.get('piso', '')})", styles['Normal']))
     elements.append(Paragraph(f"<b>Vecino:</b> {v_data.get('nombre', '')}", styles['Normal']))
     elements.append(Spacer(1, 0.6*cm))
-    data = [['Campo', 'Detalle'], ['Período', cobro.get('periodo', '')], ['Monto Base', f"$ {cobro.get('monto_base', 0):,.2f}"], ['Interés/Mora', f"$ {cobro.get('interes_mora', 0):,.2f}"], ['TOTAL A PAGAR', f"$ {cobro.get('total', 0):,.2f}"], ['Estado', str(cobro.get('estado', '')).upper()], ['Vencimiento', cobro.get('fecha_vencimiento', 'N/A')]]
+    data = [['Campo', 'Detalle'], ['Período', cobro.get('periodo', '')], ['Monto Base', pesos(cobro.get('monto_base', 0))], ['Interés/Mora', pesos(cobro.get('interes_mora', 0))], ['TOTAL A PAGAR', pesos(cobro.get('total', 0))], ['Estado', str(cobro.get('estado', '')).upper()], ['Vencimiento', cobro.get('fecha_vencimiento', 'N/A')]]
     t = Table(data, colWidths=[8*cm, 9*cm])
     t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#7C3AED')), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('FONTNAME', (0,4), (-1,4), 'Helvetica-Bold'), ('FONTSIZE', (0,0), (-1,-1), 10), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')), ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f5f0ff')]), ('ALIGN', (1,0), (1,-1), 'RIGHT')]))
     elements.append(t)
@@ -5776,7 +5798,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
         cat_rows += f'''
         <tr>
             <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;font-size:14px;">{icon} {cat}</td>
-            <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;text-align:right;font-size:14px;font-weight:600;">${monto_uf:,.2f}</td>
+            <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;text-align:right;font-size:14px;font-weight:600;">{pesos(monto_uf)}</td>
             <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;text-align:right;font-size:13px;color:#888;">{pct:.1f}%</td>
         </tr>'''
 
@@ -5788,7 +5810,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
         particulares_rows = ''.join(f'''
         <tr>
             <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;font-size:14px;">{escape(p["desc"])}</td>
-            <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;text-align:right;font-size:14px;font-weight:600;">${p["monto"]:,.2f}</td>
+            <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;text-align:right;font-size:14px;font-weight:600;">{pesos(p["monto"])}</td>
         </tr>''' for p in particulares_uf)
         particulares_html = f'''
 <div style="background:#fff;border-radius:12px;margin-top:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
@@ -5799,7 +5821,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
         <tfoot>
             <tr>
                 <td style="padding:10px 14px;font-size:14px;font-weight:700;">Total</td>
-                <td style="padding:10px 14px;text-align:right;font-size:14px;font-weight:700;">${gastos_particulares:,.2f}</td>
+                <td style="padding:10px 14px;text-align:right;font-size:14px;font-weight:700;">{pesos(gastos_particulares)}</td>
             </tr>
         </tfoot>
     </table>
@@ -5835,7 +5857,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
     fondo_html = '' if es_complementaria else f'''
 <div style="background:#f8f7ff;border-radius:12px;margin-top:16px;padding:18px;text-align:center;">
     <p style="margin:0;font-size:12px;color:#888;text-transform:uppercase;font-weight:600;">Saldo del fondo del consorcio</p>
-    <p style="margin:6px 0 0;font-size:22px;font-weight:800;color:#7C3AED;">${saldo_final:,.2f}</p>
+    <p style="margin:6px 0 0;font-size:22px;font-weight:800;color:#7C3AED;">{pesos(saldo_final)}</p>
 </div>'''
     vto1 = liq.get('fecha_vencimiento_1', '—')
     vto2 = liq.get('fecha_vencimiento_2', '—')
@@ -5863,7 +5885,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 <!-- Tu expensa -->
 <div style="background:#fff;border-radius:12px;margin-top:16px;padding:24px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.05);">
     <p style="margin:0;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">{'Expensa complementaria' if es_complementaria else 'Tu expensa este mes'}</p>
-    <p style="margin:8px 0 0;font-size:38px;font-weight:800;color:#111;">${total_unidad:,.2f}</p>
+    <p style="margin:8px 0 0;font-size:38px;font-weight:800;color:#111;">{pesos(total_unidad)}</p>
     <p style="margin:6px 0 0;font-size:12px;color:#888;">UF {escape(uf.get('numero', ''))} — Piso {escape(uf.get('piso', '—'))} — {escape(uf.get('vecino_nombre', ''))}</p>
     {aviso_complementaria}
 </div>
@@ -5889,19 +5911,19 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 <div style="background:#fff;border-radius:12px;margin-top:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
     <h3 style="margin:0 0 14px;font-size:15px;font-weight:700;color:#111;">📒 Tu estado de cuenta</h3>
     <table style="width:100%;font-size:14px;">
-        <tr><td style="padding:6px 0;color:#666;">Saldo anterior</td><td style="text-align:right;font-weight:600;">${float(prorrateo.get('saldo_anterior',0)):,.2f}</td></tr>
-        <tr><td style="padding:6px 0;color:#666;">Tu pago registrado</td><td style="text-align:right;font-weight:600;color:#10B981;">-${float(prorrateo.get('pago_realizado',0)):,.2f}</td></tr>
-        <tr><td style="padding:6px 0;color:#666;">Saldo pendiente</td><td style="text-align:right;font-weight:600;color:#EF4444;">${float(prorrateo.get('saldo_pendiente',0)):,.2f}</td></tr>
-        <tr><td style="padding:6px 0;color:#666;">Intereses</td><td style="text-align:right;font-weight:600;">${float(prorrateo.get('interes_mora',0)):,.2f}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Saldo anterior</td><td style="text-align:right;font-weight:600;">{pesos(prorrateo.get('saldo_anterior',0))}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Tu pago registrado</td><td style="text-align:right;font-weight:600;color:#10B981;">-{pesos(prorrateo.get('pago_realizado',0))}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Saldo pendiente</td><td style="text-align:right;font-weight:600;color:#EF4444;">{pesos(prorrateo.get('saldo_pendiente',0))}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Intereses</td><td style="text-align:right;font-weight:600;">{pesos(prorrateo.get('interes_mora',0))}</td></tr>
         <tr style="border-top:2px solid #eee;">
             <td style="padding:10px 0;font-weight:700;">Expensa ordinaria ({pct_a:.3f}%)</td>
-            <td style="text-align:right;font-weight:700;">${float(prorrateo.get('expensa_a',0)):,.2f}</td>
+            <td style="text-align:right;font-weight:700;">{pesos(prorrateo.get('expensa_a',0))}</td>
         </tr>
-        <tr><td style="padding:6px 0;color:#666;">Adicional ordinaria</td><td style="text-align:right;font-weight:600;">${float(prorrateo.get('adicional_ordinaria',0)):,.2f}</td></tr>
-        <tr><td style="padding:6px 0;color:#666;">Gastos de tu unidad</td><td style="text-align:right;font-weight:600;">${gastos_particulares:,.2f}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Adicional ordinaria</td><td style="text-align:right;font-weight:600;">{pesos(prorrateo.get('adicional_ordinaria',0))}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Gastos de tu unidad</td><td style="text-align:right;font-weight:600;">{pesos(gastos_particulares)}</td></tr>
         <tr style="border-top:2px solid #eee;">
             <td style="padding:10px 0;font-weight:700;">Total a pagar</td>
-            <td style="text-align:right;font-weight:800;">${total_unidad:,.2f}</td>
+            <td style="text-align:right;font-weight:800;">{pesos(total_unidad)}</td>
         </tr>
     </table>
 </div>

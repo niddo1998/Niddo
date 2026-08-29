@@ -1622,7 +1622,15 @@ function show(id, el) {
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
 const $= id => document.getElementById(id);
-const fmt = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',minimumFractionDigits:0}).format(n||0);
+/* Los importes se escriben igual en todas las pantallas, en el PDF y en los
+   mails: $ 1.234.567,89. `minimumFractionDigits: 0` dejaba "$ 15.430,5" al lado
+   de "$ 15.430,50" según el número, y el espacio duro evita que el signo quede
+   sólo al final de una línea. */
+const fmt = n => {
+    const v = Number(n) || 0;
+    return (v < 0 ? '-' : '') + '$\u00a0' +
+        Math.abs(v).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+};
 const toast = (msg,type='ok') => {
     const t = document.createElement('div');
     t.className = `toast-msg ${type}`; t.textContent = msg;
