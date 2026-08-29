@@ -170,3 +170,41 @@ def test_el_vecino_no_baja_el_adjunto_de_otro(client, base):
 def test_un_mensaje_sin_adjunto_no_devuelve_nada(client, base):
     m = _mensaje(base)
     assert client.get(f'/api/mensajes/{m["id"]}/adjunto').status_code == 404
+
+
+# ── El mail del comunicado ────────────────────────────────────────────────────
+
+def test_el_mail_del_comunicado_respeta_los_saltos_de_linea(base, app_modulo, monkeypatch):
+    """`Markup.replace` escapa lo que se le pasa.
+
+    `escape(cuerpo).replace('\\n', '<br>')` devolvía "&lt;br&gt;", así que el
+    vecino recibía el mail con esos caracteres a la vista en cada renglón.
+    """
+    enviados = []
+    monkeypatch.setattr(app_modulo, '_enviar_mail',
+                        lambda dest, asunto, html: enviados.append(html))
+    base['vecinos'][0]['email'] = 'uno@test'
+
+    app_modulo._mail_comunicado(
+        {'titulo': 'Corte de agua', 'cuerpo': 'Mañana de 9 a 12.\nToda la torre.',
+         'consorcio_id': 'cons-1'},
+        {'nombre': 'Mío'})
+
+    assert enviados, 'no se mandó ningún mail'
+    assert '<br>' in enviados[0]
+    assert '&lt;br&gt;' not in enviados[0]
+
+
+def test_el_cuerpo_del_comunicado_va_escapado(base, app_modulo, monkeypatch):
+    """Lo escribe el administrador y termina en la casilla de todo el edificio."""
+    enviados = []
+    monkeypatch.setattr(app_modulo, '_enviar_mail',
+                        lambda dest, asunto, html: enviados.append(html))
+    base['vecinos'][0]['email'] = 'uno@test'
+
+    app_modulo._mail_comunicado(
+        {'titulo': 'Aviso', 'cuerpo': '<script>alert(1)</script>', 'consorcio_id': 'cons-1'},
+        {'nombre': 'Mío'})
+
+    assert '<script>alert(1)</script>' not in enviados[0]
+    assert '&lt;script&gt;' in enviados[0]

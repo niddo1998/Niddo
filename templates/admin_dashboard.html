@@ -1990,6 +1990,15 @@ function cancelarSalida() {
     closeModal('modal-sin-guardar');
     accionPendiente = null;
     formPendiente = null;
+    /* En mobile, niddo-mobile.js envuelve a `show` y mueve el tab y el título
+       antes de que la guarda decida: si el usuario elige seguir editando, la
+       barra de abajo quedaba marcando la sección a la que no fue. Navegar a la
+       sección actual la deja donde está —la guarda no se dispara, porque el
+       destino es la misma sección— y de paso resincroniza el tab. */
+    const activa = document.querySelector('.section.active');
+    if (!activa) return;
+    const id = activa.id.replace('sec-', '');
+    show(id, document.querySelector(`.sidebar-nav a[onclick*="'${id}'"]`));
 }
 
 function salirSinGuardar() {

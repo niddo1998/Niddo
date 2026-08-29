@@ -1449,7 +1449,10 @@ def _mail_comunicado(comunicado: dict, consorcio: dict) -> None:
     if not destinatarios:
         return
 
-    cuerpo = escape(comunicado.get('cuerpo', '')).replace('\n', '<br>')
+    # `str()` antes del replace: Markup.replace escapa lo que se le pasa, así
+    # que el <br> salía como texto y el mail llegaba con "&lt;br&gt;" a la
+    # vista en cada salto de línea.
+    cuerpo = str(escape(comunicado.get('cuerpo', ''))).replace('\n', '<br>')
     html = _mail_shell(
         escape(comunicado.get('titulo', 'Comunicado')),
         f"""
