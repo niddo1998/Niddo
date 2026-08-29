@@ -221,12 +221,16 @@
 </head>
 <body>
 {% include '_icons.html' %}
-<div class="full-overlay" id="onboarding-overlay">
+{# El estado del alta viene resuelto del servidor: la pantalla correcta es la
+   primera que se pinta. Cuando esto se decidía en el navegador, el vecino
+   pendiente veía su dashboard hasta que /api/me y /api/vecinos/mi-solicitud
+   contestaban, y recién ahí le caía el overlay encima. #}
+<div class="full-overlay{% if alta and not alta.adentro and alta.estado != 'pendiente' %} visible{% endif %}" id="onboarding-overlay">
     <div class="ov-card">
         <div class="ov-icon"><svg class="ic ic-xl"><use href="#ic-edificio"></use></svg></div>
         <div class="ov-title">¡Bienvenido a Niddo!</div>
         <div class="ov-sub">Decinos cuál es tu unidad. La administración de tu edificio la confirma y te habilita el acceso.</div>
-        <div id="ob-rechazo" style="display:none;text-align:left;background:var(--nd-terracota-dim);border:1px solid rgba(196,80,43,0.25);padding:10px 12px;border-radius:8px;font-size:0.82rem;line-height:1.5;color:var(--nd-terracota-hondo);margin-bottom:14px"></div>
+        <div id="ob-rechazo" style="{% if not (alta and alta.estado == 'rechazado') %}display:none;{% endif %}text-align:left;background:var(--nd-terracota-dim);border:1px solid rgba(196,80,43,0.25);padding:10px 12px;border-radius:8px;font-size:0.82rem;line-height:1.5;color:var(--nd-terracota-hondo);margin-bottom:14px">{% if alta and alta.estado == 'rechazado' %}<strong>Tu solicitud anterior no fue aprobada.</strong><br>{% if alta.motivo_rechazo %}{{ alta.motivo_rechazo }}{% else %}No nos dejaron un motivo. Si creés que es un error, hablá con la administración.{% endif %}{% endif %}</div>
         <div style="text-align:left;margin-bottom:18px">
             <div class="fg"><label class="fl">1. Consorcio / Edificio</label><select id="ob-con" class="fc" onchange="onObConChanged()"><option value="">Cargando...</option></select></div>
             <div class="fg"><label class="fl">2. Unidad Funcional</label><select id="ob-uf" class="fc" disabled><option value="">Seleccioná un consorcio primero</option></select></div>
@@ -238,11 +242,11 @@
         <div style="font-size:0.75rem;color:var(--muted);margin-top:10px;line-height:1.5">Vas a poder entrar cuando la administración confirme que la unidad es tuya. Te avisamos por mail.</div>
     </div>
 </div>
-<div class="full-overlay" id="pending-overlay">
+<div class="full-overlay{% if alta and not alta.adentro and alta.estado == 'pendiente' %} visible{% endif %}" id="pending-overlay">
     <div class="ov-card">
         <div class="ov-icon">⏳</div>
         <div class="ov-title">Esperando al administrador</div>
-        <div class="ov-sub" id="pending-detalle">Tu solicitud fue enviada.</div>
+        <div class="ov-sub" id="pending-detalle">{% if alta and alta.consorcio %}Pediste entrar a {{ alta.consorcio }}{% if alta.unidad %} · UF {{ alta.unidad }}{% endif %}.{% else %}Tu solicitud fue enviada.{% endif %}</div>
         <div class="ov-sub" style="font-size:0.8rem">
             Te avisamos por mail apenas la revise. Hasta entonces no vas a ver las expensas
             ni los datos del edificio.
@@ -665,6 +669,7 @@
 <div class="toast-container" id="tc"></div>
 
 <script>
+const ALTA = {{ (alta or {}) | tojson }};
 const S = { vecino:null, unidades:[], activeU:null, coms:[], comFilter:'all', recs:[], cobros:[], avisos:[], amenities:[], selAm:null, charts:{}, booked:[], selStart:null, selEnd:null, dragAnchor:null, dragging:false };
 
 function toast(msg, t='ok'){const el=document.createElement('div');el.className='toast '+t;el.textContent=msg;document.getElementById('tc').appendChild(el);setTimeout(()=>el.remove(),3200)}
@@ -747,7 +752,8 @@ async function init(){
     document.getElementById('dd-name').textContent=v.nombre||v.email;
     document.getElementById('dd-email').textContent=v.email||'';
     /* consorcio_id sólo se escribe cuando el administrador aprueba, así que
-       tenerlo es la definición de estar adentro. Lo demás es la sala de espera. */
+       tenerlo es la definición de estar adentro. Lo demás es la sala de espera,
+       que la página ya pintó: acá sólo queda llenarle el desplegable. */
     if(!v.consorcio_id){await mostrarEstadoAlta();return}
     await loadMisUnidades();
     if(S.unidades.length===1)S.activeU=S.unidades[0];
@@ -1405,30 +1411,21 @@ async function guardarPerfil(){
 
 
 /* Sin consorcio hay tres situaciones distintas y antes se veían todas igual:
-   el que nunca pidió, el que está esperando y el que fue rechazado. */
+   el que nunca pidió, el que está esperando y el que fue rechazado. Cuál de las
+   tres es ya lo decidió el servidor y la página nació mostrándola; lo único que
+   falta es cargarle los consorcios al desplegable del alta. */
 async function mostrarEstadoAlta(){
-    let sol={};
-    try{sol=await api('/api/vecinos/mi-solicitud')}catch(e){}
-
-    if(sol.estado==='pendiente'){
-        const donde=[sol.consorcio,sol.unidad?'UF '+sol.unidad:null].filter(Boolean).join(' · ');
-        document.getElementById('pending-detalle').textContent=
-            donde?`Pediste entrar a ${donde}.`
-                 :'Tu solicitud fue enviada.';
-        document.getElementById('pending-overlay').classList.add('visible');
-        return;
-    }
-
-    // Rechazado o sin pedir nunca: las dos terminan en el alta. La diferencia
-    // es que al rechazado hay que decirle por qué antes de que vuelva a elegir.
-    if(sol.estado==='rechazado'){
-        const box=document.getElementById('ob-rechazo');
-        box.innerHTML=`<strong>Tu solicitud anterior no fue aprobada.</strong>` +
-            (sol.motivo_rechazo?`<br>${esc(sol.motivo_rechazo)}`
-                               :'<br>No nos dejaron un motivo. Si creés que es un error, hablá con la administración.');
-        box.style.display='block';
-    }
+    if(ALTA.estado==='pendiente'){mostrarEspera();return}
     showOnboarding();
+}
+
+function mostrarEspera(donde){
+    if(donde!==undefined){
+        document.getElementById('pending-detalle').textContent=
+            donde?`Pediste entrar a ${donde}.`:'Tu solicitud fue enviada.';
+    }
+    document.getElementById('onboarding-overlay').classList.remove('visible');
+    document.getElementById('pending-overlay').classList.add('visible');
 }
 
 async function showOnboarding(){
@@ -1447,7 +1444,17 @@ async function guardarAsociacion(){
     const cid=document.getElementById('ob-con').value;const uid=document.getElementById('ob-uf').value;const rol=document.getElementById('ob-rol').value;const nouf=document.getElementById('ob-nouf').checked;
     if(!cid){toast('Seleccioná un consorcio','warn');return}
     if(!uid&&!nouf){toast('Seleccioná tu unidad o marcá la opción de asignación manual','warn');return}
-    try{await api('/api/vecinos/asociar',{method:'POST',body:JSON.stringify({consorcio_id:cid,unidad_id:uid||null,rol})});toast('Solicitud enviada — te avisamos cuando la aprueben','ok');setTimeout(()=>location.reload(),1200)}
+    /* El reload era lo que hacía el segundo salto: la página volvía a arrancar
+       en el dashboard y recién después se enteraba de que la solicitud estaba
+       pendiente. La sala de espera es la misma pantalla que ya está acá. */
+    try{
+        await api('/api/vecinos/asociar',{method:'POST',body:JSON.stringify({consorcio_id:cid,unidad_id:uid||null,rol})});
+        ALTA.estado='pendiente';
+        const nombreCon=document.getElementById('ob-con').selectedOptions[0]?.textContent||'';
+        const nombreUf=uid?document.getElementById('ob-uf').selectedOptions[0]?.textContent||'':'';
+        mostrarEspera([nombreCon,nombreUf].filter(Boolean).join(' · '));
+        toast('Solicitud enviada — te avisamos cuando la aprueben','ok');
+    }
     catch(e){toast(e.message,'err')}
 }
 

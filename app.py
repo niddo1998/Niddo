@@ -1114,7 +1114,8 @@ def dashboard(role):
         return render_template('admin_dashboard.html', user=user,
                                es_superadmin=(cargar_admin_actual() or {}).get('es_superadmin', False))
     elif role == 'vecino':
-        return render_template('vecino_dashboard.html', user=user)
+        return render_template('vecino_dashboard.html', user=user,
+                               alta=estado_alta_vecino(get_vecino_id()))
     return redirect(url_for('login'))
 
 
@@ -3566,13 +3567,19 @@ def api_vecinos_asociar():
     return jsonify({'ok': True, 'estado': 'pendiente'})
 
 
-@app.route('/api/vecinos/mi-solicitud')
-@require_auth(allowed_roles=['vecino'])
-def api_vecinos_mi_solicitud():
-    """En qué quedó la solicitud, para que la espera no sea una pared muda."""
-    vecino_id = get_vecino_id()
+def estado_alta_vecino(vecino_id: Optional[str]) -> dict:
+    """En qué quedó la solicitud de alta del vecino.
+
+    Lo consulta el endpoint y también la página, antes de renderizarla: el
+    dashboard y la sala de espera son dos pantallas distintas y cuál va se sabe
+    en el servidor. Preguntarlo desde el navegador, después de pintar el
+    dashboard, es lo que hacía que el vecino pendiente viera su panel medio
+    segundo antes de que el overlay lo tapara.
+    """
     if not vecino_id:
-        return jsonify({})
+        return {'estado': None, 'consorcio': None, 'unidad': None,
+                'solicitud_at': None, 'motivo_rechazo': None, 'adentro': False}
+
     v = supabase.table('vecinos') \
         .select('estado_asociacion, consorcio_solicitado_id, unidad_solicitada_id, '
                 'solicitud_at, motivo_rechazo, consorcio_id') \
@@ -3588,13 +3595,28 @@ def api_vecinos_mi_solicitud():
             .eq('id', v['unidad_solicitada_id']).execute().data
         unidad = u[0]['numero'] if u else None
 
-    return jsonify({
+    return {
         'estado': v.get('estado_asociacion'),
         'consorcio': consorcio,
         'unidad': unidad,
         'solicitud_at': v.get('solicitud_at'),
         'motivo_rechazo': v.get('motivo_rechazo'),
-    })
+        # `consorcio_id` sólo se escribe cuando el administrador aprueba: tenerlo
+        # es la definición de estar adentro.
+        'adentro': bool(v.get('consorcio_id')),
+    }
+
+
+@app.route('/api/vecinos/mi-solicitud')
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_mi_solicitud():
+    """En qué quedó la solicitud, para que la espera no sea una pared muda."""
+    vecino_id = get_vecino_id()
+    if not vecino_id:
+        return jsonify({})
+    estado = estado_alta_vecino(vecino_id)
+    estado.pop('adentro', None)
+    return jsonify(estado)
 
 
 @app.route('/api/consorcios/<cid>/vecinos/pendientes', methods=['GET'])
