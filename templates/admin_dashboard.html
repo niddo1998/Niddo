@@ -4432,7 +4432,11 @@ async function openEnviarModal() {
                 unidad_id: p.unidad_id,
                 numero: uf.numero || '—',
                 nombre: uf.vecino_nombre || 'Sin nombre',
-                email: uf.vecino_email || '',
+                /* `emails` lo resuelve el servidor: el mail de la cuenta del
+                   vecino registrado y, si no hay, el que cargó el admin en el
+                   padrón. Mirar sólo `vecino_email` era lo que marcaba "Sin
+                   email" a unidades cuyo vecino está registrado hace meses. */
+                email: (p.emails || []).join(', ') || uf.vecino_email || '',
                 total: p.total_unidad,
                 ya_recibio: recibieron.has(p.unidad_id),
             };

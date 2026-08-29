@@ -986,6 +986,72 @@ def unidades_del_vecino():
     return ids
 
 
+def emails_registrados_por_unidad(unidad_ids: list) -> dict:
+    """Los mails de los vecinos registrados y aprobados, por unidad.
+
+    El padrón tiene dos mails por unidad y no son el mismo: el que el
+    administrador tipeó al cargar la UF (`unidades_funcionales.vecino_email`) y
+    el de la cuenta con la que el vecino entra a Niddo, que es el que él mismo
+    puso al registrarse y el único que seguro existe.
+
+    La liquidación se mandaba sólo al primero, así que una UF cuyo vecino se dio
+    de alta solo —lo normal— figuraba como "sin email" y no recibía nada,
+    teniendo el mail a una tabla de distancia.
+
+    Devuelve {unidad_id: [mails]}. Una unidad puede tener más de uno: el
+    propietario y el inquilino, los dos aprobados sobre la misma UF.
+    """
+    if not unidad_ids:
+        return {}
+
+    mapa = {}
+
+    def sumar(uid, email):
+        email = (email or '').strip()
+        if not uid or not email:
+            return
+        lista = mapa.setdefault(uid, [])
+        if email not in lista:
+            lista.append(email)
+
+    # `consorcio_id` cargado es la definición de aprobado: el pendiente no
+    # recibe la liquidación del edificio al que todavía no lo dejaron entrar.
+    filas = supabase.table('vecinos').select('email, unidad_id, consorcio_id') \
+        .in_('unidad_id', unidad_ids).execute().data or []
+    for f in filas:
+        if f.get('consorcio_id'):
+            sumar(f.get('unidad_id'), f.get('email'))
+
+    # `vecinos_unidades` es de v7 y sostiene al vecino con más de una unidad. Si
+    # el entorno no la migró, lo de arriba alcanza.
+    try:
+        enlaces = supabase.table('vecinos_unidades') \
+            .select('unidad_id, vecino_id, activo').in_('unidad_id', unidad_ids) \
+            .execute().data or []
+        activos = [e for e in enlaces if e.get('activo')]
+        if activos:
+            vecinos = supabase.table('vecinos').select('id, email, consorcio_id') \
+                .in_('id', [e['vecino_id'] for e in activos]).execute().data or []
+            por_id = {v['id']: v for v in vecinos}
+            for e in activos:
+                v = por_id.get(e.get('vecino_id')) or {}
+                if v.get('consorcio_id'):
+                    sumar(e.get('unidad_id'), v.get('email'))
+    except Exception:
+        pass
+
+    return mapa
+
+
+def destinatarios_de_unidad(unidad_id, uf_fila, registrados) -> list:
+    """A qué mails se le escribe a una unidad, en orden de confianza."""
+    de_cuenta = registrados.get(unidad_id) or []
+    if de_cuenta:
+        return de_cuenta
+    del_padron = ((uf_fila or {}).get('vecino_email') or '').strip()
+    return [del_padron] if del_padron else []
+
+
 def unidad_propia(unidad_id):
     """Corta con 404 si la unidad no es del vecino en sesión."""
     if not unidad_id or unidad_id not in unidades_del_vecino():
@@ -5741,7 +5807,18 @@ def api_liquidacion_prorrateo(lid):
     res = supabase.table('liquidacion_prorrateo') \
         .select('*, unidades_funcionales(numero, piso, tipo, vecino_nombre, vecino_email)') \
         .eq('liquidacion_id', lid).order('unidades_funcionales(numero)').execute()
-    return jsonify(res.data)
+    filas = res.data or []
+
+    # `emails` es a quién le va a llegar de verdad. La pantalla de envío miraba
+    # `vecino_email` y marcaba "Sin email" a unidades cuyo vecino está
+    # registrado, con su casilla, esperando la expensa.
+    registrados = emails_registrados_por_unidad(
+        [f.get('unidad_id') for f in filas if f.get('unidad_id')])
+    for f in filas:
+        f['emails'] = destinatarios_de_unidad(
+            f.get('unidad_id'), f.get('unidades_funcionales'), registrados)
+
+    return jsonify(filas)
 
 
 @app.route('/api/liquidaciones/<lid>/prorrateo/<pid>', methods=['PUT'])
@@ -6167,6 +6244,9 @@ def api_liquidacion_enviar(lid):
     # Obtener rubros con items
     rubros = _rubros_con_items(lid)
 
+    registrados = emails_registrados_por_unidad(
+        [p.get('unidad_id') for p in prorrateos if p.get('unidad_id')])
+
     # La deuda se crea antes de avisar. Si se hiciera después y fallara, el
     # vecino tendría el mail con un total que su cuenta no muestra.
     cobros_creados = _generar_cobros_de_liquidacion(liq, prorrateos)
@@ -6188,7 +6268,8 @@ def api_liquidacion_enviar(lid):
 
     for prorrateo in prorrateos:
         uf = prorrateo.get('unidades_funcionales', {})
-        email_destino = uf.get('vecino_email', '')
+        destinos = destinatarios_de_unidad(prorrateo.get('unidad_id'), uf, registrados)
+        email_destino = ', '.join(destinos)
 
         html = _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf)
 
@@ -6201,7 +6282,7 @@ def api_liquidacion_enviar(lid):
                 periodo_display = liq.get('periodo', '')
                 mensaje = {
                     'from': from_email,
-                    'to': [email_destino],
+                    'to': destinos,
                     'subject': (
                         # El asunto distingue la complementaria: es lo primero que ve el
                         # vecino y con el mismo texto los dos mails se confunden entre sí.
