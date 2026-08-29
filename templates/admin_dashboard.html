@@ -251,6 +251,7 @@
         .tbl td { padding: 9px 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
         .tbl tbody tr:last-child td { border-bottom: none; }
         .tbl tbody tr:hover { background: var(--surface2); }
+        .row-link { cursor: pointer; }
         .tbl-empty { text-align: center; color: var(--muted); padding: 32px; font-size: .84rem; }
 
         /* Los iconos inline necesitan aire: sin esto quedan pegados al texto. */
@@ -1955,15 +1956,19 @@ async function loadConsorcios() {
 function renderConsorcios() {
     const tb = $('tbody-consorcios');
     if (!consorcios.length) { tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">No hay consorcios todavía. Creá el primero o usá "Carga masiva" para cargar varios de una.</td></tr>'; return; }
+    /* La fila entera abre el detalle. El botón "Ver UFs" era un blanco de 60px
+       dentro de una fila de mil: si el consorcio se toca para ver sus unidades,
+       lo que se toca es el consorcio. Editar y borrar frenan la propagación,
+       que son las dos acciones que no querés disparar de rebote. */
     tb.innerHTML = consorcios.map(c => `
-        <tr>
+        <tr class="row-link" onclick="openDetail('${c.id}','${escHtml(c.nombre)}','${escHtml(c.direccion||'')}')"
+            title="Ver las unidades funcionales de ${escHtml(c.nombre)}">
             <td><strong>${escHtml(c.nombre)}</strong></td>
             <td class="text-muted">${escHtml(c.direccion||'—')}</td>
             <td class="text-muted">${escHtml(c.cuit||'—')}</td>
             <td>${c.unidades_totales||'—'}</td>
             <td class="text-muted">${escHtml(c.encargado_nombre||'—')}</td>
-            <td><div class="inline-actions">
-                <button class="btn-s btn-sm" onclick="openDetail('${c.id}','${escHtml(c.nombre)}','${escHtml(c.direccion||'')}')">Ver UFs</button>
+            <td><div class="inline-actions" onclick="event.stopPropagation()">
                 <button class="btn-s btn-sm" onclick="openConsorioModal('${c.id}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button>
                 <button class="btn-danger btn-sm" onclick="deleteConsorcio('${c.id}','${escHtml(c.nombre)}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
             </div></td>
