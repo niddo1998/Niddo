@@ -33,16 +33,60 @@
         if (!isMobile()) return;
         var tb = document.getElementById(tbodyId);
         if (!tb || !data) return;
+        var list = listaDe(tb);
+        if (!list) return;
+        list.innerHTML = data.length
+            ? data.map(mapper).join('')
+            : '<div class="nd-row-empty">' + vacioDe(tb) + '</div>';
+        vigilarVacio(tb);
+    };
+
+    /* La lista vive al lado de la tabla que reemplaza, dentro de la misma
+       tarjeta: así la regla de CSS que esconde la tabla puede preguntar por
+       ella con :has() y el par nunca se separa. */
+    function listaDe(tb) {
         var wrap = tb.closest('.card') || tb.closest('.table-wrap') || tb.parentNode.parentNode;
-        if (!wrap) return;
-        var list = wrap.querySelector('.nd-list');
+        if (!wrap) return null;
+        var list = wrap.querySelector(':scope > .nd-list');
         if (!list) {
             list = document.createElement('div');
             list.className = 'nd-list';
             wrap.appendChild(list);
         }
-        list.innerHTML = data.map(mapper).join('');
-    };
+        return list;
+    }
+
+    /* El texto del vacío lo escribe el template en su fila `.tbl-empty` —"Sin
+       morosos", "Todavía no mandaste ninguno"—. Leerlo de ahí evita tener el
+       mismo mensaje escrito dos veces y que uno de los dos envejezca. */
+    function vacioDe(tb) {
+        var celda = tb.querySelector('.tbl-empty');
+        var txt = celda && celda.textContent.trim();
+        return txt ? txt : 'Nada para mostrar';
+    }
+
+    /* Los renderers del template salen temprano cuando no hay datos: escriben
+       la fila `.tbl-empty` en el <tbody> y nunca llaman a renderList. Sin
+       esto, la lista de la carga anterior se queda colgada mostrando filas
+       que ya no existen —cambiás el filtro, no hay resultados, y en el
+       teléfono seguís viendo los de antes—.
+
+       Observamos el <tbody>: cuando lo único que queda adentro es el vacío,
+       el espejo de mobile se vacía con él. Una sola vez por tabla; el
+       observer sobrevive a los innerHTML porque escucha al <tbody>, que no
+       se reemplaza nunca. */
+    var vigilados = {};
+
+    function vigilarVacio(tb) {
+        if (vigilados[tb.id]) return;
+        vigilados[tb.id] = true;
+        new MutationObserver(function () {
+            if (!tb.querySelector('.tbl-empty')) return;
+            var list = tb.closest('.card, .table-wrap');
+            list = list && list.querySelector(':scope > .nd-list');
+            if (list) list.innerHTML = '<div class="nd-row-empty">' + vacioDe(tb) + '</div>';
+        }).observe(tb, { childList: true });
+    }
 
     if (!isMobile()) return;
 
@@ -100,6 +144,15 @@
         var original = window[navFn];
         if (typeof original !== 'function') return;
         window[navFn] = function (name) {
+            /* Cambiar de sección es salir de cualquier flujo en el que
+               estuvieras. Sin esto, entrar al cierre de mes o a una
+               conversación y después tocar un destino de la tab bar dejaba
+               el botón de la esquina como "←", apuntando de vuelta a un
+               flujo que ya no está en pantalla. Los flujos vuelven a
+               declarar su back cuando el usuario entra, así que resetear
+               acá no le saca el atrás a nadie que lo esté usando. */
+            NiddoMobile.setBack(null);
+
             /* show(id, el) usa el segundo argumento para marcar el nav-link
                del sidebar. Desde la tab bar no hay elemento; la función ya
                hace `if (el)`, así que pasar undefined es seguro, y en mobile
@@ -675,6 +728,31 @@
             });
         }
     }
+
+    /* ── Auditoría de cobertura ───────────────────────────────────────────
+       Una tabla de escritorio visible en un teléfono no rompe nada: se
+       contiene sola en su caja y scrollea. Por eso el problema se acumuló
+       en silencio —cada feature nueva escribía su <tbody> y en mobile
+       aparecía como escritorio sin que nada avisara—.
+
+       Esto lo hace ruidoso del lado del desarrollo. El test
+       tests/test_cobertura_mobile.py hace la misma pregunta sobre los
+       templates, que es lo que corta un commit; esto sirve para mirarlo en
+       vivo cuando la tabla se llena por API. */
+    NiddoMobile.auditarTablas = function () {
+        var sueltas = [];
+        var tablas = document.querySelectorAll('table');
+        for (var i = 0; i < tablas.length; i++) {
+            var t = tablas[i];
+            if (getComputedStyle(t).display === 'none') continue;
+            if (t.closest('.nd-keep-table')) continue;
+            var caja = t.closest('.card, .table-wrap');
+            if (caja && caja.querySelector(':scope > .nd-list')) continue;
+            var tb = t.querySelector('tbody[id]');
+            sueltas.push(tb ? tb.id : (t.id || '(tabla sin id)'));
+        }
+        return sueltas;
+    };
 
     document.addEventListener('DOMContentLoaded', function () {
         wrapNav();

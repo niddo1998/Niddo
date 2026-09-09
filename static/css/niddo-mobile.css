@@ -563,6 +563,72 @@
         letter-spacing: -.01em; flex-shrink: 0;
     }
 
+    /* El punto de estado lo definía sólo el <style> del vecino, así que las
+       filas de admin lo escribían y no se veía nada. Vive acá, que es donde
+       vive la fila que lo usa. */
+    .nd-mobile .nd-row-s .dot {
+        width: 8px; height: 8px; border-radius: 50%;
+        display: inline-block; flex-shrink: 0;
+        background: var(--muted);
+    }
+    .nd-mobile .nd-row-s .dot.ok     { background: var(--nd-verde); }
+    .nd-mobile .nd-row-s .dot.pending{ background: var(--nd-amarillo); }
+    .nd-mobile .nd-row-s .dot.danger { background: var(--nd-terracota-hondo); }
+    .nd-mobile .nd-row-s .dot.muted  { background: var(--muted); }
+
+    /* Cola de la fila. Una fila muestra importe, o estado, o las dos cosas
+       apiladas, o un chevron si lo único que hace es abrir el detalle.
+       Se apilan a la derecha para que los importes queden alineados entre sí
+       aunque la de al lado no tenga. */
+    .nd-row-end {
+        display: flex; flex-direction: column; align-items: flex-end;
+        gap: 4px; flex-shrink: 0;
+    }
+    .nd-row-end .b { font-size: .64rem; }
+
+    /* El chevron dice "esto empuja a otra pantalla". Sin él, una fila sin
+       importe no se distingue de un renglón muerto. */
+    .nd-row-go {
+        width: 18px; height: 18px; flex-shrink: 0;
+        color: var(--border);
+    }
+    .nd-row-go .ic { width: 18px; height: 18px; }
+
+    /* Fila de dos renglones para lo que no entra en título + subtítulo:
+       el último mensaje de un hilo, el cuerpo de un comunicado. */
+    .nd-row-x {
+        display: block; font-size: .79rem; color: var(--muted);
+        font-weight: 500; margin-top: 3px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* Contador de no leídos. Mismo lugar que el importe, distinta forma:
+       redondo, lleno, para que se lea como notificación y no como dato. */
+    .nd-row-n {
+        min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
+        background: var(--nd-terracota); color: #fff;
+        font-size: .68rem; font-weight: 800;
+        display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Cabecera de una lista agrupada: separa "Vencidas" de "Al día" sin
+       gastar una tarjeta entera en el corte. */
+    .nd-row-h {
+        padding: 14px 16px 6px;
+        font-size: .72rem; font-weight: 800; letter-spacing: .08em;
+        text-transform: uppercase; color: var(--muted);
+        background: var(--surface);
+    }
+
+    /* Vacío. La tabla se esconde siempre en mobile, así que sin esto una
+       lista sin datos deja la tarjeta muda —que es exactamente el bug que
+       tenía "Pagos que informaste" en el panel del vecino. */
+    .nd-row-empty {
+        padding: 26px 16px; text-align: center;
+        font-size: .84rem; color: var(--muted); font-weight: 600;
+        background: var(--surface);
+    }
+
     /* ── Snackbars ───────────────────────────────────────────────────────
        En escritorio los toasts van abajo a la derecha; acá eso los mete
        debajo de la tab bar, donde no se ven. */
@@ -635,6 +701,50 @@
                  calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
         min-height: 100dvh;
     }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       Panel de dueños (superadmin)
+
+       Nunca había entrado al lenguaje: no tenía tab bar, ni cajón, ni título
+       grande, y su nav de arriba medía 587px en una pantalla de 375 —Auditoría
+       y Mapa quedaban fuera de vista sin ninguna señal de que existían—.
+       No tiene tablas, así que lo que había que traer es la navegación.
+       ══════════════════════════════════════════════════════════════════════ */
+
+    /* La nav de pestañas la reemplazan la tab bar y el cajón.
+
+       Va con `nav.tabs` y no con `.tabs` a secas: admin usa esa misma clase
+       para sus sub-pestañas internas —Morosidad, Comunicados, los cuatro
+       pasos del cierre de mes—, que son <div> y tienen que seguir viéndose.
+       Esconderlas a todas dejó Comunicación sin forma de llegar a Mensajes
+       ni a Comunicados. */
+    .nd-mobile nav.tabs { display: none; }
+
+    /* Su topbar es sticky y de una fila; la fundación la vuelve columna para
+       meterle la fila del título y el título grande. El link "Mi panel" se va
+       al ángulo, donde admin pone sus topbar-btn. */
+    .nd-mobile .topbar .mark { display: none; }
+    .nd-mobile .topbar > h1 { display: none; }
+    .nd-mobile .topbar > .accion {
+        position: absolute; top: calc(var(--safe-top) + 6px); right: 12px;
+        min-height: 44px; display: flex; align-items: center;
+        font-size: .82rem; font-weight: 700;
+    }
+    .nd-mobile .contenido {
+        max-width: none;
+        padding: 12px 16px calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
+    }
+
+    /* Las fichas son la fila de lista de esta pantalla: mismo alto mínimo y
+       mismo target que .nd-row, para que se sienta la misma app. */
+    .nd-mobile .ficha { min-height: 60px; padding: 14px 16px; }
+    .nd-mobile .ficha .acciones .btn { min-height: 44px; }
+    .nd-mobile .buscador { min-height: 44px; }
+
+    /* El gráfico de 12 meses tiene viewBox de 720 de ancho: a 375 se aplasta
+       y las series se pisan. Se lo deja scrollear con su ancho real. */
+    .nd-mobile .panel > .grafico { min-width: 520px; }
+    .nd-mobile .panel:has(> .grafico) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
     /* La bottom-nav no existe en el CSS de admin: se declara acá porque sólo
        tiene sentido en mobile. */
@@ -763,6 +873,44 @@
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
+
+    /* ── Chat de Comunicación ─────────────────────────────────────────────
+       En escritorio es una grilla de 300px + 1fr. Acá son dos pantallas: la
+       lista de conversaciones, y la conversación empujada encima con el
+       botón de atrás en la app bar. El template ya colapsaba la grilla a una
+       columna a 900px, pero eso apilaba lista y chat —34vh de hilos arriba
+       de 62vh de mensajes— y no entraba nada. */
+    .nd-mobile .chat-layout { display: block; }
+    .nd-mobile .chat-hilos { max-height: none; }
+    .nd-mobile .chat-panel { display: none; }
+
+    .nd-mobile .chat-layout.nd-chat-abierto .chat-hilos { display: none; }
+
+    /* La conversación abierta ocupa la pantalla entera entre la app bar y la
+       tab bar. Va fija y no en el flujo: restarle a 100vh un alto fijo no
+       alcanzaba, porque el panel arranca más abajo —hay sub-pestañas y
+       filtros arriba— y la caja de escribir terminaba 110px por debajo del
+       borde, tapada por la tab bar. Fija, el borde de abajo es el borde de
+       abajo y los mensajes scrollean entre medio, como cualquier chat. */
+    .nd-mobile .chat-layout.nd-chat-abierto .chat-panel {
+        display: flex;
+        position: fixed;
+        left: 0; right: 0;
+        top: calc(var(--safe-top) + 96px);
+        bottom: calc(var(--tabbar-h) + var(--safe-bottom));
+        z-index: 500;
+        margin: 0; border-radius: 0; border-left: none; border-right: none;
+        min-height: 0; max-height: none;
+    }
+    .nd-mobile .chat-layout.nd-chat-abierto .chat-mensajes { flex: 1; min-height: 0; }
+    /* Los filtros de arriba pertenecen a la lista, no a la conversación. */
+    .nd-mobile #tab-com-mensajes:has(.nd-chat-abierto) > .filters { display: none; }
+
+    /* La fila del hilo es una fila de lista más: mismo alto, mismo target. */
+    .nd-mobile .hilo-row { min-height: 60px; padding: 12px 16px; }
+    .nd-mobile .hilo-av { width: 40px; height: 40px; border-radius: 13px; }
+    .nd-mobile .hilo-t { font-size: .93rem; }
+    .nd-mobile .chat-fila textarea { min-height: 44px; }
 
     /* ── Barrido final ───────────────────────────────────────────────────── */
 
