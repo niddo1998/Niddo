@@ -2,12 +2,56 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Plataforma | Niddo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-mobile.css') }}">
+    <script>
+    /* El panel de dueños entra al mismo lenguaje que admin y vecino. Sus
+       secciones ya se llamaban sec-*, así que sólo hay que darle a la
+       fundación el nombre de la función que navega. */
+    window.NIDDO_MOBILE_CONFIG = {
+        navFn: 'mostrarSeccion',
+        sectionPrefix: 'sec-',
+        headerSelector: '.topbar',
+        defaultSection: 'hoy',
+        tabOf: {
+            hoy: 'hoy', aprobaciones: 'aprobaciones',
+            administradores: 'admins', vecinos: 'vecinos',
+            auditoria: 'mas'
+        },
+        titles: {
+            hoy: 'Hoy', aprobaciones: 'Aprobaciones',
+            administradores: 'Administradores', vecinos: 'Vecinos',
+            auditoria: 'Auditoría'
+        },
+        /* Cinco secciones más el mapa no entran en una tab bar. Mismo reparto
+           que en admin: los cuatro destinos que se usan todos los días abajo,
+           el índice completo en el cajón. */
+        drawer: {
+            brand: 'nidd',
+            groups: [
+                { label: 'Plataforma', items: [
+                    { section: 'hoy',            label: 'Hoy',             icon: 'ic-panel' },
+                    { section: 'aprobaciones',   label: 'Aprobaciones',    icon: 'ic-pendiente' }
+                ]},
+                { label: 'Cuentas', items: [
+                    { section: 'administradores', label: 'Administradores', icon: 'ic-proveedor' },
+                    { section: 'vecinos',         label: 'Vecinos',         icon: 'ic-vecino' }
+                ]},
+                { label: 'Sistema', items: [
+                    { section: 'auditoria',       label: 'Auditoría',       icon: 'ic-ojo' },
+                    { href: '{{ url_for("superadmin_mapa") }}', label: 'Mapa', icon: 'ic-carpeta' },
+                    { href: '/dashboard/admin',   label: 'Mi panel',        icon: 'ic-salir' }
+                ]}
+            ]
+        }
+    };
+    </script>
+    <script src="{{ url_for('static', filename='js/niddo-mobile.js') }}" defer></script>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: var(--nd-crema); min-height: 100vh; }
@@ -235,6 +279,15 @@
         <a class="tab" href="{{ url_for('superadmin_mapa') }}">Mapa</a>
     </nav>
 
+    <!-- La tab bar del teléfono. En escritorio la esconde niddo-mobile.css y
+         manda la nav de arriba, que es la que ya estaba. -->
+    <nav class="bottom-nav nd-tabbar">
+        <button class="bottom-btn active" data-tab="hoy" onclick="mostrarSeccion('hoy')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-panel"></use></svg></span><span>Hoy</span></button>
+        <button class="bottom-btn" data-tab="aprobaciones" onclick="mostrarSeccion('aprobaciones')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-pendiente"></use></svg></span><span>Aprobar</span></button>
+        <button class="bottom-btn" data-tab="admins" onclick="mostrarSeccion('administradores')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-proveedor"></use></svg></span><span>Admins</span></button>
+        <button class="bottom-btn" data-tab="vecinos" onclick="mostrarSeccion('vecinos')"><span class="bottom-btn-icon"><svg class="ic"><use href="#ic-vecino"></use></svg></span><span>Vecinos</span></button>
+    </nav>
+
     <div class="contenido">
         <!-- ══ HOY ══ -->
         <section class="seccion" id="sec-hoy">
@@ -341,12 +394,22 @@
     /* ══ Navegación ══ */
     // Solo los tabs con data-sec cambian de sección; el de "Mapa" es un link
     // a otra pantalla y engancharlo acá escondería todo justo antes de navegar.
-    document.querySelectorAll('.tab[data-sec]').forEach((t) => t.addEventListener('click', () => {
-        document.querySelectorAll('.tab[data-sec]').forEach((x) => x.classList.toggle('activa', x === t));
-        document.querySelectorAll('.seccion').forEach((s) => { s.hidden = s.id !== 'sec-' + t.dataset.sec; });
+    /* Con nombre y en el scope global porque la fundación mobile la envuelve
+       para mover la tab bar, el título y el cajón junto con la sección. El
+       handler de los tabs de escritorio pasa a llamarla también, así hay un
+       solo camino para cambiar de sección. */
+    window.mostrarSeccion = function (sec) {
+        document.querySelectorAll('.tab[data-sec]').forEach((x) => x.classList.toggle('activa', x.dataset.sec === sec));
+        document.querySelectorAll('.seccion').forEach((s) => { s.hidden = s.id !== 'sec-' + sec; });
         // Cada sección se trae la primera vez que se abre: el tablero pide cinco
         // tablas y no tiene sentido pagarlas para mirar el registro de auditoría.
-        if (!cargado[t.dataset.sec]) { cargado[t.dataset.sec] = true; CARGAR[t.dataset.sec](); }
+        // Va acá y no en el handler del tab porque desde el teléfono se navega
+        // por la tab bar y por el cajón, que no pasan por ese click.
+        if (CARGAR[sec] && !cargado[sec]) { cargado[sec] = true; CARGAR[sec](); }
+    };
+
+    document.querySelectorAll('.tab[data-sec]').forEach((t) => t.addEventListener('click', () => {
+        mostrarSeccion(t.dataset.sec);
     }));
 
     /* ══ HOY ══ */
