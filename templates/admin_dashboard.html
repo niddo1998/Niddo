@@ -2447,6 +2447,21 @@ function renderConsorcios() {
                 <button class="btn-danger btn-sm" onclick="deleteConsorcio('${c.id}','${escHtml(c.nombre)}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
             </div></td>
         </tr>`).join('');
+
+    /* La tabla tiene 6 columnas. En el teléfono la fila entera abre las
+       unidades del edificio —igual que en escritorio— y editar y borrar se
+       hacen desde adentro, que es donde ya vivían las acciones peligrosas. */
+    NiddoMobile.renderList('tbody-consorcios', consorcios, c => {
+        const uf = c.unidades_totales ? `${c.unidades_totales} unidades` : 'sin unidades';
+        return `<button class="nd-row" onclick="openDetail('${c.id}','${escHtml(c.nombre)}','${escHtml(c.direccion||'')}')">
+            <span class="nd-row-ic"><svg class="ic"><use href="#ic-edificio"></use></svg></span>
+            <span class="nd-row-main">
+                <span class="nd-row-t">${escHtml(c.nombre)}</span>
+                <span class="nd-row-s">${escHtml(c.direccion||'Sin dirección')} · ${uf}</span>
+            </span>
+            <span class="nd-row-go"><svg class="ic"><use href="#ic-chevron"></use></svg></span>
+        </button>`;
+    });
 }
 
 function populateConsorioSelects() {
@@ -2557,6 +2572,23 @@ async function loadUFs() {
                 </div></td>
             </tr>`;
         }).join('');
+
+        /* 7 columnas, dos de ellas listas de vecinos. En el teléfono importa
+           quién vive en la unidad, no su email ni los metros cuadrados. */
+        NiddoMobile.renderList('tbody-ufs', ufs, u => {
+            const vs = u.vecinos_vinculados || [];
+            const quien = vs.length
+                ? vs.map(v => escHtml(v.nombre || v.email || '—')).join(', ')
+                : (u.vecino_nombre ? escHtml(u.vecino_nombre) + ' (pre-cargado)' : 'Sin asignar');
+            return `<button class="nd-row" onclick="openUFModal('${u.id}')">
+                <span class="nd-row-ic ${vs.length ? 'ok' : ''}"><svg class="ic"><use href="#ic-vecino"></use></svg></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">UF ${escHtml(u.numero)}${u.piso ? ' · piso ' + escHtml(u.piso) : ''}</span>
+                    <span class="nd-row-s">${quien}</span>
+                </span>
+                <span class="nd-row-go"><svg class="ic"><use href="#ic-chevron"></use></svg></span>
+            </button>`;
+        });
     } catch(e) { toast(e.message,'err'); }
 }
 
@@ -2647,6 +2679,24 @@ async function loadPendingNeighbors() {
                 </td>
             </tr>`;
         }).join('');
+
+        /* Aprobar un vecino es la acción más frecuente del panel y la tabla
+           tiene 5 columnas. Acá la fila muestra quién es y qué unidad pidió,
+           y el botón —que es la decisión— queda a mano en la misma fila. */
+        NiddoMobile.renderList('tbody-vecinos-pendientes', list, v => {
+            const acc = v.unidad_solicitada
+                ? `<button class="btn-p btn-sm" onclick="event.stopPropagation();aprobarVecino('${v.id}')">Aprobar</button>`
+                : `<button class="btn-teal btn-sm" onclick="event.stopPropagation();openAsignarUFModal('${v.id}')">Elegir UF</button>`;
+            const pidio = v.unidad_solicitada ? 'Pidió la UF ' + escHtml(v.unidad_solicitada) : 'No supo cuál es su unidad';
+            return `<div class="nd-row" style="cursor:default">
+                <span class="nd-row-ic"><svg class="ic"><use href="#ic-vecino"></use></svg></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">${escHtml(v.nombre || v.email || '—')}</span>
+                    <span class="nd-row-s">${pidio}</span>
+                </span>
+                <span class="nd-row-end">${acc}</span>
+            </div>`;
+        });
     } catch(e) { toast(e.message, 'err'); }
 }
 
@@ -3893,6 +3943,30 @@ function renderAvisos() {
             <td><div class="inline-actions">${acciones}</div></td>
         </tr>`;
     }).join('');
+
+    /* 9 columnas para una pantalla que es, en el fondo, una bandeja de
+       aprobación: aceptar o rechazar. Las dos acciones van en la fila; el
+       comprobante se abre desde el ícono, que es lo único que hay que ver
+       antes de decidir. */
+    NiddoMobile.renderList('tbody-avisos', lista, a => {
+        const v = a.vecinos || {};
+        const fecha = a.created_at ? new Date(a.created_at).toLocaleDateString('es-AR') : '—';
+        const acc = a.estado === 'pendiente'
+            ? `<button class="btn-p btn-sm" onclick="event.stopPropagation();aceptarAviso('${a.id}')">Aceptar</button>`
+            : `<span class="b ${AVISO_BADGE[a.estado] || 'b-gr'}">${AVISO_LABEL[a.estado] || escHtml(a.estado)}</span>`;
+        const adj = a.adjunto_nombre
+            ? `<a class="nd-row-ic" style="text-decoration:none" target="_blank" onclick="event.stopPropagation()"
+                  href="/api/admin/avisos-pago/${a.id}/comprobante" aria-label="Ver comprobante"><svg class="ic"><use href="#ic-doc"></use></svg></a>`
+            : `<span class="nd-row-ic"><svg class="ic"><use href="#ic-cobro"></use></svg></span>`;
+        return `<div class="nd-row" style="cursor:default">
+            ${adj}
+            <span class="nd-row-main">
+                <span class="nd-row-t">${escHtml(v.nombre || v.email || '—')}${v.unidad ? ' · UF ' + escHtml(v.unidad) : ''}</span>
+                <span class="nd-row-s">${fmt(a.monto)} · ${escHtml(a.medio_pago || 'sin medio')} · ${fecha}</span>
+            </span>
+            <span class="nd-row-end">${acc}</span>
+        </div>`;
+    });
 }
 
 async function resolverAviso(aid, estado, cobroId) {
@@ -4035,6 +4109,24 @@ async function loadMora() {
                 <td>${statusBadge(c.estado)}</td>
                 <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${interes.toFixed(2)}','')"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg>Actualizar</button></td>
             </tr>`;}).join('');
+
+        /* 10 columnas. Lo que se mira de un moroso en el teléfono es quién es,
+           cuánto debe con el interés puesto y hace cuánto que debe. El resto
+           está en el modal, al que se llega tocando la fila. */
+        NiddoMobile.renderList('tbody-mora', data, c => {
+            const uf = c.unidades_funcionales||{};
+            const vto = c.fecha_vencimiento ? new Date(c.fecha_vencimiento) : null;
+            const dias = vto ? Math.max(0,Math.ceil((today-vto)/(1000*60*60*24))) : 0;
+            const interes = (c.monto_base||0)*tasaDe(c.consorcio_id)/100*dias;
+            return `<button class="nd-row" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${interes.toFixed(2)}','')">
+                <span class="nd-row-ic"><svg class="ic"><use href="#ic-alerta"></use></svg></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">${escHtml(uf.numero||'–')} · ${escHtml(uf.vecino_nombre||'Sin vecino')}</span>
+                    <span class="nd-row-s"><span class="dot danger"></span>${c.periodo||'–'} · ${dias} días · +${fmt(interes)}</span>
+                </span>
+                <span class="nd-row-amt">${fmt((c.monto_base||0)+interes)}</span>
+            </button>`;
+        });
     } catch(e) { toast(e.message,'err'); }
 }
 
@@ -4116,6 +4208,29 @@ async function loadBalance() {
         $('tbody-bal-gastos').innerHTML = d.gastos.length
             ? d.gastos.map(g=>`<tr><td>${escHtml((g.consorcios||{}).nombre||'—')}</td><td>${escHtml(g.descripcion||'—')}</td><td>${escHtml(g.categoria||'—')}</td><td>${fmt(g.monto)}</td></tr>`).join('')
             : '<tr><td colspan="4" class="tbl-empty">Sin egresos</td></tr>';
+
+        /* Balance es la única pantalla donde las dos tablas son cortas —3 y 4
+           columnas— pero igual entran mal: el nombre del consorcio se come el
+           ancho y el importe queda cortado. */
+        NiddoMobile.renderList('tbody-bal-cobros', d.cobros, c => `
+            <div class="nd-row" style="cursor:default">
+                <span class="nd-row-ic ok"><svg class="ic"><use href="#ic-cobro"></use></svg></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">${escHtml((c.consorcios||{}).nombre||'—')}</span>
+                    <span class="nd-row-s">${c.periodo||'—'}</span>
+                </span>
+                <span class="nd-row-amt" style="color:var(--nd-verde)">${fmt(c.total)}</span>
+            </div>`);
+
+        NiddoMobile.renderList('tbody-bal-gastos', d.gastos, g => `
+            <div class="nd-row" style="cursor:default">
+                <span class="nd-row-ic"><svg class="ic"><use href="#ic-expensa"></use></svg></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">${escHtml(g.descripcion||'—')}</span>
+                    <span class="nd-row-s">${escHtml((g.consorcios||{}).nombre||'—')} · ${escHtml(g.categoria||'sin categoría')}</span>
+                </span>
+                <span class="nd-row-amt">${fmt(g.monto)}</span>
+            </div>`);
     } catch(e) { toast(e.message,'err'); }
 }
 
@@ -4180,6 +4295,19 @@ function renderAmenities() {
             </td>
         </tr>
     `).join('');
+
+    NiddoMobile.renderList('tbody-amenities', loadedAmenities, a => {
+        const cap = a.capacidad_maxima ? a.capacidad_maxima + ' personas' : 'Sin límite';
+        const tope = a.max_reservas_mes ? a.max_reservas_mes + '/mes' : 'sin tope';
+        return `<button class="nd-row" onclick="openAmenityModal('${a.id}')">
+            <span class="nd-row-ic"><svg class="ic"><use href="#ic-reserva"></use></svg></span>
+            <span class="nd-row-main">
+                <span class="nd-row-t">${escHtml(a.nombre)}</span>
+                <span class="nd-row-s">${cap} · ${tope}</span>
+            </span>
+            <span class="nd-row-go"><svg class="ic"><use href="#ic-chevron"></use></svg></span>
+        </button>`;
+    });
 }
 
 function renderAmenitiesReservations() {
@@ -4201,6 +4329,26 @@ function renderAmenitiesReservations() {
             </td>
         </tr>
     `).join('');
+
+    /* 7 columnas. Una reserva es un amenity, un día y una franja: eso entra
+       en dos renglones. Cancelar sigue estando, porque es la única acción
+       que el administrador hace desde acá. */
+    NiddoMobile.renderList('tbody-amenities-reservations', loadedReservations, r => {
+        const v = r.vecinos || {};
+        const activa = r.estado === 'confirmada';
+        const acc = activa
+            ? `<button class="btn-danger btn-sm" onclick="cancelReservaAdmin('${r.id}')">Cancelar</button>`
+            : statusBadge(r.estado);
+        return `<div class="nd-row" style="cursor:default">
+            <span class="nd-row-ic ${activa ? 'ok' : ''}"><svg class="ic"><use href="#ic-reserva"></use></svg></span>
+            <span class="nd-row-main">
+                <span class="nd-row-t">${escHtml((r.amenities||{}).nombre || '—')}</span>
+                <span class="nd-row-s">${r.fecha} · ${r.hora_inicio.substring(0,5)}–${r.hora_fin.substring(0,5)}</span>
+                <span class="nd-row-x">${escHtml(v.nombre || 'Administración')}${v.unidad ? ' · UF ' + escHtml(v.unidad) : ''}</span>
+            </span>
+            <span class="nd-row-end">${acc}</span>
+        </div>`;
+    });
 }
 
 function openAmenityModal(id) {
@@ -4333,6 +4481,27 @@ async function loadLiquidaciones() {
                     ${l.estado==='borrador'?`<button class="btn-danger btn-sm" onclick="deleteLiquidacion('${l.id}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>`:''}
                 </div></td>
             </tr>`;}).join('');
+
+        /* La fila entera abre el detalle, que es a donde iba el botón "Ver
+           detalle" de la tabla. El saldo va de color como en escritorio: es
+           el dato que hace mirar la fila. */
+        NiddoMobile.renderList('tbody-liquidaciones', data, l => {
+            const rev = l.numero_revision || 1;
+            const eb = l.estado === 'publicada' ? 'b-g' : l.estado === 'cerrada' ? 'b-gr' : 'b-y';
+            const el = l.estado === 'publicada' ? 'Publicada' : l.estado === 'cerrada' ? 'Cerrada' : 'Borrador';
+            const saldo = l.saldo_final || 0;
+            return `<button class="nd-row" onclick="openLiqDetail('${l.id}')">
+                <span class="nd-row-ic ${l.estado === 'publicada' ? 'ok' : ''}"><svg class="ic"><use href="#ic-liquidacion"></use></svg></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">${l.periodo}${rev > 1 ? ' · rev. ' + rev : ''}</span>
+                    <span class="nd-row-s">${escHtml((l.consorcios||{}).nombre||'—')} · ${fmt(l.total_egresos)} de egresos</span>
+                </span>
+                <span class="nd-row-end">
+                    <span class="nd-row-amt" style="color:${saldo >= 0 ? 'var(--nd-verde)' : 'var(--nd-terracota-hondo)'}">${fmt(saldo)}</span>
+                    <span class="b ${eb}">${el}</span>
+                </span>
+            </button>`;
+        });
     } catch(e) { toast(e.message,'err'); }
 }
 
@@ -4631,6 +4800,22 @@ async function loadRubros() {
                 <td><strong>${fmt(r.subtotal)}</strong></td>
                 <td><span class="b b-p">${r.porcentaje_sobre_total}%</span></td>
             </tr>`;}).join('');
+
+        /* El rubro es un subtotal con su porcentaje sobre el total: eso se
+           lee en una fila. El desglose de items iba en un div con scroll
+           propio adentro de una celda —en un teléfono eso es scroll dentro
+           de scroll dentro de scroll—, así que pasa al segundo renglón. */
+        NiddoMobile.renderList('tbody-rubros', rubros, r => {
+            const n = (r.items||[]).length;
+            return `<div class="nd-row" style="cursor:default">
+                <span class="nd-row-ic"><svg class="ic"><use href="#ic-balance"></use></svg></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">${r.numero_rubro}. ${escHtml(r.nombre)}</span>
+                    <span class="nd-row-s">${n} ${n === 1 ? 'item' : 'items'} · ${r.porcentaje_sobre_total}% del total</span>
+                </span>
+                <span class="nd-row-amt">${fmt(r.subtotal)}</span>
+            </div>`;
+        });
     } catch(e) { toast(e.message,'err'); }
 }
 
@@ -4741,6 +4926,25 @@ async function loadEnvios() {
                 <td class="text-muted">${fecha}</td>
                 <td class="text-muted text-sm">${e.error_detalle||'—'}</td>
             </tr>`;}).join('');
+
+        /* Lo que se mira después de mandar los resúmenes es qué falló. El
+           detalle del error va en el segundo renglón, que es donde único
+           tiene lugar para leerse. */
+        NiddoMobile.renderList('tbody-envios', data, e => {
+            const uf = e.unidades_funcionales || {};
+            const estadoMap = {enviado:'b-g',leido:'b-b',fallido:'b-r',pendiente:'b-y'};
+            const ok = e.estado === 'enviado' || e.estado === 'leido';
+            const fecha = e.fecha_envio ? new Date(e.fecha_envio).toLocaleString('es-AR') : '—';
+            return `<div class="nd-row" style="cursor:default">
+                <span class="nd-row-ic ${ok ? 'ok' : ''}"><svg class="ic"><use href="#ic-mail"></use></svg></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">UF ${escHtml(uf.numero||'—')} · ${escHtml(uf.vecino_nombre||'—')}</span>
+                    <span class="nd-row-s">${escHtml(e.email_destino||'—')} · ${fecha}</span>
+                    ${e.error_detalle ? `<span class="nd-row-x">${escHtml(e.error_detalle)}</span>` : ''}
+                </span>
+                <span class="nd-row-end"><span class="b ${estadoMap[e.estado]||'b-gr'}">${e.estado}</span></span>
+            </div>`;
+        });
     } catch(e) { toast(e.message,'err'); }
 }
 
@@ -4981,6 +5185,9 @@ function actualizarBadgeMensajes() {
 
 function renderHilos() {
     const cont = $('lista-hilos');
+    /* Si el hilo se cerró por afuera (cambió el filtro, se recargó la lista),
+       el botón de atrás no puede quedar colgado apuntando a nada. */
+    if (!hiloAbierto) chatPush(false);
     $('mensajes-count-label').textContent = hilos.length
         ? `${hilos.length} conversación${hilos.length === 1 ? '' : 'es'}` : '';
 
@@ -5011,9 +5218,26 @@ function renderHilos() {
     }).join('');
 }
 
+/* En el teléfono el chat no es una grilla de dos columnas: es la lista, y
+   tocar un hilo empuja la conversación encima, con el botón de atrás donde
+   está siempre. Es la misma navegación push que usa el vecino. */
+function chatPush(abierto) {
+    const layout = document.querySelector('#tab-com-mensajes .chat-layout');
+    if (!layout || !window.NiddoMobile || !NiddoMobile.isMobile()) return;
+    layout.classList.toggle('nd-chat-abierto', abierto);
+    NiddoMobile.setBack(abierto ? chatVolver : null);
+}
+
+function chatVolver() {
+    hiloAbierto = null;
+    chatPush(false);
+    renderHilos();
+}
+
 async function abrirHilo(vid) {
     hiloAbierto = vid;
     renderHilos();
+    chatPush(true);
     $('chat-mensajes').innerHTML = '<div class="tbl-empty">Cargando...</div>';
     $('chat-escribir').style.display = '';
     try {
@@ -5163,6 +5387,22 @@ function renderComunicados() {
             </div></td>
         </tr>`;
     }).join('');
+
+    /* Un comunicado se lee: título, a qué edificio fue y cuántos lo vieron.
+       Borrar no va en la fila —es destructivo y no se toca de rebote. */
+    NiddoMobile.renderList('tbody-comunicados', comunicados, c => {
+        const con = consorcios.find(x => x.id === c.consorcio_id);
+        const fecha = c.created_at ? new Date(c.created_at).toLocaleDateString('es-AR') : '—';
+        const cuerpo = (c.cuerpo || '').length > 90 ? c.cuerpo.slice(0, 90) + '…' : (c.cuerpo || '');
+        return `<div class="nd-row" style="cursor:default">
+            <span class="nd-row-ic"><svg class="ic"><use href="#ic-megafono"></use></svg></span>
+            <span class="nd-row-main">
+                <span class="nd-row-t">${escHtml(c.titulo || '')}${c.importante ? ' <span class="b b-y">Importante</span>' : ''}</span>
+                <span class="nd-row-s">${escHtml(con ? con.nombre : '—')} · ${fecha}${c.leidos != null ? ' · ' + c.leidos + ' leídos' : ''}</span>
+                <span class="nd-row-x">${escHtml(cuerpo)}</span>
+            </span>
+        </div>`;
+    });
 }
 
 function openComunicadoModal() {
@@ -5239,6 +5479,27 @@ function renderReclamos() {
             <td><button class="btn-s btn-xs" onclick="abrirReclamo('${r.id}')">Atender</button></td>
         </tr>`;
     }).join('');
+
+    /* 7 columnas para lo que en el teléfono es una bandeja: qué reclamaron,
+       quién y en qué estado está. Atender es la fila entera —el botón de
+       60px dentro de una fila de mil era el mismo problema que ya se había
+       arreglado en el listado de edificios. */
+    NiddoMobile.renderList('tbody-reclamos', reclamosCargados, r => {
+        const v = r.vecinos || {}; const con = r.consorcios || {};
+        const fecha = r.created_at ? new Date(r.created_at).toLocaleDateString('es-AR') : '—';
+        const quien = escHtml(v.nombre || v.email || '—') + (v.unidad ? ' · UF ' + escHtml(v.unidad) : '');
+        return `<button class="nd-row" onclick="abrirReclamo('${r.id}')">
+            <span class="nd-row-ic"><svg class="ic"><use href="#ic-alerta"></use></svg></span>
+            <span class="nd-row-main">
+                <span class="nd-row-t">${escHtml(r.titulo)}${r.adjunto_nombre ? ' <svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>' : ''}</span>
+                <span class="nd-row-s">${quien}</span>
+                <span class="nd-row-x">${escHtml(con.nombre || '—')} · ${escHtml(r.categoria || 'sin categoría')} · ${fecha}</span>
+            </span>
+            <span class="nd-row-end">
+                <span class="b ${RECLAMO_BADGE[r.estado] || 'b-gy'}">${escHtml(r.estado)}</span>
+            </span>
+        </button>`;
+    });
 }
 
 /* El vecino no puede seguir esperando un reclamo que nadie miró: el contador
