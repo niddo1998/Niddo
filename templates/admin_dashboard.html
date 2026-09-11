@@ -122,6 +122,9 @@
             border-radius: 16px; font-weight: 700;
             background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo);
         }
+        /* Reclamos en terracota, mensajes en verde: dos contadores en la misma entrada. */
+        .badge-count.msj { background: var(--nd-verde); color: var(--nd-crema); }
+        .badge-count + .badge-count { margin-left: 4px; }
         .sidebar-footer { padding: 8px 6px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 3px; }
         .btn-sidebar {
             background: transparent; color: var(--muted); border: none;
@@ -446,6 +449,20 @@
         .toast-msg.info { background: var(--nd-verde); }
         /* El amarillo no admite texto blanco (1.82:1): va con tinta. */
         .toast-msg.warn { background: var(--nd-amarillo); color: var(--nd-tinta-calida); }
+        /* El aviso de mensaje nuevo: a diferencia del toast, dura más y tiene a
+           dónde ir. */
+        .toast-aviso { display: flex; align-items: center; gap: 10px; width: 340px; max-width: calc(100vw - 32px);
+                       background: var(--surface); color: var(--text); border: 1px solid var(--border);
+                       border-left: 4px solid var(--nd-verde); border-radius: 14px; padding: 10px 8px 10px 12px;
+                       box-shadow: var(--shadow-window); animation: toastIn .25s ease; }
+        .toast-aviso .ta-ic { color: var(--nd-verde); display: flex; flex-shrink: 0; }
+        .toast-aviso .ta-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .toast-aviso .ta-t { font-size: .82rem; font-weight: 700; }
+        .toast-aviso .ta-s { font-size: .78rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .toast-aviso .ta-ver { background: var(--nd-verde); color: var(--nd-crema); border: none; border-radius: 10px;
+                               padding: 6px 12px; font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
+        .toast-aviso .ta-x { background: none; border: none; color: var(--muted); font-size: 1.1rem; line-height: 1;
+                             cursor: pointer; padding: 4px; }
         @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-8px); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -520,7 +537,7 @@
         <a class="nav-link" onclick="show('balance',this)"><svg class="ic"><use href="#ic-balance"></use></svg>Balance</a>
 
         <div class="nav-section-label">Comunicación</div>
-        <a class="nav-link" onclick="show('comunicacion',this)"><svg class="ic"><use href="#ic-mensaje"></use></svg>Comunicación <span class="badge-count" id="nav-badge-reclamos" style="display:none"></span></a>
+        <a class="nav-link" onclick="show('comunicacion',this)"><svg class="ic"><use href="#ic-mensaje"></use></svg>Comunicación <span class="badge-count" id="nav-badge-reclamos" style="display:none" title="Reclamos sin atender"></span><span class="badge-count msj" id="nav-badge-mensajes" style="display:none" title="Mensajes sin leer"></span></a>
 
         <div class="nav-section-label">Sistema</div>
         <a class="nav-link" onclick="show('config',this)"><svg class="ic"><use href="#ic-config"></use></svg>Configuración</a>
@@ -5249,6 +5266,7 @@ async function abrirHilo(vid) {
         // Abrirlo es leerlo: el contador tiene que bajar acá y no en el próximo refresco.
         const h = hilos.find(x => x.vecino_id === vid);
         if (h) { h.sin_leer = 0; renderHilos(); actualizarBadgeMensajes(); }
+        revisarMensajes({ avisar: false });
     } catch (e) {
         $('chat-mensajes').innerHTML = `<div class="tbl-empty">No se pudo abrir: ${escHtml(e.message)}</div>`;
     }
@@ -5256,6 +5274,7 @@ async function abrirHilo(vid) {
 
 function renderMensajes(mensajes) {
     const cont = $('chat-mensajes');
+    firmaHilo = mensajes.length + ':' + (mensajes.length ? mensajes[mensajes.length - 1].id : '');
     if (!mensajes.length) {
         cont.innerHTML = '<div class="tbl-empty">Todavía no se escribieron. Escribí vos primero.</div>';
         return;
@@ -5691,60 +5710,167 @@ async function guardarAgendado() {
 function updatePerfilConsorcios() { $('perfil-consorcios').textContent = consorcios.length; }
 
 /* ── Ponerse al día solo ──────────────────────────────────────────────────────
-   Un vecino informa un pago, otro manda un reclamo, un tercero pide el alta: el
-   panel no se enteraba de nada hasta que alguien apretaba F5. Cada 45 segundos
-   se recarga la sección que estás mirando, y también apenas volvés a la
-   pestaña.
+   Se refresca sólo lo que cambia mientras lo estás mirando. Lo demás se pone
+   al día con navegar: cada sección vuelve a pedir sus datos al entrar, así que
+   recargarla cada tanto era trabajo de más y un salto en la pantalla.
 
-   Tres frenos, todos por la misma razón —no pisarle la pantalla a nadie—:
-   nunca con la pestaña en segundo plano, nunca con un modal abierto, y nunca
-   con cambios sin guardar en un formulario. Configuración no se refresca jamás:
-   es un formulario de punta a punta. */
-const REFRESCO_MS = 45000;
+     cada 20 s   los mensajes y las reservas: una conversación y una agenda.
+     cada 2 min  el panel, los reclamos, los pagos informados y las solicitudes
+                 de vecinos: novedades que llegan, sin la urgencia de un chat.
+     nunca       gastos, cobros, liquidaciones, balance, comunicados enviados,
+                 el listado de consorcios y configuración.
 
-async function refrescarSeccionActiva() {
-    if (document.hidden) return;
-    if (document.querySelector('.modal-overlay.open')) return;
-    if (formConCambios()) return;
+   Aparte, desde cualquier sección, cada 20 s se pregunta si llegaron mensajes:
+   eso prende el contador del menú y el aviso (ver "Avisos de mensajes").
 
+   Tres frenos, todos para no pisarle la pantalla a nadie: nunca con la pestaña
+   en segundo plano, nunca con un modal abierto, nunca con cambios sin guardar. */
+var RAPIDO = 20000, LENTO = 120000;
+
+function refrescoDeLaSeccion() {
     const activa = document.querySelector('.section.active');
-    if (!activa) return;
-    const nombre = activa.id.replace('sec-', '');
+    const nombre = activa ? activa.id.replace('sec-', '') : '';
+    const visible = id => !!$(id) && $(id).style.display !== 'none';
 
-    try {
-        if (nombre === 'dashboard') await loadDashboard();
-        else if (nombre === 'gastos') await loadGastos();
-        else if (nombre === 'comunicacion') {
-            if ($('tab-com-mensajes').style.display !== 'none') {
-                // Sin perder el hilo abierto: se recarga la lista y, si hay
-                // una conversación en pantalla, también sus mensajes.
-                await loadHilos();
-                if (hiloAbierto) await abrirHilo(hiloAbierto);
-            }
-            else if ($('tab-com-comunicados').style.display !== 'none') await loadComunicados();
-            else { await loadReclamos(); await loadHilos({silencioso: true}); }
-        }
-        else if (nombre === 'balance') await loadBalance();
-        else if (nombre === 'cobros') {
-            // Cada pestaña tiene lo suyo; el badge de pagos informados se
-            // actualiza igual, para que se vea desde las otras dos.
-            if ($('tab-mora').style.display !== 'none') await loadMora();
-            else if ($('tab-avisos').style.display !== 'none') await loadAvisos();
-            else { await loadCobros(); await loadAvisos(); }
-        }
-        else if (nombre === 'consorcios') {
-            // Con el detalle abierto, lo que interesa son las solicitudes de
-            // vecinos: es lo que aparece solo mientras mirás la pantalla.
-            if ($('consorcio-detail').style.display !== 'none') await loadPendingNeighbors();
-            else await loadConsorcios();
-        }
-    } catch (e) { /* un refresco que falla no molesta a nadie: vuelve a intentar */ }
+    if (nombre === 'dashboard') return { clave: 'dashboard', cada: LENTO, cargar: loadDashboard };
+    if (nombre === 'amenities') return { clave: 'amenities', cada: RAPIDO, cargar: loadAmenitiesAndReservations };
+    if (nombre === 'comunicacion') {
+        if (visible('tab-com-mensajes')) return { clave: 'mensajes', cada: RAPIDO, cargar: async () => {
+            // Sin perder el hilo abierto: la lista y, si hay una conversación
+            // en pantalla, lo nuevo de esa conversación.
+            await loadHilos();
+            if (hiloAbierto) await refrescarHilo(hiloAbierto);
+        } };
+        if (visible('tab-com-reclamos')) return { clave: 'reclamos', cada: LENTO, cargar: loadReclamos };
+        return null;
+    }
+    if (nombre === 'cobros' && visible('tab-avisos')) return { clave: 'avisos', cada: LENTO, cargar: loadAvisos };
+    if (nombre === 'consorcios' && visible('consorcio-detail'))
+        return { clave: 'solicitudes', cada: LENTO, cargar: loadPendingNeighbors };
+    return null;
 }
 
-setInterval(refrescarSeccionActiva, REFRESCO_MS);
+var refrescoClave = null, refrescoUltimo = 0;
+
+async function refrescarSeccionActiva({ ya = false } = {}) {
+    const r = refrescoDeLaSeccion();
+    // Entrar a una sección o cambiar de pestaña ya carga sus datos: el reloj
+    // de esa pantalla arranca ahí, no hereda el de la anterior.
+    if (!r || r.clave !== refrescoClave) {
+        refrescoClave = r ? r.clave : null;
+        refrescoUltimo = Date.now();
+        return;
+    }
+    if (document.hidden || document.querySelector('.modal-overlay.open') || formConCambios()) return;
+    if (!ya && Date.now() - refrescoUltimo < r.cada) return;
+    refrescoUltimo = Date.now();
+    try { await r.cargar(); } catch (e) { /* vuelve a intentar en la próxima */ }
+}
+
+/* El hilo abierto, sin el "Cargando..." de abrirlo: con el refresco cada 20 s
+   la conversación parpadeaba y el scroll volvía abajo aunque estuvieras
+   leyendo más arriba. Se redibuja sólo si llegó algo. */
+var firmaHilo = '';
+async function refrescarHilo(vid) {
+    const data = await api('/api/admin/mensajes/hilo/' + vid);
+    if (hiloAbierto !== vid) return;
+    const msjs = data.mensajes || [];
+    if (msjs.length + ':' + (msjs.length ? msjs[msjs.length - 1].id : '') === firmaHilo) return;
+    renderMensajes(msjs);
+}
+
+/* ── Avisos de mensajes ───────────────────────────────────────────────────────
+   Que un vecino escribió no puede depender de que el administrador se acuerde
+   de entrar a Comunicación. Cada 20 s, esté donde esté, el panel pregunta qué
+   hay sin leer: el total va al menú (y al cajón en el teléfono) y al título de
+   la pestaña, y lo que no había avisado sale en un aviso con un botón que abre
+   la conversación.
+
+   Lo ya avisado se guarda por pestaña: un F5 no repite el aviso, pero lo que
+   llegó mientras no estabas se avisa al volver. Con la pestaña en segundo plano
+   sólo se actualizan los contadores; el aviso espera a que vuelvas. Y no se
+   avisa de la conversación que tenés abierta: ya la estás viendo. */
+var MSJ_AVISADOS = 'niddo-admin-msj-avisados';
+var msjAvisados = new Set();
+try { msjAvisados = new Set(JSON.parse(sessionStorage.getItem(MSJ_AVISADOS) || '[]')); } catch (e) {}
+var TITULO_BASE = document.title;
+
+function pintarContadorMensajes(n) {
+    const b = $('nav-badge-mensajes');
+    if (b) { b.textContent = n; b.style.display = n ? 'inline-block' : 'none'; }
+    // El cajón del teléfono lo arma niddo-mobile.js al cargar: el badge se le
+    // agrega acá, sobre el ítem de Comunicación.
+    const item = document.querySelector('.nd-dr-item[data-nd-section="comunicacion"]');
+    if (item) {
+        let i = item.querySelector('.nd-dr-badge');
+        if (!i && n) { i = document.createElement('i'); i.className = 'nd-dr-badge'; item.appendChild(i); }
+        if (i) { i.textContent = n; i.style.display = n ? '' : 'none'; }
+    }
+    document.title = n ? `(${n}) ${TITULO_BASE}` : TITULO_BASE;
+}
+
+function viendoHilo(vid) {
+    return hiloAbierto === vid && !!document.querySelector('#sec-comunicacion.active')
+        && $('tab-com-mensajes').style.display !== 'none';
+}
+
+function avisoMensaje(titulo, texto, alVer) {
+    const t = document.createElement('div');
+    t.className = 'toast-aviso';
+    t.setAttribute('role', 'status');
+    t.innerHTML = `<span class="ta-ic"><svg class="ic"><use href="#ic-mensaje"></use></svg></span>
+        <span class="ta-txt"><span class="ta-t"></span><span class="ta-s"></span></span>
+        <button class="ta-ver" type="button">Ver</button>
+        <button class="ta-x" type="button" aria-label="Cerrar aviso">×</button>`;
+    t.querySelector('.ta-t').textContent = titulo;
+    t.querySelector('.ta-s').textContent = texto || '';
+    const cerrar = () => t.remove();
+    t.querySelector('.ta-ver').onclick = () => { cerrar(); alVer(); };
+    t.querySelector('.ta-x').onclick = cerrar;
+    $('toasts').appendChild(t);
+    setTimeout(cerrar, 12000);
+}
+
+function irAlHilo(vid) {
+    comTabActual = 'mensajes';
+    if (document.querySelector('#sec-comunicacion.active')) comTab('mensajes', null);
+    else show('comunicacion', document.querySelector(`.sidebar-nav a[onclick*="'comunicacion'"]`));
+    // show() puede frenar en el cartel de cambios sin guardar: el hilo se abre
+    // sólo si de verdad se llegó a Comunicación.
+    if (vid) setTimeout(() => { if (document.querySelector('#sec-comunicacion.active')) abrirHilo(vid); }, 0);
+}
+
+async function revisarMensajes({ avisar = true } = {}) {
+    let data;
+    try { data = await api('/api/admin/mensajes/no-leidos'); } catch (e) { return; }
+    pintarContadorMensajes(data.sin_leer || 0);
+    if (!avisar || document.hidden) return;
+
+    const ultimos = data.ultimos || [];
+    const nuevos = ultimos.filter(m => !msjAvisados.has(m.id) && !viendoHilo(m.vecino_id));
+    ultimos.forEach(m => msjAvisados.add(m.id));
+    try { sessionStorage.setItem(MSJ_AVISADOS, JSON.stringify([...msjAvisados].slice(-200))); } catch (e) {}
+    if (!nuevos.length) return;
+
+    if (nuevos.length === 1) {
+        const m = nuevos[0];
+        // avisoMensaje escribe con textContent: el nombre no pasa por HTML.
+        avisoMensaje('Nuevo mensaje de ' + m.vecino + (m.unidad ? ' · UF ' + m.unidad : ''),
+                     m.cuerpo, () => irAlHilo(m.vecino_id));
+    } else {
+        const quienes = nuevos.slice(0, 3).map(m => m.vecino).join(', ') + (nuevos.length > 3 ? '…' : '');
+        avisoMensaje(`${nuevos.length} conversaciones con mensajes nuevos`, quienes, () => irAlHilo(null));
+    }
+}
+
+setInterval(() => refrescarSeccionActiva(), 5000);
+setInterval(() => revisarMensajes(), RAPIDO);
 document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) refrescarSeccionActiva();
+    if (document.hidden) return;
+    refrescarSeccionActiva({ ya: true });
+    revisarMensajes();
 });
+revisarMensajes();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadConsorcios().then(() => {

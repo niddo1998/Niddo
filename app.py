@@ -304,6 +304,64 @@ def es_fila_ejemplo_gastos(descripcion, fecha_iso, monto) -> bool:
         return False
 
 
+# El desplegable de "consorcio" de la hoja Unidades. Era una lista literal con
+# los consorcios que ya existían, así que el edificio que cargabas en la hoja
+# Consorcios del mismo archivo no aparecía: había que tipearlo a mano, justo en
+# la columna donde un error de tipeo hace que la fila no se importe. (Y una
+# lista literal se corta a 255 caracteres, con ocho edificios ya partía nombres.)
+#
+# Ahora apunta a un nombre definido sobre una hoja oculta que Excel recalcula
+# solo: arriba los consorcios existentes y abajo, compactados, los que se van
+# escribiendo en la hoja Consorcios. Con INDEX/MATCH/COUNTIF y no con FILTER,
+# que sólo existe en Excel 365: tiene que andar en el Excel que tenga cada uno.
+NOMBRE_LISTA_CONSORCIOS = 'ListaConsorcios'
+FILAS_CONSORCIOS_NUEVOS = 300
+
+
+def _lista_consorcios_viva(wb, existentes: list) -> None:
+    from openpyxl.workbook.defined_name import DefinedName
+    from openpyxl.workbook.properties import CalcProperties
+
+    ws = wb.create_sheet('Listas')
+    ws.sheet_state = 'hidden'
+    n = len(existentes)
+    filas = FILAS_CONSORCIOS_NUEVOS
+
+    # Columna A: la lista que muestra el desplegable. Los existentes, tal cual.
+    for i, nombre in enumerate(existentes, 1):
+        ws.cell(row=i, column=1, value=nombre)
+
+    # B y C, una fila por cada fila de la hoja Consorcios: B dice si entra en la
+    # lista y C en qué lugar. Entra si tiene nombre, no es la fila de ejemplo,
+    # es la primera vez que aparece en la hoja y no repite uno que ya existe.
+    for i in range(1, filas + 1):
+        celda = f'Consorcios!$A${i + 1}'
+        condiciones = [
+            f'TRIM({celda})<>""',
+            f'ISERROR(SEARCH("{MARCA_FILA_EJEMPLO}",{celda}))',
+            f'COUNTIF(Consorcios!$A$2:$A${i + 1},{celda})=1',
+        ]
+        if n:
+            condiciones.append(f'COUNTIF($A$1:$A${n},TRIM({celda}))=0')
+        ws.cell(row=i, column=2, value=f'=IF(AND({",".join(condiciones)}),1,0)')
+        ws.cell(row=i, column=3, value=f'=IF(B{i}=1,SUM($B$1:B{i}),"")')
+
+    # Debajo de los existentes, el k-ésimo consorcio nuevo que entra.
+    for k in range(1, filas + 1):
+        ws.cell(row=n + k, column=1,
+                value=f'=IFERROR(TRIM(INDEX(Consorcios!$A$2:$A${filas + 1},'
+                      f'MATCH({k},$C$1:$C${filas},0))),"")')
+
+    # El rango se estira hasta el último nombre con texto: apuntando a la
+    # columna entera, el desplegable mostraría cientos de renglones vacíos.
+    wb.defined_names[NOMBRE_LISTA_CONSORCIOS] = DefinedName(
+        NOMBRE_LISTA_CONSORCIOS,
+        attr_text=f'OFFSET(Listas!$A$1,0,0,MAX(1,COUNTIF(Listas!$A$1:$A${n + filas},"?*")),1)')
+    # openpyxl guarda las fórmulas sin resultado. Sin esto Excel podría abrir
+    # el archivo con la lista vacía hasta que alguien edite una celda.
+    wb.calculation = CalcProperties(fullCalcOnLoad=True)
+
+
 def build_carga_masiva_template(consorcios_existentes: list):
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
@@ -330,9 +388,9 @@ def build_carga_masiva_template(consorcios_existentes: list):
         ('', False),
         ('1. Completá la hoja "Consorcios" para crear edificios nuevos. Dejala vacía si solo vas a cargar', False),
         ('   unidades de consorcios que ya existen.', False),
-        ('2. Completá la hoja "Unidades" con las UF a cargar. En la columna "consorcio" escribí el nombre', False),
-        ('   exacto del consorcio (nuevo, tal como lo escribiste en la hoja "Consorcios", o uno ya existente,', False),
-        ('   tal como figura en la hoja "Consorcios existentes").', False),
+        ('2. Completá la hoja "Unidades" con las UF a cargar. En la columna "consorcio" elegí del desplegable:', False),
+        ('   trae los consorcios que ya tenés y también los que vayas escribiendo en la hoja "Consorcios".', False),
+        ('   Si lo escribís a mano, tiene que ser el nombre exacto.', False),
         ('3. Guardá el archivo y subilo en el panel. No cambies los nombres de las hojas ni de las columnas.', False),
         ('', False),
         ('Campos obligatorios: nombre (Consorcios); consorcio y numero (Unidades). El resto es opcional.', False),
@@ -358,11 +416,12 @@ def build_carga_masiva_template(consorcios_existentes: list):
     tipo_dv = DataValidation(type='list', formula1=f'"{",".join(TIPOS_UF_VALIDOS)}"', allow_blank=True, showErrorMessage=False)
     ws_u.add_data_validation(tipo_dv)
     tipo_dv.add('D2:D1000')
-    if consorcios_existentes:
-        nombres = [c['nombre'] for c in consorcios_existentes]
-        con_dv = DataValidation(type='list', formula1=f'"{",".join(nombres)[:255]}"', allow_blank=True, showErrorMessage=False)
-        ws_u.add_data_validation(con_dv)
-        con_dv.add('A2:A1000')
+
+    _lista_consorcios_viva(wb, [c['nombre'] for c in consorcios_existentes])
+    con_dv = DataValidation(type='list', formula1=NOMBRE_LISTA_CONSORCIOS,
+                            allow_blank=True, showErrorMessage=False)
+    ws_u.add_data_validation(con_dv)
+    con_dv.add('A2:A1000')
 
     ws_ref = wb.create_sheet('Consorcios existentes')
     style_header(ws_ref, ['nombre', 'direccion'])
@@ -4724,7 +4783,7 @@ def api_avisos_pago_create():
         payload['adjunto_nombre'] = nombre
         payload['adjunto_mime'] = mime
     res = supabase.table('avisos_pago').insert(payload).execute()
-    return jsonify(res.data[0] if res.data else {}), 201
+    return jsonify(_sin_base64(res.data[0] if res.data else {})), 201
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -4768,7 +4827,7 @@ def api_reclamos_create():
         payload['adjunto_nombre'] = nombre
         payload['adjunto_mime'] = mime
     res = supabase.table('reclamos').insert(payload).execute()
-    return jsonify(res.data[0] if res.data else {}), 201
+    return jsonify(_sin_base64(res.data[0] if res.data else {})), 201
 
 
 @app.route('/api/reclamos/<rid>', methods=['DELETE'])
@@ -4809,6 +4868,17 @@ def api_reclamos_adjunto(rid):
 #
 # `leido_at` se escribe cuando el otro lado abre el hilo. De ahí salen los dos
 # badges y es lo único que distingue "te escribieron" de "ya lo viste".
+
+
+def _sin_base64(fila: dict) -> dict:
+    """La fila sin los archivos en base64, para devolverla al navegador.
+
+    Un alta o una edición devuelve la fila entera, y con una foto adentro eso
+    son megas de vuelta que nadie usa. Pasados los 4,5 MB Vercel corta la
+    respuesta: la base ya guardó —y el mail al vecino ya salió— pero el panel
+    muestra un error, y el que tocó el botón cree que no pasó nada.
+    """
+    return {k: v for k, v in (fila or {}).items() if not k.endswith('_base64')}
 
 
 def _mensaje_publico(fila: dict) -> dict:
@@ -4904,11 +4974,19 @@ def api_mensajes_crear():
 @app.route('/api/mensajes/no-leidos')
 @require_auth(allowed_roles=['vecino'])
 def api_mensajes_no_leidos():
-    """Cuántos mensajes del administrador todavía no vio. Es el badge."""
+    """Cuántos mensajes del administrador todavía no vio, y el último.
+
+    Es el badge y también el aviso: el panel lo pregunta desde cualquier
+    sección, y cuando aparece un id que no conocía muestra "Nuevo mensaje de la
+    administración" con el comienzo del texto. Por eso va recortado y sin
+    adjunto: se pide cada veinte segundos.
+    """
     vecino_id = get_vecino_id()
-    filas = supabase.table('mensajes').select('id, leido_at, autor') \
-        .eq('vecino_id', vecino_id).eq('autor', 'admin').execute().data or []
-    return jsonify({'sin_leer': len([f for f in filas if not f.get('leido_at')])})
+    filas = supabase.table('mensajes').select('id, leido_at, autor, cuerpo, adjunto_nombre, created_at') \
+        .eq('vecino_id', vecino_id).eq('autor', 'admin').order('created_at').execute().data or []
+    sin_leer = [f for f in filas if not f.get('leido_at')]
+    return jsonify({'sin_leer': len(sin_leer),
+                    'ultimo': _aviso_de_mensaje(sin_leer[-1]) if sin_leer else None})
 
 
 @app.route('/api/mensajes/<mid>/adjunto')
@@ -4973,6 +5051,53 @@ def api_admin_mensajes_hilos():
                        key=lambda h: (h['sin_leer'] > 0, (h['ultimo'] or {}).get('created_at') or ''),
                        reverse=True)
     return jsonify({'hilos': ordenados, 'vecinos': vecinos})
+
+
+def _aviso_de_mensaje(fila: dict) -> dict:
+    """Lo que necesita el aviso de un mensaje nuevo: quién, cuándo y cómo empieza."""
+    cuerpo = (fila.get('cuerpo') or '').strip()
+    if not cuerpo and fila.get('adjunto_nombre'):
+        cuerpo = f'📎 {fila["adjunto_nombre"]}'
+    return {'id': fila.get('id'), 'vecino_id': fila.get('vecino_id'),
+            'created_at': fila.get('created_at'),
+            'cuerpo': cuerpo[:140] + ('…' if len(cuerpo) > 140 else '')}
+
+
+@app.route('/api/admin/mensajes/no-leidos')
+@require_auth(allowed_roles=['admin'])
+def api_admin_mensajes_no_leidos():
+    """Lo que escribieron los vecinos y el administrador todavía no abrió.
+
+    Lo pregunta el panel cada veinte segundos esté donde esté, así que no es la
+    bandeja entera: el total para el badge y el último sin leer de cada hilo
+    para el aviso, con el nombre y la UF de quien lo mandó.
+    """
+    cids = consorcios_propios_ids()
+    if not cids:
+        return jsonify({'sin_leer': 0, 'ultimos': []})
+
+    filas = supabase.table('mensajes') \
+        .select('id, vecino_id, cuerpo, adjunto_nombre, created_at') \
+        .in_('consorcio_id', cids).eq('autor', 'vecino').is_('leido_at', 'null') \
+        .order('created_at').execute().data or []
+    if not filas:
+        return jsonify({'sin_leer': 0, 'ultimos': []})
+
+    ultimo_por_hilo = {}
+    for f in filas:                       # ordenados: el último de cada hilo gana
+        ultimo_por_hilo[f.get('vecino_id')] = f
+    vecinos = supabase.table('vecinos').select('id, nombre, email, unidad') \
+        .in_('id', list(ultimo_por_hilo)).execute().data or []
+    por_id = {v['id']: v for v in vecinos}
+
+    ultimos = []
+    for vid, f in ultimo_por_hilo.items():
+        v = por_id.get(vid, {})
+        ultimos.append({**_aviso_de_mensaje(f),
+                        'vecino': v.get('nombre') or v.get('email') or 'Un vecino',
+                        'unidad': v.get('unidad')})
+    ultimos.sort(key=lambda a: a.get('created_at') or '', reverse=True)
+    return jsonify({'sin_leer': len(filas), 'ultimos': ultimos})
 
 
 @app.route('/api/admin/mensajes/hilo/<vid>')
@@ -5286,7 +5411,7 @@ def api_admin_archivos_create():
         return jsonify({'error': str(e)}), 400
     payload = {'consorcio_id': d.get('consorcio_id'), 'admin_id': admin_id, 'categoria': d.get('categoria', 'otros'), 'nombre': d.get('nombre') or nombre, 'archivo_base64': base64.b64encode(file_bytes).decode('utf-8'), 'mime_type': mime}
     res = supabase.table('archivos_consorcio').insert(payload).execute()
-    return jsonify(res.data[0] if res.data else {}), 201
+    return jsonify(_sin_base64(res.data[0] if res.data else {})), 201
 
 
 @app.route('/api/admin/archivos/<aid>', methods=['DELETE'])
@@ -5377,7 +5502,7 @@ def api_admin_reclamos_update(rid):
         except Exception:
             app.logger.exception('Falló el aviso del reclamo %s', rid)
 
-    return jsonify(actualizado)
+    return jsonify(_sin_base64(actualizado))
 
 
 @app.route('/api/admin/reclamos/<rid>/adjunto')

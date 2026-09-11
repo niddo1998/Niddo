@@ -164,6 +164,14 @@
     .toast-container{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column-reverse;gap:8px}
     .toast{padding:10px 16px;border-radius:var(--r-md);font-size:0.82rem;font-weight:600;color:var(--nd-crema);box-shadow:var(--shadow-window);max-width:320px;animation:toastIn .25s ease,toastOut .3s ease 2.8s forwards}
     .toast.ok{background:var(--teal)} .toast.err{background:var(--red)} .toast.info{background:var(--blue)} .toast.warn{background:var(--amber)}
+    /* El aviso de mensaje nuevo: a diferencia del toast, dura más y tiene a dónde ir. */
+    .toast-aviso{display:flex;align-items:center;gap:10px;width:330px;max-width:calc(100vw - 32px);background:var(--surface);color:var(--text);border:1px solid var(--border);border-left:4px solid var(--nd-verde);border-radius:var(--r-md);padding:10px 8px 10px 12px;box-shadow:var(--shadow-window);animation:toastIn .25s ease}
+    .toast-aviso .ta-ic{color:var(--nd-verde);display:flex;flex-shrink:0}
+    .toast-aviso .ta-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+    .toast-aviso .ta-t{font-size:0.82rem;font-weight:700}
+    .toast-aviso .ta-s{font-size:0.78rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .toast-aviso .ta-ver{background:var(--nd-verde);color:var(--nd-crema);border:none;border-radius:10px;padding:6px 12px;font:inherit;font-size:0.78rem;font-weight:700;cursor:pointer}
+    .toast-aviso .ta-x{background:none;border:none;color:var(--muted);font-size:1.1rem;line-height:1;cursor:pointer;padding:4px}
     
     .md-layout{display:grid;grid-template-columns:290px 1fr;gap:16px;height:calc(100vh - var(--header-h) - 120px)}
     /* Chat con la administración */
@@ -817,22 +825,35 @@ async function api(url,opts={}){
 }
 
 /* ── Ponerse al día solo ──────────────────────────────────────────────────────
-   Nada en esta pantalla se enteraba de un cambio hecho del otro lado: el vecino
-   que espera la aprobación miraba una sala de espera fija y tenía que probar
-   F5 cada tanto para ver si ya lo dejaron entrar, y el estado de un reclamo
-   cambiaba en la base sin que la pantalla se moviera.
+   Se refresca sólo lo que cambia mientras lo mirás. Lo demás se pone al día
+   con navegar: cada sección vuelve a pedir sus datos al entrar.
 
-   Es polling y no tiempo real: media docena de pantallas y un consorcio no
-   justifican websockets, y treinta segundos alcanzan para que "ya está" se
-   sienta inmediato. Nunca corre con la pestaña en segundo plano —ahí no hay
-   nadie mirando— y sí apenas volvés a ella, que es cuando querés estar al día.
+     cada 20 s   la sala de espera del alta, los mensajes y las reservas.
+     cada 2 min  el inicio y los reclamos.
+     nunca       comunicados, expensas, gastos, archivos y perfil.
 
-   Lo que no se refresca nunca: con un formulario abierto. Recargar la lista de
-   atrás mientras alguien escribe un reclamo es peor que estar desactualizado. */
-const REFRESCO_MS = 30000;
+   Aparte, desde cualquier sección, cada 20 s se pregunta si la administración
+   escribió: eso prende el contador y el aviso (ver loadBadges).
+
+   Nunca con la pestaña en segundo plano —ahí no hay nadie mirando— y sí apenas
+   volvés a ella. Nunca con un formulario abierto: recargar la lista de atrás
+   mientras alguien escribe un reclamo es peor que estar desactualizado. */
+var RAPIDO = 20000, LENTO = 120000;
+var REFRESCO = {
+    inicio:   [LENTO,  () => loadInicio()],
+    reclamos: [LENTO,  () => loadReclamos()],
+    mensajes: [RAPIDO, () => refrescarMensajes()],
+    reservas: [RAPIDO, () => refrescarReservas()],
+};
+var refrescoClave = null, refrescoUltimo = 0;
 
 function hayAlgoAbierto(){
     return !!document.querySelector('.drawer-overlay.open, .modal-overlay.open');
+}
+
+function seccionActiva(){
+    const a=document.querySelector('.section.active');
+    return a?a.id.replace('section-',''):'inicio';
 }
 
 async function refrescarEstadoDelAlta(){
@@ -844,22 +865,52 @@ async function refrescarEstadoDelAlta(){
     }catch(e){}
 }
 
-async function refrescar(){
-    if(document.hidden || hayAlgoAbierto()) return;
-    if(!S.vecino) return;
-    if(ALTA.estado === 'pendiente'){ await refrescarEstadoDelAlta(); return; }
-
-    const activa = document.querySelector('.section.active');
-    const nombre = activa ? activa.id.replace('section-','') : 'inicio';
-    const ldr = {inicio:loadInicio, comunicados:loadComs, expensas:loadExpensas,
-                 gastos:loadGastos, reclamos:loadReclamos, mensajes:loadMensajes,
-                 reservas:loadReservas, archivos:loadArchivos};
-    if(ldr[nombre]) try{ await ldr[nombre]() }catch(e){}
-    loadBadges();
+async function refrescar({ya=false}={}){
+    if(!S.vecino || document.hidden) return;
+    if(ALTA.estado === 'pendiente'){
+        if(ya || Date.now()-refrescoUltimo >= RAPIDO){ refrescoUltimo=Date.now(); await refrescarEstadoDelAlta(); }
+        return;
+    }
+    // Entrar a una sección ya carga sus datos: su reloj arranca ahí.
+    const nombre = seccionActiva();
+    if(nombre !== refrescoClave){ refrescoClave=nombre; refrescoUltimo=Date.now(); return; }
+    const r = REFRESCO[nombre];
+    if(!r || hayAlgoAbierto()) return;
+    if(!ya && Date.now()-refrescoUltimo < r[0]) return;
+    refrescoUltimo = Date.now();
+    try{ await r[1]() }catch(e){}
 }
 
-setInterval(refrescar, REFRESCO_MS);
-document.addEventListener('visibilitychange', () => { if(!document.hidden) refrescar(); });
+/* El chat sin redibujarse si no llegó nada: cada 20 s el scroll volvía abajo
+   aunque estuvieras leyendo más arriba. */
+var firmaMensajes = '';
+async function refrescarMensajes(){
+    const mensajes = await api('/api/mensajes');
+    const firma = mensajes.length+':'+(mensajes.length?mensajes[mensajes.length-1].id:'');
+    if(firma !== firmaMensajes) renderMensajes(mensajes);
+}
+
+/* Reservas: la lista propia y, si hay un espacio y un día elegidos, qué quedó
+   ocupado. Sin loadReservas(), que rearma el <select> de espacio, ni
+   onResDateChanged(), que borra el turno marcado: cada 20 s le sacaba al
+   vecino la selección de abajo de los dedos. Con un turno a medio marcar no se
+   toca el calendario. */
+async function refrescarReservas(){
+    await loadMisReservas(true);
+    const aid=document.getElementById('res-am').value, fecha=document.getElementById('res-fecha').value;
+    if(!aid || !fecha || S.selStart!=null || S.dragging) return;
+    const d=await api('/api/reservas_amenities?amenity_id='+aid+'&fecha='+fecha);
+    S.booked=d.filter(r=>r.estado==='confirmada').map(r=>({start:hhmmToMin(r.hora_inicio),end:hhmmToMin(r.hora_fin)}));
+    renderCalendar();
+}
+
+setInterval(() => refrescar(), 5000);
+setInterval(() => loadBadges(), RAPIDO);
+document.addEventListener('visibilitychange', () => {
+    if(document.hidden) return;
+    refrescar({ya:true});
+    loadBadges();
+});
 
 async function init(){
     try{
@@ -1012,17 +1063,54 @@ function renderComsRecientes(coms){
     `).join('');
 }
 
-/* Los contadores del sidebar. Los comunicados sin leer los escribe loadComs()
-   al entrar a la sección; los mensajes tienen que verse desde cualquier lado,
-   que para eso son mensajes. */
+/* Los contadores de mensajes y el aviso de mensaje nuevo. Los comunicados sin
+   leer los escribe loadComs() al entrar a la sección; los mensajes tienen que
+   verse desde cualquier lado, que para eso son mensajes. El total va al menú, a
+   la pestaña Comunidad en el teléfono y al título de la pestaña del navegador.
+
+   El aviso sale una vez por mensaje: lo ya avisado se guarda por pestaña, así
+   un F5 no lo repite. Con la pestaña en segundo plano espera a que vuelvas, y
+   no sale si ya estás mirando Mensajes. */
+var MSJ_AVISADOS='niddo-vecino-msj-avisados';
+var msjAvisados=new Set();
+try{msjAvisados=new Set(JSON.parse(sessionStorage.getItem(MSJ_AVISADOS)||'[]'))}catch(e){}
+var TITULO_BASE=document.title;
+
 async function loadBadges(){
-    try{
-        const {sin_leer}=await api('/api/mensajes/no-leidos');
-        const b=document.getElementById('nbadge-msj');
-        if(!b)return;
-        b.textContent=sin_leer;
-        b.style.display=sin_leer?'inline-block':'none';
-    }catch(e){}
+    if(!S.vecino?.consorcio_id)return;
+    let data;
+    try{data=await api('/api/mensajes/no-leidos')}catch(e){return}
+    const n=data.sin_leer||0;
+    // En el teléfono Mensajes vive bajo la pestaña Comunidad.
+    ['nbadge-msj','nd-badge-comunidad'].forEach(id=>{
+        const b=document.getElementById(id);
+        if(b){b.textContent=n;b.style.display=n?'inline-block':'none'}
+    });
+    document.title=n?`(${n}) ${TITULO_BASE}`:TITULO_BASE;
+
+    const m=data.ultimo;
+    if(!m||document.hidden||msjAvisados.has(m.id))return;
+    msjAvisados.add(m.id);
+    try{sessionStorage.setItem(MSJ_AVISADOS,JSON.stringify([...msjAvisados].slice(-100)))}catch(e){}
+    if(seccionActiva()==='mensajes')return;
+    avisoMensaje('Nuevo mensaje de la administración',m.cuerpo,()=>showSection('mensajes'));
+}
+
+function avisoMensaje(titulo,texto,alVer){
+    const t=document.createElement('div');
+    t.className='toast-aviso';
+    t.setAttribute('role','status');
+    t.innerHTML=`<span class="ta-ic"><svg class="ic"><use href="#ic-mensaje"></use></svg></span>
+        <span class="ta-txt"><span class="ta-t"></span><span class="ta-s"></span></span>
+        <button class="ta-ver" type="button">Ver</button>
+        <button class="ta-x" type="button" aria-label="Cerrar aviso">×</button>`;
+    t.querySelector('.ta-t').textContent=titulo;
+    t.querySelector('.ta-s').textContent=texto||'';
+    const cerrar=()=>t.remove();
+    t.querySelector('.ta-ver').onclick=()=>{cerrar();alVer()};
+    t.querySelector('.ta-x').onclick=cerrar;
+    document.getElementById('tc').appendChild(t);
+    setTimeout(cerrar,12000);
 }
 
 async function loadComs(){
@@ -1360,8 +1448,8 @@ async function loadReservas(){
     fEl.min=hoy;if(!fEl.value)fEl.value=hoy;
     await loadMisReservas();
 }
-async function loadMisReservas(){
-    const tb=document.getElementById('tb-reservas');tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Cargando...</td></tr>';
+async function loadMisReservas(silencioso){
+    const tb=document.getElementById('tb-reservas');if(!silencioso)tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Cargando...</td></tr>';
     try{const d=await api('/api/reservas_amenities?only_mine=true');if(!d.length){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Sin reservas registradas</td></tr>';return}tb.innerHTML=d.map(r=>`<tr><td>${esc(r.amenities?.nombre||'–')}</td><td>${fmtD(r.fecha)}</td><td>${r.hora_inicio?.substring(0,5)} – ${r.hora_fin?.substring(0,5)}</td><td>${ebadge(r.estado)}</td><td>${r.estado==='confirmada'?`<button class="btn btn-danger btn-xs" onclick="cancelarReserva('${r.id}')">Cancelar</button>`:'–'}</td></tr>`).join('');
 
         /* La lista que se lee en mobile, del mismo `d` que arma los <tr>. */
@@ -1621,9 +1709,8 @@ async function loadMensajes(){
     try{
         const mensajes=await api('/api/mensajes');
         renderMensajes(mensajes);
-        // Abrirlo es leerlo: el badge baja acá y no en el próximo refresco.
-        const b=document.getElementById('nbadge-msj');
-        if(b){b.textContent='0';b.style.display='none'}
+        // Abrirlo es leerlo: los contadores bajan acá y no en el próximo refresco.
+        loadBadges();
     }catch(e){
         cont.innerHTML='<div style="padding:32px;text-align:center;color:var(--nd-terracota-hondo);font-size:0.85rem">No se pudieron cargar los mensajes</div>';
     }
@@ -1631,6 +1718,7 @@ async function loadMensajes(){
 
 function renderMensajes(mensajes){
     const cont=document.getElementById('msj-lista');
+    firmaMensajes=mensajes.length+':'+(mensajes.length?mensajes[mensajes.length-1].id:'');
     if(!mensajes.length){
         cont.innerHTML='<div style="padding:40px 24px;text-align:center;color:var(--muted);font-size:0.86rem;line-height:1.6">'+
             '<div style="margin-bottom:10px;opacity:0.35"><svg class="ic ic-xl"><use href="#ic-mensaje"></use></svg></div>'+
