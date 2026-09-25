@@ -4724,6 +4724,35 @@ def api_vecinos_cobros_export():
     return excel_response(wb, 'mi_cuenta_corriente.xlsx')
 
 
+LIQ_CONSORCIO_PDF = ('*, consorcios(nombre, direccion, cuit, clave_suterh, tasa_interes_mora, '
+                     'recargo_segundo_vto, banco_nombre, banco_sucursal, banco_cuenta, banco_cbu, '
+                     'banco_cuit_pago, banco_titular, banco_alias, metodo_prorrateo)')
+
+
+@app.route('/api/vecinos/cobros/<rid>/resumen')
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_resumen(rid):
+    """El resumen de la expensa: el mismo PDF de la liquidación que llega por mail.
+
+    Es lo que el vecino quiere guardar —el detalle de gastos del edificio y lo
+    que le toca pagar—, no un cupón. Una expensa cargada a mano, sin
+    liquidación detrás, no tiene resumen: ahí baja el comprobante de la deuda.
+    """
+    cobro = supabase.table('cobros').select('id, unidad_id, liquidacion_id').eq('id', rid).execute().data
+    if not cobro:
+        _no_es_tuyo()
+    cobro = cobro[0]
+    unidad_propia(cobro.get('unidad_id'))
+    lid = cobro.get('liquidacion_id')
+    liq = supabase.table('liquidaciones').select(LIQ_CONSORCIO_PDF).eq('id', lid).execute().data if lid else None
+    if not liq:
+        return redirect(url_for('api_vecinos_cupon_pago', rid=rid))
+    liq = liq[0]
+    consorcio = liq.get('consorcios') or {}
+    buf = io.BytesIO(_pdf_de_liquidacion(liq, consorcio, lid))
+    return pdf_response(buf, _nombre_pdf_liquidacion(liq, consorcio))
+
+
 @app.route('/api/vecinos/cobros/<rid>/cupon')
 @require_auth(allowed_roles=['vecino'])
 def api_vecinos_cupon_pago(rid):
@@ -6760,7 +6789,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
             <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;text-align:right;font-size:14px;font-weight:600;">{pesos(p["monto"])}</td>
         </tr>''' for p in particulares_uf)
         particulares_html = f'''
-<div style="background:#fff;border-radius:12px;margin-top:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+<div style="background:#fff;border-radius:16px;margin-top:16px;padding:20px;border:1px solid #EFE6DB;">
     <h3 style="margin:0 0 6px;font-size:15px;font-weight:700;color:#111;">🔑 Gastos de tu unidad</h3>
     <p style="margin:0 0 12px;font-size:12px;color:#888;">Estos gastos no se reparten entre el edificio: corresponden sólo a tu UF.</p>
     <table style="width:100%;border-collapse:collapse;">
@@ -6782,8 +6811,8 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
             for o in obras_en_curso
         )
         obras_html = f'''
-        <div style="margin-top:24px;background:#f8f7ff;border-radius:10px;padding:18px;">
-            <h3 style="margin:0 0 10px;font-size:15px;color:#7C3AED;">🏗️ Obras en curso</h3>
+        <div style="margin-top:24px;background:#F6EFE7;border-radius:12px;padding:18px;">
+            <h3 style="margin:0 0 10px;font-size:15px;color:#2F6F5E;">🏗️ Obras en curso</h3>
             <ul style="margin:0;padding-left:18px;">{obras_items}</ul>
         </div>'''
 
@@ -6802,9 +6831,9 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
     # saldo_inicial/total_ingresos propios de esta revisión, que arrancan en cero, así que
     # daría un negativo igual a sus egresos y no el fondo real del consorcio.
     fondo_html = '' if es_complementaria else f'''
-<div style="background:#f8f7ff;border-radius:12px;margin-top:16px;padding:18px;text-align:center;">
-    <p style="margin:0;font-size:12px;color:#888;text-transform:uppercase;font-weight:600;">Saldo del fondo del consorcio</p>
-    <p style="margin:6px 0 0;font-size:22px;font-weight:800;color:#7C3AED;">{pesos(saldo_final)}</p>
+<div style="background:#F6EFE7;border-radius:16px;margin-top:16px;padding:18px;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#8A7F75;text-transform:uppercase;font-weight:700;">Saldo del fondo del consorcio</p>
+    <p style="margin:6px 0 0;font-size:22px;font-weight:800;color:#2F6F5E;">{pesos(saldo_final)}</p>
 </div>'''
     vto1 = liq.get('fecha_vencimiento_1', '—')
     vto2 = liq.get('fecha_vencimiento_2', '—')
@@ -6819,31 +6848,32 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Resumen de Expensas — {periodo_display}</title>
 </head>
-<body style="margin:0;padding:0;background:#f5f5fa;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<body style="margin:0;padding:0;background:#FBF6EF;font-family:'Nunito Sans','Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#2A211C;">
 <div style="max-width:600px;margin:0 auto;padding:20px;">
 
-<!-- Header -->
-<div style="background:linear-gradient(135deg,#7C3AED,#10B981);border-radius:14px;padding:28px;color:#fff;text-align:center;">
-    <h1 style="margin:0;font-size:22px;font-weight:800;">🏢 {escape(consorcio.get('nombre', ''))}</h1>
+<!-- Header: los colores de la marca, con la "o" en amarillo sobre verde -->
+<div style="background:#2F6F5E;border-radius:16px;padding:26px 28px;color:#F6EFE7;text-align:center;">
+    <p style="margin:0 0 10px;font-size:22px;font-weight:800;letter-spacing:-.01em;">nidd<span style="color:#F2B705;">o</span></p>
+    <h1 style="margin:0;font-size:20px;font-weight:800;">{escape(consorcio.get('nombre', ''))}</h1>
     <p style="margin:6px 0 0;font-size:13px;opacity:.85;">{escape(consorcio.get('direccion', ''))}</p>
     <p style="margin:4px 0 0;font-size:13px;opacity:.85;">Período: {periodo_display}</p>
 </div>
 
 <!-- Tu expensa -->
-<div style="background:#fff;border-radius:12px;margin-top:16px;padding:24px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.05);">
-    <p style="margin:0;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">{'Expensa complementaria' if es_complementaria else 'Tu expensa este mes'}</p>
-    <p style="margin:8px 0 0;font-size:38px;font-weight:800;color:#111;">{pesos(total_unidad)}</p>
-    <p style="margin:6px 0 0;font-size:12px;color:#888;">UF {escape(uf.get('numero', ''))} — Piso {escape(uf.get('piso', '—'))} — {escape(uf.get('vecino_nombre', ''))}</p>
+<div style="background:#fff;border-radius:16px;margin-top:16px;padding:24px;text-align:center;border:1px solid #EFE6DB;">
+    <p style="margin:0;font-size:13px;color:#8A7F75;text-transform:uppercase;letter-spacing:.05em;font-weight:700;">{'Expensa complementaria' if es_complementaria else 'Tu expensa este mes'}</p>
+    <p style="margin:8px 0 0;font-size:38px;font-weight:800;color:#2A211C;">{pesos(total_unidad)}</p>
+    <p style="margin:6px 0 0;font-size:12px;color:#8A7F75;">UF {escape(uf.get('numero', ''))} — Piso {escape(uf.get('piso', '—'))} — {escape(uf.get('vecino_nombre', ''))}</p>
     {aviso_complementaria}
 </div>
 
 <!-- Desglose por categoría -->
-<div style="background:#fff;border-radius:12px;margin-top:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+<div style="background:#fff;border-radius:16px;margin-top:16px;padding:20px;border:1px solid #EFE6DB;">
     <h3 style="margin:0 0 6px;font-size:15px;font-weight:700;color:#111;">📊 Desglose por categoría</h3>
-    <p style="margin:0 0 12px;font-size:12px;color:#888;">Los montos son la parte que te toca a vos ({pct_a:.3f}% de los gastos comunes del edificio).</p>
+    <p style="margin:0 0 12px;font-size:12px;color:#8A7F75;">Los montos son la parte que te toca a vos ({fmt_numero(pct_a, 3)}% de los gastos comunes del edificio).</p>
     <table style="width:100%;border-collapse:collapse;">
         <thead>
-            <tr style="border-bottom:2px solid #7C3AED;">
+            <tr style="border-bottom:2px solid #E8734A;">
                 <th style="padding:8px 14px;text-align:left;font-size:11px;color:#888;text-transform:uppercase;">Categoría</th>
                 <th style="padding:8px 14px;text-align:right;font-size:11px;color:#888;text-transform:uppercase;">Tu parte</th>
                 <th style="padding:8px 14px;text-align:right;font-size:11px;color:#888;text-transform:uppercase;">% del total</th>
@@ -6855,18 +6885,18 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 {particulares_html}
 
 <!-- Estado de cuenta -->
-<div style="background:#fff;border-radius:12px;margin-top:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+<div style="background:#fff;border-radius:16px;margin-top:16px;padding:20px;border:1px solid #EFE6DB;">
     <h3 style="margin:0 0 14px;font-size:15px;font-weight:700;color:#111;">📒 Tu estado de cuenta</h3>
     <table style="width:100%;font-size:14px;">
         <tr><td style="padding:6px 0;color:#666;">Saldo anterior</td><td style="text-align:right;font-weight:600;">{pesos(prorrateo.get('saldo_anterior',0))}</td></tr>
-        <tr><td style="padding:6px 0;color:#666;">Tu pago registrado</td><td style="text-align:right;font-weight:600;color:#10B981;">-{pesos(prorrateo.get('pago_realizado',0))}</td></tr>
-        <tr><td style="padding:6px 0;color:#666;">Saldo pendiente</td><td style="text-align:right;font-weight:600;color:#EF4444;">{pesos(prorrateo.get('saldo_pendiente',0))}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Tu pago registrado</td><td style="text-align:right;font-weight:600;color:#2F6F5E;">-{pesos(prorrateo.get('pago_realizado',0))}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Saldo pendiente</td><td style="text-align:right;font-weight:600;color:#C4502B;">{pesos(prorrateo.get('saldo_pendiente',0))}</td></tr>
         <tr><td style="padding:6px 0;color:#666;">Intereses</td><td style="text-align:right;font-weight:600;">{pesos(prorrateo.get('interes_mora',0))}</td></tr>
         <tr style="border-top:2px solid #eee;">
-            <td style="padding:10px 0;font-weight:700;">Expensa ordinaria ({pct_a:.3f}%)</td>
+            <td style="padding:10px 0;font-weight:700;">Expensa ({fmt_numero(pct_a, 3)}% de participación)</td>
             <td style="text-align:right;font-weight:700;">{pesos(prorrateo.get('expensa_a',0))}</td>
         </tr>
-        <tr><td style="padding:6px 0;color:#666;">Adicional ordinaria</td><td style="text-align:right;font-weight:600;">{pesos(prorrateo.get('adicional_ordinaria',0))}</td></tr>
+        {f'<tr><td style="padding:6px 0;color:#666;">Adicional ordinaria</td><td style="text-align:right;font-weight:600;">{pesos(prorrateo.get("adicional_ordinaria",0))}</td></tr>' if float(prorrateo.get('adicional_ordinaria') or 0) else ''}
         <tr><td style="padding:6px 0;color:#666;">Gastos de tu unidad</td><td style="text-align:right;font-weight:600;">{pesos(gastos_particulares)}</td></tr>
         <tr style="border-top:2px solid #eee;">
             <td style="padding:10px 0;font-weight:700;">Total a pagar</td>
@@ -6876,7 +6906,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 </div>
 
 <!-- Datos de pago -->
-<div style="background:#fff;border-radius:12px;margin-top:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+<div style="background:#fff;border-radius:16px;margin-top:16px;padding:20px;border:1px solid #EFE6DB;">
     <h3 style="margin:0 0 14px;font-size:15px;font-weight:700;color:#111;">💳 Datos de pago</h3>
     <table style="width:100%;font-size:14px;">
         <tr><td style="padding:5px 0;color:#666;">Banco</td><td style="text-align:right;font-weight:500;">{banco_nombre}</td></tr>
@@ -6894,7 +6924,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 
 <!-- Footer -->
 <div style="text-align:center;margin-top:24px;padding:16px;">
-    <p style="font-size:12px;color:#aaa;">Generado por Niddo — Gestión de consorcios inteligente</p>
+    <p style="font-size:12px;color:#8A7F75;">Generado con nidd<span style="color:#E8734A;">o</span> · tu consorcio, en un solo lugar</p>
     <p style="font-size:11px;color:#ccc;">{escape(liq.get('notas', ''))}</p>
 </div>
 
@@ -6907,10 +6937,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 @require_auth(allowed_roles=['admin'])
 def api_liquidacion_resumen(lid, uid):
     """Genera y devuelve el resumen HTML personalizado de una UF."""
-    liq = liquidacion_propia(lid, '*, consorcios(nombre, direccion, cuit, clave_suterh, '
-                                  'tasa_interes_mora, recargo_segundo_vto, banco_nombre, '
-                                  'banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago, '
-                                  'banco_titular, banco_alias)')
+    liq = liquidacion_propia(lid, LIQ_CONSORCIO_PDF)
 
     consorcio = liq.get('consorcios', {})
 
@@ -7038,10 +7065,7 @@ def _generar_cobros_de_liquidacion(liq, prorrateos):
 @require_auth(allowed_roles=['admin'])
 def api_liquidacion_pdf(lid):
     """El mismo PDF que se adjunta al mail, para revisarlo antes de enviarlo."""
-    liq = liquidacion_propia(lid, '*, consorcios(nombre, direccion, cuit, clave_suterh, '
-                                  'tasa_interes_mora, recargo_segundo_vto, banco_nombre, '
-                                  'banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago, '
-                                  'banco_titular, banco_alias)')
+    liq = liquidacion_propia(lid, LIQ_CONSORCIO_PDF)
     consorcio = liq.get('consorcios') or {}
     buf = io.BytesIO(_pdf_de_liquidacion(liq, consorcio, lid))
     return pdf_response(buf, _nombre_pdf_liquidacion(liq, consorcio))
@@ -7060,10 +7084,7 @@ def api_liquidacion_enviar(lid):
 
     # El permiso se resuelve antes de tocar nada: es la ruta que manda mails a
     # cuarenta vecinos, y lo único que no se puede deshacer después.
-    liq = liquidacion_propia(lid, '*, consorcios(nombre, direccion, cuit, clave_suterh, '
-                                  'tasa_interes_mora, recargo_segundo_vto, banco_nombre, '
-                                  'banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago, '
-                                  'banco_titular, banco_alias)')
+    liq = liquidacion_propia(lid, LIQ_CONSORCIO_PDF)
 
     import resend
     resend.api_key = os.environ.get('RESEND_API_KEY', '')

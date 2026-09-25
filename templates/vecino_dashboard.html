@@ -952,8 +952,8 @@ function renderCobroWgt(cobro){
         </div>
         <div style="display:flex;align-items:center;gap:12px">
             <button class="btn btn-primary" onclick="openDrawer('drawer-pago')"><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>Informar Pago</button>
-            <a href="/api/vecinos/cobros/${cobro.id}/cupon" target="_blank" style="color:var(--blue);text-decoration:none;font-size:0.85rem;font-weight:600;display:flex;align-items:center;gap:4px">
-                <span>⬇ Descargar Cupón</span>
+            <a class="btn btn-secondary" href="/api/vecinos/cobros/${cobro.id}/resumen" title="El detalle de gastos del edificio y lo que te toca pagar">
+                <svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Descargar resumen
             </a>
         </div>`;
 }
@@ -1120,7 +1120,7 @@ function renderCobrosTable(){
             <td data-val="${c.fecha_vencimiento || ''}">${fmtD(c.fecha_vencimiento)}</td>
             <td>${ebadge(c.estado)}</td>
             <td style="display:flex;gap:6px">
-                <a class="btn btn-secondary btn-xs" href="/api/vecinos/cobros/${c.id}/cupon" target="_blank">Cupón</a>
+                <a class="btn btn-secondary btn-xs" href="/api/vecinos/cobros/${c.id}/resumen" title="Resumen de la expensa (PDF)"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Resumen</a>
                 ${c.estado!=='pagado'?`<button class="btn btn-primary btn-xs" onclick="openPagoForCobro('${c.id}')">Pagar</button>`:''}
             </td>
         </tr>`;
