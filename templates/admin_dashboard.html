@@ -462,6 +462,11 @@
         .upload-zone:hover { border-color: var(--blue-light); }
         .progress-bar { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
         .progress-bar .fill { height: 100%; border-radius: 2px; }
+        .gasto-adjunto { align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+                         background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+                         padding: 10px 12px; margin-bottom: 8px; font-size: .82rem; }
+        .gasto-adjunto-nombre { display: inline-flex; align-items: center; gap: 6px; font-weight: 600;
+                                min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .section-info { background: var(--nd-verde-dim); border: 1px solid rgba(47,111,94,.20);
                         border-radius: 8px; padding: 10px 14px; font-size: .82rem; color: var(--muted); margin-bottom: 14px; }
     </style>
@@ -708,8 +713,8 @@
     <div class="card">
         <div class="card-h"><span class="card-t">Historial</span></div>
         <table class="tbl">
-            <thead><tr><th>Fecha</th><th>Consorcio</th><th>Descripción</th><th>Categoría</th><th>Monto</th><th>Estado</th><th>Recurrente</th><th>Acciones</th></tr></thead>
-            <tbody id="tbody-gastos"><tr><td colspan="8" class="tbl-empty">Cargando...</td></tr></tbody>
+            <thead><tr><th>Fecha</th><th>Consorcio</th><th>Descripción</th><th>Categoría</th><th>Monto</th><th>Estado</th><th>Recurrente</th><th>Comprobante</th><th>Acciones</th></tr></thead>
+            <tbody id="tbody-gastos"><tr><td colspan="9" class="tbl-empty">Cargando...</td></tr></tbody>
         </table>
     </div>
 </div>
@@ -1497,21 +1502,11 @@
                 <div class="form-group"><label class="form-label">Fecha</label><input type="date" class="form-ctrl" id="m-gasto-fecha"></div>
             </div>
             <div class="sep"></div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Coeficiente de reparto</label>
-                    <select class="form-ctrl" id="m-gasto-coeficiente">
-                        <option value="A">A — general</option>
-                        <option value="B">B</option>
-                        <option value="C">C</option>
-                        <option value="E">E</option>
-                    </select>
-                    <div class="text-muted text-sm" style="margin-top:4px;">Con qué porcentaje de cada UF se reparte. Si no usás varios, dejá A.</div>
-                </div>
-                <div class="form-group">
-                    <label class="checkbox-row"><input type="checkbox" id="m-gasto-pagado" checked> Marcado como pagado</label>
-                    <div class="text-muted text-sm" style="margin-top:4px;">Viene tildado: el gasto se carga cuando ya se pagó. Destildalo si todavía no.</div>
-                </div>
+            <!-- Sin coeficiente de reparto: el gasto se reparte con el método que
+                 el consorcio tiene elegido en Configuración, igual que todos. -->
+            <div class="form-group">
+                <label class="checkbox-row"><input type="checkbox" id="m-gasto-pagado" checked> Marcado como pagado</label>
+                <div class="text-muted text-sm" style="margin-top:4px;">Viene tildado: el gasto se carga cuando ya se pagó. Destildalo si todavía no.</div>
             </div>
             <div class="form-row3">
                 <div class="form-group">
@@ -1536,8 +1531,10 @@
             <div class="sep"></div>
             <div class="form-group">
                 <label class="form-label"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>Comprobante (PDF o imagen)</label>
+                <!-- Con un comprobante ya adjunto, lo primero es poder verlo y
+                     bajarlo; reemplazarlo es lo raro. -->
+                <div id="m-gasto-comprobante-info" class="gasto-adjunto" style="display:none;"></div>
                 <input type="file" class="form-ctrl" id="m-gasto-comprobante" accept=".pdf,image/*" style="padding: 8px;">
-                <div id="m-gasto-comprobante-info" style="display:none; margin-top:6px; font-size:.8rem; color:var(--teal);"></div>
             </div>
         </div>
         <div class="modal-footer">
@@ -2081,6 +2078,13 @@ const fmt = n => {
     const v = Number(n) || 0;
     return (v < 0 ? '-' : '') + '$\u00a0' +
         Math.abs(v).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+};
+/* Las fechas se leen como en Argentina: 24/09/2026. El ISO crudo de la base
+   (2026-09-24) se colaba en las tablas. */
+const fmtFecha = iso => {
+    if (!iso) return '—';
+    const [y, m, d] = String(iso).slice(0, 10).split('-');
+    return d && m && y ? `${d}/${m}/${y}` : iso;
 };
 const toast = (msg,type='ok') => {
     const t = document.createElement('div');
@@ -3000,23 +3004,30 @@ async function loadGastos() {
         const tb = $('tbody-gastos');
         if (!data.length) {
             const donde = gastosMes ? `en ${MESES[gastosMes.m - 1]} de ${gastosMes.y}` : 'en el período elegido';
-            tb.innerHTML = `<tr><td colspan="8" class="tbl-empty">No hay gastos cargados ${donde}.</td></tr>`;
+            tb.innerHTML = `<tr><td colspan="9" class="tbl-empty">No hay gastos cargados ${donde}.</td></tr>`;
             $('gastos-total-label').textContent = '';
             return;
         }
         const total = data.reduce((s,g)=>s+(g.monto||0),0);
         $('gastos-total-label').textContent = `Total: ${fmt(total)}`;
+        /* La fila entera abre el detalle del gasto, donde se edita y se baja
+           el comprobante. Los botones de la derecha frenan la propagación. */
         tb.innerHTML = data.map(g => `
-            <tr>
-                <td>${g.fecha_gasto||'—'}</td>
+            <tr class="row-link" onclick="openGastoModal('${g.id}')" title="Ver y editar el gasto">
+                <td>${fmtFecha(g.fecha_gasto)}</td>
                 <td>${escHtml((g.consorcios||{}).nombre||'—')}</td>
                 <td><strong>${escHtml(g.descripcion)}</strong>${g.unidad_id?`<span class="b b-b" style="margin-left:6px;">UF ${escHtml((g.unidades_funcionales||{}).numero||'—')}</span>`:''}${g.comprobante_numero?`<div class="text-muted text-sm">${escHtml([g.comprobante_tipo,g.comprobante_numero].filter(Boolean).join(' '))}</div>`:''}${g.notas?`<div class="text-muted text-sm">${escHtml(g.notas)}</div>`:''}</td>
                 <td>${categoriaBadge(g.categoria)}</td>
                 <td><strong>${fmt(g.monto)}</strong>${g.tarifa_confirmada === false ? '<span class="b b-y" style="margin-left:6px;">sin confirmar</span>' : ''}</td>
                 <td>${g.pagado ? '<span class="b b-g">Pagado</span>' : '<span class="b b-y">Pendiente</span>'}</td>
                 <td>${g.recurrente ? `<span class="b b-b">${escHtml(g.frecuencia||'recurrente')}</span>` : (g.gasto_origen_id ? '<span class="b b-b">automático</span>' : '—')}</td>
-                <td><div class="inline-actions">
-                    ${g.archivo_nombre ? `<a href="/api/gastos/${g.id}/comprobante" target="_blank" title="Ver comprobante" class="btn-s btn-sm" style="text-decoration:none;" aria-label="Ver comprobante" title="Ver comprobante"><svg class="ic ic-sm"><use href="#ic-doc"></use></svg></a>` : ''}
+                <td onclick="event.stopPropagation()">${g.archivo_nombre
+                    ? `<div class="inline-actions">
+                        <a href="/api/gastos/${g.id}/comprobante" target="_blank" rel="noopener" class="btn-s btn-sm" aria-label="Ver comprobante" title="Ver ${escHtml(g.archivo_nombre)}"><svg class="ic ic-sm"><use href="#ic-ojo"></use></svg></a>
+                        <a href="/api/gastos/${g.id}/comprobante?descargar=1" class="btn-s btn-sm" aria-label="Descargar comprobante" title="Descargar ${escHtml(g.archivo_nombre)}"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg></a>
+                      </div>`
+                    : '<span class="text-muted text-sm">—</span>'}</td>
+                <td><div class="inline-actions" onclick="event.stopPropagation()">
                     <button class="btn-s btn-sm" onclick="openGastoModal('${g.id}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button>
                     <button class="btn-danger btn-sm" onclick="deleteGasto('${g.id}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
                 </div></td>
@@ -3025,14 +3036,16 @@ async function loadGastos() {
         /* Ídem para gastos: la tabla tiene 8 columnas. */
         NiddoMobile.renderList('tbody-gastos', data, g => {
             const cat = g.categoria ? escHtml(g.categoria) : 'sin categoría';
-            return `<div class="nd-row" style="cursor:default">
+            /* Tocar el gasto abre su detalle: en el teléfono no hay columna de
+               acciones, y sin esto un gasto cargado no se podía corregir. */
+            return `<button class="nd-row" onclick="openGastoModal('${g.id}')">
                 <span class="nd-row-ic ${g.pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-expensa"></use></svg></span>
                 <span class="nd-row-main">
-                    <span class="nd-row-t">${escHtml(g.descripcion || '–')}</span>
-                    <span class="nd-row-s">${cat} · ${g.fecha_gasto || '—'}${g.pagado ? '' : ' · sin pagar'}</span>
+                    <span class="nd-row-t">${escHtml(g.descripcion || '–')}${g.archivo_nombre ? ' <svg class="ic ic-sm" aria-label="Con comprobante"><use href="#ic-adjunto"></use></svg>' : ''}</span>
+                    <span class="nd-row-s">${cat} · ${fmtFecha(g.fecha_gasto)}${g.pagado ? '' : ' · sin pagar'}</span>
                 </span>
                 <span class="nd-row-amt">${fmt(g.monto)}</span>
-            </div>`;
+            </button>`;
         });
     } catch(e) { toast(e.message,'err'); }
 }
@@ -3634,9 +3647,8 @@ async function onGastoConsorcioChange(unidadSeleccionada) {
 function openGastoModal(id) {
     poblarDiasCarga();
     $('m-gasto-id').value = id||'';
-    $('m-gasto-title').textContent = id ? 'Editar gasto' : 'Nuevo gasto';
+    $('m-gasto-title').textContent = id ? 'Detalle del gasto' : 'Nuevo gasto';
     $('m-gasto-comprobante').value = '';
-    $('m-gasto-coeficiente').value = 'A';
     const infoEl = $('m-gasto-comprobante-info');
     infoEl.style.display = 'none';
     infoEl.innerHTML = '';
@@ -3674,15 +3686,20 @@ function openGastoModal(id) {
             $('m-gasto-dia-carga').value = String(g.dia_carga || new Date(g.fecha_gasto + 'T00:00:00').getDate() || 1);
             toggleFrecuencia();
             $('m-gasto-notas').value = g.notas || '';
-            $('m-gasto-coeficiente').value = g.coeficiente || 'A';
             if (g.unidad_id) {
                 $('m-gasto-alcance').value = 'uf';
                 toggleGastoAlcance();
             }
             onGastoConsorcioChange(g.unidad_id || '');
             if (g.archivo_nombre) {
-                infoEl.innerHTML = `Comprobante actual adjunto (<a href="/api/gastos/${id}/comprobante" target="_blank">ver</a>). Seleccione un archivo para reemplazarlo.`;
-                infoEl.style.display = 'block';
+                infoEl.innerHTML = `
+                    <span class="gasto-adjunto-nombre"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>${escHtml(g.archivo_nombre)}</span>
+                    <span class="inline-actions">
+                        <a class="btn-s btn-sm" href="/api/gastos/${id}/comprobante" target="_blank" rel="noopener"><svg class="ic ic-sm"><use href="#ic-ojo"></use></svg>Ver</a>
+                        <a class="btn-s btn-sm" href="/api/gastos/${id}/comprobante?descargar=1"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Descargar</a>
+                    </span>
+                    <span class="text-muted text-sm" style="flex-basis:100%;">Para reemplazarlo, elegí otro archivo abajo.</span>`;
+                infoEl.style.display = 'flex';
             }
         }
     }
@@ -3712,7 +3729,6 @@ async function saveGasto() {
     fd.append('frecuencia', $('m-gasto-frecuencia').value);
     fd.append('dia_carga', $('m-gasto-dia-carga').value || '');
     fd.append('notas', $('m-gasto-notas').value);
-    fd.append('coeficiente', $('m-gasto-coeficiente').value);
 
     const fileInput = $('m-gasto-comprobante');
     if (fileInput.files.length > 0) {

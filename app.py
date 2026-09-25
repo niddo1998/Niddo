@@ -2807,9 +2807,12 @@ def api_gasto_comprobante(gid):
     if not res.data:
         return jsonify({'error': 'No hay comprobante adjunto para este gasto'}), 404
     comp = res.data
+    # `?descargar=1` es el botón "Descargar" del detalle del gasto: el mismo
+    # archivo, pero guardado en vez de abierto en otra pestaña.
     return enviar_adjunto(comp['archivo_base64'],
                           comp.get('archivo_nombre', 'comprobante.pdf'),
-                          comp.get('mime_type'))
+                          comp.get('mime_type'),
+                          forzar_descarga=request.args.get('descargar') == '1')
 
 
 @app.route('/api/gastos/extract', methods=['POST'])
