@@ -2638,6 +2638,20 @@ function renderConsorcios() {
                 <button class="btn-danger btn-sm" onclick="deleteConsorcio('${c.id}','${escHtml(c.nombre)}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
             </div></td>
         </tr>`).join('');
+
+    /* En el teléfono, una fila por edificio en vez de la tabla de seis
+       columnas que scrolleaba de costado. Tocarla abre sus unidades. */
+    NiddoMobile.renderList('tbody-consorcios', consorcios, c => {
+        const pend = (novedades.solicitudes_por_consorcio || {})[c.id];
+        return `<button class="nd-row" onclick="openDetail('${c.id}','${escHtml(c.nombre)}','${escHtml(c.direccion||'')}')">
+            <span class="nd-row-ic"><svg class="ic"><use href="#ic-edificio"></use></svg></span>
+            <span class="nd-row-main">
+                <span class="nd-row-t">${escHtml(c.nombre)}${pend ? ` <span class="badge-count" title="Solicitudes por aprobar">${pend}</span>` : ''}</span>
+                <span class="nd-row-s">${escHtml(c.direccion || 'Sin dirección')}${c.unidades_totales ? ' · ' + c.unidades_totales + ' UF' : ''}</span>
+            </span>
+            <svg class="ic ic-sm" style="color:var(--muted)"><use href="#ic-chevron"></use></svg>
+        </button>`;
+    });
 }
 
 function populateConsorioSelects() {
@@ -2763,6 +2777,22 @@ async function loadUFs() {
                 </div></td>
             </tr>`;
         }).join('');
+
+        /* En el teléfono, una fila por unidad; tocarla la edita. */
+        NiddoMobile.renderList('tbody-ufs', ufs, u => {
+            const vec = (u.vecinos_vinculados || [])[0];
+            const quien = vec ? (vec.nombre || vec.email) : (u.vecino_nombre || 'Sin asignar');
+            const datos = [u.piso ? 'Piso ' + u.piso : '', u.tipo || '', u.superficie_m2 ? Number(u.superficie_m2).toLocaleString('es-AR') + ' m²' : '',
+                           u.ambientes ? u.ambientes + ' amb.' : ''].filter(Boolean).join(' · ');
+            return `<button class="nd-row" onclick="openUFModal('${u.id}')">
+                <span class="nd-row-ic"><b style="font-size:.78rem">${escHtml(u.numero)}</b></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">${escHtml(quien)}</span>
+                    <span class="nd-row-s">${escHtml(datos)}</span>
+                </span>
+                <svg class="ic ic-sm" style="color:var(--muted)"><use href="#ic-editar"></use></svg>
+            </button>`;
+        });
     } catch(e) { toast(e.message,'err'); }
 }
 
@@ -2870,6 +2900,23 @@ async function loadPendingNeighbors() {
                 </td>
             </tr>`;
         }).join('');
+
+        /* En el teléfono la tabla dejaba Aprobar y Rechazar fuera de la
+           pantalla: una tarjeta por solicitud, con los botones a la vista. */
+        NiddoMobile.renderList('tbody-vecinos-pendientes', list, v => `
+            <div class="nd-row" style="cursor:default;flex-wrap:wrap;">
+                <span class="nd-row-ic"><svg class="ic"><use href="#ic-vecino"></use></svg></span>
+                <span class="nd-row-main">
+                    <span class="nd-row-t">${escHtml(v.nombre || v.email)}</span>
+                    <span class="nd-row-s">${v.unidad_solicitada ? 'Pide la UF ' + escHtml(v.unidad_solicitada) : 'No supo su unidad'}${v.telefono ? ' · ' + escHtml(v.telefono) : ''}</span>
+                </span>
+                <span style="display:flex;gap:6px;width:100%;margin-top:8px;">
+                    ${v.unidad_solicitada
+                        ? `<button class="btn-p btn-sm" style="flex:1" onclick="aprobarVecino('${v.id}')">Aprobar</button>`
+                        : `<button class="btn-teal btn-sm" style="flex:1" onclick="openAsignarUFModal('${v.id}')">Elegir UF y aprobar</button>`}
+                    <button class="btn-danger btn-sm" style="flex:1" onclick="openRechazarVecino('${v.id}')">Rechazar</button>
+                </span>
+            </div>`);
     } catch(e) { toast(e.message, 'err'); }
 }
 

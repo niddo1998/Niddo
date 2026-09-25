@@ -539,6 +539,9 @@
        veces "Gastos" en la misma pantalla. El subtítulo y los botones del
        encabezado se quedan, que sí dicen algo. */
     .nd-mobile .main .page-title { display: none; }
+    /* Salvo en el detalle de un edificio: ahí el título de arriba dice
+       "Edificios" y el nombre del edificio no aparecía en ningún lado. */
+    .nd-mobile .main #consorcio-detail .page-title { display: block; font-size: 1.25rem; }
 
     /* Mandaba a usar el panel lateral, que en el teléfono no existía, y a
        mirar KPIs que ahora contesta la tarjeta del mes. */
