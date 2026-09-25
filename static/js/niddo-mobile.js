@@ -260,7 +260,10 @@
                 html += '<' + tag + ' class="nd-dr-item"' + attrs + '>' +
                     '<svg class="ic"><use href="#' + it.icon + '"></use></svg>' +
                     '<span>' + it.label + '</span>' +
-                    (it.badge ? '<i class="nd-dr-badge">' + it.badge + '</i>' : '') +
+                    /* El numerito se deja puesto y escondido: lo llena
+                       NiddoMobile.setBadge cuando llegan las novedades. */
+                    '<i class="nd-dr-badge"' + (it.section ? ' data-nd-badge="' + it.section + '"' : '') +
+                    (it.badge ? '' : ' hidden') + '>' + (it.badge || '') + '</i>' +
                     '</' + tag + '>';
             });
         });
@@ -515,6 +518,37 @@
         document.getElementById('nd-ctx-lista').innerHTML = html;
         overlay.classList.add('open');
     }
+
+    /* El numerito de una sección en el cajón y en su tab de abajo. La tab
+       suma lo de todas sus secciones (Comunidad = comunicados + reclamos +
+       mensajes). El botón ☰ muestra un punto si hay algo adentro del cajón. */
+    var badges = {};
+    NiddoMobile.setBadge = function (section, n) {
+        badges[section] = n || 0;
+        var d = document.querySelector('#nd-drawer [data-nd-badge="' + section + '"]');
+        if (d) { d.textContent = n || ''; d.hidden = !n; }
+        var porTab = {};
+        Object.keys(badges).forEach(function (sec) {
+            var tab = TAB_OF[sec] || sec;
+            porTab[tab] = (porTab[tab] || 0) + badges[sec];
+        });
+        var tabs = document.querySelectorAll('#nd-tabbar .bottom-btn, .nd-tabbar .bottom-btn');
+        for (var i = 0; i < tabs.length; i++) {
+            var b = tabs[i], cant = porTab[b.dataset.tab] || 0;
+            var el = b.querySelector('.nd-tab-badge');
+            if (!el && cant) {
+                el = document.createElement('i');
+                el.className = 'nd-tab-badge';
+                b.appendChild(el);
+            }
+            if (el) { el.textContent = cant; el.style.display = cant ? '' : 'none'; }
+        }
+        var menu = document.querySelector('.nd-menu-btn');
+        if (menu) {
+            var total = Object.keys(badges).reduce(function (a, k) { return a + badges[k]; }, 0);
+            menu.classList.toggle('nd-con-novedades', total > 0);
+        }
+    };
 
     NiddoMobile.openDrawer = openDrawer;
     NiddoMobile.closeDrawer = closeDrawer;

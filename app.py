@@ -1150,6 +1150,28 @@ def index():
     return render_template('index.html')
 
 
+# El service worker y el manifest tienen que servirse desde la raíz: el
+# alcance de un service worker es la carpeta de donde sale, y desde /static/
+# no podría mostrar notificaciones de /dashboard/.
+@app.route('/sw.js')
+def service_worker():
+    res = send_file(os.path.join(app.static_folder, 'js', 'sw.js'), mimetype='application/javascript')
+    res.headers['Service-Worker-Allowed'] = '/'
+    res.headers['Cache-Control'] = 'no-cache'
+    return res
+
+
+@app.route('/manifest.webmanifest')
+def manifest():
+    return send_file(os.path.join(app.static_folder, 'manifest.webmanifest'),
+                     mimetype='application/manifest+json')
+
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_file(os.path.join(app.static_folder, 'img', 'favicon.ico'), mimetype='image/x-icon')
+
+
 @app.route('/login')
 def login():
     user = session.get('user')
@@ -3784,6 +3806,9 @@ def api_vecinos_asociar():
     }).eq('id', vecino_id).execute()
 
     _mail_solicitud_vecino(vecino_id, consorcio_id, unidad_id)
+    cons = supabase.table('consorcios').select('nombre').eq('id', consorcio_id).execute().data
+    _avisar_novedad('admin_solicitud', consorcio_id=consorcio_id, nombre=_nombre_vecino(vecino_id),
+                    consorcio=(cons[0].get('nombre') if cons else ''))
     return jsonify({'ok': True, 'estado': 'pendiente'})
 
 
@@ -4780,6 +4805,8 @@ def api_avisos_pago_create():
         payload['adjunto_nombre'] = nombre
         payload['adjunto_mime'] = mime
     res = supabase.table('avisos_pago').insert(payload).execute()
+    _avisar_novedad('admin_aviso_pago', consorcio_id=payload['consorcio_id'],
+                    nombre=_nombre_vecino(vecino_id), monto=payload.get('monto'))
     return jsonify(res.data[0] if res.data else {}), 201
 
 
@@ -4824,6 +4851,7 @@ def api_reclamos_create():
         payload['adjunto_nombre'] = nombre
         payload['adjunto_mime'] = mime
     res = supabase.table('reclamos').insert(payload).execute()
+    _avisar_novedad('admin_reclamo_nuevo', reclamo=payload)
     return jsonify(res.data[0] if res.data else {}), 201
 
 
@@ -4855,6 +4883,24 @@ def api_reclamos_adjunto(rid):
 
 
 # ── Novedades ──────────────────────────────────────────────────────────────────
+def _nombre_vecino(vecino_id):
+    fila = supabase.table('vecinos').select('nombre, email').eq('id', vecino_id).execute().data
+    return ((fila[0].get('nombre') or fila[0].get('email')) if fila else '') or ''
+
+
+MESES_ES = ('enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+            'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre')
+
+
+def periodo_largo_es(periodo):
+    """'2026-09' → 'septiembre 2026'."""
+    try:
+        y, m = str(periodo).split('-')[:2]
+        return f'{MESES_ES[int(m) - 1]} {y}'
+    except (ValueError, IndexError):
+        return str(periodo or '')
+
+
 def _avisar_novedad(tipo, **datos):
     """Avisa por push al otro lado que pasó algo. Nunca voltea la request.
 
@@ -4865,11 +4911,6 @@ def _avisar_novedad(tipo, **datos):
         _push_por_novedad(tipo, **datos)
     except Exception:
         app.logger.exception('No se pudo avisar la novedad %s', tipo)
-
-
-def _push_por_novedad(tipo, **datos):
-    """Se completa con las notificaciones push (ver más abajo)."""
-    return None
 
 
 # ── La conversación de cada reclamo ────────────────────────────────────────────
@@ -5091,6 +5132,8 @@ def api_mensajes_crear():
         'consorcio_id': consorcio_id, 'vecino_id': vecino_id,
         'autor': 'vecino', 'cuerpo': cuerpo, **extra,
     }).execute()
+    _avisar_novedad('admin_mensaje', consorcio_id=consorcio_id,
+                    nombre=_nombre_vecino(vecino_id), cuerpo=cuerpo)
     return jsonify(_mensaje_publico(res.data[0] if res.data else {})), 201
 
 
@@ -5204,6 +5247,7 @@ def api_admin_mensajes_responder(vid):
         'consorcio_id': consorcio_id, 'vecino_id': vid,
         'autor': 'admin', 'admin_id': admin_id, 'cuerpo': cuerpo, **extra,
     }).execute()
+    _avisar_novedad('vecino_mensaje', vecino_id=vid, cuerpo=cuerpo)
     return jsonify(_mensaje_publico(res.data[0] if res.data else {})), 201
 
 
@@ -5421,6 +5465,7 @@ def api_admin_comunicados_create():
     consorcio = consorcio_propio(payload['consorcio_id'], 'id, nombre')
     res = supabase.table('comunicados').insert(payload).execute()
     creado = res.data[0] if res.data else {}
+    _avisar_novedad('vecino_comunicado', comunicado=creado or payload)
 
     # Avisar por mail es opcional y va después de guardar: el comunicado ya
     # está publicado en el panel, y que Resend esté caído no puede devolver un
@@ -6961,6 +7006,9 @@ def api_liquidacion_enviar(lid):
     # La deuda se crea antes de avisar. Si se hiciera después y fallara, el
     # vecino tendría el mail con un total que su cuenta no muestra.
     cobros_creados = _generar_cobros_de_liquidacion(liq, prorrateos)
+    if cobros_creados:
+        _avisar_novedad('vecino_expensa', periodo=periodo_largo_es(liq.get('periodo')),
+                        unidades=[p.get('unidad_id') for p in prorrateos])
 
     # El PDF se arma UNA vez para todo el consorcio, no uno por unidad: es la
     # liquidación entera y es idéntica para todos, así que generarla 40 veces
@@ -7080,6 +7128,362 @@ def api_envio_programado_set(cid):
     }
     res = supabase.table('envio_programado').upsert(payload, on_conflict='consorcio_id').execute()
     return jsonify(res.data[0] if res.data else {})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NOVEDADES — los numeritos del menú
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Un badge cuenta lo que llegó desde la última vez que la persona entró a esa
+# sección, no lo que está en tal o cual estado: entrar lo borra, y vuelve a
+# aparecer cuando llega algo más nuevo (un reclamo, una respuesta, un mensaje,
+# una expensa). La excepción son las tareas pendientes —una solicitud de alta,
+# un pago informado—: esas quedan hasta que se resuelven, porque son trabajo.
+#
+# La última visita vive en `secciones_vistas` (v21). Sin fila se toma la fecha
+# de alta de la cuenta, así una cuenta nueva no arranca con cincuenta avisos
+# viejos.
+
+SECCIONES_CON_BADGE = {
+    'admin':  ('reclamos', 'mensajes'),
+    'vecino': ('comunicados', 'reclamos', 'mensajes', 'expensas'),
+}
+
+
+def _vistas_de(tipo, uid, desde_alta):
+    """{seccion: visto_at} con la fecha de alta como piso."""
+    vistas = {sec: desde_alta for sec in SECCIONES_CON_BADGE[tipo]}
+    try:
+        filas = supabase.table('secciones_vistas').select('seccion, visto_at') \
+            .eq('usuario_tipo', tipo).eq('usuario_id', uid).execute().data or []
+    except Exception:
+        return vistas
+    for f in filas:
+        if f.get('seccion') in vistas and f.get('visto_at'):
+            vistas[f['seccion']] = max(str(f['visto_at']), str(vistas[f['seccion']] or ''))
+    return vistas
+
+
+def _despues_de(filas, campo, desde):
+    desde = str(desde or '')
+    return [f for f in filas if str(f.get(campo) or '') > desde]
+
+
+def _novedades_admin(admin_id):
+    admin = cargar_admin_actual() or {}
+    vistas = _vistas_de('admin', admin_id, admin.get('created_at') or '')
+    cids = consorcios_propios_ids()
+    res = {'reclamos': 0, 'mensajes': 0, 'solicitudes': 0,
+           'solicitudes_por_consorcio': {}, 'avisos': 0}
+    if not cids:
+        return res
+
+    reclamos = supabase.table('reclamos').select('id, created_at') \
+        .in_('consorcio_id', cids).execute().data or []
+    nuevos = len(_despues_de(reclamos, 'created_at', vistas['reclamos']))
+    if reclamos:
+        try:
+            resp = supabase.table('reclamo_mensajes').select('created_at') \
+                .in_('reclamo_id', [r['id'] for r in reclamos]).eq('autor', 'vecino').execute().data or []
+            nuevos += len(_despues_de(resp, 'created_at', vistas['reclamos']))
+        except Exception:
+            pass
+    res['reclamos'] = nuevos
+
+    msjs = supabase.table('mensajes').select('created_at') \
+        .in_('consorcio_id', cids).eq('autor', 'vecino').execute().data or []
+    res['mensajes'] = len(_despues_de(msjs, 'created_at', vistas['mensajes']))
+
+    pend = supabase.table('vecinos').select('consorcio_solicitado_id') \
+        .eq('estado_asociacion', 'pendiente').in_('consorcio_solicitado_id', cids).execute().data or []
+    for v in pend:
+        c = v.get('consorcio_solicitado_id')
+        res['solicitudes_por_consorcio'][c] = res['solicitudes_por_consorcio'].get(c, 0) + 1
+    res['solicitudes'] = len(pend)
+
+    try:
+        avisos = supabase.table('avisos_pago').select('id') \
+            .in_('consorcio_id', cids).eq('estado', 'pendiente').execute().data or []
+        res['avisos'] = len(avisos)
+    except Exception:
+        pass
+    return res
+
+
+def _unidades_del_vecino(vecino_id):
+    """Las UFs del vecino: la principal y las de vecinos_unidades."""
+    v = supabase.table('vecinos').select('unidad_id, consorcio_id, created_at') \
+        .eq('id', vecino_id).execute().data
+    v = v[0] if v else {}
+    ids = {v.get('unidad_id')} if v.get('unidad_id') else set()
+    try:
+        extra = supabase.table('vecinos_unidades').select('unidad_id') \
+            .eq('vecino_id', vecino_id).eq('activo', True).execute().data or []
+        ids |= {e['unidad_id'] for e in extra if e.get('unidad_id')}
+    except Exception:
+        pass
+    return v, list(ids)
+
+
+def _novedades_vecino(vecino_id):
+    v, ufs = _unidades_del_vecino(vecino_id)
+    cid = v.get('consorcio_id')
+    vistas = _vistas_de('vecino', vecino_id, v.get('created_at') or '')
+    res = {'comunicados': 0, 'reclamos': 0, 'mensajes': 0, 'expensas': 0}
+    if not cid:
+        return res
+
+    coms = supabase.table('comunicados').select('created_at').eq('consorcio_id', cid).execute().data or []
+    res['comunicados'] = len(_despues_de(coms, 'created_at', vistas['comunicados']))
+
+    recs = supabase.table('reclamos').select('id').eq('vecino_id', vecino_id).execute().data or []
+    if recs:
+        try:
+            resp = supabase.table('reclamo_mensajes').select('created_at') \
+                .in_('reclamo_id', [r['id'] for r in recs]).eq('autor', 'admin').execute().data or []
+            res['reclamos'] = len(_despues_de(resp, 'created_at', vistas['reclamos']))
+        except Exception:
+            pass
+
+    msjs = supabase.table('mensajes').select('created_at') \
+        .eq('vecino_id', vecino_id).eq('autor', 'admin').execute().data or []
+    res['mensajes'] = len(_despues_de(msjs, 'created_at', vistas['mensajes']))
+
+    if ufs:
+        cobros = supabase.table('cobros').select('created_at').in_('unidad_id', ufs).execute().data or []
+        res['expensas'] = len(_despues_de(cobros, 'created_at', vistas['expensas']))
+    return res
+
+
+def _quien_soy():
+    """('admin', admin_id) o ('vecino', vecino_id)."""
+    user = session.get('user') or {}
+    if user.get('role') == 'admin':
+        return 'admin', get_admin_id()
+    return 'vecino', get_vecino_id()
+
+
+@app.route('/api/novedades')
+@require_auth()
+def api_novedades():
+    tipo, uid = _quien_soy()
+    if not uid:
+        return jsonify({})
+    datos = _novedades_admin(uid) if tipo == 'admin' else _novedades_vecino(uid)
+    return jsonify(datos)
+
+
+@app.route('/api/novedades/visto', methods=['POST'])
+@require_auth()
+def api_novedades_visto():
+    """Entrar a una sección borra su numerito hasta la próxima novedad."""
+    tipo, uid = _quien_soy()
+    seccion = ((request.json or {}).get('seccion') or '').strip()
+    if not uid or seccion not in SECCIONES_CON_BADGE[tipo]:
+        return jsonify({'error': 'Sección desconocida'}), 400
+    try:
+        supabase.table('secciones_vistas').upsert(
+            {'usuario_tipo': tipo, 'usuario_id': uid, 'seccion': seccion, 'visto_at': now_iso()},
+            on_conflict='usuario_tipo,usuario_id,seccion').execute()
+    except Exception:
+        app.logger.exception('No se pudo marcar vista la sección %s', seccion)
+    return jsonify({'ok': True})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NOTIFICACIONES PUSH
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Niddo es una web que se agrega a la pantalla de inicio, no una app de tienda.
+# Las notificaciones al celular son Web Push: el navegador le da al usuario una
+# suscripción (la URL del servicio de push de Google, Apple o Mozilla más dos
+# claves) y el servidor le manda el aviso cifrado a esa URL. Lo muestra el
+# service worker (static/js/sw.js), aunque Niddo esté cerrado.
+#
+# Hace falta un par de claves VAPID, que identifican al servidor ante esos
+# servicios. Se generan una sola vez y van en las variables de entorno:
+#   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_CONTACTO (un mailto:)
+# Sin ellas no pasa nada malo: la app no ofrece activar las notificaciones y
+# los avisos simplemente no salen.
+#
+# En iPhone funciona desde iOS 16.4 y sólo con Niddo agregado a la pantalla de
+# inicio (Compartir → Agregar a inicio): es una regla de Apple.
+
+VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
+VAPID_CONTACTO = os.environ.get('VAPID_CONTACTO', 'mailto:soporte@niddo.app')
+
+
+def push_disponible():
+    return bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY)
+
+
+@app.route('/api/push/clave')
+@require_auth()
+def api_push_clave():
+    return jsonify({'disponible': push_disponible(), 'clave': VAPID_PUBLIC_KEY})
+
+
+@app.route('/api/push/suscribir', methods=['POST'])
+@require_auth()
+def api_push_suscribir():
+    tipo, uid = _quien_soy()
+    sub = (request.json or {}).get('suscripcion') or {}
+    claves = sub.get('keys') or {}
+    endpoint = (sub.get('endpoint') or '').strip()
+    if not uid or not endpoint.startswith('https://') or not claves.get('p256dh') or not claves.get('auth'):
+        return jsonify({'error': 'Suscripción inválida'}), 400
+    # El endpoint es del dispositivo: si antes lo usó otra cuenta (la compu
+    # compartida de la administración), pasa a ser de quien está ahora.
+    supabase.table('push_suscripciones').upsert({
+        'usuario_tipo': tipo, 'usuario_id': uid, 'endpoint': endpoint,
+        'p256dh': claves['p256dh'], 'auth': claves['auth'],
+        'user_agent': (request.headers.get('User-Agent') or '')[:300],
+    }, on_conflict='endpoint').execute()
+    return jsonify({'ok': True}), 201
+
+
+@app.route('/api/push/desuscribir', methods=['POST'])
+@require_auth()
+def api_push_desuscribir():
+    tipo, uid = _quien_soy()
+    endpoint = ((request.json or {}).get('endpoint') or '').strip()
+    if endpoint:
+        supabase.table('push_suscripciones').delete() \
+            .eq('endpoint', endpoint).eq('usuario_tipo', tipo).eq('usuario_id', uid).execute()
+    return jsonify({'ok': True})
+
+
+def _enviar_push(suscripcion, datos):
+    """Manda un aviso a un dispositivo. Devuelve True, False o 'borrar'."""
+    from pywebpush import webpush, WebPushException
+    try:
+        webpush(
+            subscription_info={'endpoint': suscripcion['endpoint'],
+                               'keys': {'p256dh': suscripcion['p256dh'], 'auth': suscripcion['auth']}},
+            data=json.dumps(datos),
+            vapid_private_key=VAPID_PRIVATE_KEY,
+            vapid_claims={'sub': VAPID_CONTACTO},
+            ttl=60 * 60 * 24,
+            timeout=6,
+        )
+        return True
+    except WebPushException as e:
+        status = getattr(getattr(e, 'response', None), 'status_code', None)
+        # 404/410: el usuario desinstaló, revocó el permiso o el navegador
+        # rotó la suscripción. No va a volver a andar.
+        return 'borrar' if status in (404, 410) else False
+    except Exception:
+        app.logger.exception('Falló un envío push')
+        return False
+
+
+def push_a(tipo, ids, titulo, cuerpo, url='/', etiqueta=None):
+    """Avisa a todos los dispositivos de esas personas. Nunca levanta excepción.
+
+    Los envíos van en paralelo: un comunicado a un edificio de cincuenta
+    departamentos son cincuenta o cien llamadas, y en serie tardarían más que
+    lo que Vercel deja vivir a la request.
+    """
+    ids = [i for i in set(ids or []) if i]
+    if not ids or not push_disponible():
+        return 0
+    try:
+        subs = supabase.table('push_suscripciones').select('id, endpoint, p256dh, auth') \
+            .eq('usuario_tipo', tipo).in_('usuario_id', ids).execute().data or []
+    except Exception:
+        app.logger.exception('No se pudieron leer las suscripciones push')
+        return 0
+    if not subs:
+        return 0
+    datos = {'titulo': titulo, 'cuerpo': cuerpo[:180], 'url': url,
+             'etiqueta': etiqueta or url}
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(10, len(subs))) as pool:
+        resultados = list(pool.map(lambda s_: _enviar_push(s_, datos), subs))
+    muertas = [s_['id'] for s_, r in zip(subs, resultados) if r == 'borrar']
+    if muertas:
+        try:
+            supabase.table('push_suscripciones').delete().in_('id', muertas).execute()
+        except Exception:
+            pass
+    return len([r for r in resultados if r is True])
+
+
+def _vecinos_del_consorcio(cid, excepto=None):
+    filas = supabase.table('vecinos').select('id').eq('consorcio_id', cid).execute().data or []
+    return [f['id'] for f in filas if f['id'] != excepto]
+
+
+def _admin_del_consorcio(cid):
+    fila = supabase.table('consorcios').select('admin_id').eq('id', cid).execute().data
+    return [fila[0]['admin_id']] if fila and fila[0].get('admin_id') else []
+
+
+def _vecinos_de_unidades(uf_ids):
+    uf_ids = [u for u in uf_ids if u]
+    if not uf_ids:
+        return []
+    ids = {f['id'] for f in supabase.table('vecinos').select('id')
+           .in_('unidad_id', uf_ids).execute().data or []}
+    try:
+        ids |= {f['vecino_id'] for f in supabase.table('vecinos_unidades').select('vecino_id')
+                .in_('unidad_id', uf_ids).eq('activo', True).execute().data or []}
+    except Exception:
+        pass
+    return list(ids)
+
+
+def _push_por_novedad(tipo, **d):
+    """Qué aviso sale para cada novedad y a quién. Es la tabla de verdad."""
+    if not push_disponible():
+        return
+    admin_url = '/dashboard/admin'
+    vecino_url = '/dashboard/vecino'
+    if tipo == 'admin_reclamo_nuevo':
+        r = d['reclamo']
+        push_a('admin', _admin_del_consorcio(r.get('consorcio_id')), 'Reclamo nuevo',
+               r.get('titulo') or '', admin_url + '#comunicacion', 'reclamos')
+    elif tipo == 'admin_reclamo_respuesta':
+        r = d['reclamo']
+        push_a('admin', _admin_del_consorcio(r.get('consorcio_id')),
+               f"Respuesta en «{r.get('titulo') or 'un reclamo'}»", d.get('cuerpo') or 'Adjuntó un archivo',
+               admin_url + '#comunicacion', 'reclamos')
+    elif tipo == 'vecino_reclamo_respuesta':
+        r = d['reclamo']
+        push_a('vecino', [r.get('vecino_id')], 'La administración respondió tu reclamo',
+               d.get('cuerpo') or r.get('titulo') or '', vecino_url + '#reclamos', 'reclamos')
+    elif tipo == 'admin_mensaje':
+        push_a('admin', _admin_del_consorcio(d['consorcio_id']),
+               f"Mensaje de {d.get('nombre') or 'un vecino'}", d.get('cuerpo') or 'Te mandó un archivo',
+               admin_url + '#comunicacion', 'mensajes')
+    elif tipo == 'vecino_mensaje':
+        push_a('vecino', [d['vecino_id']], 'Mensaje de la administración',
+               d.get('cuerpo') or 'Te mandó un archivo', vecino_url + '#mensajes', 'mensajes')
+    elif tipo == 'vecino_comunicado':
+        c = d['comunicado']
+        push_a('vecino', _vecinos_del_consorcio(c.get('consorcio_id'), excepto=d.get('excepto')),
+               c.get('titulo') or 'Comunicado nuevo', c.get('cuerpo') or '',
+               vecino_url + '#comunicados', 'comunicado-' + str(c.get('id')))
+    elif tipo == 'admin_comunicado_vecino':
+        c = d['comunicado']
+        push_a('admin', _admin_del_consorcio(c.get('consorcio_id')), c.get('titulo') or 'Aviso de un vecino',
+               c.get('cuerpo') or '', admin_url + '#amenities', 'reservas')
+    elif tipo == 'admin_solicitud':
+        push_a('admin', _admin_del_consorcio(d['consorcio_id']), 'Un vecino pidió sumarse',
+               f"{d.get('nombre') or 'Un vecino'} quiere entrar a {d.get('consorcio') or 'tu edificio'}",
+               admin_url + '#consorcios', 'solicitudes')
+    elif tipo == 'admin_aviso_pago':
+        push_a('admin', _admin_del_consorcio(d['consorcio_id']), 'Pago informado',
+               f"{d.get('nombre') or 'Un vecino'} informó un pago de {pesos(d.get('monto'))}",
+               admin_url + '#cobros', 'avisos')
+    elif tipo == 'vecino_expensa':
+        push_a('vecino', _vecinos_de_unidades(d.get('unidades') or []),
+               f"Tu expensa de {d.get('periodo') or 'este mes'} ya está",
+               'Entrá para ver el resumen y cómo pagarla.', vecino_url + '#expensas', 'expensas')
+    elif tipo == 'admin_reserva':
+        push_a('admin', _admin_del_consorcio(d['consorcio_id']), 'Reserva nueva',
+               d.get('texto') or '', admin_url + '#amenities', 'reservas')
 
 
 # ── Run ────────────────────────────────────────────────────────────────────────

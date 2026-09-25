@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Mi Consorcio | Niddo</title>
+    {% include '_head_app.html' %}
     <meta name="description" content="Dashboard de vecino Niddo — gestioná tus expensas, reservas, reclamos y comunicados del consorcio.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,6 +19,7 @@
     </script>
     <script src="{{ url_for('static', filename='js/niddo-mobile.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/niddo-numeros.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/niddo-push.js') }}" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -305,7 +307,7 @@
         <button class="nav-btn active" id="nav-inicio"      onclick="showSection('inicio')"><svg class="ic"><use href="#ic-edificio"></use></svg>Inicio</button>
         <button class="nav-btn"        id="nav-comunicados" onclick="showSection('comunicados')"><svg class="ic"><use href="#ic-megafono"></use></svg>Comunicados <span class="nbadge" id="nbadge-com" style="display:none">0</span></button>
         <span class="nav-group">Finanzas</span>
-        <button class="nav-btn"        id="nav-expensas"    onclick="showSection('expensas')"><svg class="ic"><use href="#ic-expensa"></use></svg>Expensas</button>
+        <button class="nav-btn"        id="nav-expensas"    onclick="showSection('expensas')"><svg class="ic"><use href="#ic-expensa"></use></svg>Expensas <span class="nbadge" id="nbadge-exp" style="display:none">0</span></button>
         <button class="nav-btn"        id="nav-gastos"      onclick="showSection('gastos')"><svg class="ic"><use href="#ic-balance"></use></svg>Reporte de Gastos</button>
         <span class="nav-group">Comunidad</span>
         <button class="nav-btn"        id="nav-reclamos"    onclick="showSection('reclamos')"><svg class="ic"><use href="#ic-alerta"></use></svg>Reclamos <span class="nbadge" id="nbadge-rec" style="display:none">0</span></button>
@@ -779,6 +781,8 @@ function showSection(name){
 
     const ldr={inicio:loadInicio,comunicados:loadComs,expensas:loadExpensas,gastos:loadGastos,reclamos:loadReclamos,mensajes:loadMensajes,reservas:loadReservas,archivos:loadArchivos,perfil:loadPerfil};
     if(ldr[name])ldr[name]();
+    // Entrar a la sección es ver sus novedades: el numerito se va hasta la próxima.
+    if(SECCIONES_CON_BADGE.includes(name)&&S.vecino&&S.vecino.consorcio_id)marcarVisto(name);
 }
 
 /* El botón "atrás" del navegador. En mobile esto lo ata niddo-mobile.js, pero
@@ -898,6 +902,7 @@ async function init(){
     showSection(seccionDelHash());
     loadBadges();
     setupDragAndDrop();
+    if(window.NiddoPush)NiddoPush.montarTarjeta(document.getElementById('section-inicio'));
 }
 
 async function loadMisUnidades(){
@@ -923,13 +928,11 @@ async function loadInicio(){
         const c=await api('/api/comunicados?no_leidos=true');
         renderComsRecientes(c.slice(0,4));
         document.getElementById('kpi-coms').textContent=c.length;
-        if(c.length){const b=document.getElementById('nbadge-com');b.textContent=c.length;b.style.display='inline-block'}
     }catch(e){document.getElementById('kpi-coms').textContent='–'}
     try{
         const r=await api('/api/reclamos?estado=activo');
         document.getElementById('kpi-recs').textContent=r.length;
         const chip=document.getElementById('kpi-recs-chip');chip.textContent=r.length?'Pendientes':'Sin reclamos';chip.className='stat-chip '+(r.length?'warn':'ok');
-        if(r.length){const b=document.getElementById('nbadge-rec');b.textContent=r.length;b.style.display='inline-block'}
     }catch(e){}
 }
 
@@ -1015,17 +1018,37 @@ function renderComsRecientes(coms){
     `).join('');
 }
 
-/* Los contadores del sidebar. Los comunicados sin leer los escribe loadComs()
-   al entrar a la sección; los mensajes tienen que verse desde cualquier lado,
-   que para eso son mensajes. */
+/* Los numeritos del menú. Cuentan lo que llegó desde la última vez que
+   entraste a la sección —comunicados, respuestas a tus reclamos, mensajes de
+   la administración, expensas nuevas— y entrar los borra hasta la próxima. */
+const SECCIONES_CON_BADGE=['comunicados','reclamos','mensajes','expensas'];
+const BADGE_DE={comunicados:'nbadge-com',reclamos:'nbadge-rec',mensajes:'nbadge-msj',expensas:'nbadge-exp'};
+S.novedades={};
+function pintarNovedades(){
+    let total=0;
+    SECCIONES_CON_BADGE.forEach(sec=>{
+        const n=S.novedades[sec]||0;total+=n;
+        const b=document.getElementById(BADGE_DE[sec]);
+        if(b){b.textContent=n;b.style.display=n?'inline-block':'none'}
+        if(window.NiddoMobile&&NiddoMobile.setBadge)NiddoMobile.setBadge(sec,n);
+    });
+    if(window.NiddoPush)NiddoPush.numeroEnIcono(total);
+}
 async function loadBadges(){
     try{
-        const {sin_leer}=await api('/api/mensajes/no-leidos');
-        const b=document.getElementById('nbadge-msj');
-        if(!b)return;
-        b.textContent=sin_leer;
-        b.style.display=sin_leer?'inline-block':'none';
+        const r=await fetch('/api/novedades');
+        if(!r.ok)return;
+        S.novedades=await r.json();
+        // La sección que estás mirando no cuenta: ya la estás viendo.
+        const activa=document.querySelector('.section.active');
+        const sec=activa?activa.id.replace('section-',''):'';
+        if(S.novedades[sec]){S.novedades[sec]=0;marcarVisto(sec)}
+        pintarNovedades();
     }catch(e){}
+}
+function marcarVisto(sec){
+    if(S.novedades[sec]){S.novedades[sec]=0;pintarNovedades()}
+    fetch('/api/novedades/visto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({seccion:sec})}).catch(()=>{});
 }
 
 async function loadComs(){
@@ -1584,6 +1607,11 @@ async function loadPerfil(){
         <button type="submit" class="btn btn-primary" style="margin-top:14px">Guardar cambios</button>
     </form>
 
+    <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
+        <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:12px">Notificaciones en este celular</div>
+        <div id="perfil-push" style="font-size:0.83rem;color:var(--muted)">…</div>
+    </div>
+
     <div style="border-top:1px solid var(--border);padding-top:16px">
         <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:12px">Mis Unidades</div>
         ${S.unidades.map(u=>{
@@ -1595,6 +1623,28 @@ async function loadPerfil(){
             </div>`;
         }).join('')}
     </div>`;
+    pintarPerfilPush();
+}
+
+const PUSH_TXT={
+    activo:'Activas: te avisamos acá cuando hay una expensa nueva, te responden un reclamo o te escriben.',
+    apagado:'Apagadas en este dispositivo.',
+    bloqueado:'Las bloqueaste en el navegador. Habilitalas desde la configuración del navegador (el candado de la barra de direcciones).',
+    'ios-instalar':'En iPhone tenés que agregar Niddo a la pantalla de inicio: tocá Compartir → «Agregar a inicio», abrilo desde ahí y activalas.',
+    'no-soportado':'Este navegador no permite notificaciones.',
+    'no-configurado':'Todavía no están disponibles.'
+};
+async function pintarPerfilPush(){
+    const el=document.getElementById('perfil-push');if(!el||!window.NiddoPush)return;
+    const e=await NiddoPush.estado();
+    el.innerHTML=`<div style="margin-bottom:8px">${PUSH_TXT[e]||''}</div>`+
+        (e==='activo'?'<button class="btn btn-secondary btn-sm" onclick="cambiarPush(false)">Apagar</button>'
+        :e==='apagado'?'<button class="btn btn-primary btn-sm" onclick="cambiarPush(true)">Activar notificaciones</button>':'');
+}
+async function cambiarPush(prender){
+    const r=prender?await NiddoPush.activar():await NiddoPush.desactivar();
+    if(prender&&r==='activo')toast('Notificaciones activadas','ok');
+    pintarPerfilPush();
 }
 
 async function guardarPerfil(){

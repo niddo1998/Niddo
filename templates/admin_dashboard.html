@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Panel Administrador | Niddo</title>
+    {% include '_head_app.html' %}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -82,6 +83,7 @@
     </script>
     <script src="{{ url_for('static', filename='js/niddo-mobile.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/niddo-numeros.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/niddo-push.js') }}" defer></script>
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -522,11 +524,11 @@
     <div class="sidebar-nav">
         <div class="nav-section-label">General</div>
         <a class="nav-link active" onclick="show('dashboard',this)"><svg class="ic"><use href="#ic-panel"></use></svg>Panel</a>
-        <a class="nav-link" onclick="show('consorcios',this)"><svg class="ic"><use href="#ic-edificio"></use></svg>Consorcios</a>
+        <a class="nav-link" onclick="show('consorcios',this)"><svg class="ic"><use href="#ic-edificio"></use></svg>Consorcios <span class="badge-count" id="nav-badge-consorcios" style="display:none" title="Solicitudes de vecinos para aprobar"></span></a>
 
         <div class="nav-section-label">Operaciones</div>
         <a class="nav-link" onclick="show('gastos',this)"><svg class="ic"><use href="#ic-expensa"></use></svg>Gastos</a>
-        <a class="nav-link" onclick="show('cobros',this)"><svg class="ic"><use href="#ic-cobro"></use></svg>Cobros</a>
+        <a class="nav-link" onclick="show('cobros',this)"><svg class="ic"><use href="#ic-cobro"></use></svg>Cobros <span class="badge-count" id="nav-badge-cobros" style="display:none" title="Pagos informados sin revisar"></span></a>
         <a class="nav-link" onclick="show('amenities',this)"><svg class="ic"><use href="#ic-reserva"></use></svg>Amenities</a>
         <a class="nav-link" onclick="show('liquidaciones',this)"><svg class="ic"><use href="#ic-liquidacion"></use></svg>Liquidaciones</a>
 
@@ -550,7 +552,7 @@
 
 <div class="topbar">
     <button class="topbar-btn" onclick="openModal('modal-ayuda')" title="Ayuda" aria-label="Ayuda"><svg class="ic"><use href="#ic-ayuda"></use></svg></button>
-    <button class="topbar-btn profile-circle" id="topbar-perfil-btn" onclick="openModal('modal-perfil')" title="Mi Perfil">—</button>
+    <button class="topbar-btn profile-circle" id="topbar-perfil-btn" onclick="openModal('modal-perfil'); pintarPerfilPush()" title="Mi Perfil">—</button>
 </div>
 
 <!-- Cuatro destinos, no cinco: "Más" dejó de ser un tab y su contenido pasó
@@ -1773,6 +1775,11 @@
                     <span style="color:var(--muted);">Consorcios</span>
                     <span id="perfil-consorcios" style="font-weight:600;">—</span>
                 </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;font-size:.84rem;">
+                    <span style="color:var(--muted);">Notificaciones en este dispositivo</span>
+                    <span id="perfil-push"></span>
+                </div>
+                <div class="text-muted text-sm" id="perfil-push-ayuda" style="display:none;margin-top:2px;"></div>
             </div>
         </div>
     </div>
@@ -2094,6 +2101,9 @@ function navegar(id, el) {
     if (id === 'amenities')    initAmenities();
     if (id === 'liquidaciones') initLiquidaciones();
     if (id === 'comunicacion') initComunicacion();
+    // Entrar a una sección es ver sus novedades: el numerito se va hasta que
+    // llegue algo nuevo. Comunicación marca la pestaña en la que se abre.
+    if (id === 'comunicacion') marcarVisto(comTabActual === 'mensajes' ? 'mensajes' : 'reclamos');
     if (id === 'config')       initConfig();
 }
 
@@ -2427,15 +2437,7 @@ const DASH_ATENCION_ICONO = {
 };
 
 function dashAtencion(items) {
-    /* El badge del nav se enteraba sólo si entrabas a Reclamos. El panel es la
-       primera pantalla, así que ahora lo deja bien de entrada. */
-    const rec = items.find(i => i.tipo === 'reclamos');
-    [$('nav-badge-reclamos'), $('com-badge-reclamos')].forEach(badge => {
-        if (!badge) return;
-        badge.textContent = rec ? rec.cantidad : '';
-        badge.style.display = rec ? 'inline-block' : 'none';
-    });
-
+    // Los numeritos del menú los pone cargarNovedades(), no la bandeja.
     const cont = $('dash-atencion');
     if (!items.length) {
         cont.innerHTML = '<div class="tbl-empty">Nada esperando por vos. Todo al día.</div>';
@@ -2586,7 +2588,8 @@ function renderConsorcios() {
     tb.innerHTML = consorcios.map(c => `
         <tr class="row-link" onclick="openDetail('${c.id}','${escHtml(c.nombre)}','${escHtml(c.direccion||'')}')"
             title="Ver las unidades funcionales de ${escHtml(c.nombre)}">
-            <td><strong>${escHtml(c.nombre)}</strong></td>
+            <td><strong>${escHtml(c.nombre)}</strong>${(novedades.solicitudes_por_consorcio || {})[c.id]
+                ? ` <span class="badge-count" title="Solicitudes de vecinos para aprobar">${novedades.solicitudes_por_consorcio[c.id]}</span>` : ''}</td>
             <td class="text-muted">${escHtml(c.direccion||'—')}</td>
             <td class="text-muted">${escHtml(c.cuit||'—')}</td>
             <td>${c.unidades_totales||'—'}</td>
@@ -2845,6 +2848,7 @@ async function aprobarVecino(vid) {
         toast('Vecino aprobado — ya puede entrar');
         await loadUFs();
         await loadPendingNeighbors();
+        cargarNovedades();
     } catch(e) { toast(e.message, 'err'); }
 }
 
@@ -2868,6 +2872,7 @@ async function confirmarRechazoVecino() {
         closeModal('modal-rechazar-vecino');
         toast('Solicitud rechazada');
         await loadPendingNeighbors();
+        cargarNovedades();
     } catch(e) { toast(e.message, 'err'); }
 }
 
@@ -2907,6 +2912,7 @@ async function guardarAsignacionUF() {
         closeModal('modal-asignar-uf');
         await loadUFs();
         await loadPendingNeighbors();
+        cargarNovedades();
     } catch(e) { toast(e.message, 'err'); }
 }
 
@@ -4130,6 +4136,7 @@ async function resolverAviso(aid, estado, cobroId) {
             : estado === 'rechazado' ? 'Aviso rechazado' : 'Aviso devuelto a sin revisar');
         await loadAvisos();
         if ($('tab-resumen').style.display !== 'none') await loadCobros();
+        cargarNovedades();
     } catch (e) { toast(e.message, 'err'); }
 }
 
@@ -5182,6 +5189,7 @@ async function comTab(tab, el) {
     $('tab-com-mensajes').style.display    = tab === 'mensajes'    ? '' : 'none';
     $('tab-com-comunicados').style.display = tab === 'comunicados' ? '' : 'none';
 
+    if (tab === 'reclamos' || tab === 'mensajes') marcarVisto(tab);
     if (tab === 'reclamos') await loadReclamos();
     else if (tab === 'mensajes') await loadHilos();
     else await loadComunicados();
@@ -5214,14 +5222,7 @@ async function loadHilos(opciones = {}) {
     actualizarBadgeMensajes();
 }
 
-function actualizarBadgeMensajes() {
-    const sinLeer = hilos.reduce((s, h) => s + (h.sin_leer || 0), 0);
-    [$('com-badge-mensajes')].forEach(b => {
-        if (!b) return;
-        b.textContent = sinLeer;
-        b.style.display = sinLeer ? 'inline-block' : 'none';
-    });
-}
+function actualizarBadgeMensajes() {}
 
 function renderHilos() {
     const cont = $('lista-hilos');
@@ -5487,14 +5488,9 @@ function renderReclamos() {
 
 /* El vecino no puede seguir esperando un reclamo que nadie miró: el contador
    son los que todavía no se tocaron, no el total. */
-function actualizarBadgeReclamos() {
-    const abiertos = reclamosCargados.filter(r => r.estado === 'activo').length;
-    [$('nav-badge-reclamos'), $('com-badge-reclamos')].forEach(b => {
-        if (!b) return;
-        b.textContent = abiertos;
-        b.style.display = abiertos ? 'inline-block' : 'none';
-    });
-}
+/* Los numeritos de Comunicación los maneja cargarNovedades(): cuentan lo que
+   llegó desde la última visita, no los reclamos en tal estado. */
+function actualizarBadgeReclamos() {}
 
 async function abrirReclamo(id) {
     reclamoActual = reclamosCargados.find(r => r.id === id);
@@ -5751,8 +5747,86 @@ async function guardarAgendado() {
     const topBtn = $('topbar-perfil-btn');
     if (topBtn) topBtn.textContent = initials;
 })();
+/* El interruptor de notificaciones del perfil: activarlas acá cuando se
+   cerró la tarjeta, o apagarlas en este dispositivo. */
+const PUSH_AYUDA = {
+    'bloqueado': 'Las bloqueaste en el navegador. Habilitalas desde el candado de la barra de direcciones.',
+    'ios-instalar': 'En iPhone, agregá Niddo a la pantalla de inicio (Compartir → Agregar a inicio) y abrilo desde ahí.',
+    'no-soportado': 'Este navegador no permite notificaciones.',
+    'no-configurado': 'Todavía no están habilitadas en el servidor.',
+};
+async function pintarPerfilPush() {
+    const el = $('perfil-push'), ayuda = $('perfil-push-ayuda');
+    if (!el || !window.NiddoPush) return;
+    el.textContent = '…';
+    const e = await NiddoPush.estado();
+    ayuda.style.display = PUSH_AYUDA[e] ? '' : 'none';
+    ayuda.textContent = PUSH_AYUDA[e] || '';
+    if (e === 'activo') {
+        el.innerHTML = '<button class="btn-s btn-sm" onclick="cambiarPush(false)">Activas · apagar</button>';
+    } else if (e === 'apagado') {
+        el.innerHTML = '<button class="btn-p btn-sm" onclick="cambiarPush(true)">Activar</button>';
+    } else {
+        el.innerHTML = '<span class="b b-gr">No disponibles</span>';
+    }
+}
+async function cambiarPush(prender) {
+    const r = prender ? await NiddoPush.activar() : await NiddoPush.desactivar();
+    if (prender && r === 'activo') toast('Notificaciones activadas en este dispositivo');
+    pintarPerfilPush();
+}
+
 // Update consorcio count when data loads
 function updatePerfilConsorcios() { $('perfil-consorcios').textContent = consorcios.length; }
+
+/* ── Novedades: los numeritos del menú ────────────────────────────────────────
+   Cuentan lo que llegó desde la última vez que entraste a esa sección
+   (reclamos y respuestas, mensajes). Entrar los borra hasta la próxima
+   novedad. Las solicitudes de vecinos y los pagos informados son tareas: esos
+   quedan hasta que se aprueban o se revisan. */
+let novedades = {};
+
+function ponerBadge(id, n) {
+    const b = $(id);
+    if (!b) return;
+    b.textContent = n || '';
+    b.style.display = n ? 'inline-block' : 'none';
+}
+
+function pintarNovedades() {
+    const n = novedades;
+    ponerBadge('nav-badge-reclamos', (n.reclamos || 0) + (n.mensajes || 0));
+    ponerBadge('com-badge-reclamos', n.reclamos);
+    ponerBadge('com-badge-mensajes', n.mensajes);
+    ponerBadge('nav-badge-consorcios', n.solicitudes);
+    ponerBadge('nav-badge-cobros', n.avisos);
+    if (window.NiddoMobile && NiddoMobile.setBadge) {
+        NiddoMobile.setBadge('comunicacion', (n.reclamos || 0) + (n.mensajes || 0));
+        NiddoMobile.setBadge('consorcios', n.solicitudes || 0);
+        NiddoMobile.setBadge('cobros', n.avisos || 0);
+    }
+    if (window.NiddoPush) NiddoPush.numeroEnIcono(
+        (n.reclamos || 0) + (n.mensajes || 0) + (n.solicitudes || 0) + (n.avisos || 0));
+    // La fila de cada consorcio muestra sus propias solicitudes.
+    if ($('sec-consorcios').classList.contains('active') && consorcios.length) renderConsorcios();
+}
+
+async function cargarNovedades() {
+    try {
+        const r = await fetchOriginal('/api/novedades');
+        if (!r.ok) return;
+        novedades = await r.json();
+        pintarNovedades();
+    } catch (e) { /* sin novedades no se rompe nada */ }
+}
+
+function marcarVisto(seccion) {
+    if (novedades[seccion]) { novedades[seccion] = 0; pintarNovedades(); }
+    fetchOriginal('/api/novedades/visto', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({seccion}),
+    }).catch(() => {});
+}
 
 /* ── Ponerse al día solo ──────────────────────────────────────────────────────
    Un vecino informa un pago, otro manda un reclamo, un tercero pide el alta: el
@@ -5805,12 +5879,16 @@ async function refrescarSeccionActiva() {
     } catch (e) { /* un refresco que falla no molesta a nadie: vuelve a intentar */ }
 }
 
-setInterval(refrescarSeccionActiva, REFRESCO_MS);
+setInterval(() => { refrescarSeccionActiva(); if (!document.hidden) cargarNovedades(); }, REFRESCO_MS);
 document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) refrescarSeccionActiva();
+    if (!document.hidden) { refrescarSeccionActiva(); cargarNovedades(); }
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+cargarNovedades();
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.NiddoPush) NiddoPush.montarTarjeta(document.querySelector('.main'));
+});
 loadConsorcios().then(() => {
     const hash = window.location.hash.substring(1);
     if (hash && hash !== 'dashboard') {

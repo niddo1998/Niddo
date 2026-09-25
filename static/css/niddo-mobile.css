@@ -258,6 +258,13 @@
         font-size: .7rem; font-weight: 800; font-style: normal;
         display: flex; align-items: center; justify-content: center;
     }
+    .nd-dr-item .nd-dr-badge[hidden] { display: none; }
+    /* Un punto sobre el ☰: hay novedades en alguna sección del cajón. */
+    .nd-menu-btn { position: relative; }
+    .nd-menu-btn.nd-con-novedades::after {
+        content: ''; position: absolute; top: 8px; right: 8px; width: 9px; height: 9px;
+        border-radius: 50%; background: var(--nd-terracota); border: 2px solid #fff;
+    }
     .nd-dr-foot { border-top: 1px solid var(--border); padding: 6px 0 2px; }
     .nd-dr-item.danger, .nd-dr-item.danger .ic { color: var(--nd-terracota-hondo); }
 

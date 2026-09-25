@@ -12,6 +12,26 @@
   ],
   "routes": [
     {
+      "src": "/sw.js",
+      "dest": "/static/js/sw.js",
+      "headers": {
+        "Service-Worker-Allowed": "/",
+        "Cache-Control": "no-cache",
+        "Content-Type": "application/javascript"
+      }
+    },
+    {
+      "src": "/manifest.webmanifest",
+      "dest": "/static/manifest.webmanifest",
+      "headers": {
+        "Content-Type": "application/manifest+json"
+      }
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/static/img/favicon.ico"
+    },
+    {
       "src": "/static/(.*)",
       "dest": "/static/$1"
     },
