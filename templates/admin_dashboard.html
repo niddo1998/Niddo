@@ -168,10 +168,17 @@
         .page-sub { font-size: .77rem; color: var(--muted); margin-top: 2px; }
 
         /* ── KPI row ── */
-        .kpi-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        /* Grilla y no flex con wrap: con flex, una tarjeta con un importe de
+           ocho cifras empujaba a las otras y el número se salía del borde. Cada
+           tarjeta tiene un ancho mínimo y el número se achica para entrar
+           (ajustarKpis) en vez de desbordar o cortarse con puntos suspensivos. */
+        .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+                   gap: 12px; margin-bottom: 20px; }
         .kpi { background: var(--surface); border: 1px solid var(--border); padding: 14px 18px;
-               border-radius: 16px; flex: 1; min-width: 110px; }
-        .kpi-val { font-size: 1.45rem; font-weight: 800; line-height: 1; }
+               border-radius: 16px; min-width: 0; overflow: hidden; }
+        .kpi-val { font-size: 1.45rem; font-weight: 800; line-height: 1.1; white-space: nowrap;
+                   font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+        .kpi-val .b { font-size: .8rem; vertical-align: middle; }
         .kpi-label { font-size: .72rem; color: var(--muted); margin-top: 3px; }
         .kpi-sub { font-size: .7rem; color: var(--muted); margin-top: 5px; }
 
@@ -228,13 +235,12 @@
            decir dos veces lo mismo en la pantalla donde menos lugar hay. */
         @media (max-width: 900px) {
             .dash-escritorio { display: none; }
-            /* Cuatro KPIs con importes de siete cifras no entran en una fila con
-               wrap: el tercero desbordaba y metía scroll horizontal. Dos
-               columnas fijas y el número un punto más chico. Va sobre #dash-plata
-               y no sobre .kpi-row para no tocar las otras secciones. */
-            #dash-plata { display: grid; grid-template-columns: 1fr 1fr; }
-            #dash-plata .kpi { min-width: 0; padding: 12px 14px; }
-            #dash-plata .kpi-val { font-size: 1.15rem; }
+            /* En el teléfono todas las filas de KPIs van en dos columnas fijas y
+               el número un punto más chico; ajustarKpis termina de achicar el
+               que igual no entre. */
+            #dash-plata, .kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+            #dash-plata .kpi, .kpi-row .kpi { padding: 12px 14px; }
+            #dash-plata .kpi-val, .kpi-row .kpi-val { font-size: 1.15rem; }
             .dash-acciones { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
         }
 
@@ -2087,6 +2093,41 @@ const fmtFecha = iso => {
     const [y, m, d] = String(iso).slice(0, 10).split('-');
     return d && m && y ? `${d}/${m}/${y}` : iso;
 };
+/* ── Que los números entren en su tarjeta ─────────────────────────────────────
+   Un saldo de $ 12.345.678,90 no entra a 1,45rem en una tarjeta de 170px. En
+   vez de dejarlo desbordar o cortarlo, se le baja el tamaño de a poco hasta
+   que entre, con un piso legible. Corre solo cada vez que se pinta una fila de
+   KPIs y cuando cambia el ancho de la ventana. */
+function ajustarKpis(raiz) {
+    (raiz || document).querySelectorAll('.kpi-val').forEach(el => {
+        el.style.fontSize = '';
+        if (!el.offsetParent) return;
+        let tam = parseFloat(getComputedStyle(el).fontSize);
+        const piso = 11;
+        while (el.scrollWidth > el.clientWidth + 1 && tam > piso) {
+            tam -= 1;
+            el.style.fontSize = tam + 'px';
+        }
+    });
+}
+if (window.MutationObserver) {
+    document.addEventListener('DOMContentLoaded', () => {
+        const obs = new MutationObserver(cambios => {
+            const filas = new Set();
+            cambios.forEach(c => {
+                const fila = c.target.closest && c.target.closest('.kpi-row');
+                if (fila) filas.add(fila);
+            });
+            if (filas.size) requestAnimationFrame(() => filas.forEach(f => ajustarKpis(f)));
+        });
+        obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+    });
+}
+let ajusteKpisPendiente = null;
+window.addEventListener('resize', () => {
+    clearTimeout(ajusteKpisPendiente);
+    ajusteKpisPendiente = setTimeout(() => ajustarKpis(), 120);
+});
 const toast = (msg,type='ok') => {
     const t = document.createElement('div');
     t.className = `toast-msg ${type}`; t.textContent = msg;
@@ -4487,7 +4528,7 @@ async function openLiqDetail(lid) {
             <div class="kpi"><div class="kpi-val">${fmt(l.total_egresos)}</div><div class="kpi-label">Total egresos</div></div>
             <div class="kpi"><div class="kpi-val" style="color:var(--nd-verde)">${fmt(l.saldo_inicial)}</div><div class="kpi-label">Saldo inicial</div></div>
             <div class="kpi"><div class="kpi-val" style="color:${(l.saldo_final||0)>=0?'var(--nd-verde)':'var(--nd-terracota-hondo)'}">${fmt(l.saldo_final)}</div><div class="kpi-label">Saldo final</div></div>
-            <div class="kpi"><div class="kpi-val"><span class="b ${l.estado==='publicada'?'b-g':l.estado==='cerrada'?'b-gr':'b-y'}">${l.estado}</span></div><div class="kpi-label">Estado</div></div>
+            <div class="kpi"><div class="kpi-val"><span class="b ${l.estado==='publicada'?'b-g':l.estado==='cerrada'?'b-gr':'b-y'}">${({publicada:'Publicada',cerrada:'Cerrada',borrador:'Borrador'})[l.estado] || escHtml(l.estado)}</span></div><div class="kpi-label">Estado</div></div>
         `;
 
         // Fill config tab

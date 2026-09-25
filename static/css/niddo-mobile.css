@@ -797,9 +797,9 @@
     /* Los filtros en fila desbordan; que se apilen. */
     .nd-mobile .page-header > div { flex-wrap: wrap; }
 
-    /* .kpi-row es flex con wrap, así que a 360px ya se acomoda sola en 2+1.
-       No se fuerza una columna: tres KPIs apilados alargan la pantalla sin
-       ganar legibilidad. */
+    /* .kpi-row va en dos columnas (lo declara el template del admin). No se
+       fuerza una columna: tres KPIs apilados alargan la pantalla sin ganar
+       legibilidad. */
     .nd-mobile .page-header { flex-direction: column; align-items: stretch; }
 
 }
