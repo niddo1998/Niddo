@@ -422,6 +422,22 @@
         .mes-item.sel { background: var(--nd-terracota); color: #fff; }
         .mes-item.hoy { box-shadow: inset 0 0 0 1.5px var(--nd-terracota); }
 
+        /* ── Calendario de reservas (Amenities) ── */
+        .am-cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; padding: 12px 14px 14px; }
+        .am-cal-dow { font-size: .66rem; font-weight: 700; color: var(--muted); text-transform: uppercase; text-align: center; }
+        .am-cal-dia { min-height: 84px; border: 1px solid var(--border); border-radius: 10px; padding: 5px 6px;
+                      display: flex; flex-direction: column; gap: 3px; background: var(--surface); min-width: 0; }
+        .am-cal-dia.vacio { border: none; background: none; }
+        .am-cal-dia.pasado { background: var(--surface2); opacity: .7; }
+        .am-cal-dia.hoy { border-color: var(--nd-terracota); box-shadow: inset 0 0 0 1px var(--nd-terracota); }
+        .am-cal-n { font-weight: 800; font-size: .8rem; }
+        .am-cal-r { font-size: .66rem; line-height: 1.25; background: var(--nd-terracota-dim); color: var(--nd-tinta);
+                    border-radius: 6px; padding: 2px 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .am-cal-r i { display: block; font-style: normal; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+        .am-cal-mas { font-size: .64rem; color: var(--muted); font-weight: 700; }
+        @media (max-width: 700px) { .am-cal { gap: 3px; padding: 8px; } .am-cal-dia { min-height: 52px; padding: 3px; }
+                                    .am-cal-r i { display: none; } }
+
         /* ── Modal ── */
         .modal-overlay {
             position: fixed; inset: 0; background: rgba(42,33,28,.55); z-index: 9000;
@@ -1075,12 +1091,28 @@
         </select>
     </div>
     <div class="tabs">
-        <button class="tab-btn active" id="btn-tab-amenities-list" onclick="amenitiesTab('list',this)">Listado de Amenities</button>
-        <button class="tab-btn" id="btn-tab-amenities-res" onclick="amenitiesTab('reservations',this)">Listado de Reservas</button>
+        <button class="tab-btn active" id="btn-tab-amenities-cal" onclick="amenitiesTab('calendar',this)">Calendario</button>
+        <button class="tab-btn" id="btn-tab-amenities-list" onclick="amenitiesTab('list',this)">Amenities</button>
+        <button class="tab-btn" id="btn-tab-amenities-res" onclick="amenitiesTab('reservations',this)">Listado de reservas</button>
+    </div>
+
+    <!-- Calendario: el mes, con las reservas de cada día a la vista -->
+    <div id="tab-amenities-calendar">
+        <div class="card">
+            <div class="card-h">
+                <span style="display:flex;align-items:center;gap:4px;">
+                    <button class="mes-arrow" onclick="amCalMover(-1)" aria-label="Mes anterior"><svg class="ic ic-sm"><use href="#ic-volver"></use></svg></button>
+                    <span class="card-t" id="am-cal-titulo" style="min-width:140px;text-align:center;text-transform:capitalize;">—</span>
+                    <button class="mes-arrow" onclick="amCalMover(1)" aria-label="Mes siguiente"><svg class="ic ic-sm" style="transform:rotate(180deg)"><use href="#ic-volver"></use></svg></button>
+                </span>
+                <select class="form-ctrl" id="am-cal-amenity" style="width:auto;" onchange="pintarAmCal()"><option value="">Todos los espacios</option></select>
+            </div>
+            <div class="am-cal" id="am-cal-grid"><div class="tbl-empty">Seleccioná un consorcio.</div></div>
+        </div>
     </div>
 
     <!-- Listado -->
-    <div id="tab-amenities-list">
+    <div id="tab-amenities-list" style="display:none;">
         <div class="card">
             <div class="card-h"><span class="card-t">Amenities del Consorcio</span></div>
             <table class="tbl">
@@ -4405,6 +4437,7 @@ async function loadAmenitiesAndReservations() {
         loadedReservations = reservations;
         renderAmenities();
         renderAmenitiesReservations();
+        pintarAmCal();
     } catch(e) { if (sigueSiendo('amenities', turno)) toast(e.message, 'err'); }
 }
 
@@ -4530,13 +4563,57 @@ async function cancelReservaAdmin(rid) {
 function amenitiesTab(tab, el) {
     document.querySelectorAll('#sec-amenities .tab-btn').forEach(b => b.classList.remove('active'));
     el.classList.add('active');
-    if (tab === 'list') {
-        $('tab-amenities-list').style.display = 'block';
-        $('tab-amenities-reservations').style.display = 'none';
-    } else {
-        $('tab-amenities-list').style.display = 'none';
-        $('tab-amenities-reservations').style.display = 'block';
+    $('tab-amenities-calendar').style.display = tab === 'calendar' ? 'block' : 'none';
+    $('tab-amenities-list').style.display = tab === 'list' ? 'block' : 'none';
+    $('tab-amenities-reservations').style.display = tab === 'reservations' ? 'block' : 'none';
+    if (tab === 'calendar') pintarAmCal();
+}
+
+/* ── Calendario de reservas ───────────────────────────────────────────────────
+   La vista por defecto de Amenities: el mes, con lo reservado en cada día
+   (espacio, horario y quién). Sale de las mismas reservas que el listado. */
+let amCalMes = null;
+function amCalMover(d) {
+    let {y, m} = amCalMes; m += d;
+    if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; }
+    amCalMes = {y, m};
+    pintarAmCal();
+}
+function pintarAmCal() {
+    if (!amCalMes) { const h = new Date(); amCalMes = {y: h.getFullYear(), m: h.getMonth() + 1}; }
+    const {y, m} = amCalMes;
+    $('am-cal-titulo').textContent = `${MESES[m - 1]} ${y}`;
+    const selAm = $('am-cal-amenity');
+    const elegido = selAm.value;
+    selAm.innerHTML = '<option value="">Todos los espacios</option>' +
+        loadedAmenities.map(a => `<option value="${a.id}">${escHtml(a.nombre)}</option>`).join('');
+    selAm.value = loadedAmenities.find(a => a.id === elegido) ? elegido : '';
+    const grid = $('am-cal-grid');
+    if (!$('filter-amenities-consorcio').value) {
+        grid.innerHTML = '<div class="tbl-empty">Seleccioná un consorcio.</div>';
+        return;
     }
+    const ult = new Date(y, m, 0).getDate();
+    const primero = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+    const hoy = hoyLocalISO();
+    const porDia = {};
+    loadedReservations
+        .filter(r => r.estado === 'confirmada' && (!selAm.value || r.amenity_id === selAm.value))
+        .forEach(r => (porDia[r.fecha] = porDia[r.fecha] || []).push(r));
+    let html = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => `<div class="am-cal-dow">${d}</div>`).join('');
+    for (let i = 0; i < primero; i++) html += '<div class="am-cal-dia vacio"></div>';
+    for (let d = 1; d <= ult; d++) {
+        const f = `${y}-${dosDigitos(m)}-${dosDigitos(d)}`;
+        const res = (porDia[f] || []).sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
+        html += `<div class="am-cal-dia${f === hoy ? ' hoy' : ''}${f < hoy ? ' pasado' : ''}">
+            <span class="am-cal-n">${d}</span>
+            ${res.slice(0, 3).map(r => `<span class="am-cal-r" title="${escHtml((r.amenities || {}).nombre || '')} · ${escHtml((r.vecinos || {}).nombre || 'Administración')}">
+                <b>${r.hora_inicio.slice(0, 5)}</b> ${escHtml((r.amenities || {}).nombre || '')}
+                <i>${escHtml((r.vecinos || {}).nombre || 'Administración')}${(r.vecinos || {}).unidad ? ' · ' + escHtml(r.vecinos.unidad) : ''}</i></span>`).join('')}
+            ${res.length > 3 ? `<span class="am-cal-mas">+${res.length - 3} más</span>` : ''}
+        </div>`;
+    }
+    grid.innerHTML = html;
 }
 
 // ── Keyboard ──────────────────────────────────────────────────────────────────
@@ -5399,7 +5476,7 @@ function renderComunicados() {
         return `<tr>
             <td>${fecha}</td>
             <td class="text-muted">${escHtml(con ? con.nombre : '—')}</td>
-            <td><strong>${escHtml(c.titulo || '')}</strong>${c.importante ? '<span class="b b-y" style="margin-left:6px;">Importante</span>' : ''}</td>
+            <td><strong>${escHtml(c.titulo || '')}</strong>${c.importante ? '<span class="b b-y" style="margin-left:6px;">Importante</span>' : ''}${c.autor_vecino_id ? '<span class="b b-gr" style="margin-left:6px;" title="Lo publicó un vecino al reservar un espacio">De un vecino</span>' : ''}</td>
             <td class="text-muted">${escHtml(cuerpo)}</td>
             <td class="text-muted">${c.leidos != null ? c.leidos : '—'}</td>
             <td><div class="inline-actions">

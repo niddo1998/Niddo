@@ -73,3 +73,35 @@ def test_el_horario_ocupado_se_sigue_rechazando_y_no_manda_mail(client, base, ma
                                                          hora_fin='21:00'))
     assert r.status_code == 400
     assert len(mails) == 1  # sólo el de la primera
+
+
+# ── Avisarle al edificio ─────────────────────────────────────────────────────
+
+def test_avisar_al_edificio_publica_un_comunicado(client, mails, base, app_modulo):
+    base['comunicados'] = []
+    r = client.post('/api/reservas_amenities',
+                    json=dict(RESERVA, avisar_vecinos=True, mensaje='Festejo un cumple'))
+    assert r.status_code == 201
+    com = base['comunicados'][0]
+    assert com['consorcio_id'] == 'cons-1'
+    assert com['admin_id'] == 'admin-1'          # le llega también a la administración
+    assert com['autor_vecino_id'] == 'vec-1'
+    assert 'SUM' in com['titulo'] and '18:00' in com['titulo']
+    assert 'Festejo un cumple' in com['cuerpo']
+
+
+def test_sin_tildar_no_se_avisa_a_nadie(client, mails, base):
+    base['comunicados'] = []
+    client.post('/api/reservas_amenities', json=RESERVA)
+    assert base['comunicados'] == []
+
+
+def test_el_calendario_pide_el_mes_entero(client, base):
+    base['reservas_amenities'] = [
+        {'id': 'r1', 'amenity_id': 'amen-1', 'fecha': '2026-10-02', 'estado': 'confirmada',
+         'hora_inicio': '10:00', 'hora_fin': '11:00'},
+        {'id': 'r2', 'amenity_id': 'amen-1', 'fecha': '2026-11-02', 'estado': 'confirmada',
+         'hora_inicio': '10:00', 'hora_fin': '11:00'},
+    ]
+    r = client.get('/api/reservas_amenities?amenity_id=amen-1&desde=2026-10-01&hasta=2026-10-31')
+    assert [x['id'] for x in r.get_json()] == ['r1']

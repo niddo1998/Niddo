@@ -3642,6 +3642,11 @@ def api_reservas_list():
 
     if fecha:
         q = q.eq('fecha', fecha)
+    # El calendario mensual pide el mes entero de una vez.
+    if request.args.get('desde'):
+        q = q.gte('fecha', request.args['desde'])
+    if request.args.get('hasta'):
+        q = q.lte('fecha', request.args['hasta'])
 
     res = q.order('fecha').order('hora_inicio').execute()
     return jsonify(res.data)
@@ -3764,7 +3769,51 @@ def api_reservas_create():
     except Exception:
         app.logger.exception('Falló el aviso de la reserva %s', reserva.get('id'))
 
+    # Avisarle al resto del edificio es opcional y lo elige el vecino al
+    # confirmar. Sale como un comunicado más, así queda en la cartelera de
+    # todos y en la de la administración, no sólo en una notificación.
+    if d.get('avisar_vecinos') and user['role'] == 'vecino':
+        try:
+            _comunicado_de_reserva(reserva, amenity, vecino_id, (d.get('mensaje') or '').strip())
+        except Exception:
+            app.logger.exception('No se pudo avisar la reserva %s al edificio', reserva.get('id'))
+
     return jsonify(reserva), 201
+
+
+DIAS_SEMANA = ('lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo')
+
+
+def _comunicado_de_reserva(reserva, amenity, vecino_id, mensaje):
+    """El aviso al edificio de una reserva: comunicado + push a vecinos y admin."""
+    am = supabase.table('amenities').select('consorcio_id, nombre') \
+        .eq('id', reserva.get('amenity_id')).execute().data
+    if not am:
+        return
+    cid = am[0]['consorcio_id']
+    admin = _admin_del_consorcio(cid)
+    v = supabase.table('vecinos').select('nombre, email, unidad').eq('id', vecino_id).execute().data
+    v = v[0] if v else {}
+    quien = (v.get('nombre') or v.get('email') or 'Un vecino') + (f" (UF {v['unidad']})" if v.get('unidad') else '')
+    dia = date.fromisoformat(str(reserva.get('fecha'))[:10])
+    cuando = f"{DIAS_SEMANA[dia.weekday()]} {dia.strftime('%d/%m')}"
+    horario = f"{str(reserva.get('hora_inicio'))[:5]} a {str(reserva.get('hora_fin'))[:5]} hs"
+    nombre_am = am[0].get('nombre') or amenity.get('nombre') or 'El espacio'
+    cuerpo = f"{quien} reservó {nombre_am} el {cuando}, de {horario}."
+    if mensaje:
+        cuerpo += f"\n\n{mensaje[:600]}"
+    fila = {'consorcio_id': cid, 'admin_id': admin[0] if admin else None,
+            'titulo': f'{nombre_am} reservado el {cuando} ({horario})', 'cuerpo': cuerpo,
+            'importante': False, 'autor_vecino_id': vecino_id, 'reserva_id': reserva.get('id')}
+    try:
+        creado = supabase.table('comunicados').insert(fila).execute().data
+    except Exception:
+        # Sin v23 las dos columnas nuevas no existen: el aviso sale igual.
+        fila.pop('autor_vecino_id'); fila.pop('reserva_id')
+        creado = supabase.table('comunicados').insert(fila).execute().data
+    creado = (creado or [fila])[0]
+    _avisar_novedad('vecino_comunicado', comunicado=creado, excepto=vecino_id)
+    _avisar_novedad('admin_comunicado_vecino', comunicado=creado)
 
 
 @app.route('/api/reservas_amenities/<rid>', methods=['DELETE'])
@@ -7335,7 +7384,10 @@ def _novedades_vecino(vecino_id):
     if not cid:
         return res
 
-    coms = supabase.table('comunicados').select('created_at').eq('consorcio_id', cid).execute().data or []
+    # `*` y no la columna del autor: sin v23 la columna no existe. El aviso de
+    # una reserva propia no es novedad para quien la hizo.
+    coms = supabase.table('comunicados').select('*').eq('consorcio_id', cid).execute().data or []
+    coms = [c for c in coms if c.get('autor_vecino_id') != vecino_id]
     res['comunicados'] = len(_despues_de(coms, 'created_at', vistas['comunicados']))
 
     recs = supabase.table('reclamos').select('id').eq('vecino_id', vecino_id).execute().data or []

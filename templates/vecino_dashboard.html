@@ -223,8 +223,22 @@
     .cal-booked{background:var(--nd-terracota-dim);border:1px solid var(--nd-terracota);color:var(--nd-terracota-hondo);font-weight:600}
     .cal-booked-time{display:block;font-weight:400;opacity:0.8;font-size:0.68rem}
     .cal-selection{background:var(--accent);opacity:0.85;color:var(--accent-ink);font-weight:700;border:1px solid var(--nd-terracota-hondo);pointer-events:none;display:none}
-    .cal-confirm-bar{display:none;padding:14px 16px;border-top:1px solid var(--border);background:var(--surface2);align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;position:sticky;bottom:0}
-    .cal-confirm-bar.show{display:flex;animation:fadeUp 0.15s ease}
+    .res-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:14px 16px 16px}
+    .res-dow{font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:center;padding-bottom:2px}
+    .res-dia{position:relative;min-height:66px;border:1px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;padding:6px 8px;text-align:left;font-family:inherit;display:flex;flex-direction:column;gap:4px;transition:all .15s}
+    .res-dia:hover:not(:disabled){border-color:var(--nd-terracota);box-shadow:0 2px 10px rgba(232,115,74,.15)}
+    .res-dia:disabled{opacity:.38;cursor:default;background:var(--surface2)}
+    .res-dia.vacio{border:none;background:none;cursor:default}
+    .res-dia.hoy{border-color:var(--nd-terracota);box-shadow:inset 0 0 0 1px var(--nd-terracota)}
+    .res-dia-n{font-weight:800;font-size:0.9rem;color:var(--text)}
+    .res-dia-r{font-size:0.66rem;font-weight:700;color:var(--nd-terracota-hondo);background:var(--nd-terracota-dim);border-radius:6px;padding:1px 5px;align-self:flex-start}
+    .res-dia-l{font-size:0.66rem;color:var(--teal);font-weight:600}
+    .res-resumen{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+    .res-resumen-am{font-weight:800;font-size:1rem}
+    .res-resumen-dia{font-size:0.85rem;color:var(--text2);margin-top:2px}
+    .res-avisar{display:flex;gap:10px;align-items:flex-start;margin-top:14px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;cursor:pointer;font-size:0.85rem}
+    .res-avisar input{width:18px;height:18px;margin-top:2px;flex-shrink:0;accent-color:var(--nd-terracota)}
+    @media(max-width:600px){.res-dia{min-height:52px;padding:5px}.res-dia-l{display:none}.res-grid{gap:4px;padding:10px}}
     .medio-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
     .medio-nom{font-weight:700;font-size:0.86rem;margin-bottom:2px}
     .medio-desc{font-size:0.78rem;color:var(--muted);line-height:1.5}
@@ -536,46 +550,52 @@
 </div>
 
 <!-- RESERVAS -->
+<!-- Primero el mes: se ve qué días están ocupados y se elige uno. Recién ahí
+     aparece el día, donde se arrastra el horario. Al soltar se abre la
+     confirmación, con la opción de avisarle al resto del edificio. -->
 <div id="section-reservas" class="section sw">
-    <div class="pg-head"><div class="pg-title"><svg class="ic"><use href="#ic-reserva"></use></svg>Reservas de Amenities</div><div class="pg-sub">Tocá y arrastrá sobre el calendario para elegir tu horario</div></div>
-    <div class="table-wrap" style="padding:20px;margin-bottom:18px">
-        <div class="f-row" style="align-items:end">
-            <div class="fg" style="margin-bottom:0"><label class="fl">Espacio / Amenity</label><select id="res-am" class="fc" onchange="onAmenitySelected()"><option value="">Cargando...</option></select></div>
-            <div class="fg" style="margin-bottom:0">
-                <label class="fl">Fecha</label>
-                <div style="display:flex;gap:6px">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="shiftResDate(-1)" aria-label="Día anterior" style="padding:8px 12px">‹</button>
-                    <input type="date" id="res-fecha" class="fc" onchange="onResDateChanged()" style="flex:1">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="shiftResDate(1)" aria-label="Día siguiente" style="padding:8px 12px">›</button>
-                </div>
-            </div>
-        </div>
-        <div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap">
+    <div class="pg-head"><div class="pg-title"><svg class="ic"><use href="#ic-reserva"></use></svg>Reservas de Amenities</div><div class="pg-sub">Elegí el espacio y el día; después arrastrá sobre el horario que querés</div></div>
+    <div class="table-wrap" style="padding:16px 20px;margin-bottom:18px">
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+            <div class="fg" style="margin-bottom:0;flex:1 1 220px"><label class="fl">Espacio / Amenity</label><select id="res-am" class="fc" onchange="onAmenitySelected()"><option value="">Cargando...</option></select></div>
             <button class="btn btn-secondary btn-sm" id="btn-cond" onclick="verCondiciones()" disabled><svg class="ic ic-sm"><use href="#ic-doc"></use></svg>Condiciones</button>
-            <label class="fl" style="margin:0" for="res-personas">Personas</label>
-            <input type="number" id="res-personas" class="fc" min="1" style="width:90px" placeholder="—">
-            <span id="res-cupo" style="font-size:0.78rem;color:var(--muted)"></span>
-            <span id="am-desc" style="font-size:0.82rem;color:var(--muted)">Seleccioná un espacio para ver los detalles</span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap;font-size:0.8rem;color:var(--muted)">
+            <span id="am-desc">Seleccioná un espacio para ver los detalles</span>
+            <span id="res-cupo"></span>
         </div>
     </div>
-    <div class="table-wrap" style="margin-bottom:18px">
+
+    <!-- El mes -->
+    <div class="table-wrap res-mes" id="res-vista-mes" style="margin-bottom:18px">
         <div class="twh">
-            <h3 id="disp-titulo">Disponibilidad del Día</h3>
+            <div style="display:flex;align-items:center;gap:6px">
+                <button class="mes-arrow" onclick="resMoverMes(-1)" aria-label="Mes anterior"><svg class="ic ic-sm"><use href="#ic-volver"></use></svg></button>
+                <h3 id="res-mes-titulo" style="min-width:150px;text-align:center;text-transform:capitalize">—</h3>
+                <button class="mes-arrow" onclick="resMoverMes(1)" aria-label="Mes siguiente"><svg class="ic ic-sm" style="transform:rotate(180deg)"><use href="#ic-volver"></use></svg></button>
+            </div>
             <div style="display:flex;gap:14px;font-size:0.72rem;color:var(--muted);flex-wrap:wrap">
-                <span style="display:flex;align-items:center;gap:5px"><span class="cal-dot cal-dot-free"></span>Disponible</span>
+                <span style="display:flex;align-items:center;gap:5px"><span class="cal-dot cal-dot-free"></span>Libre</span>
+                <span style="display:flex;align-items:center;gap:5px"><span class="cal-dot cal-dot-taken"></span>Con reservas</span>
+            </div>
+        </div>
+        <div id="res-mes-grid" class="res-grid"><p style="color:var(--muted);font-size:0.85rem;padding:16px">Seleccioná un espacio.</p></div>
+    </div>
+
+    <!-- El día -->
+    <div class="table-wrap" id="res-vista-dia" style="margin-bottom:18px;display:none">
+        <div class="twh">
+            <button class="btn btn-secondary btn-sm" onclick="resVolverAlMes()"><svg class="ic ic-sm"><use href="#ic-volver"></use></svg>Volver al mes</button>
+            <h3 id="disp-titulo">—</h3>
+            <div style="display:flex;gap:14px;font-size:0.72rem;color:var(--muted);flex-wrap:wrap">
                 <span style="display:flex;align-items:center;gap:5px"><span class="cal-dot cal-dot-taken"></span>Reservado</span>
                 <span style="display:flex;align-items:center;gap:5px"><span class="cal-dot cal-dot-sel"></span>Tu selección</span>
             </div>
         </div>
-        <div id="cal-wrap"><p style="color:var(--muted);font-size:0.85rem;padding:16px">Seleccioná un amenity y fecha.</p></div>
-        <div id="cal-confirm-bar" class="cal-confirm-bar">
-            <div style="font-size:0.86rem"><strong id="cal-sel-label">–</strong></div>
-            <div style="display:flex;gap:8px">
-                <button class="btn btn-secondary btn-sm" onclick="clearSeleccion()">Cancelar</button>
-                <button class="btn btn-primary btn-sm" onclick="realizarReserva()"><svg class="ic ic-sm"><use href="#ic-pagado"></use></svg>Confirmar Reserva</button>
-            </div>
-        </div>
+        <div style="padding:10px 16px 0;font-size:0.8rem;color:var(--muted)">Arrastrá sobre el horario (o tocá una franja) y soltá para confirmar.</div>
+        <div id="cal-wrap"></div>
     </div>
+
     <div class="table-wrap">
         <div class="twh"><h3>Mis Reservas</h3></div>
         <table class="table"><thead><tr><th>Espacio</th><th>Fecha</th><th>Horario</th><th>Estado</th><th>Acciones</th></tr></thead>
@@ -731,6 +751,37 @@
         <div class="drawer-footer">
             <button class="btn btn-secondary" onclick="closeDrawer('drawer-reclamo')">Cancelar</button>
             <button class="btn btn-primary" onclick="submitReclamo()">Enviar Reclamo</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Confirmar reserva -->
+<div class="modal-overlay" id="modal-reserva">
+    <div class="modal-box">
+        <div class="mh"><h3><svg class="ic"><use href="#ic-reserva"></use></svg>Confirmar reserva</h3><button class="mc" onclick="cancelarConfirmacion()"><svg class="ic ic-sm"><use href="#ic-cerrar"></use></svg></button></div>
+        <div class="mb">
+            <div class="res-resumen">
+                <div class="res-resumen-am" id="mr-am">—</div>
+                <div class="res-resumen-dia" id="mr-dia">—</div>
+            </div>
+            <div class="f-row" style="margin-top:14px">
+                <div class="fg"><label class="fl">Desde</label><select class="fc" id="mr-desde" onchange="mrCambioHora()"></select></div>
+                <div class="fg"><label class="fl">Hasta</label><select class="fc" id="mr-hasta" onchange="mrCambioHora()"></select></div>
+                <div class="fg"><label class="fl" for="mr-personas">Personas</label><input type="number" id="mr-personas" class="fc" min="1" placeholder="—"></div>
+            </div>
+            <label class="res-avisar">
+                <input type="checkbox" id="mr-avisar" onchange="document.getElementById('mr-mensaje-wrap').style.display=this.checked?'block':'none'">
+                <span><b>Avisarle al resto de los vecinos</b><br><span style="color:var(--muted);font-size:0.78rem">Sale como comunicado a todo el edificio y le llega también a la administración.</span></span>
+            </label>
+            <div class="fg" id="mr-mensaje-wrap" style="display:none;margin-top:10px">
+                <label class="fl">Mensaje (opcional)</label>
+                <textarea class="fc" id="mr-mensaje" rows="3" maxlength="600" placeholder="Ej: Festejo un cumpleaños, puede haber algo de ruido hasta las 23."></textarea>
+            </div>
+            <div style="font-size:0.75rem;color:var(--muted);margin-top:4px">Al confirmar aceptás las <a href="#" onclick="event.preventDefault();verCondiciones()" style="color:var(--blue)">condiciones de uso</a> del espacio.</div>
+        </div>
+        <div class="mf">
+            <button class="btn btn-secondary" onclick="cancelarConfirmacion()">Cancelar</button>
+            <button class="btn btn-primary" id="mr-confirmar" onclick="realizarReserva()"><svg class="ic ic-sm"><use href="#ic-pagado"></use></svg>Confirmar reserva</button>
         </div>
     </div>
 </div>
@@ -1483,18 +1534,22 @@ const calIsBooked=m=>S.booked.some(b=>m>=b.start&&m<b.end);
 
 async function loadReservas(){
     const cid=(S.activeU?.consorcios?.id)||S.vecino?.consorcio_id;if(!cid)return;
-    try{S.amenities=await api('/api/consorcios/'+cid+'/amenities');const sel=document.getElementById('res-am');sel.innerHTML='<option value="">Seleccioná un espacio...</option>';S.amenities.forEach(a=>{const o=document.createElement('option');o.value=a.id;o.textContent=a.nombre;sel.appendChild(o)})}catch(e){}
-    // El servidor rechaza las fechas pasadas; el `min` evita que el vecino
-    // arme todo un turno para recién enterarse al confirmar.
-    const fEl=document.getElementById('res-fecha');const hoy=new Date().toISOString().split('T')[0];
-    fEl.min=hoy;if(!fEl.value)fEl.value=hoy;
+    try{
+        S.amenities=await api('/api/consorcios/'+cid+'/amenities');
+        const sel=document.getElementById('res-am');const antes=sel.value;
+        sel.innerHTML='<option value="">Seleccioná un espacio...</option>';
+        S.amenities.forEach(a=>{const o=document.createElement('option');o.value=a.id;o.textContent=a.nombre;sel.appendChild(o)});
+        // Con un solo espacio no hay nada que elegir.
+        if(antes&&S.amenities.find(a=>a.id===antes))sel.value=antes;
+        else if(S.amenities.length===1)sel.value=S.amenities[0].id;
+        if(sel.value&&!S.selAm)onAmenitySelected();
+    }catch(e){}
+    if(!S.resMes){const h=new Date();S.resMes={y:h.getFullYear(),m:h.getMonth()+1}}
     await loadMisReservas();
 }
 async function loadMisReservas(){
     const tb=document.getElementById('tb-reservas');tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Cargando...</td></tr>';
     try{const d=await api('/api/reservas_amenities?only_mine=true');if(!d.length){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Sin reservas registradas</td></tr>';return}tb.innerHTML=d.map(r=>`<tr><td>${esc(r.amenities?.nombre||'–')}</td><td>${fmtD(r.fecha)}</td><td>${r.hora_inicio?.substring(0,5)} – ${r.hora_fin?.substring(0,5)}</td><td>${ebadge(r.estado)}</td><td>${r.estado==='confirmada'?`<button class="btn btn-danger btn-xs" onclick="cancelarReserva('${r.id}')">Cancelar</button>`:'–'}</td></tr>`).join('');
-
-        /* La lista que se lee en mobile, del mismo `d` que arma los <tr>. */
         const wrapR = tb.closest('.table-wrap');
         let listR = wrapR.querySelector('.nd-list');
         if (!listR) { listR = document.createElement('div'); listR.className = 'nd-list'; wrapR.appendChild(listR); }
@@ -1510,32 +1565,74 @@ async function loadMisReservas(){
             </div>`;
         }).join('')}catch(e){tb.innerHTML='<tr><td colspan="5" class="tbl-empty">Error al cargar</td></tr>'}
 }
-function shiftResDate(delta){
-    const fEl=document.getElementById('res-fecha');
-    const base=fEl.value?new Date(fEl.value+'T00:00:00'):new Date();
-    base.setDate(base.getDate()+delta);
-    fEl.value=base.toISOString().split('T')[0];
-    onResDateChanged();
-}
 function onAmenitySelected(){
     const aid=document.getElementById('res-am').value;S.selAm=S.amenities.find(a=>a.id===aid);
     const bc=document.getElementById('btn-cond');const lbl=document.getElementById('am-desc');
     if(S.selAm){bc.disabled=false;lbl.textContent=S.selAm.descripcion||''}else{bc.disabled=true;lbl.textContent='Seleccioná un espacio para ver los detalles'}
-
     /* Los topes del espacio se dicen antes de reservar, no después: el
        servidor rechaza igual, pero enterarse al confirmar es peor. */
-    const pEl=document.getElementById('res-personas');const cupoEl=document.getElementById('res-cupo');
     const cap=S.selAm?.capacidad_maxima;const maxMes=S.selAm?.max_reservas_mes;
-    pEl.max=cap||'';
-    cupoEl.textContent=[cap?`hasta ${cap}`:'', maxMes?`${maxMes} reserva(s) por mes`:''].filter(Boolean).join(' · ');
+    document.getElementById('res-cupo').textContent=[cap?`Hasta ${cap} personas`:'', maxMes?`${maxMes} reserva(s) por mes`:''].filter(Boolean).join(' · ');
+    resVolverAlMes();
+}
 
+const primeraMayus=t=>t?t.charAt(0).toUpperCase()+t.slice(1):t;
+
+/* ── El mes ─────────────────────────────────────────────────────────────── */
+S.resMes=null;S.resDia=null;S.resMesReservas=[];S.resTurno=0;
+function resMoverMes(d){let {y,m}=S.resMes;m+=d;if(m<1){m=12;y--}if(m>12){m=1;y++}S.resMes={y,m};cargarMesReservas()}
+function resVolverAlMes(){
+    clearSeleccion();S.resDia=null;
+    document.getElementById('res-vista-dia').style.display='none';
+    document.getElementById('res-vista-mes').style.display='';
+    cargarMesReservas();
+}
+async function cargarMesReservas(){
+    if(!S.resMes){const h=new Date();S.resMes={y:h.getFullYear(),m:h.getMonth()+1}}
+    const {y,m}=S.resMes;const ult=new Date(y,m,0).getDate();
+    document.getElementById('res-mes-titulo').textContent=`${MESES[m-1]} ${y}`;
+    const grid=document.getElementById('res-mes-grid');
+    if(!S.selAm){grid.innerHTML='<p style="color:var(--muted);font-size:0.85rem;padding:16px;grid-column:1/-1">Seleccioná un espacio para ver su calendario.</p>';return}
+    const turno=++S.resTurno;
+    S.resMesReservas=[];pintarMesReservas(true);
+    try{
+        const d=await api(`/api/reservas_amenities?amenity_id=${S.selAm.id}&desde=${y}-${dd(m)}-01&hasta=${y}-${dd(m)}-${dd(ult)}`);
+        if(turno!==S.resTurno)return;
+        S.resMesReservas=d.filter(r=>r.estado==='confirmada');
+        pintarMesReservas(false);
+    }catch(e){if(turno===S.resTurno)grid.innerHTML='<p style="color:var(--nd-terracota-hondo);font-size:0.85rem;padding:16px;grid-column:1/-1">No se pudo cargar el calendario</p>'}
+}
+function pintarMesReservas(cargando){
+    const {y,m}=S.resMes;const ult=new Date(y,m,0).getDate();
+    const primero=(new Date(y,m-1,1).getDay()+6)%7;   // lunes primero
+    const hoy=new Date();hoy.setHours(0,0,0,0);
+    const porDia={};S.resMesReservas.forEach(r=>{porDia[r.fecha]=(porDia[r.fecha]||0)+1});
+    let html=['Lu','Ma','Mi','Ju','Vi','Sá','Do'].map(x=>`<div class="res-dow">${x}</div>`).join('');
+    for(let i=0;i<primero;i++)html+='<div class="res-dia vacio"></div>';
+    for(let d=1;d<=ult;d++){
+        const f=`${y}-${dd(m)}-${dd(d)}`;const fecha=new Date(y,m-1,d);
+        const pasado=fecha<hoy;const esHoy=fecha.getTime()===hoy.getTime();const n=porDia[f]||0;
+        html+=`<button class="res-dia${esHoy?' hoy':''}" ${pasado?'disabled':''} onclick="resElegirDia('${f}')" aria-label="${d} de ${MESES[m-1]}${n?', '+n+' reserva(s)':''}">
+            <span class="res-dia-n">${d}</span>
+            ${cargando?'':n?`<span class="res-dia-r">${n} ${n===1?'reserva':'reservas'}</span>`:(pasado?'':'<span class="res-dia-l">Libre</span>')}
+        </button>`;
+    }
+    document.getElementById('res-mes-grid').innerHTML=html;
+}
+function resElegirDia(f){
+    S.resDia=f;
+    document.getElementById('res-vista-mes').style.display='none';
+    document.getElementById('res-vista-dia').style.display='';
+    const d=new Date(f+'T00:00:00');
+    document.getElementById('disp-titulo').textContent=(S.selAm?.nombre||'')+' · '+primeraMayus(d.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'}));
     onResDateChanged();
+    document.getElementById('res-vista-dia').scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function onResDateChanged(){
     clearSeleccion();
-    const aid=document.getElementById('res-am').value;const fecha=document.getElementById('res-fecha').value;
-    const wrap=document.getElementById('cal-wrap');document.getElementById('disp-titulo').textContent='Disponibilidad'+(fecha?' — '+fmtD(fecha):'');
-    if(!aid||!fecha){wrap.innerHTML='<p style="color:var(--muted);font-size:0.85rem;padding:16px">Seleccioná un amenity y fecha.</p>';return}
+    const aid=S.selAm?.id;const fecha=S.resDia;
+    const wrap=document.getElementById('cal-wrap');
+    if(!aid||!fecha){wrap.innerHTML='';return}
     wrap.innerHTML='<p style="color:var(--muted);font-size:0.85rem;padding:16px">Cargando...</p>';
     try{
         const d=await api('/api/reservas_amenities?amenity_id='+aid+'&fecha='+fecha);
@@ -1560,19 +1657,15 @@ function renderCalendar(){
         <div class="cal-hourcol" style="height:${totalPx}px">${hoursHtml}</div>
         <div class="cal-track" id="cal-track" style="height:${totalPx}px">${bookedHtml}<div class="cal-block cal-selection" id="cal-selection"></div></div>
     </div>`;
-    const track=document.getElementById('cal-track');
-    track.addEventListener('pointerdown',calPointerDown);
+    document.getElementById('cal-track').addEventListener('pointerdown',calPointerDown);
     renderSelection();
 }
 function renderSelection(){
     const sel=document.getElementById('cal-selection');if(!sel)return;
-    const bar=document.getElementById('cal-confirm-bar');
-    if(S.selStart==null){sel.style.display='none';bar.classList.remove('show');return}
+    if(S.selStart==null){sel.style.display='none';return}
     const top=(S.selStart-CAL_START)/CAL_SLOT*CAL_SLOTPX, h=(S.selEnd-S.selStart)/CAL_SLOT*CAL_SLOTPX;
     sel.style.display='block';sel.style.top=top+'px';sel.style.height=h+'px';
     sel.textContent=minToHHMM(S.selStart)+' – '+minToHHMM(S.selEnd);
-    bar.classList.add('show');
-    document.getElementById('cal-sel-label').textContent=(S.selAm?.nombre||'')+': '+minToHHMM(S.selStart)+' – '+minToHHMM(S.selEnd);
 }
 function clearSeleccion(){S.selStart=null;S.selEnd=null;S.dragAnchor=null;renderSelection()}
 function calPointerDown(e){
@@ -1585,8 +1678,8 @@ function calPointerDown(e){
     S.dragAnchor=min;S.selStart=min;S.selEnd=Math.min(min+CAL_SLOT,CAL_END);S.dragging=true;
     renderSelection();
     track.onpointermove=ev=>calPointerMove(ev,track);
-    track.onpointerup=()=>calPointerUp(track);
-    track.onpointercancel=()=>calPointerUp(track);
+    track.onpointerup=()=>calPointerUp(track,true);
+    track.onpointercancel=()=>calPointerUp(track,false);
 }
 function calPointerMove(e,track){
     if(!S.dragging)return;
@@ -1598,20 +1691,48 @@ function calPointerMove(e,track){
     S.selStart=lo;S.selEnd=hi;
     renderSelection();
 }
-function calPointerUp(track){
+/* Soltar el rango es pedir la reserva: se abre la confirmación. */
+function calPointerUp(track,abrir){
     S.dragging=false;track.onpointermove=null;track.onpointerup=null;track.onpointercancel=null;
+    if(abrir&&S.selStart!=null)abrirConfirmacion();
 }
 function verCondiciones(){if(!S.selAm)return;document.getElementById('cond-titulo').textContent='Condiciones — '+S.selAm.nombre;document.getElementById('cond-body').textContent=S.selAm.condiciones_uso||'Sin condiciones especificadas.';openModal('modal-cond')}
+
+/* ── La confirmación ────────────────────────────────────────────────────── */
+function opcionesHora(desde,hasta){let h='';for(let m=desde;m<=hasta;m+=CAL_SLOT)h+=`<option value="${m}">${minToHHMM(m)}</option>`;return h}
+function abrirConfirmacion(){
+    document.getElementById('mr-am').textContent=S.selAm?.nombre||'';
+    document.getElementById('mr-dia').textContent=primeraMayus(new Date(S.resDia+'T00:00:00').toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}));
+    document.getElementById('mr-desde').innerHTML=opcionesHora(CAL_START,CAL_END-CAL_SLOT);
+    document.getElementById('mr-hasta').innerHTML=opcionesHora(CAL_START+CAL_SLOT,CAL_END);
+    document.getElementById('mr-desde').value=S.selStart;document.getElementById('mr-hasta').value=S.selEnd;
+    const p=document.getElementById('mr-personas');p.value='';p.max=S.selAm?.capacidad_maxima||'';
+    p.placeholder=S.selAm?.capacidad_maxima?`hasta ${S.selAm.capacidad_maxima}`:'—';
+    document.getElementById('mr-avisar').checked=false;document.getElementById('mr-mensaje').value='';
+    document.getElementById('mr-mensaje-wrap').style.display='none';
+    openModal('modal-reserva');
+}
+function mrCambioHora(){
+    const a=+document.getElementById('mr-desde').value, b=+document.getElementById('mr-hasta').value;
+    if(b<=a)document.getElementById('mr-hasta').value=Math.min(a+CAL_SLOT,CAL_END);
+    S.selStart=+document.getElementById('mr-desde').value;S.selEnd=+document.getElementById('mr-hasta').value;renderSelection();
+}
+function cancelarConfirmacion(){closeModal('modal-reserva');clearSeleccion()}
 async function realizarReserva(){
-    const aid=document.getElementById('res-am').value;const fecha=document.getElementById('res-fecha').value;
+    const aid=S.selAm?.id;const fecha=S.resDia;
     if(!aid||!fecha||S.selStart==null){toast('Elegí un horario en el calendario','warn');return}
+    const btn=document.getElementById('mr-confirmar');btn.disabled=true;
     try{
         // La cantidad es opcional: sin espacio con capacidad cargada no hay
         // contra qué compararla, y las reservas viejas tampoco la tienen.
-        const personas=parseInt(document.getElementById('res-personas').value)||null;
-        await api('/api/reservas_amenities',{method:'POST',body:JSON.stringify({amenity_id:aid,fecha,hora_inicio:minToHHMM(S.selStart),hora_fin:minToHHMM(S.selEnd),cantidad_personas:personas})});
-        toast('Reserva confirmada','ok');clearSeleccion();await loadMisReservas();onResDateChanged()
+        const personas=parseInt(document.getElementById('mr-personas').value)||null;
+        const avisar=document.getElementById('mr-avisar').checked;
+        await api('/api/reservas_amenities',{method:'POST',body:JSON.stringify({amenity_id:aid,fecha,hora_inicio:minToHHMM(S.selStart),hora_fin:minToHHMM(S.selEnd),cantidad_personas:personas,avisar_vecinos:avisar,mensaje:document.getElementById('mr-mensaje').value})});
+        closeModal('modal-reserva');
+        toast(avisar?'Reserva confirmada y avisada al edificio':'Reserva confirmada','ok');
+        clearSeleccion();await loadMisReservas();onResDateChanged();
     }catch(e){toast(e.message,'err')}
+    finally{btn.disabled=false}
 }
 async function cancelarReserva(rid){
     if(!confirm('¿Cancelar esta reserva?'))return;
