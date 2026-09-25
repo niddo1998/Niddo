@@ -84,6 +84,8 @@
     <script src="{{ url_for('static', filename='js/niddo-mobile.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/niddo-numeros.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/niddo-push.js') }}" defer></script>
+    <script>window.NIDDO_AYUDA = { rol: 'admin', prefijo: 'sec-', encabezado: ':scope > .page-header' };</script>
+    <script src="{{ url_for('static', filename='js/niddo-ayuda.js') }}" defer></script>
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -567,7 +569,7 @@
 </div>
 
 <div class="topbar">
-    <button class="topbar-btn" onclick="openModal('modal-ayuda')" title="Ayuda" aria-label="Ayuda"><svg class="ic"><use href="#ic-ayuda"></use></svg></button>
+    <button class="topbar-btn" onclick="ayudaDeLaSeccion()" title="Ayuda" aria-label="Ayuda"><svg class="ic"><use href="#ic-ayuda"></use></svg></button>
     <button class="topbar-btn profile-circle" id="topbar-perfil-btn" onclick="openModal('modal-perfil'); pintarPerfilPush()" title="Mi Perfil">—</button>
 </div>
 
@@ -2136,6 +2138,8 @@ function navegar(id, el) {
     // Entrar a una sección es ver sus novedades: el numerito se va hasta que
     // llegue algo nuevo. Comunicación marca la pestaña en la que se abre.
     if (id === 'comunicacion') marcarVisto(comTabActual === 'mensajes' ? 'mensajes' : 'reclamos');
+    // La primera vez en cada sección se abre sola su explicación.
+    if (window.NiddoAyuda) NiddoAyuda.alEntrar(id);
     if (id === 'config')       initConfig();
 }
 
@@ -5851,6 +5855,15 @@ async function cambiarPush(prender) {
     const r = prender ? await NiddoPush.activar() : await NiddoPush.desactivar();
     if (prender && r === 'activo') toast('Notificaciones activadas en este dispositivo');
     pintarPerfilPush();
+}
+
+/* El "?" de la barra de arriba abre la ayuda de la sección que estás mirando;
+   el centro de ayuda general queda para cuando no hay una sección con ayuda. */
+function ayudaDeLaSeccion() {
+    const activa = document.querySelector('.section.active');
+    const id = activa ? activa.id.replace('sec-', '') : '';
+    if (window.NiddoAyuda && id) { NiddoAyuda.abrir(id); if (document.querySelector('#nd-ayuda-modal.open')) return; }
+    openModal('modal-ayuda');
 }
 
 // Update consorcio count when data loads

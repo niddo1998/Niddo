@@ -20,6 +20,8 @@
     <script src="{{ url_for('static', filename='js/niddo-mobile.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/niddo-numeros.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/niddo-push.js') }}" defer></script>
+    <script>window.NIDDO_AYUDA = { rol: 'vecino', prefijo: 'section-', encabezado: '.pg-head' };</script>
+    <script src="{{ url_for('static', filename='js/niddo-ayuda.js') }}" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -317,6 +319,7 @@
         <span id="hbadge-uf"  class="hbadge-uf"  style="display:none"></span>
     </div>
     <div class="header-actions">
+        <button class="hbtn nd-ayuda-top" onclick="ayudaDeLaSeccion()" title="¿De qué se trata esta sección?" aria-label="Ayuda de esta sección"><svg class="ic"><use href="#ic-ayuda"></use></svg></button>
         <div class="user-drop">
             <button class="user-av" id="btn-av" onclick="toggleDd()">?</button>
             <div class="dd-menu" id="dd-menu">
@@ -865,6 +868,8 @@ function showSection(name){
     if(ldr[name])ldr[name]();
     // Entrar a la sección es ver sus novedades: el numerito se va hasta la próxima.
     if(SECCIONES_CON_BADGE.includes(name)&&S.vecino&&S.vecino.consorcio_id)marcarVisto(name);
+    // La primera vez en cada sección se abre sola su explicación.
+    if(window.NiddoAyuda&&S.vecino&&S.vecino.consorcio_id)NiddoAyuda.alEntrar(name);
 }
 
 /* El botón "atrás" del navegador. En mobile esto lo ata niddo-mobile.js, pero
@@ -1576,6 +1581,12 @@ function onAmenitySelected(){
     resVolverAlMes();
 }
 
+/* El "?" de la barra de arriba: la ayuda de la sección que estás mirando. En
+   el celular es el único, porque el encabezado de la sección no se ve. */
+function ayudaDeLaSeccion(){
+    const activa=document.querySelector('.section.active');
+    if(activa&&window.NiddoAyuda)NiddoAyuda.abrir(activa.id.replace('section-',''));
+}
 const primeraMayus=t=>t?t.charAt(0).toUpperCase()+t.slice(1):t;
 
 /* ── El mes ─────────────────────────────────────────────────────────────── */

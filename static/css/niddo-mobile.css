@@ -149,6 +149,42 @@
     .nd-mobile .header-brand { display: none; }
     .nd-mobile .header-center { padding: 0; }
 
+    /* El header del vecino en una grilla: edificio y UF a la izquierda, ayuda
+       y avatar a la derecha, en la misma fila; el título grande abajo. Como
+       columna flex, cada pieza caía en su propia fila y el avatar quedaba
+       suelto a la izquierda, debajo de los chips. La fila del título compacto
+       se superpone a la primera y aparece recién al scrollear, cuando los
+       chips se van. */
+    .nd-mobile .app-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: "centro acciones" "titulo titulo";
+        align-items: center; column-gap: 8px;
+    }
+    .nd-mobile .app-header .header-center {
+        grid-area: centro; min-width: 0; min-height: 48px;
+        flex-wrap: nowrap; overflow: hidden; transition: opacity .2s;
+    }
+    .nd-mobile .app-header .header-center > span {
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1; min-width: 0;
+    }
+    .nd-mobile .app-header .header-actions { grid-area: acciones; gap: 4px; }
+    .nd-mobile .app-header .nd-largetitle { grid-area: titulo; }
+    .nd-mobile .app-header .nd-titlerow {
+        grid-area: centro; grid-column: 1 / -1; pointer-events: none;
+        min-height: 48px;
+    }
+    .nd-mobile .app-header.nd-scrolled .header-center { opacity: 0; }
+    .nd-mobile .app-header .hbtn { width: 38px; height: 38px; justify-content: center; padding: 0; }
+    /* El contenido arranca debajo del header medido (niddo-mobile.js). */
+    .nd-mobile .app-main { padding-top: var(--nd-header-alto, 110px); }
+    /* El título de la sección ya está grande en el header: repetirlo abajo es
+       ruido. Lo demás del encabezado (subtítulo, filtros, botones) queda. */
+    .nd-mobile .pg-head .pg-title { display: none; }
+    .nd-mobile .pg-head .nd-ayuda-btn { display: none; }
+    .nd-mobile .pg-head.nd-con-ayuda { padding-right: 0; }
+    .nd-mobile #ini-widgets { grid-template-columns: 1fr !important; }
+
     .nd-titlerow { display: flex; align-items: center; min-height: 44px; }
     .nd-compacttitle {
         flex: 1; text-align: center;

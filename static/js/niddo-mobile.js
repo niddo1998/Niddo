@@ -188,9 +188,25 @@
         if (compact) compact.textContent = t;
     }
 
+    /* El header es fijo y su alto depende del título, de la safe area del
+       teléfono y de cuánto ocupan los chips: no es un número que se pueda
+       escribir en el CSS. Se mide sin scrollear (con el título grande
+       desplegado) y el contenido arranca justo debajo. Con un número fijo el
+       header tapaba el encabezado de cada sección, y con él botones como
+       "Informar pago" o "Nuevo reclamo". */
+    function medirHeader() {
+        var header = document.querySelector(headerSelector);
+        if (!header || window.scrollY > 4 || header.classList.contains('nd-scrolled')) return;
+        var alto = header.getBoundingClientRect().height;
+        if (alto > 0) document.documentElement.style.setProperty('--nd-header-alto', Math.ceil(alto) + 'px');
+    }
+
     function watchScroll() {
         var header = document.querySelector(headerSelector);
         if (!header) return;
+        medirHeader();
+        if (window.ResizeObserver) new ResizeObserver(medirHeader).observe(header);
+        window.addEventListener('resize', medirHeader);
         window.addEventListener('scroll', function () {
             header.classList.toggle('nd-scrolled', window.scrollY > 26);
         }, { passive: true });

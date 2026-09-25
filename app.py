@@ -7444,6 +7444,47 @@ def api_novedades_visto():
     return jsonify({'ok': True})
 
 
+# ── Ayuda de cada sección ──────────────────────────────────────────────────────
+# El "?" de cada sección abre una explicación, y la primera vez que alguien
+# entra se abre sola. Qué ayudas ya vio se guarda por cuenta (en
+# secciones_vistas, con el prefijo "ayuda:") y no por navegador: cambiar de
+# celular no tiene que volver a mostrar todo.
+
+PREFIJO_AYUDA = 'ayuda:'
+
+
+@app.route('/api/ayuda/vistas')
+@require_auth()
+def api_ayuda_vistas():
+    tipo, uid = _quien_soy()
+    if not uid:
+        return jsonify([])
+    try:
+        filas = supabase.table('secciones_vistas').select('seccion') \
+            .eq('usuario_tipo', tipo).eq('usuario_id', uid).execute().data or []
+    except Exception:
+        return jsonify([])
+    return jsonify([f['seccion'][len(PREFIJO_AYUDA):] for f in filas
+                    if str(f.get('seccion') or '').startswith(PREFIJO_AYUDA)])
+
+
+@app.route('/api/ayuda/vista', methods=['POST'])
+@require_auth()
+def api_ayuda_vista():
+    tipo, uid = _quien_soy()
+    seccion = ((request.json or {}).get('seccion') or '').strip()
+    if not uid or not re.fullmatch(r'[a-z_]{2,30}', seccion):
+        return jsonify({'error': 'Sección inválida'}), 400
+    try:
+        supabase.table('secciones_vistas').upsert(
+            {'usuario_tipo': tipo, 'usuario_id': uid, 'seccion': PREFIJO_AYUDA + seccion,
+             'visto_at': now_iso()},
+            on_conflict='usuario_tipo,usuario_id,seccion').execute()
+    except Exception:
+        app.logger.exception('No se pudo guardar la ayuda vista')
+    return jsonify({'ok': True})
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # NOTIFICACIONES PUSH
 # ══════════════════════════════════════════════════════════════════════════════
