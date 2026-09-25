@@ -62,7 +62,7 @@ def test_genera_un_pdf_de_verdad(pdf):
     'Estado de cuentas y prorrateo',
     'Resumen de movimientos bancarios',
     'Estado patrimonial',
-    'Subtotales por coeficiente',
+    'Total prorrateado',
     'Datos para el pago',
 ])
 def test_estan_los_bloques_obligatorios(pdf, bloque):
@@ -100,17 +100,24 @@ def test_declara_la_tasa_y_el_recargo(pdf):
     assert 'Tasa de inter' in t and 'Recargo 2' in t
 
 
-def test_solo_muestra_los_coeficientes_que_el_edificio_usa(pdf):
-    """Imprimir A, B, C y E cuando sólo se usa A llena la hoja de ceros."""
+def test_un_solo_reparto_no_lleva_letra_de_coeficiente(pdf):
+    """Desde v20 el consorcio reparte con un método: "% part." y "Expensa"."""
     t = _texto(pdf)
-    assert '% A' in t
-    assert '% E' not in t
+    assert '% part.' in t
+    assert '% A' not in t and '% E' not in t
+    assert 'Coef.' not in t
+
+
+def test_dice_con_que_metodo_se_repartio():
+    t = _texto(construir_pdf(LIQ, dict(CON, metodo_prorrateo='ambientes'), ADM, RUBROS, PRORRATEO))
+    assert 'Reparto por ambientes' in t
 
 
 def test_con_dos_coeficientes_aparecen_los_dos():
     pr = [dict(PRORRATEO[0], porcentaje_e=100.0, expensa_e=5000.0)]
     t = _texto(construir_pdf(LIQ, CON, ADM, RUBROS, pr))
     assert '% A' in t and '% E' in t
+    assert 'Subtotales por coeficiente' in t
 
 
 def test_la_complementaria_lo_dice(pdf):

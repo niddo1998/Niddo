@@ -646,10 +646,13 @@
         </div>
 
         <div class="card">
-            <div class="card-h"><span class="card-t">Unidades Funcionales</span></div>
+            <div class="card-h">
+                <span class="card-t">Unidades Funcionales</span>
+                <span class="text-muted text-sm" id="detail-metodo"></span>
+            </div>
             <table class="tbl">
-                <thead><tr><th>Nro</th><th>Piso</th><th>Tipo</th><th>Sup. m²</th><th>Vecino</th><th>Email</th><th>Acciones</th></tr></thead>
-                <tbody id="tbody-ufs"><tr><td colspan="7" class="tbl-empty">Sin unidades cargadas</td></tr></tbody>
+                <thead><tr><th>Nro</th><th>Piso</th><th>Tipo</th><th>Sup. m²</th><th>Amb.</th><th>Vecino</th><th>Email</th><th>Acciones</th></tr></thead>
+                <tbody id="tbody-ufs"><tr><td colspan="8" class="tbl-empty">Sin unidades cargadas</td></tr></tbody>
             </table>
         </div>
     </div>
@@ -1003,6 +1006,17 @@
         <select class="form-ctrl" id="cfg-consorcio" onchange="cambiarConsorcioConfig(this)"><option value="">Elegí un consorcio</option></select>
     </div>
     <div class="card card-p" id="cfg-card" style="display:none">
+        <div class="form-group">
+            <label class="form-label">Cómo se reparten las expensas</label>
+            <select class="form-ctrl" id="cfg-metodo" onchange="cfgMetodoAyuda()" style="max-width:420px;">
+                <option value="m2">Por metros cuadrados (m² de la unidad / m² totales)</option>
+                <option value="ambientes">Por ambientes (ambientes de la unidad / ambientes totales)</option>
+                <option value="partes_iguales">En partes iguales</option>
+                <option value="porcentaje">Por porcentaje de participación cargado en cada unidad</option>
+            </select>
+            <div class="text-muted text-sm" style="margin-top:4px;" id="cfg-metodo-ayuda"></div>
+        </div>
+        <div class="sep"></div>
         <div class="form-row3">
             <div class="form-group">
                 <label class="form-label">Tasa de interés por mora (%)</label>
@@ -1137,8 +1151,8 @@
                 <div class="card-h"><span class="card-t">Tabla de prorrateo por unidad funcional</span></div>
                 <div style="overflow-x:auto;">
                 <table class="tbl">
-                    <thead><tr><th>UF</th><th>Piso</th><th>Copropietario</th><th>Sdo.Ant.</th><th>Pago</th><th>Sdo.Pend.</th><th>Int.</th><th>%A</th><th>Exp.A</th><th>%C</th><th>Adic.Ord.</th><th title="Gastos específicos de la UF, no prorrateados">Particulares</th><th>Total</th><th>Acción</th></tr></thead>
-                    <tbody id="tbody-prorrateo"><tr><td colspan="14" class="tbl-empty">Cargando...</td></tr></tbody>
+                    <thead><tr><th>UF</th><th>Piso</th><th>Copropietario</th><th>Sdo.Ant.</th><th>Pago</th><th>Sdo.Pend.</th><th>Int.</th><th title="Porcentaje de participación en el reparto">% part.</th><th>Expensa</th><th title="Gastos específicos de la UF, no prorrateados">Particulares</th><th>Total</th><th>Acción</th></tr></thead>
+                    <tbody id="tbody-prorrateo"><tr><td colspan="12" class="tbl-empty">Cargando...</td></tr></tbody>
                 </table>
                 </div>
             </div>
@@ -1273,18 +1287,15 @@
                     </select>
                 </div>
             </div>
-            <div class="form-group"><label class="form-label">Superficie m²</label><input type="number" step="0.01" class="form-ctrl" id="m-uf-sup"></div>
-            <div class="sep"></div>
-            <label class="form-label">Porcentajes de copropiedad</label>
-            <div class="text-muted text-sm" style="margin-bottom:8px;">Cuánto le toca a esta unidad de cada coeficiente. Si los de un coeficiente no suman 100 entre todas las UF, ese se reparte en partes iguales.</div>
+            <!-- Sin porcentajes de copropiedad: el reparto sale del método del
+                 consorcio (Configuración). El % sólo se pide cuando ese es el
+                 método elegido. -->
             <div class="form-row3">
-                <div class="form-group"><label class="form-label">% A</label><input type="number" step="0.001" min="0" class="form-ctrl" id="m-uf-pa" placeholder="0,000"></div>
-                <div class="form-group"><label class="form-label">% B</label><input type="number" step="0.001" min="0" class="form-ctrl" id="m-uf-pb" placeholder="0,000"></div>
+                <div class="form-group"><label class="form-label">Superficie m²</label><input type="number" step="0.01" class="form-ctrl" id="m-uf-sup"></div>
+                <div class="form-group"><label class="form-label">Ambientes</label><input type="number" min="1" class="form-ctrl" id="m-uf-amb"></div>
+                <div class="form-group" id="m-uf-pa-group" style="display:none;"><label class="form-label">% de participación</label><input type="number" step="0.001" min="0" class="form-ctrl" id="m-uf-pa"></div>
             </div>
-            <div class="form-row3">
-                <div class="form-group"><label class="form-label">% C</label><input type="number" step="0.001" min="0" class="form-ctrl" id="m-uf-pc" placeholder="0,000"></div>
-                <div class="form-group"><label class="form-label">% E</label><input type="number" step="0.001" min="0" class="form-ctrl" id="m-uf-pe" placeholder="0,000"></div>
-            </div>
+            <div class="text-muted text-sm" id="m-uf-metodo-nota" style="margin-top:-6px;"></div>
             <div class="sep"></div>
             <div class="form-row">
                 <div class="form-group"><label class="form-label">Nombre del vecino</label><input class="form-ctrl" id="m-uf-vec-nombre"></div>
@@ -1935,7 +1946,7 @@ let currentConsorioId = null;
 const FORMULARIOS_VIGILADOS = {
     config: {
         seccion: 'config',
-        campos: ['cfg-tasa', 'cfg-gracia', 'cfg-recargo', 'cfg-cuit', 'cfg-suterh',
+        campos: ['cfg-metodo', 'cfg-tasa', 'cfg-gracia', 'cfg-recargo', 'cfg-cuit', 'cfg-suterh',
                  'cfg-titular', 'cfg-banco', 'cfg-cbu', 'cfg-alias'],
         visible: () => $('cfg-card') && $('cfg-card').style.display !== 'none',
         guardar: () => guardarConfigConsorcio(),
@@ -2645,7 +2656,9 @@ async function openDetail(id, nombre, dir) {
        unidades y solicitudes quedaban en pantalla hasta que llegaba la
        respuesta, rotuladas con el nombre del consorcio nuevo. */
     currentUFs = [];
-    filaCargando('tbody-ufs', 7);
+    filaCargando('tbody-ufs', 8);
+    $('detail-metodo').innerHTML = `Reparte por <strong>${METODO_CORTO[metodoDelConsorcio(id)]}</strong> ·
+        <a href="#" onclick="event.preventDefault(); irAConfigDe('${id}')">cambiar</a>`;
     $('consorcio-vecinos-pendientes-card').style.display = 'none';
     $('tbody-vecinos-pendientes').innerHTML = '';
     await Promise.all([loadUFs(), loadPendingNeighbors()]);
@@ -2670,7 +2683,7 @@ async function loadUFs() {
         if (!sigueSiendo('ufs', turno) || cid !== currentConsorioId) return;
         currentUFs = ufs;
         const tb = $('tbody-ufs');
-        if (!ufs.length) { tb.innerHTML = '<tr><td colspan="7" class="tbl-empty">Sin unidades. Añadí la primera o usá carga masiva.</td></tr>'; return; }
+        if (!ufs.length) { tb.innerHTML = '<tr><td colspan="8" class="tbl-empty">Sin unidades. Añadí la primera o usá carga masiva.</td></tr>'; return; }
         tb.innerHTML = ufs.map(u => {
             const vecinosList = u.vecinos_vinculados || [];
             let nombresHtml = '';
@@ -2687,7 +2700,8 @@ async function loadUFs() {
                 <td><strong>${escHtml(u.numero)}</strong></td>
                 <td>${escHtml(u.piso||'—')}</td>
                 <td><span class="b b-gr">${u.tipo||'departamento'}</span></td>
-                <td>${u.superficie_m2||'—'}</td>
+                <td>${u.superficie_m2 ? Number(u.superficie_m2).toLocaleString('es-AR') : '—'}</td>
+                <td>${u.ambientes||'—'}</td>
                 <td>${nombresHtml}</td>
                 <td class="text-muted">${emailsHtml}</td>
                 <td><div class="inline-actions">
@@ -2699,13 +2713,24 @@ async function loadUFs() {
     } catch(e) { toast(e.message,'err'); }
 }
 
+/* Configuración con el consorcio ya elegido, para no hacer buscar de nuevo el
+   edificio que uno estaba mirando. */
+function irAConfigDe(cid) {
+    show('config', document.querySelector(`.sidebar-nav a[onclick*="'config'"]`));
+    $('cfg-consorcio').value = cid;
+    loadConfigConsorcio();
+}
+
+function metodoDelConsorcio(cid) {
+    return (consorcios.find(c => c.id === cid) || {}).metodo_prorrateo || 'm2';
+}
+
 function openUFModal(id) {
     $('m-uf-id').value = id||'';
     $('m-uf-title').textContent = id ? 'Editar UF' : 'Nueva UF';
     if (!id) {
-        ['m-uf-numero','m-uf-piso','m-uf-sup','m-uf-vec-nombre','m-uf-vec-email'].forEach(f=>$(f).value='');
+        ['m-uf-numero','m-uf-piso','m-uf-sup','m-uf-amb','m-uf-pa','m-uf-vec-nombre','m-uf-vec-email'].forEach(f=>$(f).value='');
         $('m-uf-tipo').value = 'departamento';
-        ['pa','pb','pc','pe'].forEach(k => $('m-uf-' + k).value = '');
     } else {
         const u = currentUFs.find(x => x.id === id);
         if (u) {
@@ -2713,14 +2738,16 @@ function openUFModal(id) {
             $('m-uf-piso').value = u.piso || '';
             $('m-uf-tipo').value = u.tipo || 'departamento';
             $('m-uf-pa').value = u.porcentaje_a || '';
-            $('m-uf-pb').value = u.porcentaje_b || '';
-            $('m-uf-pc').value = u.porcentaje_c || '';
-            $('m-uf-pe').value = u.porcentaje_e || '';
             $('m-uf-sup').value = u.superficie_m2 || '';
+            $('m-uf-amb').value = u.ambientes || '';
             $('m-uf-vec-nombre').value = u.vecino_nombre || '';
             $('m-uf-vec-email').value = u.vecino_email || '';
         }
     }
+    const metodo = metodoDelConsorcio(currentConsorioId);
+    $('m-uf-pa-group').style.display = metodo === 'porcentaje' ? '' : 'none';
+    $('m-uf-metodo-nota').textContent =
+        `Este consorcio reparte las expensas por ${METODO_CORTO[metodo]}. Se cambia en Configuración.`;
     openModal('modal-uf');
 }
 
@@ -2728,10 +2755,11 @@ async function saveUF() {
     const numero = $('m-uf-numero').value.trim();
     if (!numero || !currentConsorioId) { toast('Número de UF requerido','warn'); return; }
     const payload = { numero, piso: $('m-uf-piso').value, tipo: $('m-uf-tipo').value,
-        porcentaje_a: +$('m-uf-pa').value || 0, porcentaje_b: +$('m-uf-pb').value || 0,
-        porcentaje_c: +$('m-uf-pc').value || 0, porcentaje_e: +$('m-uf-pe').value || 0,
-        superficie_m2: +$('m-uf-sup').value||null, vecino_nombre: $('m-uf-vec-nombre').value,
-        vecino_email: $('m-uf-vec-email').value };
+        superficie_m2: +$('m-uf-sup').value||null, ambientes: +$('m-uf-amb').value||null,
+        vecino_nombre: $('m-uf-vec-nombre').value, vecino_email: $('m-uf-vec-email').value };
+    // El % sólo viaja si es el método del consorcio: si no, un campo oculto
+    // vacío pisaría con 0 un porcentaje cargado antes.
+    if (metodoDelConsorcio(currentConsorioId) === 'porcentaje') payload.porcentaje_a = +$('m-uf-pa').value || 0;
     const uid = $('m-uf-id').value;
     try {
         if (uid) await api(`/api/consorcios/${currentConsorioId}/unidades/${uid}`,{method:'PUT',body:JSON.stringify(payload)});
@@ -4843,7 +4871,10 @@ async function loadProrrateo() {
     try {
         const data = await api(`/api/liquidaciones/${currentLiqId}/prorrateo`);
         const tb = $('tbody-prorrateo');
-        if (!data.length) { tb.innerHTML = '<tr><td colspan="14" class="tbl-empty">Sin datos de prorrateo</td></tr>'; return; }
+        if (!data.length) { tb.innerHTML = '<tr><td colspan="12" class="tbl-empty">Sin datos de prorrateo</td></tr>'; return; }
+        /* Un solo reparto desde v20. Una liquidación vieja pudo repartir por
+           varios coeficientes: su expensa es la suma de todos. */
+        const expensaDe = p => (p.expensa_a || 0) + (p.expensa_b || 0) + (p.adicional_ordinaria || 0) + (p.expensa_e || 0);
         tb.innerHTML = data.map(p => {
             const uf = p.unidades_funcionales || {};
             return `<tr>
@@ -4854,10 +4885,8 @@ async function loadProrrateo() {
                 <td style="color:var(--nd-verde)">${fmt(p.pago_realizado)}</td>
                 <td style="color:${p.saldo_pendiente>0?'var(--nd-terracota-hondo)':'inherit'}">${fmt(p.saldo_pendiente)}</td>
                 <td>${fmt(p.interes_mora)}</td>
-                <td class="text-muted">${p.porcentaje_a}%</td>
-                <td>${fmt(p.expensa_a)}</td>
-                <td class="text-muted">${p.porcentaje_c}%</td>
-                <td>${fmt(p.adicional_ordinaria)}</td>
+                <td class="text-muted">${Number(p.porcentaje_a || 0).toLocaleString('es-AR', {maximumFractionDigits: 3})}%</td>
+                <td>${fmt(expensaDe(p))}</td>
                 <td${p.gastos_particulares>0?' style="color:var(--nd-tinta-calida);font-weight:600;"':' class="text-muted"'}>${fmt(p.gastos_particulares||0)}</td>
                 <td><strong>${fmt(p.total_unidad)}</strong></td>
                 <td><button class="btn-s btn-sm" onclick="openPreviewUF('${p.unidad_id}')" aria-label="Previsualizar" title="Previsualizar"><svg class="ic ic-sm"><use href="#ic-ojo"></use></svg></button></td>
@@ -4870,7 +4899,6 @@ async function loadProrrateo() {
            chequeo. Si una suma no da 100,00% se muestra en terracota: un
            prorrateo mal calculado tiene que verse sin desplegar nada. */
         const sumaA = data.reduce((a,p) => a + (p.porcentaje_a || 0), 0);
-        const sumaC = data.reduce((a,p) => a + (p.porcentaje_c || 0), 0);
         const totalP = data.reduce((a,p) => a + (p.total_unidad || 0), 0);
         const enMora = data.filter(p => (p.saldo_pendiente || 0) > 0).length;
         const pct = n => n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '%';
@@ -4882,8 +4910,7 @@ async function loadProrrateo() {
         head.innerHTML = `
             <div class="nd-pro-t"><b>${fmt(totalP)}</b><span>${data.length} unidades</span></div>
             <div class="nd-pro-check">
-                <i class="${cierra(sumaA) ? '' : 'bad'}">%A suma ${pct(sumaA)}</i>
-                <i class="${cierra(sumaC) ? '' : 'bad'}">%C suma ${pct(sumaC)}</i>
+                <i class="${cierra(sumaA) ? '' : 'bad'}">% suma ${pct(sumaA)}</i>
                 ${enMora ? `<i class="bad">${enMora} en mora</i>` : ''}
             </div>`;
 
@@ -4895,7 +4922,7 @@ async function loadProrrateo() {
                     <span class="nd-pcard-uf">${escHtml(uf.numero || '–')}</span>
                     <span class="nd-pcard-n">
                         <b>${uf.vecino_nombre || 'Sin copropietario'}</b>
-                        <span>Piso ${escHtml(uf.piso || '–')} · ${pct(p.porcentaje_a || 0)} ord.</span>
+                        <span>Piso ${escHtml(uf.piso || '–')} · ${pct(p.porcentaje_a || 0)} part.</span>
                     </span>
                     <span class="nd-pcard-tot"><b>${fmt(p.total_unidad)}</b><span>Total</span></span>
                     <svg class="ic nd-pcard-arr"><use href="#ic-chevron"></use></svg>
@@ -4908,8 +4935,7 @@ async function loadProrrateo() {
                         <div class="nd-pline${(p.interes_mora||0) > 0 ? ' debt' : ''}"><span>Interés por mora</span><b>${p.interes_mora ? fmt(p.interes_mora) : '—'}</b></div>
                     </div>
                     <div class="nd-pgroup"><h5>Expensa del período</h5>
-                        <div class="nd-pline"><span>Ordinaria <i class="nd-pct">${pct(p.porcentaje_a || 0)}</i></span><b>${fmt(p.expensa_a)}</b></div>
-                        <div class="nd-pline"><span>Adicional ordinaria <i class="nd-pct">${pct(p.porcentaje_c || 0)}</i></span><b>${fmt(p.adicional_ordinaria)}</b></div>
+                        <div class="nd-pline"><span>Expensa <i class="nd-pct">${pct(p.porcentaje_a || 0)}</i></span><b>${fmt(expensaDe(p))}</b></div>
                     </div>
                     <div class="nd-pgroup"><h5>Extras</h5>
                         <div class="nd-pline"><span>Gastos particulares</span><b>${p.gastos_particulares ? fmt(p.gastos_particulares) : '—'}</b></div>
@@ -5532,6 +5558,8 @@ async function loadConfigConsorcio() {
     if (!cid) { card.style.display = 'none'; delete limpios.config; return; }
     const c = consorcios.find(x => x.id === cid);
     if (!c) return;
+    $('cfg-metodo').value = c.metodo_prorrateo || 'm2';
+    cfgMetodoAyuda();
     $('cfg-tasa').value = c.tasa_interes_mora ?? 0;
     $('cfg-gracia').value = c.dias_gracia_mora ?? 0;
     $('cfg-recargo').value = c.recargo_segundo_vto ?? 0;
@@ -5546,11 +5574,25 @@ async function loadConfigConsorcio() {
     marcarLimpio('config');
 }
 
+/* Qué hace falta cargar en cada unidad para el método elegido. Se dice acá,
+   al elegirlo, y no recién cuando la liquidación falla por un dato faltante. */
+const METODO_AYUDA = {
+    m2: 'El default. Cargá los m² de cada unidad en Consorcios. Si ninguna los tiene, se reparte en partes iguales.',
+    ambientes: 'Cargá los ambientes de cada unidad en Consorcios. Si ninguna los tiene, se reparte en partes iguales.',
+    partes_iguales: 'Todas las unidades pagan lo mismo. No hace falta cargar nada.',
+    porcentaje: 'Cargá el % de participación de cada unidad en Consorcios. Entre todas tienen que sumar 100%.',
+};
+const METODO_CORTO = {m2: 'm²', ambientes: 'ambientes', partes_iguales: 'partes iguales', porcentaje: '% de participación'};
+function cfgMetodoAyuda() {
+    $('cfg-metodo-ayuda').textContent = METODO_AYUDA[$('cfg-metodo').value] || '';
+}
+
 async function guardarConfigConsorcio() {
     const cid = $('cfg-consorcio').value;
     if (!cid) { toast('Elegí un consorcio antes de guardar', 'warn'); return false; }
     try {
         await api(`/api/consorcios/${cid}`, { method: 'PUT', body: JSON.stringify({
+            metodo_prorrateo: $('cfg-metodo').value,
             tasa_interes_mora: +$('cfg-tasa').value || 0,
             dias_gracia_mora: +$('cfg-gracia').value || 0,
             recargo_segundo_vto: +$('cfg-recargo').value || 0,

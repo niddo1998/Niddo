@@ -86,6 +86,12 @@ def pesos(n) -> str:
     return f'{signo}${NBSP_MONEDA}{entero},{dec}'
 
 
+def fmt_numero(n, decimales=2) -> str:
+    """Un número con coma decimal y sin ceros de más: 99,5 o 33,333."""
+    txt = f'{float(n or 0):,.{decimales}f}'.replace(',', '\u0001').replace('.', ',').replace('\u0001', '.')
+    return txt.rstrip('0').rstrip(',') if ',' in txt else txt
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -2114,7 +2120,10 @@ def api_consorcios_update(cid):
         'banco_nombre': d.get('banco_nombre'),
         'banco_cbu': d.get('banco_cbu'),
         'banco_alias': d.get('banco_alias'),
+        'metodo_prorrateo': d.get('metodo_prorrateo'),
     }.items() if v is not None}
+    if 'metodo_prorrateo' in payload and payload['metodo_prorrateo'] not in METODOS_PRORRATEO:
+        return jsonify({'error': 'Método de prorrateo desconocido'}), 400
     res = supabase.table('consorcios').update(payload).eq('id', cid).eq('admin_id', admin_id).execute()
     return jsonify(res.data[0] if res.data else {})
 
@@ -2159,6 +2168,15 @@ def api_ufs_list(cid):
     return jsonify(ufs)
 
 
+def _entero_o_none(v):
+    """Un entero positivo de un formulario, o None si viene vacío o no es."""
+    try:
+        n = int(float(v))
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None
+
+
 @app.route('/api/consorcios/<cid>/unidades', methods=['POST'])
 @require_auth(allowed_roles=['admin'])
 def api_ufs_create(cid):
@@ -2170,6 +2188,7 @@ def api_ufs_create(cid):
         'piso': d.get('piso', ''),
         'tipo': d.get('tipo', 'departamento'),
         'superficie_m2': d.get('superficie_m2'),
+        'ambientes': _entero_o_none(d.get('ambientes')),
         'vecino_nombre': d.get('vecino_nombre', ''),
         'vecino_email': d.get('vecino_email', ''),
         # El porcentaje de copropiedad por coeficiente. Era el bloqueo de todo:
@@ -2194,6 +2213,7 @@ def api_ufs_update(cid, uid):
         'piso': d.get('piso'),
         'tipo': d.get('tipo'),
         'superficie_m2': d.get('superficie_m2'),
+        'ambientes': _entero_o_none(d.get('ambientes')),
         'vecino_nombre': d.get('vecino_nombre'),
         'vecino_email': d.get('vecino_email'),
         'porcentaje_a': d.get('porcentaje_a'),
@@ -5776,6 +5796,11 @@ def api_liquidaciones_create():
             _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id, gastos_ids=gastos_ids)
             _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=numero_revision)
             _recalcular_totales(liq_id)
+        except ProrrateoIncompleto as e:
+            # No es un error del sistema: faltan datos del edificio. Se dice
+            # cuáles y no se deja la liquidación a medio hacer.
+            supabase.table('liquidaciones').delete().eq('id', liq_id).execute()
+            return jsonify({'error': str(e)}), 400
         except Exception as e:
             supabase.table('liquidaciones').delete().eq('id', liq_id).execute()
             if _falta_schema_v9(str(e)):
@@ -5993,22 +6018,73 @@ def _cargos_de_amenities(consorcio_id, periodo, uf_ids):
     return cargos
 
 
-def _pesos_del_coeficiente(ufs, coef):
-    """Los pesos con que se reparte un coeficiente entre las UFs.
+# Cómo se reparten las expensas de un consorcio. Uno solo por edificio: todos
+# los gastos generales se reparten igual. La columna de cada UF es la base del
+# reparto (None = partes iguales, no hace falta ningún dato).
+METODOS_PRORRATEO = {
+    'm2':             ('superficie_m2', 'metros cuadrados'),
+    'ambientes':      ('ambientes', 'ambientes'),
+    'porcentaje':     ('porcentaje_a', 'porcentaje de participación'),
+    'partes_iguales': (None, 'partes iguales'),
+}
+# Es como se liquida casi siempre en Argentina: superficie de la unidad sobre
+# superficie total.
+METODO_PRORRATEO_DEFAULT = 'm2'
 
-    Si los porcentajes cargados cierran en 100 se usan esos; si están todos en
-    0 —que es como vienen— se reparte lineal. La tolerancia de 0,5 absorbe el
-    redondeo de cargar 33,333 tres veces.
 
-    Devuelve (pesos, porcentajes_efectivos). Antes se multiplicaba directo por
-    el porcentaje, así que sin cargarlo cada unidad recibía $0.
+class ProrrateoIncompleto(ValueError):
+    """Faltan datos para repartir con el método del consorcio.
+
+    Se corta la liquidación y se dice qué falta. Repartir igual —con 0 m² para
+    la unidad que no los tiene cargados— le regalaría la expensa a esa unidad y
+    se la cobraría a las demás.
     """
-    columna = f'porcentaje_{coef.lower()}'
-    cargados = [float(uf.get(columna) or 0) for uf in ufs]
-    if abs(sum(cargados) - 100) <= 0.5:
-        return cargados, cargados
+
+
+def _metodo_prorrateo(consorcio):
+    metodo = (consorcio or {}).get('metodo_prorrateo') or METODO_PRORRATEO_DEFAULT
+    return metodo if metodo in METODOS_PRORRATEO else METODO_PRORRATEO_DEFAULT
+
+
+def _pesos_del_consorcio(ufs, metodo):
+    """Los pesos con que se reparte entre las UFs, según el método del consorcio.
+
+    Devuelve (pesos, porcentajes_efectivos).
+
+    - Sin ningún dato cargado (todas las UFs en 0 o vacías) se reparte en
+      partes iguales: es como venía funcionando y un edificio recién dado de
+      alta tiene que poder liquidar.
+    - Con los datos cargados a medias se corta con ProrrateoIncompleto: la UF
+      sin m² no puede pagar $0 de expensas.
+    - En `porcentaje` los cargados tienen que sumar 100 (con 0,5 de tolerancia
+      para el redondeo de cargar 33,333 tres veces).
+    """
     n = len(ufs)
-    return [1.0] * n, [round(100 / n, 3)] * n
+    iguales = ([1.0] * n, [round(100 / n, 3)] * n)
+    campo, nombre = METODOS_PRORRATEO[metodo]
+    if campo is None:
+        return iguales
+
+    valores = [float(uf.get(campo) or 0) for uf in ufs]
+    total = sum(valores)
+    if total <= 0:
+        return iguales
+
+    if metodo == 'porcentaje':
+        if abs(total - 100) > 0.5:
+            raise ProrrateoIncompleto(
+                f'Los porcentajes de participación de las unidades suman '
+                f'{fmt_numero(total, 3)}% y tienen que sumar 100%. Corregilos en '
+                f'Consorcios o cambiá el método de prorrateo en Configuración.')
+        return valores, valores
+
+    faltan = [str(uf.get('numero') or '?') for uf, v in zip(ufs, valores) if v <= 0]
+    if faltan:
+        raise ProrrateoIncompleto(
+            f'El consorcio reparte por {nombre} y faltan cargar en '
+            f'{"la unidad" if len(faltan) == 1 else "las unidades"} {", ".join(faltan)}. '
+            f'Completalos en Consorcios o cambiá el método de prorrateo en Configuración.')
+    return valores, [round(v / total * 100, 3) for v in valores]
 
 
 def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
@@ -6041,8 +6117,9 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
 
     por_coeficiente, particulares = _egresos_por_alcance(liq_id)
 
-    consorcio = supabase.table('consorcios') \
-        .select('tasa_interes_mora, dias_gracia_mora, recargo_segundo_vto') \
+    # `*` y no la lista de columnas: si todavía no se corrió v20 la consulta
+    # sigue funcionando y el método cae en el default.
+    consorcio = supabase.table('consorcios').select('*') \
         .eq('id', consorcio_id).execute().data
     consorcio = consorcio[0] if consorcio else {}
     tasa_interes = float(consorcio.get('tasa_interes_mora') or 0)
@@ -6055,13 +6132,10 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
     if liq and liq[0].get('interes_2_vto'):
         recargo_2do = float(liq[0]['interes_2_vto'])
 
-    # Un reparto por coeficiente, cada uno con sus propios pesos y su redondeo.
-    repartos = {}
-    for coef in COEFICIENTES:
-        total = por_coeficiente.get(coef, 0.0)
-        pesos, pcts = _pesos_del_coeficiente(ufs, coef)
-        montos, ajustes = _repartir(total, pesos)
-        repartos[coef] = {'montos': montos, 'ajustes': ajustes, 'pcts': pcts}
+    # Un solo reparto para todo lo general, con el método del consorcio. Los
+    # gastos viejos todavía traen coeficiente; ya no separa nada, se suman.
+    pesos, pcts = _pesos_del_consorcio(ufs, _metodo_prorrateo(consorcio))
+    montos, ajustes = _repartir(round(sum(por_coeficiente.values()), 2), pesos)
 
     # Cobros del período anterior, para el saldo y los intereses.
     year, month = periodo.split('-')[:2]
@@ -6101,11 +6175,10 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
 
         amenities = amenities_por_uf.get(uf['id'], 0.0)
 
-        expensas = {c2: repartos[c2]['montos'][i] for c2 in COEFICIENTES}
-        redondeo = round(sum(repartos[c2]['ajustes'][i] for c2 in COEFICIENTES), 2)
+        expensa = montos[i]
+        redondeo = ajustes[i]
 
-        total_unidad = round(
-            sum(expensas.values()) + particular + saldo_pend + interes + amenities, 2)
+        total_unidad = round(expensa + particular + saldo_pend + interes + amenities, 2)
         total_2do = round(total_unidad * (1 + recargo_2do / 100), 2) if recargo_2do else total_unidad
 
         prorrateo_rows.append({
@@ -6115,16 +6188,17 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
             'pago_realizado': pago,
             'saldo_pendiente': saldo_pend,
             'interes_mora': interes,
-            'porcentaje_a': repartos['A']['pcts'][i],
-            'expensa_a': expensas['A'],
-            'porcentaje_b': repartos['B']['pcts'][i],
-            'expensa_b': expensas['B'],
-            # `adicional_ordinaria` es el nombre que le puso v7 al reparto del
-            # coeficiente C. Se conserva para no romper lo ya emitido.
-            'porcentaje_c': repartos['C']['pcts'][i],
-            'adicional_ordinaria': expensas['C'],
-            'porcentaje_e': repartos['E']['pcts'][i],
-            'expensa_e': expensas['E'],
+            # El reparto único va en la columna A, que es la que leen el PDF,
+            # el mail y las pantallas. B, C y E quedan en 0: las siguen teniendo
+            # las liquidaciones emitidas antes de v20.
+            'porcentaje_a': pcts[i],
+            'expensa_a': expensa,
+            'porcentaje_b': 0,
+            'expensa_b': 0,
+            'porcentaje_c': 0,
+            'adicional_ordinaria': 0,
+            'porcentaje_e': 0,
+            'expensa_e': 0,
             'gastos_particulares': particular,
             'uso_amenities': amenities,
             'descuentos': 0,
