@@ -86,6 +86,12 @@ def pesos(n) -> str:
     return f'{signo}${NBSP_MONEDA}{entero},{dec}'
 
 
+def fmt_numero(n, decimales=2) -> str:
+    """Un número con coma decimal y sin ceros de más: 99,5 o 33,333."""
+    txt = f'{float(n or 0):,.{decimales}f}'.replace(',', '\u0001').replace('.', ',').replace('\u0001', '.')
+    return txt.rstrip('0').rstrip(',') if ',' in txt else txt
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -252,24 +258,12 @@ def pdf_response(buf: io.BytesIO, filename: str) -> Response:
     return send_file(buf, mimetype='application/pdf', download_name=filename, as_attachment=True)
 
 
-def make_excel(headers: list, rows: list, sheet_name: str):
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = sheet_name
-    header_fill = PatternFill("solid", fgColor="7C3AED")
-    header_font = Font(color="FFFFFF", bold=True, size=11)
-    for col, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col, value=h)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal='center')
-        ws.column_dimensions[cell.column_letter].width = max(len(h) + 4, 14)
-    for r, row in enumerate(rows, 2):
-        for c, val in enumerate(row, 1):
-            ws.cell(row=r, column=c, value=val)
-    return wb
+def make_excel(headers: list, rows: list, sheet_name: str, titulo: str = None,
+               subtitulo: str = None, totales=None):
+    """Un exporte .xlsx con la marca de Niddo (ver excel_niddo.py)."""
+    from excel_niddo import libro_con_tabla
+    return libro_con_tabla(titulo or sheet_name, headers, rows, sheet_name,
+                           subtitulo=subtitulo, totales=totales)
 
 
 TIPOS_UF_VALIDOS = ['departamento', 'local', 'cochera', 'baulera']
@@ -304,75 +298,132 @@ def es_fila_ejemplo_gastos(descripcion, fecha_iso, monto) -> bool:
         return False
 
 
-def build_carga_masiva_template(consorcios_existentes: list):
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment
-    from openpyxl.worksheet.datavalidation import DataValidation
-    header_fill = PatternFill("solid", fgColor="7C3AED")
-    header_font = Font(color="FFFFFF", bold=True, size=11)
-    example_font = Font(italic=True, color="9CA3AF")
+# La pestaña que el sistema lee en las plantillas de carga masiva. Las otras
+# dos (Instrucciones y Ejemplo) son para la persona y no se importan nunca: el
+# ejemplo está en su propia pestaña justamente para que no haya fila de
+# ejemplo que alguien se olvide de borrar.
+HOJA_CARGA = 'Carga'
 
-    def style_header(ws, headers):
-        for col, h in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col, value=h)
-            cell.fill = header_fill
-            cell.font = header_font
-            cell.alignment = Alignment(horizontal='center')
-            ws.column_dimensions[cell.column_letter].width = max(len(h) + 4, 16)
+HEADERS_PLANTILLA_CONSORCIOS = [
+    'consorcio*', 'direccion', 'cuit', 'encargado', 'tel_encargado',
+    'unidad*', 'piso', 'tipo', 'superficie_m2', 'ambientes', 'vecino_nombre', 'vecino_email',
+]
+ALIAS_COLUMNAS_CONSORCIO = {
+    'consorcio': 'consorcio', 'edificio': 'consorcio', 'nombre': 'consorcio',
+    'direccion': 'direccion', 'domicilio': 'direccion',
+    'cuit': 'cuit',
+    'encargado': 'encargado', 'encargado_nombre': 'encargado',
+    'tel_encargado': 'tel_encargado', 'encargado_tel': 'tel_encargado', 'telefono_encargado': 'tel_encargado',
+    'unidad': 'unidad', 'uf': 'unidad', 'numero': 'unidad', 'unidad_funcional': 'unidad',
+    'piso': 'piso',
+    'tipo': 'tipo',
+    'superficie_m2': 'superficie_m2', 'superficie': 'superficie_m2', 'm2': 'superficie_m2', 'metros': 'superficie_m2',
+    'ambientes': 'ambientes',
+    'vecino_nombre': 'vecino_nombre', 'vecino': 'vecino_nombre', 'propietario': 'vecino_nombre',
+    'vecino_email': 'vecino_email', 'email': 'vecino_email', 'mail': 'vecino_email',
+}
+
+EJEMPLO_CONSORCIOS = [
+    ['Torres del Parque', 'Av. Rivadavia 5200, CABA', '30-71234567-8', 'Carlos Gómez', '11 4567-8910',
+     '1A', '1', 'departamento', 62, 3, 'Laura Fernández', 'laura@mail.com'],
+    ['Torres del Parque', '', '', '', '', '1B', '1', 'departamento', 48, 2, 'Martín Ruiz', 'martin@mail.com'],
+    ['Torres del Parque', '', '', '', '', 'PB', '0', 'local', 90, 1, 'Kiosco Don José', ''],
+    ['Torres del Parque', '', '', '', '', 'C1', '-1', 'cochera', 12, None, '', ''],
+    ['Edificio Belgrano', 'Juramento 2100, CABA', '', '', '', '3C', '3', 'departamento', 75, 4, 'Ana López', 'ana@mail.com'],
+]
+
+
+def _lista_oculta(wb, nombre_col, valores, col):
+    """Escribe una lista en la hoja oculta de listas y devuelve su rango.
+
+    Los desplegables apuntan a un rango y no a una lista literal: la literal se
+    corta a 255 caracteres y con ocho edificios ya parte nombres al medio. La
+    hoja va oculta para que la planilla tenga sólo sus tres pestañas.
+    """
+    from openpyxl.utils import get_column_letter
+    ws = wb['_listas'] if '_listas' in wb.sheetnames else wb.create_sheet('_listas')
+    ws.sheet_state = 'hidden'
+    ws.cell(row=1, column=col, value=nombre_col)
+    for r, v in enumerate(valores, 2):
+        ws.cell(row=r, column=col, value=v)
+    letra = get_column_letter(col)
+    return f"'_listas'!${letra}$2:${letra}${max(len(valores), 1) + 1}"
+
+
+def _desplegable(ws, formula, rango):
+    from openpyxl.worksheet.datavalidation import DataValidation
+    dv = DataValidation(type='list', formula1=formula, allow_blank=True, showErrorMessage=False)
+    ws.add_data_validation(dv)
+    dv.add(rango)
+
+
+def _numero_o_none(v):
+    """Un número de celda (acepta coma decimal), o None."""
+    if v in (None, ''):
+        return None
+    if isinstance(v, (int, float)):
+        return v
+    try:
+        return float(str(v).replace('.', '').replace(',', '.')) if ',' in str(v) else float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def build_carga_masiva_template(consorcios_existentes: list):
+    """La plantilla de carga masiva de consorcios y unidades: tres pestañas.
+
+    Instrucciones, Ejemplo (un edificio inventado, completo) y Carga, que es la
+    única que se lee. Una fila por unidad; los datos del consorcio se escriben
+    en su primera fila y en las demás alcanza con el nombre.
+    """
+    import openpyxl
+    from excel_niddo import encabezado_de_marca, hoja_instrucciones, tabla, FILAS_TITULO
 
     wb = openpyxl.Workbook()
-
     ws_info = wb.active
     ws_info.title = 'Instrucciones'
-    ws_info.column_dimensions['A'].width = 100
-    info_lines = [
-        ("Carga masiva de Consorcios y UF's", True),
-        ('', False),
-        ('1. Completá la hoja "Consorcios" para crear edificios nuevos. Dejala vacía si solo vas a cargar', False),
-        ('   unidades de consorcios que ya existen.', False),
-        ('2. Completá la hoja "Unidades" con las UF a cargar. En la columna "consorcio" escribí el nombre', False),
-        ('   exacto del consorcio (nuevo, tal como lo escribiste en la hoja "Consorcios", o uno ya existente,', False),
-        ('   tal como figura en la hoja "Consorcios existentes").', False),
-        ('3. Guardá el archivo y subilo en el panel. No cambies los nombres de las hojas ni de las columnas.', False),
-        ('', False),
-        ('Campos obligatorios: nombre (Consorcios); consorcio y numero (Unidades). El resto es opcional.', False),
-        (f'Valores válidos para "tipo": {", ".join(TIPOS_UF_VALIDOS)}.', False),
-        ('Si un consorcio o una unidad ya existe, se reutiliza/omite automáticamente (no se duplica).', False),
-    ]
-    for i, (text, bold) in enumerate(info_lines, 1):
-        cell = ws_info.cell(row=i, column=1, value=text)
-        if bold:
-            cell.font = Font(bold=True, size=13)
+    hoja_instrucciones(ws_info, "Carga masiva de consorcios y unidades", [
+        ('titulo', 'Cómo se usa'),
+        ('paso', ('1', 'Mirá la pestaña «Ejemplo»: es un edificio inventado, cargado como se espera.')),
+        ('paso', ('2', 'Completá la pestaña «Carga»: una fila por unidad funcional. Los datos del consorcio '
+                       '(dirección, CUIT, encargado) van en su primera fila; en las demás alcanza con el nombre.')),
+        ('paso', ('3', 'Guardá el archivo y subilo en Consorcios → Carga masiva. Sólo se lee la pestaña «Carga».')),
+        ('espacio', ''),
+        ('titulo', 'Columnas'),
+        ('campo', ('consorcio *', 'Nombre del edificio. Si ya existe uno tuyo con ese nombre, las unidades se '
+                                  'le agregan; si no, se crea.')),
+        ('campo', ('direccion', 'Dirección del edificio. Opcional.')),
+        ('campo', ('cuit', 'CUIT del consorcio. Opcional.')),
+        ('campo', ('encargado / tel_encargado', 'Nombre y teléfono del encargado. Opcionales.')),
+        ('campo', ('unidad *', 'Número o letra de la unidad funcional: 1A, 3B, PB, C1. Si la dejás vacía se '
+                               'crea sólo el consorcio.')),
+        ('campo', ('piso', 'Opcional.')),
+        ('campo', ('tipo', f'{", ".join(TIPOS_UF_VALIDOS)}. Vacío = departamento.')),
+        ('campo', ('superficie_m2', 'Metros cuadrados de la unidad. Es la base del reparto de expensas por m², '
+                                    'que es el que viene configurado.')),
+        ('campo', ('ambientes', 'Cantidad de ambientes. Sólo hace falta si el consorcio reparte por ambientes.')),
+        ('campo', ('vecino_nombre / vecino_email', 'Quién vive o es dueño. Opcionales: el vecino también puede '
+                                                   'pedir su alta desde la app.')),
+        ('espacio', ''),
+        ('nota', 'Una unidad que ya existe en ese consorcio se saltea: subir dos veces el mismo archivo no duplica nada.'),
+        ('nota', 'Los campos con * son obligatorios.'),
+    ])
 
-    ws_c = wb.create_sheet('Consorcios')
-    style_header(ws_c, ['nombre*', 'direccion', 'cuit', 'pisos', 'unidades_totales', 'encargado_nombre', 'encargado_tel'])
-    example_c = ['Edificio Ejemplo 123 (borrar fila)', 'Av. Siempreviva 742', '30-12345678-9', 8, 24, 'Juan Pérez', '+54 9 11 1234-5678']
-    for c, val in enumerate(example_c, 1):
-        ws_c.cell(row=2, column=c, value=val).font = example_font
+    ws_ej = wb.create_sheet('Ejemplo')
+    encabezado_de_marca(ws_ej, 'Ejemplo', 'Así se ve una carga completa. Esta pestaña no se importa.')
+    tabla(ws_ej, HEADERS_PLANTILLA_CONSORCIOS, EJEMPLO_CONSORCIOS,
+          formatos={8: 'numero', 9: 'numero'})
 
-    ws_u = wb.create_sheet('Unidades')
-    style_header(ws_u, ['consorcio*', 'numero*', 'piso', 'tipo', 'superficie_m2', 'vecino_nombre', 'vecino_email'])
-    example_u = ['Edificio Ejemplo 123 (borrar fila)', '3B', '3', 'departamento', 65.5, 'Juan Pérez', 'juan@mail.com']
-    for c, val in enumerate(example_u, 1):
-        ws_u.cell(row=2, column=c, value=val).font = example_font
-    tipo_dv = DataValidation(type='list', formula1=f'"{",".join(TIPOS_UF_VALIDOS)}"', allow_blank=True, showErrorMessage=False)
-    ws_u.add_data_validation(tipo_dv)
-    tipo_dv.add('D2:D1000')
+    ws = wb.create_sheet(HOJA_CARGA)
+    encabezado_de_marca(ws, 'Carga', 'Completá desde la fila de abajo del encabezado. Esta es la pestaña que se importa.')
+    fila = tabla(ws, HEADERS_PLANTILLA_CONSORCIOS, [], formatos={8: 'numero', 9: 'numero'},
+                 anchos={0: 26, 1: 28, 2: 16, 3: 18, 4: 16, 5: 10, 6: 8, 7: 16, 8: 14, 9: 12, 10: 22, 11: 24})
+    desde, hasta = fila + 1, fila + 1000
+    _desplegable(ws, _lista_oculta(wb, 'tipo', list(TIPOS_UF_VALIDOS), 1), f'H{desde}:H{hasta}')
     if consorcios_existentes:
-        nombres = [c['nombre'] for c in consorcios_existentes]
-        con_dv = DataValidation(type='list', formula1=f'"{",".join(nombres)[:255]}"', allow_blank=True, showErrorMessage=False)
-        ws_u.add_data_validation(con_dv)
-        con_dv.add('A2:A1000')
-
-    ws_ref = wb.create_sheet('Consorcios existentes')
-    style_header(ws_ref, ['nombre', 'direccion'])
-    for r, c in enumerate(consorcios_existentes, 2):
-        ws_ref.cell(row=r, column=1, value=c['nombre'])
-        ws_ref.cell(row=r, column=2, value=c.get('direccion', ''))
-    if not consorcios_existentes:
-        ws_ref.cell(row=2, column=1, value='(todavía no tenés consorcios cargados)').font = example_font
-
-    wb.active = 0
+        _desplegable(ws, _lista_oculta(wb, 'consorcio', [c['nombre'] for c in consorcios_existentes], 2),
+                     f'A{desde}:A{hasta}')
+    wb.active = wb.sheetnames.index(HOJA_CARGA)
     return wb
 
 
@@ -421,9 +472,11 @@ ALIAS_COLUMNAS_GASTO = {
 
 COLUMNAS_GASTO_OBLIGATORIAS = ('consorcio', 'fecha_gasto', 'descripcion', 'monto')
 
+# Sin coeficiente desde v20: el gasto se reparte con el método del consorcio.
+# El alias `coeficiente` sigue leyéndose para las planillas viejas.
 HEADERS_PLANTILLA_GASTOS = [
     'consorcio*', 'fecha*', 'descripcion*', 'monto*', 'categoria', 'unidad',
-    'coeficiente', 'pagado', 'recurrente', 'frecuencia', 'dia_carga', 'notas',
+    'pagado', 'recurrente', 'frecuencia', 'dia_carga', 'notas',
 ]
 
 FORMATOS_FECHA = ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%d/%m/%y', '%Y/%m/%d')
@@ -454,15 +507,22 @@ def leer_filas_por_encabezado(ws, alias: dict):
     Leer por encabezado y no por posición es lo que hace que agregar, correr o
     sacar una columna del archivo no desplace todos los datos una casilla.
     """
-    primera = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), ()) or ()
+    from excel_niddo import fila_de_encabezado
+    # Los archivos que arma Niddo tienen logo y título arriba del encabezado;
+    # los hechos a mano, el encabezado en la fila 1. Se busca.
+    fila_enc = fila_de_encabezado(ws, lambda v: _norm_col(v) in alias)
+    primera = next(ws.iter_rows(min_row=fila_enc, max_row=fila_enc, values_only=True), ()) or ()
     columnas = {}
     for idx, celda in enumerate(primera):
         canon = alias.get(_norm_col(celda))
         if canon and canon not in columnas:
             columnas[canon] = idx
     filas = []
-    for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), 2):
+    for i, row in enumerate(ws.iter_rows(min_row=fila_enc + 1, values_only=True), fila_enc + 1):
         if not row or all(v in (None, '') for v in row):
+            continue
+        # La fila de totales que agregan los exportes de Niddo no es un dato.
+        if isinstance(row[0], str) and row[0].strip().lower() == 'total':
             continue
         filas.append((i, {k: (row[idx] if idx < len(row) else None) for k, idx in columnas.items()}))
     return columnas, filas
@@ -546,116 +606,80 @@ def _bool_excel(valor, campo: str) -> bool:
 
 
 def build_gastos_template(consorcios: list, unidades: list):
-    """La plantilla .xlsx de carga masiva de gastos.
+    """La plantilla de carga masiva de gastos: Instrucciones, Ejemplo y Carga.
 
-    Las hojas de referencia no son decorativas: la validación de la columna
-    "consorcio" apunta a la lista de la hoja "Consorcios existentes", así que el
-    administrador elige de un desplegable en vez de escribir un nombre que
-    después no matchea.
+    Sólo se lee «Carga». Los desplegables de consorcio y unidad apuntan a una
+    hoja oculta con los tuyos, así se elige en vez de escribir un nombre que
+    después no coincide.
     """
     import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment
-    from openpyxl.worksheet.datavalidation import DataValidation
-    header_fill = PatternFill("solid", fgColor="7C3AED")
-    header_font = Font(color="FFFFFF", bold=True, size=11)
-    example_font = Font(italic=True, color="9CA3AF")
-
-    def style_header(ws, headers):
-        for col, h in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col, value=h)
-            cell.fill = header_fill
-            cell.font = header_font
-            cell.alignment = Alignment(horizontal='center')
-            ws.column_dimensions[cell.column_letter].width = max(len(h) + 4, 16)
-
-    def lista_dv(ws, opciones, rango):
-        dv = DataValidation(type='list', formula1=f'"{",".join(opciones)}"',
-                            allow_blank=True, showErrorMessage=False)
-        ws.add_data_validation(dv)
-        dv.add(rango)
+    from excel_niddo import encabezado_de_marca, hoja_instrucciones, tabla
 
     wb = openpyxl.Workbook()
-
     ws_info = wb.active
     ws_info.title = 'Instrucciones'
-    ws_info.column_dimensions['A'].width = 105
-    info_lines = [
-        ('Carga masiva de Gastos', True),
-        ('', False),
-        ('1. Completá la hoja "Gastos": una fila por gasto. Borrá la fila de ejemplo en gris cursiva.', False),
-        ('2. En "consorcio" elegí del desplegable o escribí el nombre exacto, tal como figura en la hoja', False),
-        ('   "Consorcios existentes". Lo mismo con "unidad": esta carga no crea consorcios ni unidades', False),
-        ('   nuevas, sólo los referencia. Si no existen, cargalos antes.', False),
-        ('3. Guardá el archivo y subilo en el panel. No cambies el nombre de la hoja ni el de las columnas.', False),
-        ('', False),
-        ('CAMPOS OBLIGATORIOS (sin ellos la fila no se importa):', True),
-        ('   • consorcio — nombre exacto de un consorcio tuyo.', False),
-        ('   • fecha — fecha del gasto, formato DD/MM/AAAA. Ej: 05/06/2026.', False),
-        ('   • descripcion — qué es el gasto. Ej: "Factura Edesur junio 2026".', False),
-        ('   • monto — número mayor a cero. Podés escribirlo como 15430.50 o 15.430,50.', False),
-        ('', False),
-        ('CAMPOS OPCIONALES (si los dejás vacíos el gasto se carga igual):', True),
-        (f'   • categoria — una de: {", ".join(CATEGORIAS_GASTO)}. Si va vacía o no coincide, queda "otro".', False),
-        ('   • unidad — número de UF si el gasto es de una sola unidad y NO se prorratea entre todas.', False),
-        ('     Dejala vacía para el caso normal: gasto general del consorcio.', False),
-        (f'   • coeficiente — {", ".join(COEFICIENTES)}. Con qué porcentaje de cada UF se reparte. Vacío = A.', False),
-        ('   • pagado — Sí / No. Vacío se toma como Sí: el gasto se carga cuando ya se pagó.', False),
-        ('   • recurrente — Sí / No. Un gasto recurrente se vuelve a generar solo cada período.', False),
-        (f'   • frecuencia — {", ".join(FRECUENCIAS_GASTO)}. Sólo aplica si "recurrente" es Sí (vacío = mensual).', False),
-        ('   • dia_carga — día del mes (1 a 31) en que se genera el recurrente. Sólo si "recurrente" es Sí.', False),
-        ('   • notas — número de factura, medidor, lo que quieras dejar anotado.', False),
-        ('', False),
-        ('Si un gasto ya existe con el mismo consorcio, fecha, descripción y monto, se omite y no se duplica.', False),
-        ('Eso es lo que hace que volver a subir el mismo archivo por error no cargue todo dos veces.', False),
-        ('', False),
-        ('El Excel que baja el botón "Excel" de la pantalla de Gastos se puede volver a subir acá: sus', False),
-        ('columnas se reconocen solas. Lo que no viaja en el archivo son los comprobantes adjuntos.', False),
-    ]
-    for i, (text, bold) in enumerate(info_lines, 1):
-        cell = ws_info.cell(row=i, column=1, value=text)
-        if bold:
-            cell.font = Font(bold=True, size=13 if i == 1 else 11)
+    hoja_instrucciones(ws_info, 'Carga masiva de gastos', [
+        ('titulo', 'Cómo se usa'),
+        ('paso', ('1', 'Mirá la pestaña «Ejemplo»: son gastos inventados, cargados como se espera.')),
+        ('paso', ('2', 'Completá la pestaña «Carga»: una fila por gasto. Consorcio y unidad se eligen del '
+                       'desplegable: esta carga no crea edificios ni unidades, sólo los usa.')),
+        ('paso', ('3', 'Guardá el archivo y subilo en Gastos → Carga masiva. Sólo se lee la pestaña «Carga».')),
+        ('espacio', ''),
+        ('titulo', 'Obligatorios (sin ellos la fila no se importa)'),
+        ('campo', ('consorcio *', 'Uno de tus consorcios, tal como figura en Niddo.')),
+        ('campo', ('fecha *', 'Fecha del gasto, DD/MM/AAAA. Ej: 05/06/2026.')),
+        ('campo', ('descripcion *', 'Qué es el gasto. Ej: «Factura Edesur junio 2026».')),
+        ('campo', ('monto *', 'Mayor a cero. Se puede escribir 15430,50 o $ 15.430,50.')),
+        ('espacio', ''),
+        ('titulo', 'Opcionales'),
+        ('campo', ('categoria', f'{", ".join(CATEGORIAS_GASTO)}. Vacía o distinta = «otro».')),
+        ('campo', ('unidad', 'Sólo si el gasto es de UNA unidad y no se reparte entre todas (una reparación '
+                             'dentro de un departamento). Vacía = gasto general del consorcio.')),
+        ('campo', ('pagado', 'Sí / No. Vacío = Sí: el gasto se carga cuando ya se pagó.')),
+        ('campo', ('recurrente', 'Sí / No. Un recurrente se vuelve a generar solo cada período.')),
+        ('campo', ('frecuencia', f'{", ".join(FRECUENCIAS_GASTO)}. Sólo si es recurrente (vacía = mensual).')),
+        ('campo', ('dia_carga', 'Día del mes (1 a 31) en que se genera el recurrente.')),
+        ('campo', ('notas', 'Número de factura, medidor, lo que quieras dejar anotado.')),
+        ('espacio', ''),
+        ('nota', 'Un gasto con el mismo consorcio, fecha, descripción y monto que uno ya cargado se saltea: '
+                 'subir dos veces el mismo archivo no duplica nada.'),
+        ('nota', 'El Excel que baja el botón «Excel» de Gastos también se puede subir acá.'),
+    ])
 
-    ws_g = wb.create_sheet('Gastos')
-    style_header(ws_g, HEADERS_PLANTILLA_GASTOS)
-    nombre_ejemplo = consorcios[0]['nombre'] if consorcios else 'Edificio Ejemplo 123'
-    ejemplo = [nombre_ejemplo, '05/06/2026', EJEMPLO_GASTOS_DESCRIPCION, EJEMPLO_GASTOS_MONTO,
-               'electricidad', '', 'A', 'Si', 'No', '', '', 'Factura B-0001-00012345']
-    for c, val in enumerate(ejemplo, 1):
-        ws_g.cell(row=2, column=c, value=val).font = example_font
+    nombre = consorcios[0]['nombre'] if consorcios else 'Torres del Parque'
+    uf = next((u.get('numero') for u in unidades if u.get('consorcio') == nombre), None) or '1A'
+    ws_ej = wb.create_sheet('Ejemplo')
+    encabezado_de_marca(ws_ej, 'Ejemplo', 'Gastos inventados, para ver cómo se carga. Esta pestaña no se importa.')
+    tabla(ws_ej, HEADERS_PLANTILLA_GASTOS, [
+        [nombre, '05/06/2026', EJEMPLO_GASTOS_DESCRIPCION, EJEMPLO_GASTOS_MONTO, 'electricidad', '', 'Sí', 'No', '', '', 'Factura B 0001-00012345'],
+        [nombre, '01/06/2026', 'Sueldo encargado junio', 1250000, 'sueldos', '', 'Sí', 'Sí', 'mensual', 1, ''],
+        [nombre, '10/06/2026', 'Abono mantenimiento ascensor', 98000, 'ascensor', '', 'No', 'Sí', 'mensual', 10, 'Vence el 20'],
+        [nombre, '12/06/2026', 'Destapación cañería baño', 45000, 'mantenimiento', uf, 'Sí', 'No', '', '', 'Sólo esa unidad'],
+    ], formatos={1: 'texto', 3: 'pesos', 9: 'numero'})
 
-    lista_dv(ws_g, CATEGORIAS_GASTO, 'E2:E2000')
-    lista_dv(ws_g, COEFICIENTES, 'G2:G2000')
-    lista_dv(ws_g, ('Si', 'No'), 'H2:H2000')
-    lista_dv(ws_g, ('Si', 'No'), 'I2:I2000')
-    lista_dv(ws_g, FRECUENCIAS_GASTO, 'J2:J2000')
-
-    ws_c = wb.create_sheet('Consorcios existentes')
-    style_header(ws_c, ['nombre', 'direccion'])
-    for r, c in enumerate(consorcios, 2):
-        ws_c.cell(row=r, column=1, value=c.get('nombre', ''))
-        ws_c.cell(row=r, column=2, value=c.get('direccion', ''))
+    ws = wb.create_sheet(HOJA_CARGA)
+    encabezado_de_marca(ws, 'Carga', 'Completá desde la fila de abajo del encabezado. Esta es la pestaña que se importa.')
+    fila = tabla(ws, HEADERS_PLANTILLA_GASTOS, [], formatos={1: 'texto', 3: 'pesos', 9: 'numero'},
+                 anchos={0: 26, 1: 13, 2: 38, 3: 16, 4: 16, 5: 10, 6: 10, 7: 12, 8: 13, 9: 11, 10: 30})
+    desde, hasta = fila + 1, fila + 2000
+    col = 1
+    for letra, nombre_lista, valores in (
+            ('E', 'categoria', list(CATEGORIAS_GASTO)),
+            ('G', 'si_no', ['Sí', 'No']),
+            ('H', 'si_no', ['Sí', 'No']),
+            ('I', 'frecuencia', list(FRECUENCIAS_GASTO))):
+        _desplegable(ws, _lista_oculta(wb, nombre_lista, valores, col), f'{letra}{desde}:{letra}{hasta}')
+        col += 1
     if consorcios:
-        # Rango y no lista literal: la validación por texto de openpyxl se corta
-        # a 255 caracteres y con ocho edificios ya deja nombres partidos al medio.
-        dv_con = DataValidation(
-            type='list', allow_blank=True, showErrorMessage=False,
-            formula1=f"'Consorcios existentes'!$A$2:$A${len(consorcios) + 1}")
-        ws_g.add_data_validation(dv_con)
-        dv_con.add('A2:A2000')
-    else:
-        ws_c.cell(row=2, column=1, value='(todavía no tenés consorcios cargados)').font = example_font
-
-    ws_u = wb.create_sheet('Unidades existentes')
-    style_header(ws_u, ['consorcio', 'unidad', 'piso'])
-    for r, u in enumerate(unidades, 2):
-        ws_u.cell(row=r, column=1, value=u.get('consorcio', ''))
-        ws_u.cell(row=r, column=2, value=u.get('numero', ''))
-        ws_u.cell(row=r, column=3, value=u.get('piso', ''))
-    if not unidades:
-        ws_u.cell(row=2, column=1, value='(todavía no tenés unidades cargadas)').font = example_font
-
-    wb.active = 0
+        _desplegable(ws, _lista_oculta(wb, 'consorcio', [c.get('nombre', '') for c in consorcios], col),
+                     f'A{desde}:A{hasta}')
+        col += 1
+    if unidades:
+        _desplegable(ws, _lista_oculta(wb, 'unidad', sorted({str(u.get('numero') or '') for u in unidades}), col),
+                     f'F{desde}:F{hasta}')
+    for r in range(desde, desde + 200):
+        ws.cell(row=r, column=4).number_format = '"$" #,##0.00'
+    wb.active = wb.sheetnames.index(HOJA_CARGA)
     return wb
 
 def make_pdf(title: str, headers: list, rows: list) -> io.BytesIO:
@@ -667,20 +691,46 @@ def make_pdf(title: str, headers: list, rows: list) -> io.BytesIO:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=1*cm, rightMargin=1*cm,
                             topMargin=1.5*cm, bottomMargin=1*cm)
+    from reportlab.lib.styles import ParagraphStyle
     styles = getSampleStyleSheet()
-    elements = [Paragraph(title, styles['Title']), Spacer(1, 0.4*cm)]
-    data = [headers] + rows
+    # Los mismos colores que la app y que el PDF de la liquidación: el violeta
+    # que había acá era de una marca vieja.
+    logo = ParagraphStyle('logo', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=18,
+                          textColor=colors.HexColor('#2A211C'), leading=22)
+    titulo = ParagraphStyle('titulo', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=13,
+                            textColor=colors.HexColor('#2A211C'), leading=17, spaceBefore=4)
+    sub = ParagraphStyle('sub', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#8A7F75'))
+    elements = [Paragraph('nidd<font color="#E8734A">o</font>', logo), Paragraph(title, titulo),
+                Paragraph(f'Generado el {date.today().strftime("%d/%m/%Y")}', sub), Spacer(1, 0.4*cm)]
+    # Importes como $ 1.234,56 y fechas dd/mm/aaaa, igual que en pantalla: las
+    # filas llegan como las guarda la base.
+    from excel_niddo import _es_monto, _es_fecha
+
+    def celda(h, v):
+        txt = '' if v is None else str(v)
+        if _es_monto(h) and txt:
+            try:
+                return pesos(float(txt))
+            except ValueError:
+                return txt
+        if _es_fecha(h) and re.match(r'^\d{4}-\d{2}-\d{2}', txt):
+            return f'{txt[8:10]}/{txt[5:7]}/{txt[:4]}'
+        return txt
+    data = [headers] + [[celda(h, v) for h, v in zip(headers, r)] for r in rows]
     col_w = (landscape(A4)[0] - 2*cm) / max(len(headers), 1)
     t = Table(data, colWidths=[col_w] * len(headers), repeatRows=1)
     t.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#7C3AED')),
-        ('TEXTCOLOR',  (0,0), (-1,0), colors.white),
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2F6F5E')),
+        ('TEXTCOLOR',  (0,0), (-1,0), colors.HexColor('#F6EFE7')),
         ('FONTNAME',   (0,0), (-1,0), 'Helvetica-Bold'),
         ('FONTSIZE',   (0,0), (-1,-1), 8),
-        ('GRID',       (0,0), (-1,-1), 0.4, colors.HexColor('#cccccc')),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f5f0ff')]),
+        ('TEXTCOLOR',  (0,1), (-1,-1), colors.HexColor('#2A211C')),
+        ('LINEBELOW',  (0,0), (-1,-1), 0.4, colors.HexColor('#E7DDD2')),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#FBF6EF')]),
         ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
         ('ALIGN',      (0,0), (-1,-1), 'CENTER'),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
     ]))
     elements.append(t)
     doc.build(elements)
@@ -1144,6 +1194,28 @@ def index():
     return render_template('index.html')
 
 
+# El service worker y el manifest tienen que servirse desde la raíz: el
+# alcance de un service worker es la carpeta de donde sale, y desde /static/
+# no podría mostrar notificaciones de /dashboard/.
+@app.route('/sw.js')
+def service_worker():
+    res = send_file(os.path.join(app.static_folder, 'js', 'sw.js'), mimetype='application/javascript')
+    res.headers['Service-Worker-Allowed'] = '/'
+    res.headers['Cache-Control'] = 'no-cache'
+    return res
+
+
+@app.route('/manifest.webmanifest')
+def manifest():
+    return send_file(os.path.join(app.static_folder, 'manifest.webmanifest'),
+                     mimetype='application/manifest+json')
+
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_file(os.path.join(app.static_folder, 'img', 'favicon.ico'), mimetype='image/x-icon')
+
+
 @app.route('/login')
 def login():
     user = session.get('user')
@@ -1498,11 +1570,11 @@ def _mail_respuesta_reclamo(reclamo: dict, estado_nuevo: str, respuesta: str) ->
     cuerpo = f"""
       <p style="margin:0 0 16px">{saludo}</p>
       <p style="margin:0 0 22px">La administración actualizó tu reclamo
-      <strong>{titulo}</strong>.</p>
+      <strong>{escape(titulo)}</strong>.</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:22px">
         <tr><td style="padding:7px 0;color:#574C42;width:130px">Estado</td><td style="padding:7px 0"><strong>{legible}</strong></td></tr>
       </table>
-      {f'<p style="margin:0 0 8px;color:#574C42;font-size:13px"><strong>Respuesta:</strong></p><p style="margin:0 0 22px">{respuesta}</p>' if respuesta else ''}
+      {f'<p style="margin:0 0 8px;color:#574C42;font-size:13px"><strong>Respuesta:</strong></p><p style="margin:0 0 22px;white-space:pre-wrap">{escape(respuesta)}</p>' if respuesta else ''}
       <a href="{url_for('dashboard', role='vecino', _external=True)}"
          style="display:inline-block;background:#E8734A;color:#fff;text-decoration:none;
          padding:12px 24px;border-radius:12px;font-weight:700">Ver en el portal</a>"""
@@ -2114,7 +2186,10 @@ def api_consorcios_update(cid):
         'banco_nombre': d.get('banco_nombre'),
         'banco_cbu': d.get('banco_cbu'),
         'banco_alias': d.get('banco_alias'),
+        'metodo_prorrateo': d.get('metodo_prorrateo'),
     }.items() if v is not None}
+    if 'metodo_prorrateo' in payload and payload['metodo_prorrateo'] not in METODOS_PRORRATEO:
+        return jsonify({'error': 'Método de prorrateo desconocido'}), 400
     res = supabase.table('consorcios').update(payload).eq('id', cid).eq('admin_id', admin_id).execute()
     return jsonify(res.data[0] if res.data else {})
 
@@ -2159,6 +2234,15 @@ def api_ufs_list(cid):
     return jsonify(ufs)
 
 
+def _entero_o_none(v):
+    """Un entero positivo de un formulario, o None si viene vacío o no es."""
+    try:
+        n = int(float(v))
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None
+
+
 @app.route('/api/consorcios/<cid>/unidades', methods=['POST'])
 @require_auth(allowed_roles=['admin'])
 def api_ufs_create(cid):
@@ -2170,6 +2254,7 @@ def api_ufs_create(cid):
         'piso': d.get('piso', ''),
         'tipo': d.get('tipo', 'departamento'),
         'superficie_m2': d.get('superficie_m2'),
+        'ambientes': _entero_o_none(d.get('ambientes')),
         'vecino_nombre': d.get('vecino_nombre', ''),
         'vecino_email': d.get('vecino_email', ''),
         # El porcentaje de copropiedad por coeficiente. Era el bloqueo de todo:
@@ -2194,6 +2279,7 @@ def api_ufs_update(cid, uid):
         'piso': d.get('piso'),
         'tipo': d.get('tipo'),
         'superficie_m2': d.get('superficie_m2'),
+        'ambientes': _entero_o_none(d.get('ambientes')),
         'vecino_nombre': d.get('vecino_nombre'),
         'vecino_email': d.get('vecino_email'),
         'porcentaje_a': d.get('porcentaje_a'),
@@ -2244,16 +2330,51 @@ def api_carga_masiva():
     ids_reutilizados = set()
     nuevos_consorcios = []
 
-    if 'Consorcios' in wb.sheetnames:
-        ws_c = wb['Consorcios']
-        for i, row in enumerate(ws_c.iter_rows(min_row=2, values_only=True), 2):
+    # La plantilla de hoy tiene una sola pestaña de datos («Carga»), una fila
+    # por unidad. Se traduce a las dos listas de la plantilla anterior
+    # —consorcios y unidades— y de ahí sigue el mismo camino.
+    filas_consorcios, filas_unidades_nuevas = [], []
+    if HOJA_CARGA in wb.sheetnames:
+        columnas, filas = leer_filas_por_encabezado(wb[HOJA_CARGA], ALIAS_COLUMNAS_CONSORCIO)
+        if 'consorcio' not in columnas:
+            return jsonify({'error': 'A la pestaña «Carga» le falta la columna «consorcio». '
+                                     'Descargá la plantilla y usá esos encabezados.'}), 400
+        vistos = set()
+        for i, f in filas:
+            nombre = _texto_celda(f.get('consorcio'))
+            if not nombre:
+                errores.append({'hoja': HOJA_CARGA, 'fila': i, 'mensaje': 'Falta el nombre del consorcio'})
+                continue
+            if nombre.lower() not in vistos:
+                vistos.add(nombre.lower())
+                filas_consorcios.append((i, [nombre, _texto_celda(f.get('direccion')), _texto_celda(f.get('cuit')),
+                                             None, None, _texto_celda(f.get('encargado')),
+                                             _texto_celda(f.get('tel_encargado'))]))
+            if _texto_celda(f.get('unidad')):
+                filas_unidades_nuevas.append((i, [nombre, _texto_celda(f.get('unidad')), _texto_celda(f.get('piso')),
+                                                  _texto_celda(f.get('tipo')), f.get('superficie_m2'),
+                                                  _texto_celda(f.get('vecino_nombre')), _texto_celda(f.get('vecino_email')),
+                                                  f.get('ambientes')]))
+    elif 'Consorcios' in wb.sheetnames:
+        # Rellenadas: una planilla vieja con columnas de menos no puede voltear el import.
+        filas_consorcios = [(i, tuple(row or ()) + (None,) * 8)
+                            for i, row in enumerate(wb['Consorcios'].iter_rows(min_row=2, values_only=True), 2)]
+    if 'Unidades' in wb.sheetnames and HOJA_CARGA not in wb.sheetnames:
+        filas_unidades_nuevas = [(i, (tuple(row) + (None,) * 8)[:7])
+                                 for i, row in enumerate(wb['Unidades'].iter_rows(min_row=2, values_only=True), 2)
+                                 if row and not all(v in (None, '') for v in row)]
+    hoja_c = HOJA_CARGA if HOJA_CARGA in wb.sheetnames else 'Consorcios'
+    hoja_u = HOJA_CARGA if HOJA_CARGA in wb.sheetnames else 'Unidades'
+
+    if filas_consorcios:
+        for i, row in filas_consorcios:
             if not row or all(v in (None, '') for v in row):
                 continue
             nombre = str(row[0]).strip() if row[0] else ''
             if es_fila_ejemplo(nombre):
                 continue
             if not nombre:
-                errores.append({'hoja': 'Consorcios', 'fila': i, 'mensaje': 'Falta el nombre del consorcio'})
+                errores.append({'hoja': hoja_c, 'fila': i, 'mensaje': 'Falta el nombre del consorcio'})
                 continue
             key = nombre.lower()
             if key in mapa_consorcios:
@@ -2280,23 +2401,20 @@ def api_carga_masiva():
     nuevas_ufs = []
     consorcio_ids_tocados = set()
 
-    if 'Unidades' in wb.sheetnames:
-        ws_u = wb['Unidades']
-        filas_unidades = [(i, row) for i, row in enumerate(ws_u.iter_rows(min_row=2, values_only=True), 2)
-                           if row and not all(v in (None, '') for v in row)]
-        for i, row in filas_unidades:
+    if filas_unidades_nuevas:
+        for i, row in filas_unidades_nuevas:
             nombre_con = str(row[0]).strip() if row[0] else ''
             if es_fila_ejemplo(nombre_con):
                 continue
             con_id = mapa_consorcios.get(nombre_con.lower())
             if not nombre_con or not con_id:
-                errores.append({'hoja': 'Unidades', 'fila': i, 'mensaje': f'Consorcio no encontrado: "{nombre_con}"'})
+                errores.append({'hoja': hoja_u, 'fila': i, 'mensaje': f'Consorcio no encontrado: "{nombre_con}"'})
                 continue
             if con_id in ids_originales:
                 ids_reutilizados.add(con_id)
-            numero = str(row[1]).strip() if row[1] else ''
+            numero = _texto_celda(row[1]) if row[1] not in (None, '') else ''
             if not numero:
-                errores.append({'hoja': 'Unidades', 'fila': i, 'mensaje': 'Falta el número de unidad'})
+                errores.append({'hoja': hoja_u, 'fila': i, 'mensaje': 'Falta el número de unidad'})
                 continue
             tipo = str(row[3]).strip().lower() if row[3] else 'departamento'
             if tipo not in TIPOS_UF_VALIDOS:
@@ -2307,9 +2425,10 @@ def api_carga_masiva():
                 'numero': numero,
                 'piso': str(row[2]) if row[2] not in (None, '') else '',
                 'tipo': tipo,
-                'superficie_m2': row[4] or None,
+                'superficie_m2': _numero_o_none(row[4]),
                 'vecino_nombre': row[5] or '',
                 'vecino_email': row[6] or '',
+                **({'ambientes': _entero_o_none(row[7])} if len(row) > 7 and row[7] not in (None, '') else {}),
             })
 
     # Evitar duplicar UF ya existentes en el mismo consorcio
@@ -2350,7 +2469,7 @@ def export_consorcios_excel(cid):
     headers = ['UF', 'Piso', 'Tipo', 'Superficie m²', 'Vecino', 'Email']
     rows = [[u['numero'], u.get('piso',''), u.get('tipo',''), u.get('superficie_m2',''),
              u.get('vecino_nombre',''), u.get('vecino_email','')] for u in ufs]
-    wb = make_excel(headers, rows, 'Unidades')
+    wb = make_excel(headers, rows, 'Unidades', titulo=f"Unidades de {con.get('nombre', '')}")
     return excel_response(wb, f"consorcio_{con.get('nombre','')}.xlsx")
 
 
@@ -2480,11 +2599,41 @@ def _generar_recurrentes_silencioso(admin_id):
         return 0
 
 
+# Cada cuánto se vuelve a barrer las plantillas recurrentes desde la lista de
+# gastos. Antes se barría en cada GET, y la pantalla de Gastos pide uno por
+# cada cambio de mes o de consorcio: dos consultas extra por clic para una
+# respuesta que casi nunca cambia en el día.
+RECURRENTES_CADA_SEG = 600
+
+
+def _recurrentes_al_dia(admin_id):
+    """Genera los recurrentes pendientes, como mucho una vez cada diez minutos.
+
+    El recuerdo vive en la sesión y está atado al administrador y al día: al
+    cambiar de fecha o de cuenta (impersonación) se vuelve a barrer igual. Crear
+    o editar un gasto lo borra (`_olvidar_recurrentes`), porque puede haber
+    nacido una plantilla nueva.
+    """
+    ahora = datetime.now(timezone.utc)
+    visto = session.get('recurrentes_revisados') or {}
+    if (visto.get('admin') == admin_id and visto.get('dia') == str(date.today())
+            and ahora.timestamp() - float(visto.get('at') or 0) < RECURRENTES_CADA_SEG):
+        return 0
+    creados = _generar_recurrentes_silencioso(admin_id)
+    session['recurrentes_revisados'] = {'admin': admin_id, 'dia': str(date.today()),
+                                        'at': ahora.timestamp()}
+    return creados
+
+
+def _olvidar_recurrentes():
+    session.pop('recurrentes_revisados', None)
+
+
 @app.route('/api/gastos', methods=['GET'])
 @require_auth(allowed_roles=['admin'])
 def api_gastos_list():
     admin_id = get_admin_id()
-    _generar_recurrentes_silencioso(admin_id)
+    _recurrentes_al_dia(admin_id)
     q = supabase.table('gastos') \
         .select('*, consorcios(nombre), unidades_funcionales(numero, piso)') \
         .eq('admin_id', admin_id)
@@ -2551,6 +2700,7 @@ def _unidad_es_del_consorcio(unidad_id, consorcio_id):
 @require_auth(allowed_roles=['admin'])
 def api_gastos_create():
     admin_id = get_admin_id()
+    _olvidar_recurrentes()
     # Soporte multipart/form-data para archivos adjuntos
     d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
     payload = {
@@ -2625,6 +2775,7 @@ def api_gastos_create():
 @require_auth(allowed_roles=['admin'])
 def api_gastos_update(gid):
     admin_id = get_admin_id()
+    _olvidar_recurrentes()
     d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
     # Lo que el formulario dejó de pedir tampoco se acepta acá: un PUT sin esas
     # claves no las toca, así que el dato viejo de un gasto ya cargado se
@@ -2807,9 +2958,12 @@ def api_gasto_comprobante(gid):
     if not res.data:
         return jsonify({'error': 'No hay comprobante adjunto para este gasto'}), 404
     comp = res.data
+    # `?descargar=1` es el botón "Descargar" del detalle del gasto: el mismo
+    # archivo, pero guardado en vez de abierto en otra pestaña.
     return enviar_adjunto(comp['archivo_base64'],
                           comp.get('archivo_nombre', 'comprobante.pdf'),
-                          comp.get('mime_type'))
+                          comp.get('mime_type'),
+                          forzar_descarga=request.args.get('descargar') == '1')
 
 
 @app.route('/api/gastos/extract', methods=['POST'])
@@ -2976,7 +3130,7 @@ def api_gastos_export():
     if fmt == 'pdf':
         buf = make_pdf('Historial de Gastos', headers, [list(map(str, r)) for r in rows])
         return pdf_response(buf, 'gastos.pdf')
-    wb = make_excel(headers, rows, 'Gastos')
+    wb = make_excel(headers, rows, 'Gastos', titulo='Gastos', totales=[4])
     return excel_response(wb, 'gastos.xlsx')
 
 
@@ -3010,6 +3164,7 @@ def api_gastos_carga_masiva():
     la diferencia entre que el administrador corrija tres renglones y que
     vuelva a empezar de cero por un typo en la fila 148.
     """
+    _olvidar_recurrentes()
     admin_id = get_admin_id()
     file = request.files.get('file')
     if not file:
@@ -3020,9 +3175,13 @@ def api_gastos_carga_masiva():
     except Exception:
         return jsonify({'error': 'No se pudo leer el archivo. Verificá que sea el .xlsx de la plantilla.'}), 400
 
-    # "Gastos" es la hoja de la plantilla; si no está se usa la primera, que es
-    # lo que llega cuando el archivo salió de exportar y tiene una sola hoja.
-    ws = wb['Gastos'] if 'Gastos' in wb.sheetnames else wb[wb.sheetnames[0]]
+    # "Carga" es la pestaña de la plantilla; "Gastos", la de la plantilla
+    # anterior. Si no está ninguna se usa la primera, que es lo que llega cuando
+    # el archivo salió de exportar y tiene una sola hoja.
+    for nombre_hoja in (HOJA_CARGA, 'Gastos', wb.sheetnames[0]):
+        if nombre_hoja in wb.sheetnames:
+            ws = wb[nombre_hoja]
+            break
     columnas, filas = leer_filas_por_encabezado(ws, ALIAS_COLUMNAS_GASTO)
 
     faltantes = [c for c in COLUMNAS_GASTO_OBLIGATORIAS if c not in columnas]
@@ -3297,7 +3456,7 @@ def api_cobros_export():
     if fmt == 'pdf':
         buf = make_pdf('Cobros / Expensas', headers, [list(map(str, r)) for r in rows])
         return pdf_response(buf, 'cobros.pdf')
-    wb = make_excel(headers, rows, 'Cobros')
+    wb = make_excel(headers, rows, 'Cobros', titulo='Cobros y expensas', totales=[4, 5, 6])
     return excel_response(wb, 'cobros.xlsx')
 
 
@@ -3381,15 +3540,15 @@ def api_balance_export():
     headers = ['Tipo', 'Consorcio', 'Descripción/Período', 'Categoría', 'Monto']
     rows = []
     for c in cobros:
-        rows.append(['INGRESO', (c.get('consorcios') or {}).get('nombre',''), c.get('periodo',''), 'Expensas', str(c.get('total',0))])
+        rows.append(['INGRESO', (c.get('consorcios') or {}).get('nombre',''), c.get('periodo',''), 'Expensas', float(c.get('total') or 0)])
     for g in gastos:
-        rows.append(['EGRESO', (g.get('consorcios') or {}).get('nombre',''), g.get('descripcion',''), g.get('categoria',''), str(g.get('monto',0))])
+        rows.append(['EGRESO', (g.get('consorcios') or {}).get('nombre',''), g.get('descripcion',''), g.get('categoria',''), -float(g.get('monto') or 0)])
 
     fmt = request.args.get('fmt', 'excel')
     if fmt == 'pdf':
-        buf = make_pdf('Balance Financiero', headers, rows)
+        buf = make_pdf('Balance Financiero', headers, [r[:4] + [pesos(r[4])] for r in rows])
         return pdf_response(buf, 'balance.pdf')
-    wb = make_excel(headers, rows, 'Balance')
+    wb = make_excel(headers, rows, 'Balance', titulo='Balance: ingresos y egresos', totales=[4])
     return excel_response(wb, 'balance.xlsx')
 
 
@@ -3483,6 +3642,11 @@ def api_reservas_list():
 
     if fecha:
         q = q.eq('fecha', fecha)
+    # El calendario mensual pide el mes entero de una vez.
+    if request.args.get('desde'):
+        q = q.gte('fecha', request.args['desde'])
+    if request.args.get('hasta'):
+        q = q.lte('fecha', request.args['hasta'])
 
     res = q.order('fecha').order('hora_inicio').execute()
     return jsonify(res.data)
@@ -3605,7 +3769,51 @@ def api_reservas_create():
     except Exception:
         app.logger.exception('Falló el aviso de la reserva %s', reserva.get('id'))
 
+    # Avisarle al resto del edificio es opcional y lo elige el vecino al
+    # confirmar. Sale como un comunicado más, así queda en la cartelera de
+    # todos y en la de la administración, no sólo en una notificación.
+    if d.get('avisar_vecinos') and user['role'] == 'vecino':
+        try:
+            _comunicado_de_reserva(reserva, amenity, vecino_id, (d.get('mensaje') or '').strip())
+        except Exception:
+            app.logger.exception('No se pudo avisar la reserva %s al edificio', reserva.get('id'))
+
     return jsonify(reserva), 201
+
+
+DIAS_SEMANA = ('lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo')
+
+
+def _comunicado_de_reserva(reserva, amenity, vecino_id, mensaje):
+    """El aviso al edificio de una reserva: comunicado + push a vecinos y admin."""
+    am = supabase.table('amenities').select('consorcio_id, nombre') \
+        .eq('id', reserva.get('amenity_id')).execute().data
+    if not am:
+        return
+    cid = am[0]['consorcio_id']
+    admin = _admin_del_consorcio(cid)
+    v = supabase.table('vecinos').select('nombre, email, unidad').eq('id', vecino_id).execute().data
+    v = v[0] if v else {}
+    quien = (v.get('nombre') or v.get('email') or 'Un vecino') + (f" (UF {v['unidad']})" if v.get('unidad') else '')
+    dia = date.fromisoformat(str(reserva.get('fecha'))[:10])
+    cuando = f"{DIAS_SEMANA[dia.weekday()]} {dia.strftime('%d/%m')}"
+    horario = f"{str(reserva.get('hora_inicio'))[:5]} a {str(reserva.get('hora_fin'))[:5]} hs"
+    nombre_am = am[0].get('nombre') or amenity.get('nombre') or 'El espacio'
+    cuerpo = f"{quien} reservó {nombre_am} el {cuando}, de {horario}."
+    if mensaje:
+        cuerpo += f"\n\n{mensaje[:600]}"
+    fila = {'consorcio_id': cid, 'admin_id': admin[0] if admin else None,
+            'titulo': f'{nombre_am} reservado el {cuando} ({horario})', 'cuerpo': cuerpo,
+            'importante': False, 'autor_vecino_id': vecino_id, 'reserva_id': reserva.get('id')}
+    try:
+        creado = supabase.table('comunicados').insert(fila).execute().data
+    except Exception:
+        # Sin v23 las dos columnas nuevas no existen: el aviso sale igual.
+        fila.pop('autor_vecino_id'); fila.pop('reserva_id')
+        creado = supabase.table('comunicados').insert(fila).execute().data
+    creado = (creado or [fila])[0]
+    _avisar_novedad('vecino_comunicado', comunicado=creado, excepto=vecino_id)
+    _avisar_novedad('admin_comunicado_vecino', comunicado=creado)
 
 
 @app.route('/api/reservas_amenities/<rid>', methods=['DELETE'])
@@ -3728,6 +3936,9 @@ def api_vecinos_asociar():
     }).eq('id', vecino_id).execute()
 
     _mail_solicitud_vecino(vecino_id, consorcio_id, unidad_id)
+    cons = supabase.table('consorcios').select('nombre').eq('id', consorcio_id).execute().data
+    _avisar_novedad('admin_solicitud', consorcio_id=consorcio_id, nombre=_nombre_vecino(vecino_id),
+                    consorcio=(cons[0].get('nombre') if cons else ''))
     return jsonify({'ok': True, 'estado': 'pendiente'})
 
 
@@ -4558,8 +4769,37 @@ def api_vecinos_cobros_export():
     if request.args.get('fmt') == 'pdf':
         buf = make_pdf('Mi cuenta corriente', headers, [[str(x) for x in r] for r in rows])
         return pdf_response(buf, 'mi_cuenta_corriente.pdf')
-    wb = make_excel(headers, rows, 'Cuenta corriente')
+    wb = make_excel(headers, rows, 'Cuenta corriente', titulo='Mi cuenta corriente', totales=[1, 2, 3])
     return excel_response(wb, 'mi_cuenta_corriente.xlsx')
+
+
+LIQ_CONSORCIO_PDF = ('*, consorcios(nombre, direccion, cuit, clave_suterh, tasa_interes_mora, '
+                     'recargo_segundo_vto, banco_nombre, banco_sucursal, banco_cuenta, banco_cbu, '
+                     'banco_cuit_pago, banco_titular, banco_alias, metodo_prorrateo)')
+
+
+@app.route('/api/vecinos/cobros/<rid>/resumen')
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_resumen(rid):
+    """El resumen de la expensa: el mismo PDF de la liquidación que llega por mail.
+
+    Es lo que el vecino quiere guardar —el detalle de gastos del edificio y lo
+    que le toca pagar—, no un cupón. Una expensa cargada a mano, sin
+    liquidación detrás, no tiene resumen: ahí baja el comprobante de la deuda.
+    """
+    cobro = supabase.table('cobros').select('id, unidad_id, liquidacion_id').eq('id', rid).execute().data
+    if not cobro:
+        _no_es_tuyo()
+    cobro = cobro[0]
+    unidad_propia(cobro.get('unidad_id'))
+    lid = cobro.get('liquidacion_id')
+    liq = supabase.table('liquidaciones').select(LIQ_CONSORCIO_PDF).eq('id', lid).execute().data if lid else None
+    if not liq:
+        return redirect(url_for('api_vecinos_cupon_pago', rid=rid))
+    liq = liq[0]
+    consorcio = liq.get('consorcios') or {}
+    buf = io.BytesIO(_pdf_de_liquidacion(liq, consorcio, lid))
+    return pdf_response(buf, _nombre_pdf_liquidacion(liq, consorcio))
 
 
 @app.route('/api/vecinos/cobros/<rid>/cupon')
@@ -4607,7 +4847,7 @@ def api_vecinos_cupon_pago(rid):
     elements.append(Spacer(1, 0.6*cm))
     data = [['Campo', 'Detalle'], ['Período', cobro.get('periodo', '')], ['Monto Base', pesos(cobro.get('monto_base', 0))], ['Interés/Mora', pesos(cobro.get('interes_mora', 0))], ['TOTAL A PAGAR', pesos(cobro.get('total', 0))], ['Estado', str(cobro.get('estado', '')).upper()], ['Vencimiento', cobro.get('fecha_vencimiento', 'N/A')]]
     t = Table(data, colWidths=[8*cm, 9*cm])
-    t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#7C3AED')), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('FONTNAME', (0,4), (-1,4), 'Helvetica-Bold'), ('FONTSIZE', (0,0), (-1,-1), 10), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')), ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f5f0ff')]), ('ALIGN', (1,0), (1,-1), 'RIGHT')]))
+    t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2F6F5E')), ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#F6EFE7')), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('FONTNAME', (0,4), (-1,4), 'Helvetica-Bold'), ('FONTSIZE', (0,0), (-1,-1), 10), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')), ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#FBF6EF')]), ('ALIGN', (1,0), (1,-1), 'RIGHT')]))
     elements.append(t)
     elements.append(Spacer(1, 0.8*cm))
     elements.append(Paragraph('<i>Para informar su pago, ingrese al panel y use "Informar Pago".</i>', styles['Normal']))
@@ -4724,6 +4964,8 @@ def api_avisos_pago_create():
         payload['adjunto_nombre'] = nombre
         payload['adjunto_mime'] = mime
     res = supabase.table('avisos_pago').insert(payload).execute()
+    _avisar_novedad('admin_aviso_pago', consorcio_id=payload['consorcio_id'],
+                    nombre=_nombre_vecino(vecino_id), monto=payload.get('monto'))
     return jsonify(res.data[0] if res.data else {}), 201
 
 
@@ -4741,7 +4983,7 @@ def api_reclamos_list():
     if request.args.get('estado'):
         q = q.eq('estado', request.args['estado'])
     res = q.order('created_at', desc=True).execute()
-    return jsonify(res.data)
+    return jsonify(_con_resumen_de_conversacion(res.data or [], lado='vecino'))
 
 
 @app.route('/api/reclamos', methods=['POST'])
@@ -4768,6 +5010,7 @@ def api_reclamos_create():
         payload['adjunto_nombre'] = nombre
         payload['adjunto_mime'] = mime
     res = supabase.table('reclamos').insert(payload).execute()
+    _avisar_novedad('admin_reclamo_nuevo', reclamo=payload)
     return jsonify(res.data[0] if res.data else {}), 201
 
 
@@ -4796,6 +5039,156 @@ def api_reclamos_adjunto(rid):
     return enviar_adjunto(reclamo.data['adjunto_base64'],
                           reclamo.data.get('adjunto_nombre', 'adjunto'),
                           reclamo.data.get('adjunto_mime'))
+
+
+# ── Novedades ──────────────────────────────────────────────────────────────────
+def _nombre_vecino(vecino_id):
+    fila = supabase.table('vecinos').select('nombre, email').eq('id', vecino_id).execute().data
+    return ((fila[0].get('nombre') or fila[0].get('email')) if fila else '') or ''
+
+
+MESES_ES = ('enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+            'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre')
+
+
+def periodo_largo_es(periodo):
+    """'2026-09' → 'septiembre 2026'."""
+    try:
+        y, m = str(periodo).split('-')[:2]
+        return f'{MESES_ES[int(m) - 1]} {y}'
+    except (ValueError, IndexError):
+        return str(periodo or '')
+
+
+def _avisar_novedad(tipo, **datos):
+    """Avisa por push al otro lado que pasó algo. Nunca voltea la request.
+
+    Lo que dispara el aviso ya quedó guardado: que falle la notificación no es
+    motivo para que el que la originó vea un error.
+    """
+    try:
+        _push_por_novedad(tipo, **datos)
+    except Exception:
+        app.logger.exception('No se pudo avisar la novedad %s', tipo)
+
+
+# ── La conversación de cada reclamo ────────────────────────────────────────────
+# El reclamo tenía una sola `respuesta_admin` que se pisaba en cada edición y el
+# vecino no podía contestar: si la respuesta no le servía, tenía que abrir otro
+# reclamo. Ahora cada reclamo es una conversación. La descripción original sigue
+# en `reclamos`; lo que escriben los dos lados después va en `reclamo_mensajes`.
+
+COLUMNAS_RECLAMO_MENSAJE = ('id, reclamo_id, autor, admin_id, cuerpo, '
+                            'adjunto_nombre, adjunto_mime, leido_at, created_at')
+
+ESTADOS_RECLAMO = ('activo', 'en_proceso', 'resuelto', 'cerrado')
+
+
+def _mensajes_de_reclamos(ids):
+    """{reclamo_id: [mensajes en orden]} sin el base64 de los adjuntos."""
+    if not ids:
+        return {}
+    try:
+        filas = supabase.table('reclamo_mensajes').select(COLUMNAS_RECLAMO_MENSAJE) \
+            .in_('reclamo_id', list(ids)).order('created_at').execute().data or []
+    except Exception:
+        # Sin v21 la pantalla sigue andando como antes, sin conversación.
+        app.logger.warning('No se pudo leer reclamo_mensajes (¿falta v21?)')
+        return {}
+    por_reclamo = {}
+    for f in filas:
+        por_reclamo.setdefault(f['reclamo_id'], []).append(f)
+    for lista in por_reclamo.values():
+        lista.sort(key=lambda m: str(m.get('created_at') or ''))
+    return por_reclamo
+
+
+def _con_resumen_de_conversacion(reclamos, lado):
+    """Le suma a cada reclamo lo que la lista necesita mostrar de su conversación.
+
+    - `respondido`: la administración contestó al menos una vez.
+    - `ultimo_autor`: quién escribió lo último ('vecino' si nadie contestó).
+    - `sin_leer`: mensajes del otro lado que `lado` todavía no abrió.
+    - `mensajes`: cuántos hay, sin contar la descripción original.
+    """
+    conv = _mensajes_de_reclamos([r['id'] for r in reclamos])
+    otro = 'admin' if lado == 'vecino' else 'vecino'
+    for r in reclamos:
+        msgs = conv.get(r['id'], [])
+        r['mensajes'] = len(msgs)
+        r['respondido'] = any(m['autor'] == 'admin' for m in msgs) or bool(r.get('respuesta_admin'))
+        r['ultimo_autor'] = msgs[-1]['autor'] if msgs else ('admin' if r.get('respuesta_admin') else 'vecino')
+        r['ultimo_mensaje_at'] = msgs[-1].get('created_at') if msgs else r.get('created_at')
+        r['sin_leer'] = len([m for m in msgs if m['autor'] == otro and not m.get('leido_at')])
+    return reclamos
+
+
+def _marcar_leidos_reclamo(rid, autor_del_otro):
+    try:
+        supabase.table('reclamo_mensajes').update({'leido_at': now_iso()}) \
+            .eq('reclamo_id', rid).eq('autor', autor_del_otro).is_('leido_at', 'null').execute()
+    except Exception:
+        app.logger.exception('No se pudieron marcar como leídos los mensajes del reclamo %s', rid)
+
+
+def _reclamo_del_vecino(rid, vecino_id):
+    fila = supabase.table('reclamos') \
+        .select('id, vecino_id, consorcio_id, titulo, estado, created_at, updated_at') \
+        .eq('id', rid).execute().data
+    if not fila or fila[0].get('vecino_id') != vecino_id:
+        _no_es_tuyo()
+    return fila[0]
+
+
+@app.route('/api/reclamos/<rid>/mensajes')
+@require_auth(allowed_roles=['vecino'])
+def api_reclamo_mensajes(rid):
+    """La conversación del reclamo. Abrirla es leer lo que contestó la administración."""
+    _reclamo_del_vecino(rid, get_vecino_id())
+    msgs = _mensajes_de_reclamos([rid]).get(rid, [])
+    _marcar_leidos_reclamo(rid, 'admin')
+    return jsonify(msgs)
+
+
+@app.route('/api/reclamos/<rid>/mensajes', methods=['POST'])
+@require_auth(allowed_roles=['vecino'])
+def api_reclamo_mensaje_vecino(rid):
+    """El vecino le contesta a la administración dentro del reclamo.
+
+    Un reclamo cerrado no se reabre por acá: está terminado y para algo nuevo
+    se abre otro. Uno resuelto sí: si el vecino contesta es porque no quedó
+    resuelto, así que vuelve a "en proceso" y le aparece al administrador.
+    """
+    reclamo = _reclamo_del_vecino(rid, get_vecino_id())
+    if reclamo.get('estado') == 'cerrado':
+        return jsonify({'error': 'Este reclamo está cerrado. Si el problema sigue, abrí uno nuevo.'}), 409
+    cuerpo, extra, error = _cuerpo_y_adjunto('adjunto')
+    if error:
+        return error
+    res = supabase.table('reclamo_mensajes').insert({
+        'reclamo_id': rid, 'autor': 'vecino', 'cuerpo': cuerpo, **extra,
+    }).execute()
+    cambios = {'updated_at': now_iso()}
+    if reclamo.get('estado') == 'resuelto':
+        cambios['estado'] = 'en_proceso'
+    supabase.table('reclamos').update(cambios).eq('id', rid).execute()
+    _avisar_novedad('admin_reclamo_respuesta', reclamo=reclamo, cuerpo=cuerpo)
+    return jsonify(_mensaje_publico(res.data[0] if res.data else {})), 201
+
+
+@app.route('/api/reclamos/mensajes/<mid>/adjunto')
+@require_auth(allowed_roles=['vecino'])
+def api_reclamo_mensaje_adjunto_vecino(mid):
+    fila = supabase.table('reclamo_mensajes') \
+        .select('reclamo_id, adjunto_base64, adjunto_nombre, adjunto_mime') \
+        .eq('id', mid).execute().data
+    if not fila:
+        _no_es_tuyo()
+    _reclamo_del_vecino(fila[0]['reclamo_id'], get_vecino_id())
+    if not fila[0].get('adjunto_base64'):
+        return jsonify({'error': 'Ese mensaje no tiene adjunto'}), 404
+    return enviar_adjunto(fila[0]['adjunto_base64'], fila[0].get('adjunto_nombre', 'adjunto'),
+                          fila[0].get('adjunto_mime'))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -4898,6 +5291,8 @@ def api_mensajes_crear():
         'consorcio_id': consorcio_id, 'vecino_id': vecino_id,
         'autor': 'vecino', 'cuerpo': cuerpo, **extra,
     }).execute()
+    _avisar_novedad('admin_mensaje', consorcio_id=consorcio_id,
+                    nombre=_nombre_vecino(vecino_id), cuerpo=cuerpo)
     return jsonify(_mensaje_publico(res.data[0] if res.data else {})), 201
 
 
@@ -5011,6 +5406,7 @@ def api_admin_mensajes_responder(vid):
         'consorcio_id': consorcio_id, 'vecino_id': vid,
         'autor': 'admin', 'admin_id': admin_id, 'cuerpo': cuerpo, **extra,
     }).execute()
+    _avisar_novedad('vecino_mensaje', vecino_id=vid, cuerpo=cuerpo)
     return jsonify(_mensaje_publico(res.data[0] if res.data else {})), 201
 
 
@@ -5228,6 +5624,7 @@ def api_admin_comunicados_create():
     consorcio = consorcio_propio(payload['consorcio_id'], 'id, nombre')
     res = supabase.table('comunicados').insert(payload).execute()
     creado = res.data[0] if res.data else {}
+    _avisar_novedad('vecino_comunicado', comunicado=creado or payload)
 
     # Avisar por mail es opcional y va después de guardar: el comunicado ya
     # está publicado en el panel, y que Resend esté caído no puede devolver un
@@ -5353,7 +5750,7 @@ def api_admin_reclamos_list():
     if request.args.get('estado'):
         q = q.eq('estado', request.args['estado'])
     res = q.order('created_at', desc=True).execute()
-    return jsonify(res.data)
+    return jsonify(_con_resumen_de_conversacion(res.data or [], lado='admin'))
 
 
 @app.route('/api/admin/reclamos/<rid>', methods=['PUT'])
@@ -5363,9 +5760,25 @@ def api_admin_reclamos_update(rid):
     d = request.json or {}
     allowed = ('estado', 'respuesta_admin')
     payload = {k: v for k, v in d.items() if k in allowed}
+    if 'estado' in payload and payload['estado'] not in ESTADOS_RECLAMO:
+        return jsonify({'error': 'Estado de reclamo desconocido'}), 400
     payload['updated_at'] = now_iso()
     res = supabase.table('reclamos').update(payload).eq('id', rid).execute()
     actualizado = res.data[0] if res.data else {}
+
+    # Una respuesta mandada por acá (el cliente viejo) también entra a la
+    # conversación, así el vecino la ve en el mismo lugar que las demás.
+    respuesta = (payload.get('respuesta_admin') or '').strip()
+    if actualizado and respuesta:
+        previos = _mensajes_de_reclamos([rid]).get(rid, [])
+        ultima_admin = next((m for m in reversed(previos) if m['autor'] == 'admin'), None)
+        if not ultima_admin or ultima_admin.get('cuerpo') != respuesta:
+            try:
+                supabase.table('reclamo_mensajes').insert({
+                    'reclamo_id': rid, 'autor': 'admin', 'admin_id': get_admin_id(),
+                    'cuerpo': respuesta}).execute()
+            except Exception:
+                app.logger.exception('No se pudo guardar la respuesta en la conversación')
 
     # El aviso va después de guardar y sin poder voltear la respuesta: el
     # reclamo ya se movió, y que Resend esté caído no es motivo para que el
@@ -5401,6 +5814,80 @@ def api_admin_reclamos_adjunto(rid):
     return enviar_adjunto(reclamo['adjunto_base64'],
                           reclamo.get('adjunto_nombre', 'adjunto'),
                           reclamo.get('adjunto_mime'))
+
+
+@app.route('/api/admin/reclamos/<rid>/mensajes')
+@require_auth(allowed_roles=['admin'])
+def api_admin_reclamo_mensajes(rid):
+    """La conversación del reclamo, del lado de la administración."""
+    fila_de_consorcio_propio('reclamos', rid)
+    msgs = _mensajes_de_reclamos([rid]).get(rid, [])
+    _marcar_leidos_reclamo(rid, 'vecino')
+    return jsonify(msgs)
+
+
+@app.route('/api/admin/reclamos/<rid>/mensajes', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_reclamo_responder(rid):
+    """El administrador contesta dentro del reclamo, y de paso le cambia el estado.
+
+    Contestar un reclamo que nadie había tocado lo pasa a "en proceso" salvo que
+    se elija otro estado: ya hay alguien atendiéndolo, y es lo que el vecino
+    tiene que ver. Resolverlo o cerrarlo sigue pidiendo una respuesta, igual que
+    antes, para que el vecino sepa qué se hizo.
+    """
+    fila_de_consorcio_propio('reclamos', rid)
+    reclamo = supabase.table('reclamos').select('*').eq('id', rid).execute().data
+    reclamo = reclamo[0] if reclamo else {}
+
+    d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
+    estado = (d.get('estado') or '').strip() or None
+    if estado and estado not in ESTADOS_RECLAMO:
+        return jsonify({'error': 'Estado de reclamo desconocido'}), 400
+
+    cuerpo, extra, error = _cuerpo_y_adjunto('adjunto')
+    if error:
+        # Cambiar sólo el estado, sin escribir nada, también vale, salvo para
+        # resolver o cerrar.
+        if estado and estado not in ('resuelto', 'cerrado') and not request.files:
+            supabase.table('reclamos').update({'estado': estado, 'updated_at': now_iso()}) \
+                .eq('id', rid).execute()
+            return jsonify({'ok': True, 'estado': estado})
+        if estado in ('resuelto', 'cerrado'):
+            return jsonify({'error': 'Escribile al vecino qué se hizo antes de cerrar el reclamo'}), 400
+        return error
+
+    res = supabase.table('reclamo_mensajes').insert({
+        'reclamo_id': rid, 'autor': 'admin', 'admin_id': get_admin_id(),
+        'cuerpo': cuerpo, **extra,
+    }).execute()
+    nuevo_estado = estado or ('en_proceso' if reclamo.get('estado') == 'activo' else reclamo.get('estado'))
+    cambios = {'estado': nuevo_estado, 'updated_at': now_iso()}
+    if cuerpo:
+        cambios['respuesta_admin'] = cuerpo
+    supabase.table('reclamos').update(cambios).eq('id', rid).execute()
+
+    try:
+        _mail_respuesta_reclamo({**reclamo, **cambios}, nuevo_estado, cuerpo)
+    except Exception:
+        app.logger.exception('Falló el aviso del reclamo %s', rid)
+    _avisar_novedad('vecino_reclamo_respuesta', reclamo=reclamo, cuerpo=cuerpo)
+    return jsonify(_mensaje_publico(res.data[0] if res.data else {})), 201
+
+
+@app.route('/api/admin/reclamos/mensajes/<mid>/adjunto')
+@require_auth(allowed_roles=['admin'])
+def api_admin_reclamo_mensaje_adjunto(mid):
+    fila = supabase.table('reclamo_mensajes') \
+        .select('reclamo_id, adjunto_base64, adjunto_nombre, adjunto_mime') \
+        .eq('id', mid).execute().data
+    if not fila:
+        _no_es_tuyo()
+    fila_de_consorcio_propio('reclamos', fila[0]['reclamo_id'])
+    if not fila[0].get('adjunto_base64'):
+        return jsonify({'error': 'Ese mensaje no tiene adjunto'}), 404
+    return enviar_adjunto(fila[0]['adjunto_base64'], fila[0].get('adjunto_nombre', 'adjunto'),
+                          fila[0].get('adjunto_mime'))
 
 
 @app.route('/api/admin/avisos-pago')
@@ -5740,6 +6227,11 @@ def api_liquidaciones_create():
             _generar_rubros_desde_gastos(liq_id, consorcio_id, periodo, admin_id, gastos_ids=gastos_ids)
             _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=numero_revision)
             _recalcular_totales(liq_id)
+        except ProrrateoIncompleto as e:
+            # No es un error del sistema: faltan datos del edificio. Se dice
+            # cuáles y no se deja la liquidación a medio hacer.
+            supabase.table('liquidaciones').delete().eq('id', liq_id).execute()
+            return jsonify({'error': str(e)}), 400
         except Exception as e:
             supabase.table('liquidaciones').delete().eq('id', liq_id).execute()
             if _falta_schema_v9(str(e)):
@@ -5957,22 +6449,73 @@ def _cargos_de_amenities(consorcio_id, periodo, uf_ids):
     return cargos
 
 
-def _pesos_del_coeficiente(ufs, coef):
-    """Los pesos con que se reparte un coeficiente entre las UFs.
+# Cómo se reparten las expensas de un consorcio. Uno solo por edificio: todos
+# los gastos generales se reparten igual. La columna de cada UF es la base del
+# reparto (None = partes iguales, no hace falta ningún dato).
+METODOS_PRORRATEO = {
+    'm2':             ('superficie_m2', 'metros cuadrados'),
+    'ambientes':      ('ambientes', 'ambientes'),
+    'porcentaje':     ('porcentaje_a', 'porcentaje de participación'),
+    'partes_iguales': (None, 'partes iguales'),
+}
+# Es como se liquida casi siempre en Argentina: superficie de la unidad sobre
+# superficie total.
+METODO_PRORRATEO_DEFAULT = 'm2'
 
-    Si los porcentajes cargados cierran en 100 se usan esos; si están todos en
-    0 —que es como vienen— se reparte lineal. La tolerancia de 0,5 absorbe el
-    redondeo de cargar 33,333 tres veces.
 
-    Devuelve (pesos, porcentajes_efectivos). Antes se multiplicaba directo por
-    el porcentaje, así que sin cargarlo cada unidad recibía $0.
+class ProrrateoIncompleto(ValueError):
+    """Faltan datos para repartir con el método del consorcio.
+
+    Se corta la liquidación y se dice qué falta. Repartir igual —con 0 m² para
+    la unidad que no los tiene cargados— le regalaría la expensa a esa unidad y
+    se la cobraría a las demás.
     """
-    columna = f'porcentaje_{coef.lower()}'
-    cargados = [float(uf.get(columna) or 0) for uf in ufs]
-    if abs(sum(cargados) - 100) <= 0.5:
-        return cargados, cargados
+
+
+def _metodo_prorrateo(consorcio):
+    metodo = (consorcio or {}).get('metodo_prorrateo') or METODO_PRORRATEO_DEFAULT
+    return metodo if metodo in METODOS_PRORRATEO else METODO_PRORRATEO_DEFAULT
+
+
+def _pesos_del_consorcio(ufs, metodo):
+    """Los pesos con que se reparte entre las UFs, según el método del consorcio.
+
+    Devuelve (pesos, porcentajes_efectivos).
+
+    - Sin ningún dato cargado (todas las UFs en 0 o vacías) se reparte en
+      partes iguales: es como venía funcionando y un edificio recién dado de
+      alta tiene que poder liquidar.
+    - Con los datos cargados a medias se corta con ProrrateoIncompleto: la UF
+      sin m² no puede pagar $0 de expensas.
+    - En `porcentaje` los cargados tienen que sumar 100 (con 0,5 de tolerancia
+      para el redondeo de cargar 33,333 tres veces).
+    """
     n = len(ufs)
-    return [1.0] * n, [round(100 / n, 3)] * n
+    iguales = ([1.0] * n, [round(100 / n, 3)] * n)
+    campo, nombre = METODOS_PRORRATEO[metodo]
+    if campo is None:
+        return iguales
+
+    valores = [float(uf.get(campo) or 0) for uf in ufs]
+    total = sum(valores)
+    if total <= 0:
+        return iguales
+
+    if metodo == 'porcentaje':
+        if abs(total - 100) > 0.5:
+            raise ProrrateoIncompleto(
+                f'Los porcentajes de participación de las unidades suman '
+                f'{fmt_numero(total, 3)}% y tienen que sumar 100%. Corregilos en '
+                f'Consorcios o cambiá el método de prorrateo en Configuración.')
+        return valores, valores
+
+    faltan = [str(uf.get('numero') or '?') for uf, v in zip(ufs, valores) if v <= 0]
+    if faltan:
+        raise ProrrateoIncompleto(
+            f'El consorcio reparte por {nombre} y faltan cargar en '
+            f'{"la unidad" if len(faltan) == 1 else "las unidades"} {", ".join(faltan)}. '
+            f'Completalos en Consorcios o cambiá el método de prorrateo en Configuración.')
+    return valores, [round(v / total * 100, 3) for v in valores]
 
 
 def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
@@ -6005,8 +6548,9 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
 
     por_coeficiente, particulares = _egresos_por_alcance(liq_id)
 
-    consorcio = supabase.table('consorcios') \
-        .select('tasa_interes_mora, dias_gracia_mora, recargo_segundo_vto') \
+    # `*` y no la lista de columnas: si todavía no se corrió v20 la consulta
+    # sigue funcionando y el método cae en el default.
+    consorcio = supabase.table('consorcios').select('*') \
         .eq('id', consorcio_id).execute().data
     consorcio = consorcio[0] if consorcio else {}
     tasa_interes = float(consorcio.get('tasa_interes_mora') or 0)
@@ -6019,13 +6563,10 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
     if liq and liq[0].get('interes_2_vto'):
         recargo_2do = float(liq[0]['interes_2_vto'])
 
-    # Un reparto por coeficiente, cada uno con sus propios pesos y su redondeo.
-    repartos = {}
-    for coef in COEFICIENTES:
-        total = por_coeficiente.get(coef, 0.0)
-        pesos, pcts = _pesos_del_coeficiente(ufs, coef)
-        montos, ajustes = _repartir(total, pesos)
-        repartos[coef] = {'montos': montos, 'ajustes': ajustes, 'pcts': pcts}
+    # Un solo reparto para todo lo general, con el método del consorcio. Los
+    # gastos viejos todavía traen coeficiente; ya no separa nada, se suman.
+    pesos, pcts = _pesos_del_consorcio(ufs, _metodo_prorrateo(consorcio))
+    montos, ajustes = _repartir(round(sum(por_coeficiente.values()), 2), pesos)
 
     # Cobros del período anterior, para el saldo y los intereses.
     year, month = periodo.split('-')[:2]
@@ -6065,11 +6606,10 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
 
         amenities = amenities_por_uf.get(uf['id'], 0.0)
 
-        expensas = {c2: repartos[c2]['montos'][i] for c2 in COEFICIENTES}
-        redondeo = round(sum(repartos[c2]['ajustes'][i] for c2 in COEFICIENTES), 2)
+        expensa = montos[i]
+        redondeo = ajustes[i]
 
-        total_unidad = round(
-            sum(expensas.values()) + particular + saldo_pend + interes + amenities, 2)
+        total_unidad = round(expensa + particular + saldo_pend + interes + amenities, 2)
         total_2do = round(total_unidad * (1 + recargo_2do / 100), 2) if recargo_2do else total_unidad
 
         prorrateo_rows.append({
@@ -6079,16 +6619,17 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
             'pago_realizado': pago,
             'saldo_pendiente': saldo_pend,
             'interes_mora': interes,
-            'porcentaje_a': repartos['A']['pcts'][i],
-            'expensa_a': expensas['A'],
-            'porcentaje_b': repartos['B']['pcts'][i],
-            'expensa_b': expensas['B'],
-            # `adicional_ordinaria` es el nombre que le puso v7 al reparto del
-            # coeficiente C. Se conserva para no romper lo ya emitido.
-            'porcentaje_c': repartos['C']['pcts'][i],
-            'adicional_ordinaria': expensas['C'],
-            'porcentaje_e': repartos['E']['pcts'][i],
-            'expensa_e': expensas['E'],
+            # El reparto único va en la columna A, que es la que leen el PDF,
+            # el mail y las pantallas. B, C y E quedan en 0: las siguen teniendo
+            # las liquidaciones emitidas antes de v20.
+            'porcentaje_a': pcts[i],
+            'expensa_a': expensa,
+            'porcentaje_b': 0,
+            'expensa_b': 0,
+            'porcentaje_c': 0,
+            'adicional_ordinaria': 0,
+            'porcentaje_e': 0,
+            'expensa_e': 0,
             'gastos_particulares': particular,
             'uso_amenities': amenities,
             'descuentos': 0,
@@ -6297,7 +6838,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
             <td style="padding:10px 14px;border-bottom:1px solid #f0f0f5;text-align:right;font-size:14px;font-weight:600;">{pesos(p["monto"])}</td>
         </tr>''' for p in particulares_uf)
         particulares_html = f'''
-<div style="background:#fff;border-radius:12px;margin-top:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+<div style="background:#fff;border-radius:16px;margin-top:16px;padding:20px;border:1px solid #EFE6DB;">
     <h3 style="margin:0 0 6px;font-size:15px;font-weight:700;color:#111;">🔑 Gastos de tu unidad</h3>
     <p style="margin:0 0 12px;font-size:12px;color:#888;">Estos gastos no se reparten entre el edificio: corresponden sólo a tu UF.</p>
     <table style="width:100%;border-collapse:collapse;">
@@ -6319,8 +6860,8 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
             for o in obras_en_curso
         )
         obras_html = f'''
-        <div style="margin-top:24px;background:#f8f7ff;border-radius:10px;padding:18px;">
-            <h3 style="margin:0 0 10px;font-size:15px;color:#7C3AED;">🏗️ Obras en curso</h3>
+        <div style="margin-top:24px;background:#F6EFE7;border-radius:12px;padding:18px;">
+            <h3 style="margin:0 0 10px;font-size:15px;color:#2F6F5E;">🏗️ Obras en curso</h3>
             <ul style="margin:0;padding-left:18px;">{obras_items}</ul>
         </div>'''
 
@@ -6339,9 +6880,9 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
     # saldo_inicial/total_ingresos propios de esta revisión, que arrancan en cero, así que
     # daría un negativo igual a sus egresos y no el fondo real del consorcio.
     fondo_html = '' if es_complementaria else f'''
-<div style="background:#f8f7ff;border-radius:12px;margin-top:16px;padding:18px;text-align:center;">
-    <p style="margin:0;font-size:12px;color:#888;text-transform:uppercase;font-weight:600;">Saldo del fondo del consorcio</p>
-    <p style="margin:6px 0 0;font-size:22px;font-weight:800;color:#7C3AED;">{pesos(saldo_final)}</p>
+<div style="background:#F6EFE7;border-radius:16px;margin-top:16px;padding:18px;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#8A7F75;text-transform:uppercase;font-weight:700;">Saldo del fondo del consorcio</p>
+    <p style="margin:6px 0 0;font-size:22px;font-weight:800;color:#2F6F5E;">{pesos(saldo_final)}</p>
 </div>'''
     vto1 = liq.get('fecha_vencimiento_1', '—')
     vto2 = liq.get('fecha_vencimiento_2', '—')
@@ -6356,31 +6897,32 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Resumen de Expensas — {periodo_display}</title>
 </head>
-<body style="margin:0;padding:0;background:#f5f5fa;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<body style="margin:0;padding:0;background:#FBF6EF;font-family:'Nunito Sans','Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#2A211C;">
 <div style="max-width:600px;margin:0 auto;padding:20px;">
 
-<!-- Header -->
-<div style="background:linear-gradient(135deg,#7C3AED,#10B981);border-radius:14px;padding:28px;color:#fff;text-align:center;">
-    <h1 style="margin:0;font-size:22px;font-weight:800;">🏢 {escape(consorcio.get('nombre', ''))}</h1>
+<!-- Header: los colores de la marca, con la "o" en amarillo sobre verde -->
+<div style="background:#2F6F5E;border-radius:16px;padding:26px 28px;color:#F6EFE7;text-align:center;">
+    <p style="margin:0 0 10px;font-size:22px;font-weight:800;letter-spacing:-.01em;">nidd<span style="color:#F2B705;">o</span></p>
+    <h1 style="margin:0;font-size:20px;font-weight:800;">{escape(consorcio.get('nombre', ''))}</h1>
     <p style="margin:6px 0 0;font-size:13px;opacity:.85;">{escape(consorcio.get('direccion', ''))}</p>
     <p style="margin:4px 0 0;font-size:13px;opacity:.85;">Período: {periodo_display}</p>
 </div>
 
 <!-- Tu expensa -->
-<div style="background:#fff;border-radius:12px;margin-top:16px;padding:24px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.05);">
-    <p style="margin:0;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:.05em;font-weight:600;">{'Expensa complementaria' if es_complementaria else 'Tu expensa este mes'}</p>
-    <p style="margin:8px 0 0;font-size:38px;font-weight:800;color:#111;">{pesos(total_unidad)}</p>
-    <p style="margin:6px 0 0;font-size:12px;color:#888;">UF {escape(uf.get('numero', ''))} — Piso {escape(uf.get('piso', '—'))} — {escape(uf.get('vecino_nombre', ''))}</p>
+<div style="background:#fff;border-radius:16px;margin-top:16px;padding:24px;text-align:center;border:1px solid #EFE6DB;">
+    <p style="margin:0;font-size:13px;color:#8A7F75;text-transform:uppercase;letter-spacing:.05em;font-weight:700;">{'Expensa complementaria' if es_complementaria else 'Tu expensa este mes'}</p>
+    <p style="margin:8px 0 0;font-size:38px;font-weight:800;color:#2A211C;">{pesos(total_unidad)}</p>
+    <p style="margin:6px 0 0;font-size:12px;color:#8A7F75;">UF {escape(uf.get('numero', ''))} — Piso {escape(uf.get('piso', '—'))} — {escape(uf.get('vecino_nombre', ''))}</p>
     {aviso_complementaria}
 </div>
 
 <!-- Desglose por categoría -->
-<div style="background:#fff;border-radius:12px;margin-top:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+<div style="background:#fff;border-radius:16px;margin-top:16px;padding:20px;border:1px solid #EFE6DB;">
     <h3 style="margin:0 0 6px;font-size:15px;font-weight:700;color:#111;">📊 Desglose por categoría</h3>
-    <p style="margin:0 0 12px;font-size:12px;color:#888;">Los montos son la parte que te toca a vos ({pct_a:.3f}% de los gastos comunes del edificio).</p>
+    <p style="margin:0 0 12px;font-size:12px;color:#8A7F75;">Los montos son la parte que te toca a vos ({fmt_numero(pct_a, 3)}% de los gastos comunes del edificio).</p>
     <table style="width:100%;border-collapse:collapse;">
         <thead>
-            <tr style="border-bottom:2px solid #7C3AED;">
+            <tr style="border-bottom:2px solid #E8734A;">
                 <th style="padding:8px 14px;text-align:left;font-size:11px;color:#888;text-transform:uppercase;">Categoría</th>
                 <th style="padding:8px 14px;text-align:right;font-size:11px;color:#888;text-transform:uppercase;">Tu parte</th>
                 <th style="padding:8px 14px;text-align:right;font-size:11px;color:#888;text-transform:uppercase;">% del total</th>
@@ -6392,18 +6934,18 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 {particulares_html}
 
 <!-- Estado de cuenta -->
-<div style="background:#fff;border-radius:12px;margin-top:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+<div style="background:#fff;border-radius:16px;margin-top:16px;padding:20px;border:1px solid #EFE6DB;">
     <h3 style="margin:0 0 14px;font-size:15px;font-weight:700;color:#111;">📒 Tu estado de cuenta</h3>
     <table style="width:100%;font-size:14px;">
         <tr><td style="padding:6px 0;color:#666;">Saldo anterior</td><td style="text-align:right;font-weight:600;">{pesos(prorrateo.get('saldo_anterior',0))}</td></tr>
-        <tr><td style="padding:6px 0;color:#666;">Tu pago registrado</td><td style="text-align:right;font-weight:600;color:#10B981;">-{pesos(prorrateo.get('pago_realizado',0))}</td></tr>
-        <tr><td style="padding:6px 0;color:#666;">Saldo pendiente</td><td style="text-align:right;font-weight:600;color:#EF4444;">{pesos(prorrateo.get('saldo_pendiente',0))}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Tu pago registrado</td><td style="text-align:right;font-weight:600;color:#2F6F5E;">-{pesos(prorrateo.get('pago_realizado',0))}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Saldo pendiente</td><td style="text-align:right;font-weight:600;color:#C4502B;">{pesos(prorrateo.get('saldo_pendiente',0))}</td></tr>
         <tr><td style="padding:6px 0;color:#666;">Intereses</td><td style="text-align:right;font-weight:600;">{pesos(prorrateo.get('interes_mora',0))}</td></tr>
         <tr style="border-top:2px solid #eee;">
-            <td style="padding:10px 0;font-weight:700;">Expensa ordinaria ({pct_a:.3f}%)</td>
+            <td style="padding:10px 0;font-weight:700;">Expensa ({fmt_numero(pct_a, 3)}% de participación)</td>
             <td style="text-align:right;font-weight:700;">{pesos(prorrateo.get('expensa_a',0))}</td>
         </tr>
-        <tr><td style="padding:6px 0;color:#666;">Adicional ordinaria</td><td style="text-align:right;font-weight:600;">{pesos(prorrateo.get('adicional_ordinaria',0))}</td></tr>
+        {f'<tr><td style="padding:6px 0;color:#666;">Adicional ordinaria</td><td style="text-align:right;font-weight:600;">{pesos(prorrateo.get("adicional_ordinaria",0))}</td></tr>' if float(prorrateo.get('adicional_ordinaria') or 0) else ''}
         <tr><td style="padding:6px 0;color:#666;">Gastos de tu unidad</td><td style="text-align:right;font-weight:600;">{pesos(gastos_particulares)}</td></tr>
         <tr style="border-top:2px solid #eee;">
             <td style="padding:10px 0;font-weight:700;">Total a pagar</td>
@@ -6413,7 +6955,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 </div>
 
 <!-- Datos de pago -->
-<div style="background:#fff;border-radius:12px;margin-top:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);">
+<div style="background:#fff;border-radius:16px;margin-top:16px;padding:20px;border:1px solid #EFE6DB;">
     <h3 style="margin:0 0 14px;font-size:15px;font-weight:700;color:#111;">💳 Datos de pago</h3>
     <table style="width:100%;font-size:14px;">
         <tr><td style="padding:5px 0;color:#666;">Banco</td><td style="text-align:right;font-weight:500;">{banco_nombre}</td></tr>
@@ -6431,7 +6973,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 
 <!-- Footer -->
 <div style="text-align:center;margin-top:24px;padding:16px;">
-    <p style="font-size:12px;color:#aaa;">Generado por Niddo — Gestión de consorcios inteligente</p>
+    <p style="font-size:12px;color:#8A7F75;">Generado con nidd<span style="color:#E8734A;">o</span> · tu consorcio, en un solo lugar</p>
     <p style="font-size:11px;color:#ccc;">{escape(liq.get('notas', ''))}</p>
 </div>
 
@@ -6444,10 +6986,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
 @require_auth(allowed_roles=['admin'])
 def api_liquidacion_resumen(lid, uid):
     """Genera y devuelve el resumen HTML personalizado de una UF."""
-    liq = liquidacion_propia(lid, '*, consorcios(nombre, direccion, cuit, clave_suterh, '
-                                  'tasa_interes_mora, recargo_segundo_vto, banco_nombre, '
-                                  'banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago, '
-                                  'banco_titular, banco_alias)')
+    liq = liquidacion_propia(lid, LIQ_CONSORCIO_PDF)
 
     consorcio = liq.get('consorcios', {})
 
@@ -6575,10 +7114,7 @@ def _generar_cobros_de_liquidacion(liq, prorrateos):
 @require_auth(allowed_roles=['admin'])
 def api_liquidacion_pdf(lid):
     """El mismo PDF que se adjunta al mail, para revisarlo antes de enviarlo."""
-    liq = liquidacion_propia(lid, '*, consorcios(nombre, direccion, cuit, clave_suterh, '
-                                  'tasa_interes_mora, recargo_segundo_vto, banco_nombre, '
-                                  'banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago, '
-                                  'banco_titular, banco_alias)')
+    liq = liquidacion_propia(lid, LIQ_CONSORCIO_PDF)
     consorcio = liq.get('consorcios') or {}
     buf = io.BytesIO(_pdf_de_liquidacion(liq, consorcio, lid))
     return pdf_response(buf, _nombre_pdf_liquidacion(liq, consorcio))
@@ -6597,10 +7133,7 @@ def api_liquidacion_enviar(lid):
 
     # El permiso se resuelve antes de tocar nada: es la ruta que manda mails a
     # cuarenta vecinos, y lo único que no se puede deshacer después.
-    liq = liquidacion_propia(lid, '*, consorcios(nombre, direccion, cuit, clave_suterh, '
-                                  'tasa_interes_mora, recargo_segundo_vto, banco_nombre, '
-                                  'banco_sucursal, banco_cuenta, banco_cbu, banco_cuit_pago, '
-                                  'banco_titular, banco_alias)')
+    liq = liquidacion_propia(lid, LIQ_CONSORCIO_PDF)
 
     import resend
     resend.api_key = os.environ.get('RESEND_API_KEY', '')
@@ -6624,6 +7157,9 @@ def api_liquidacion_enviar(lid):
     # La deuda se crea antes de avisar. Si se hiciera después y fallara, el
     # vecino tendría el mail con un total que su cuenta no muestra.
     cobros_creados = _generar_cobros_de_liquidacion(liq, prorrateos)
+    if cobros_creados:
+        _avisar_novedad('vecino_expensa', periodo=periodo_largo_es(liq.get('periodo')),
+                        unidades=[p.get('unidad_id') for p in prorrateos])
 
     # El PDF se arma UNA vez para todo el consorcio, no uno por unidad: es la
     # liquidación entera y es idéntica para todos, así que generarla 40 veces
@@ -6743,6 +7279,406 @@ def api_envio_programado_set(cid):
     }
     res = supabase.table('envio_programado').upsert(payload, on_conflict='consorcio_id').execute()
     return jsonify(res.data[0] if res.data else {})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NOVEDADES — los numeritos del menú
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Un badge cuenta lo que llegó desde la última vez que la persona entró a esa
+# sección, no lo que está en tal o cual estado: entrar lo borra, y vuelve a
+# aparecer cuando llega algo más nuevo (un reclamo, una respuesta, un mensaje,
+# una expensa). La excepción son las tareas pendientes —una solicitud de alta,
+# un pago informado—: esas quedan hasta que se resuelven, porque son trabajo.
+#
+# La última visita vive en `secciones_vistas` (v21). Sin fila se toma la fecha
+# de alta de la cuenta, así una cuenta nueva no arranca con cincuenta avisos
+# viejos.
+
+SECCIONES_CON_BADGE = {
+    'admin':  ('reclamos', 'mensajes'),
+    'vecino': ('comunicados', 'reclamos', 'mensajes', 'expensas'),
+}
+
+
+def _vistas_de(tipo, uid, desde_alta):
+    """{seccion: visto_at} con la fecha de alta como piso."""
+    vistas = {sec: desde_alta for sec in SECCIONES_CON_BADGE[tipo]}
+    try:
+        filas = supabase.table('secciones_vistas').select('seccion, visto_at') \
+            .eq('usuario_tipo', tipo).eq('usuario_id', uid).execute().data or []
+    except Exception:
+        return vistas
+    for f in filas:
+        if f.get('seccion') in vistas and f.get('visto_at'):
+            vistas[f['seccion']] = max(str(f['visto_at']), str(vistas[f['seccion']] or ''))
+    return vistas
+
+
+def _despues_de(filas, campo, desde):
+    desde = str(desde or '')
+    return [f for f in filas if str(f.get(campo) or '') > desde]
+
+
+def _novedades_admin(admin_id):
+    admin = cargar_admin_actual() or {}
+    vistas = _vistas_de('admin', admin_id, admin.get('created_at') or '')
+    cids = consorcios_propios_ids()
+    res = {'reclamos': 0, 'mensajes': 0, 'solicitudes': 0,
+           'solicitudes_por_consorcio': {}, 'avisos': 0}
+    if not cids:
+        return res
+
+    reclamos = supabase.table('reclamos').select('id, created_at') \
+        .in_('consorcio_id', cids).execute().data or []
+    nuevos = len(_despues_de(reclamos, 'created_at', vistas['reclamos']))
+    if reclamos:
+        try:
+            resp = supabase.table('reclamo_mensajes').select('created_at') \
+                .in_('reclamo_id', [r['id'] for r in reclamos]).eq('autor', 'vecino').execute().data or []
+            nuevos += len(_despues_de(resp, 'created_at', vistas['reclamos']))
+        except Exception:
+            pass
+    res['reclamos'] = nuevos
+
+    msjs = supabase.table('mensajes').select('created_at') \
+        .in_('consorcio_id', cids).eq('autor', 'vecino').execute().data or []
+    res['mensajes'] = len(_despues_de(msjs, 'created_at', vistas['mensajes']))
+
+    pend = supabase.table('vecinos').select('consorcio_solicitado_id') \
+        .eq('estado_asociacion', 'pendiente').in_('consorcio_solicitado_id', cids).execute().data or []
+    for v in pend:
+        c = v.get('consorcio_solicitado_id')
+        res['solicitudes_por_consorcio'][c] = res['solicitudes_por_consorcio'].get(c, 0) + 1
+    res['solicitudes'] = len(pend)
+
+    try:
+        avisos = supabase.table('avisos_pago').select('id') \
+            .in_('consorcio_id', cids).eq('estado', 'pendiente').execute().data or []
+        res['avisos'] = len(avisos)
+    except Exception:
+        pass
+    return res
+
+
+def _unidades_del_vecino(vecino_id):
+    """Las UFs del vecino: la principal y las de vecinos_unidades."""
+    v = supabase.table('vecinos').select('unidad_id, consorcio_id, created_at') \
+        .eq('id', vecino_id).execute().data
+    v = v[0] if v else {}
+    ids = {v.get('unidad_id')} if v.get('unidad_id') else set()
+    try:
+        extra = supabase.table('vecinos_unidades').select('unidad_id') \
+            .eq('vecino_id', vecino_id).eq('activo', True).execute().data or []
+        ids |= {e['unidad_id'] for e in extra if e.get('unidad_id')}
+    except Exception:
+        pass
+    return v, list(ids)
+
+
+def _novedades_vecino(vecino_id):
+    v, ufs = _unidades_del_vecino(vecino_id)
+    cid = v.get('consorcio_id')
+    vistas = _vistas_de('vecino', vecino_id, v.get('created_at') or '')
+    res = {'comunicados': 0, 'reclamos': 0, 'mensajes': 0, 'expensas': 0}
+    if not cid:
+        return res
+
+    # `*` y no la columna del autor: sin v23 la columna no existe. El aviso de
+    # una reserva propia no es novedad para quien la hizo.
+    coms = supabase.table('comunicados').select('*').eq('consorcio_id', cid).execute().data or []
+    coms = [c for c in coms if c.get('autor_vecino_id') != vecino_id]
+    res['comunicados'] = len(_despues_de(coms, 'created_at', vistas['comunicados']))
+
+    recs = supabase.table('reclamos').select('id').eq('vecino_id', vecino_id).execute().data or []
+    if recs:
+        try:
+            resp = supabase.table('reclamo_mensajes').select('created_at') \
+                .in_('reclamo_id', [r['id'] for r in recs]).eq('autor', 'admin').execute().data or []
+            res['reclamos'] = len(_despues_de(resp, 'created_at', vistas['reclamos']))
+        except Exception:
+            pass
+
+    msjs = supabase.table('mensajes').select('created_at') \
+        .eq('vecino_id', vecino_id).eq('autor', 'admin').execute().data or []
+    res['mensajes'] = len(_despues_de(msjs, 'created_at', vistas['mensajes']))
+
+    if ufs:
+        cobros = supabase.table('cobros').select('created_at').in_('unidad_id', ufs).execute().data or []
+        res['expensas'] = len(_despues_de(cobros, 'created_at', vistas['expensas']))
+    return res
+
+
+def _quien_soy():
+    """('admin', admin_id) o ('vecino', vecino_id)."""
+    user = session.get('user') or {}
+    if user.get('role') == 'admin':
+        return 'admin', get_admin_id()
+    return 'vecino', get_vecino_id()
+
+
+@app.route('/api/novedades')
+@require_auth()
+def api_novedades():
+    tipo, uid = _quien_soy()
+    if not uid:
+        return jsonify({})
+    datos = _novedades_admin(uid) if tipo == 'admin' else _novedades_vecino(uid)
+    return jsonify(datos)
+
+
+@app.route('/api/novedades/visto', methods=['POST'])
+@require_auth()
+def api_novedades_visto():
+    """Entrar a una sección borra su numerito hasta la próxima novedad."""
+    tipo, uid = _quien_soy()
+    seccion = ((request.json or {}).get('seccion') or '').strip()
+    if not uid or seccion not in SECCIONES_CON_BADGE[tipo]:
+        return jsonify({'error': 'Sección desconocida'}), 400
+    try:
+        supabase.table('secciones_vistas').upsert(
+            {'usuario_tipo': tipo, 'usuario_id': uid, 'seccion': seccion, 'visto_at': now_iso()},
+            on_conflict='usuario_tipo,usuario_id,seccion').execute()
+    except Exception:
+        app.logger.exception('No se pudo marcar vista la sección %s', seccion)
+    return jsonify({'ok': True})
+
+
+# ── Ayuda de cada sección ──────────────────────────────────────────────────────
+# El "?" de cada sección abre una explicación, y la primera vez que alguien
+# entra se abre sola. Qué ayudas ya vio se guarda por cuenta (en
+# secciones_vistas, con el prefijo "ayuda:") y no por navegador: cambiar de
+# celular no tiene que volver a mostrar todo.
+
+PREFIJO_AYUDA = 'ayuda:'
+
+
+@app.route('/api/ayuda/vistas')
+@require_auth()
+def api_ayuda_vistas():
+    tipo, uid = _quien_soy()
+    if not uid:
+        return jsonify([])
+    try:
+        filas = supabase.table('secciones_vistas').select('seccion') \
+            .eq('usuario_tipo', tipo).eq('usuario_id', uid).execute().data or []
+    except Exception:
+        return jsonify([])
+    return jsonify([f['seccion'][len(PREFIJO_AYUDA):] for f in filas
+                    if str(f.get('seccion') or '').startswith(PREFIJO_AYUDA)])
+
+
+@app.route('/api/ayuda/vista', methods=['POST'])
+@require_auth()
+def api_ayuda_vista():
+    tipo, uid = _quien_soy()
+    seccion = ((request.json or {}).get('seccion') or '').strip()
+    if not uid or not re.fullmatch(r'[a-z_]{2,30}', seccion):
+        return jsonify({'error': 'Sección inválida'}), 400
+    try:
+        supabase.table('secciones_vistas').upsert(
+            {'usuario_tipo': tipo, 'usuario_id': uid, 'seccion': PREFIJO_AYUDA + seccion,
+             'visto_at': now_iso()},
+            on_conflict='usuario_tipo,usuario_id,seccion').execute()
+    except Exception:
+        app.logger.exception('No se pudo guardar la ayuda vista')
+    return jsonify({'ok': True})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NOTIFICACIONES PUSH
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Niddo es una web que se agrega a la pantalla de inicio, no una app de tienda.
+# Las notificaciones al celular son Web Push: el navegador le da al usuario una
+# suscripción (la URL del servicio de push de Google, Apple o Mozilla más dos
+# claves) y el servidor le manda el aviso cifrado a esa URL. Lo muestra el
+# service worker (static/js/sw.js), aunque Niddo esté cerrado.
+#
+# Hace falta un par de claves VAPID, que identifican al servidor ante esos
+# servicios. Se generan una sola vez y van en las variables de entorno:
+#   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_CONTACTO (un mailto:)
+# Sin ellas no pasa nada malo: la app no ofrece activar las notificaciones y
+# los avisos simplemente no salen.
+#
+# En iPhone funciona desde iOS 16.4 y sólo con Niddo agregado a la pantalla de
+# inicio (Compartir → Agregar a inicio): es una regla de Apple.
+
+VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
+VAPID_CONTACTO = os.environ.get('VAPID_CONTACTO', 'mailto:soporte@niddo.app')
+
+
+def push_disponible():
+    return bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY)
+
+
+@app.route('/api/push/clave')
+@require_auth()
+def api_push_clave():
+    return jsonify({'disponible': push_disponible(), 'clave': VAPID_PUBLIC_KEY})
+
+
+@app.route('/api/push/suscribir', methods=['POST'])
+@require_auth()
+def api_push_suscribir():
+    tipo, uid = _quien_soy()
+    sub = (request.json or {}).get('suscripcion') or {}
+    claves = sub.get('keys') or {}
+    endpoint = (sub.get('endpoint') or '').strip()
+    if not uid or not endpoint.startswith('https://') or not claves.get('p256dh') or not claves.get('auth'):
+        return jsonify({'error': 'Suscripción inválida'}), 400
+    # El endpoint es del dispositivo: si antes lo usó otra cuenta (la compu
+    # compartida de la administración), pasa a ser de quien está ahora.
+    supabase.table('push_suscripciones').upsert({
+        'usuario_tipo': tipo, 'usuario_id': uid, 'endpoint': endpoint,
+        'p256dh': claves['p256dh'], 'auth': claves['auth'],
+        'user_agent': (request.headers.get('User-Agent') or '')[:300],
+    }, on_conflict='endpoint').execute()
+    return jsonify({'ok': True}), 201
+
+
+@app.route('/api/push/desuscribir', methods=['POST'])
+@require_auth()
+def api_push_desuscribir():
+    tipo, uid = _quien_soy()
+    endpoint = ((request.json or {}).get('endpoint') or '').strip()
+    if endpoint:
+        supabase.table('push_suscripciones').delete() \
+            .eq('endpoint', endpoint).eq('usuario_tipo', tipo).eq('usuario_id', uid).execute()
+    return jsonify({'ok': True})
+
+
+def _enviar_push(suscripcion, datos):
+    """Manda un aviso a un dispositivo. Devuelve True, False o 'borrar'."""
+    from pywebpush import webpush, WebPushException
+    try:
+        webpush(
+            subscription_info={'endpoint': suscripcion['endpoint'],
+                               'keys': {'p256dh': suscripcion['p256dh'], 'auth': suscripcion['auth']}},
+            data=json.dumps(datos),
+            vapid_private_key=VAPID_PRIVATE_KEY,
+            vapid_claims={'sub': VAPID_CONTACTO},
+            ttl=60 * 60 * 24,
+            timeout=6,
+        )
+        return True
+    except WebPushException as e:
+        status = getattr(getattr(e, 'response', None), 'status_code', None)
+        # 404/410: el usuario desinstaló, revocó el permiso o el navegador
+        # rotó la suscripción. No va a volver a andar.
+        return 'borrar' if status in (404, 410) else False
+    except Exception:
+        app.logger.exception('Falló un envío push')
+        return False
+
+
+def push_a(tipo, ids, titulo, cuerpo, url='/', etiqueta=None):
+    """Avisa a todos los dispositivos de esas personas. Nunca levanta excepción.
+
+    Los envíos van en paralelo: un comunicado a un edificio de cincuenta
+    departamentos son cincuenta o cien llamadas, y en serie tardarían más que
+    lo que Vercel deja vivir a la request.
+    """
+    ids = [i for i in set(ids or []) if i]
+    if not ids or not push_disponible():
+        return 0
+    try:
+        subs = supabase.table('push_suscripciones').select('id, endpoint, p256dh, auth') \
+            .eq('usuario_tipo', tipo).in_('usuario_id', ids).execute().data or []
+    except Exception:
+        app.logger.exception('No se pudieron leer las suscripciones push')
+        return 0
+    if not subs:
+        return 0
+    datos = {'titulo': titulo, 'cuerpo': cuerpo[:180], 'url': url,
+             'etiqueta': etiqueta or url}
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(10, len(subs))) as pool:
+        resultados = list(pool.map(lambda s_: _enviar_push(s_, datos), subs))
+    muertas = [s_['id'] for s_, r in zip(subs, resultados) if r == 'borrar']
+    if muertas:
+        try:
+            supabase.table('push_suscripciones').delete().in_('id', muertas).execute()
+        except Exception:
+            pass
+    return len([r for r in resultados if r is True])
+
+
+def _vecinos_del_consorcio(cid, excepto=None):
+    filas = supabase.table('vecinos').select('id').eq('consorcio_id', cid).execute().data or []
+    return [f['id'] for f in filas if f['id'] != excepto]
+
+
+def _admin_del_consorcio(cid):
+    fila = supabase.table('consorcios').select('admin_id').eq('id', cid).execute().data
+    return [fila[0]['admin_id']] if fila and fila[0].get('admin_id') else []
+
+
+def _vecinos_de_unidades(uf_ids):
+    uf_ids = [u for u in uf_ids if u]
+    if not uf_ids:
+        return []
+    ids = {f['id'] for f in supabase.table('vecinos').select('id')
+           .in_('unidad_id', uf_ids).execute().data or []}
+    try:
+        ids |= {f['vecino_id'] for f in supabase.table('vecinos_unidades').select('vecino_id')
+                .in_('unidad_id', uf_ids).eq('activo', True).execute().data or []}
+    except Exception:
+        pass
+    return list(ids)
+
+
+def _push_por_novedad(tipo, **d):
+    """Qué aviso sale para cada novedad y a quién. Es la tabla de verdad."""
+    if not push_disponible():
+        return
+    admin_url = '/dashboard/admin'
+    vecino_url = '/dashboard/vecino'
+    if tipo == 'admin_reclamo_nuevo':
+        r = d['reclamo']
+        push_a('admin', _admin_del_consorcio(r.get('consorcio_id')), 'Reclamo nuevo',
+               r.get('titulo') or '', admin_url + '#comunicacion', 'reclamos')
+    elif tipo == 'admin_reclamo_respuesta':
+        r = d['reclamo']
+        push_a('admin', _admin_del_consorcio(r.get('consorcio_id')),
+               f"Respuesta en «{r.get('titulo') or 'un reclamo'}»", d.get('cuerpo') or 'Adjuntó un archivo',
+               admin_url + '#comunicacion', 'reclamos')
+    elif tipo == 'vecino_reclamo_respuesta':
+        r = d['reclamo']
+        push_a('vecino', [r.get('vecino_id')], 'La administración respondió tu reclamo',
+               d.get('cuerpo') or r.get('titulo') or '', vecino_url + '#reclamos', 'reclamos')
+    elif tipo == 'admin_mensaje':
+        push_a('admin', _admin_del_consorcio(d['consorcio_id']),
+               f"Mensaje de {d.get('nombre') or 'un vecino'}", d.get('cuerpo') or 'Te mandó un archivo',
+               admin_url + '#comunicacion', 'mensajes')
+    elif tipo == 'vecino_mensaje':
+        push_a('vecino', [d['vecino_id']], 'Mensaje de la administración',
+               d.get('cuerpo') or 'Te mandó un archivo', vecino_url + '#mensajes', 'mensajes')
+    elif tipo == 'vecino_comunicado':
+        c = d['comunicado']
+        push_a('vecino', _vecinos_del_consorcio(c.get('consorcio_id'), excepto=d.get('excepto')),
+               c.get('titulo') or 'Comunicado nuevo', c.get('cuerpo') or '',
+               vecino_url + '#comunicados', 'comunicado-' + str(c.get('id')))
+    elif tipo == 'admin_comunicado_vecino':
+        c = d['comunicado']
+        push_a('admin', _admin_del_consorcio(c.get('consorcio_id')), c.get('titulo') or 'Aviso de un vecino',
+               c.get('cuerpo') or '', admin_url + '#amenities', 'reservas')
+    elif tipo == 'admin_solicitud':
+        push_a('admin', _admin_del_consorcio(d['consorcio_id']), 'Un vecino pidió sumarse',
+               f"{d.get('nombre') or 'Un vecino'} quiere entrar a {d.get('consorcio') or 'tu edificio'}",
+               admin_url + '#consorcios', 'solicitudes')
+    elif tipo == 'admin_aviso_pago':
+        push_a('admin', _admin_del_consorcio(d['consorcio_id']), 'Pago informado',
+               f"{d.get('nombre') or 'Un vecino'} informó un pago de {pesos(d.get('monto'))}",
+               admin_url + '#cobros', 'avisos')
+    elif tipo == 'vecino_expensa':
+        push_a('vecino', _vecinos_de_unidades(d.get('unidades') or []),
+               f"Tu expensa de {d.get('periodo') or 'este mes'} ya está",
+               'Entrá para ver el resumen y cómo pagarla.', vecino_url + '#expensas', 'expensas')
+    elif tipo == 'admin_reserva':
+        push_a('admin', _admin_del_consorcio(d['consorcio_id']), 'Reserva nueva',
+               d.get('texto') or '', admin_url + '#amenities', 'reservas')
 
 
 # ── Run ────────────────────────────────────────────────────────────────────────

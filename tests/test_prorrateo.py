@@ -11,10 +11,11 @@ cuatro:
                   + redondeo
     total 2do vto = total 1er vto × (1 + recargo%)
 
-El reparto por VARIOS coeficientes es lo que hace que un edificio con cocheras
-o locales pueda liquidar bien: la factura del ascensor va por un coeficiente
-donde la cochera pesa 0, y el seguro por otro donde pesa. Los cuatro sistemas
-imprimen "SUBTOTALES POR COEFICIENTE" justamente por eso.
+Desde v20 cada consorcio reparte con UN método —m² (el default), ambientes,
+partes iguales o porcentaje de participación— y todos los gastos generales van
+por ese. Los coeficientes B, C y E por gasto se dejaron de usar: nadie los
+cargaba y lo que el administrador espera es elegir la forma de repartir del
+edificio, no la de cada factura.
 """
 
 import pytest
@@ -28,6 +29,7 @@ def edificio(base):
     base['consorcios'][0].update({
         'tasa_interes_mora': 3.0,
         'recargo_segundo_vto': 3.0,
+        'metodo_prorrateo': 'porcentaje',
     })
     base['unidades_funcionales'] = [
         {'id': 'uf-1', 'consorcio_id': 'cons-1', 'numero': '1A',
@@ -78,24 +80,80 @@ def test_sin_porcentajes_cargados_reparte_lineal(edificio):
     assert [p[u]['expensa_a'] for u in ('uf-1', 'uf-2', 'uf-3')] == [300.0, 300.0, 300.0]
 
 
-# ── Varios coeficientes a la vez ──────────────────────────────────────────────
+# ── Un método por consorcio ───────────────────────────────────────────────────
 
-def test_cada_gasto_se_reparte_por_su_coeficiente(edificio):
-    """El ascensor por A —la cochera casi no lo usa— y la luz por B."""
+def test_un_gasto_viejo_con_otro_coeficiente_se_reparte_igual(edificio):
+    """Los gastos cargados antes de v20 pueden traer B, C o E. Ya no separan
+    nada: se suman al total y se reparten con el método del consorcio."""
     _item(edificio, 1000.0, 'A')
     _item(edificio, 600.0, 'B')
+    p = _prorratear(edificio)
+    assert p['uf-1']['expensa_a'] == 800.0      # 50% de 1.600
+    assert p['uf-3']['expensa_a'] == 320.0      # 20% de 1.600
+    assert all(x['expensa_b'] == 0 and x['expensa_e'] == 0 for x in p.values())
+
+
+def _por_metros(base, m2):
+    base['consorcios'][0]['metodo_prorrateo'] = 'm2'
+    for uf, metros in zip(base['unidades_funcionales'], m2):
+        uf['superficie_m2'] = metros
+
+
+def test_por_metros_cuadrados(edificio):
+    """El default: superficie de la unidad sobre superficie total."""
+    _por_metros(edificio, [60, 30, 10])
+    _item(edificio, 1000.0, 'A')
+    p = _prorratear(edificio)
+    assert [p[u]['expensa_a'] for u in ('uf-1', 'uf-2', 'uf-3')] == [600.0, 300.0, 100.0]
+    assert p['uf-1']['porcentaje_a'] == 60.0
+
+
+def test_el_consorcio_sin_metodo_reparte_por_metros(edificio):
+    _por_metros(edificio, [50, 25, 25])
+    edificio['consorcios'][0].pop('metodo_prorrateo')   # como está antes de v20
+    _item(edificio, 1000.0, 'A')
     p = _prorratear(edificio)
     assert p['uf-1']['expensa_a'] == 500.0
-    assert p['uf-1']['expensa_b'] == 0.0        # no participa de B
-    assert p['uf-2']['expensa_b'] == 300.0
-    assert p['uf-3']['expensa_b'] == 300.0
 
 
-def test_el_total_suma_los_coeficientes(edificio):
-    _item(edificio, 1000.0, 'A')
-    _item(edificio, 600.0, 'B')
+def test_por_ambientes(edificio):
+    edificio['consorcios'][0]['metodo_prorrateo'] = 'ambientes'
+    for uf, amb in zip(edificio['unidades_funcionales'], [3, 2, 1]):
+        uf['ambientes'] = amb
+    _item(edificio, 600.0, 'A')
     p = _prorratear(edificio)
-    assert p['uf-3']['total_unidad'] == 200.0 + 300.0
+    assert [p[u]['expensa_a'] for u in ('uf-1', 'uf-2', 'uf-3')] == [300.0, 200.0, 100.0]
+
+
+def test_en_partes_iguales_no_mira_ningun_dato(edificio):
+    edificio['consorcios'][0]['metodo_prorrateo'] = 'partes_iguales'
+    _item(edificio, 900.0, 'A')
+    p = _prorratear(edificio)
+    assert [p[u]['expensa_a'] for u in ('uf-1', 'uf-2', 'uf-3')] == [300.0, 300.0, 300.0]
+
+
+def test_sin_ningun_metro_cargado_reparte_en_partes_iguales(edificio):
+    """Un edificio recién dado de alta tiene que poder liquidar."""
+    _por_metros(edificio, [None, None, None])
+    _item(edificio, 900.0, 'A')
+    p = _prorratear(edificio)
+    assert [p[u]['expensa_a'] for u in ('uf-1', 'uf-2', 'uf-3')] == [300.0, 300.0, 300.0]
+
+
+def test_con_metros_a_medias_no_liquida_y_dice_cuales_faltan(edificio):
+    """La unidad sin m² no puede pagar $0 y cargarle su parte a las demás."""
+    _por_metros(edificio, [60, None, 10])
+    _item(edificio, 1000.0, 'A')
+    with pytest.raises(app_mod.ProrrateoIncompleto, match='1B'):
+        _prorratear(edificio)
+    assert edificio['liquidacion_prorrateo'] == []
+
+
+def test_porcentajes_que_no_suman_100_no_liquidan(edificio):
+    edificio['unidades_funcionales'][0]['porcentaje_a'] = 40.0     # 40 + 30 + 20 = 90
+    _item(edificio, 1000.0, 'A')
+    with pytest.raises(app_mod.ProrrateoIncompleto, match='90'):
+        _prorratear(edificio)
 
 
 def test_lo_repartido_es_exactamente_lo_gastado(edificio):
@@ -230,6 +288,24 @@ def admin(base, app_modulo):
     return c
 
 
+def test_el_metodo_se_elige_en_el_consorcio(admin, base):
+    r = admin.put('/api/consorcios/cons-1', json={'metodo_prorrateo': 'ambientes'})
+    assert r.status_code == 200
+    assert base['consorcios'][0]['metodo_prorrateo'] == 'ambientes'
+
+
+def test_un_metodo_inventado_se_rechaza(admin, base):
+    r = admin.put('/api/consorcios/cons-1', json={'metodo_prorrateo': 'por_simpatia'})
+    assert r.status_code == 400
+    assert 'metodo_prorrateo' not in base['consorcios'][0]
+
+
+def test_la_uf_guarda_sus_ambientes(admin, base):
+    admin.post('/api/consorcios/cons-1/unidades', json={'numero': '7A', 'ambientes': '3'})
+    uf = next(u for u in base['unidades_funcionales'] if u['numero'] == '7A')
+    assert uf['ambientes'] == 3
+
+
 def test_el_alta_de_una_uf_guarda_los_porcentajes(admin, base):
     r = admin.post('/api/consorcios/cons-1/unidades', json={
         'numero': '5C', 'porcentaje_a': 12.5, 'porcentaje_e': 7.25})
@@ -305,3 +381,19 @@ def test_las_tasas_se_guardan_en_el_consorcio(admin, base):
     assert c['tasa_interes_mora'] == 2.5
     assert c['recargo_segundo_vto'] == 4.0
     assert c['clave_suterh'] == '85693'
+
+
+def test_liquidar_con_datos_a_medias_explica_que_falta(admin, base):
+    """El alta de la liquidación no queda a medio hacer: dice qué completar."""
+    base['consorcios'][0]['metodo_prorrateo'] = 'm2'
+    base['unidades_funcionales'] = [
+        {'id': 'uf-1', 'consorcio_id': 'cons-1', 'numero': '1A', 'superficie_m2': 50},
+        {'id': 'uf-8', 'consorcio_id': 'cons-1', 'numero': '8B', 'superficie_m2': None},
+    ]
+    for t in ('gastos', 'liquidaciones', 'liquidacion_rubros', 'liquidacion_items',
+              'liquidacion_prorrateo', 'resumen_envios'):
+        base.setdefault(t, [])
+    r = admin.post('/api/liquidaciones', json={'consorcio_id': 'cons-1', 'periodo': '2026-08'})
+    assert r.status_code == 400
+    assert '8B' in r.get_json()['error']
+    assert base['liquidaciones'] == []

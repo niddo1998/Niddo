@@ -8,6 +8,8 @@ reserva. Es una notificación de algo ya guardado; si Resend está caído, la
 reserva tiene que quedar igual.
 """
 
+from datetime import date, timedelta
+
 import pytest
 
 
@@ -19,7 +21,11 @@ def mails(monkeypatch, app_modulo):
     return enviados
 
 
-RESERVA = {'amenity_id': 'amen-1', 'fecha': '2026-09-10',
+# Siempre en el futuro: el servidor rechaza las reservas en fechas pasadas, y
+# una fecha fija hacía que la suite entera empezara a fallar el día después.
+FECHA = (date.today() + timedelta(days=10)).isoformat()
+
+RESERVA = {'amenity_id': 'amen-1', 'fecha': FECHA,
            'hora_inicio': '18:00', 'hora_fin': '20:00'}
 
 
@@ -29,13 +35,13 @@ def test_le_llega_el_mail_al_vecino(client, mails):
     assert len(mails) == 1
     destinatarios, asunto, html = mails[0]
     assert destinatarios == ['uno@test']
-    assert 'SUM' in asunto and '2026-09-10' in asunto
+    assert 'SUM' in asunto and FECHA in asunto
 
 
 def test_el_mail_lleva_dia_horario_y_espacio(client, mails):
     client.post('/api/reservas_amenities', json=RESERVA)
     html = mails[0][2]
-    for dato in ('SUM', 'Mío', '2026-09-10', '18:00', '20:00'):
+    for dato in ('SUM', 'Mío', FECHA, '18:00', '20:00'):
         assert dato in html, dato
 
 
@@ -67,3 +73,35 @@ def test_el_horario_ocupado_se_sigue_rechazando_y_no_manda_mail(client, base, ma
                                                          hora_fin='21:00'))
     assert r.status_code == 400
     assert len(mails) == 1  # sólo el de la primera
+
+
+# ── Avisarle al edificio ─────────────────────────────────────────────────────
+
+def test_avisar_al_edificio_publica_un_comunicado(client, mails, base, app_modulo):
+    base['comunicados'] = []
+    r = client.post('/api/reservas_amenities',
+                    json=dict(RESERVA, avisar_vecinos=True, mensaje='Festejo un cumple'))
+    assert r.status_code == 201
+    com = base['comunicados'][0]
+    assert com['consorcio_id'] == 'cons-1'
+    assert com['admin_id'] == 'admin-1'          # le llega también a la administración
+    assert com['autor_vecino_id'] == 'vec-1'
+    assert 'SUM' in com['titulo'] and '18:00' in com['titulo']
+    assert 'Festejo un cumple' in com['cuerpo']
+
+
+def test_sin_tildar_no_se_avisa_a_nadie(client, mails, base):
+    base['comunicados'] = []
+    client.post('/api/reservas_amenities', json=RESERVA)
+    assert base['comunicados'] == []
+
+
+def test_el_calendario_pide_el_mes_entero(client, base):
+    base['reservas_amenities'] = [
+        {'id': 'r1', 'amenity_id': 'amen-1', 'fecha': '2026-10-02', 'estado': 'confirmada',
+         'hora_inicio': '10:00', 'hora_fin': '11:00'},
+        {'id': 'r2', 'amenity_id': 'amen-1', 'fecha': '2026-11-02', 'estado': 'confirmada',
+         'hora_inicio': '10:00', 'hora_fin': '11:00'},
+    ]
+    r = client.get('/api/reservas_amenities?amenity_id=amen-1&desde=2026-10-01&hasta=2026-10-31')
+    assert [x['id'] for x in r.get_json()] == ['r1']
