@@ -97,7 +97,8 @@
     .stat-card:hover { transform:translateY(-2px); box-shadow:0 4px 16px rgba(42,33,28,0.2); }
     .stat-card.purple{border-left-color:var(--purple)} .stat-card.amber{border-left-color:var(--amber)} .stat-card.red{border-left-color:var(--red)}
     .stat-label { font-size:0.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px; font-weight:600; }
-    .stat-value { font-size:1.65rem; font-weight:800; letter-spacing:-0.02em; }
+    .stat-value { font-size:1.65rem; font-weight:800; letter-spacing:-0.02em; white-space:nowrap; overflow:hidden; font-variant-numeric:tabular-nums; }
+    .stat-card { min-width:0; }
     .stat-chip { font-size:0.7rem; margin-top:5px; padding:2px 7px; border-radius:4px; display:inline-block; font-weight:600; }
     .stat-chip.ok{background:var(--teal-dim);color:var(--teal)} .stat-chip.bad{background:var(--nd-terracota-dim);color:var(--nd-terracota-hondo)} .stat-chip.warn{background:rgba(242,183,5,0.1);color:var(--amber)}
     
@@ -228,6 +229,22 @@
     .medio-nom{font-weight:700;font-size:0.86rem;margin-bottom:2px}
     .medio-desc{font-size:0.78rem;color:var(--muted);line-height:1.5}
     
+    /* Navegador de meses: el mismo que usa el administrador en Gastos. */
+    .gas-filtros{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+    .gas-total{font-size:0.85rem;color:var(--text2);font-weight:700;margin-left:auto}
+    .mes-nav{position:relative;display:inline-flex;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:2px}
+    .mes-arrow{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border:none;background:none;border-radius:9px;color:var(--muted);cursor:pointer}
+    .mes-arrow:hover{background:var(--surface2);color:var(--text)}
+    .mes-actual{min-width:140px;padding:6px 12px;border:none;background:none;font-family:inherit;font-size:0.88rem;font-weight:800;color:var(--text);border-radius:9px;cursor:pointer;text-transform:capitalize}
+    .mes-actual:hover{background:var(--surface2)}
+    .mes-pop{display:none;position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);z-index:40;width:250px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 32px rgba(42,33,28,.16)}
+    .mes-pop.open{display:block}
+    .mes-pop-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+    .mes-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+    .mes-item{padding:8px 0;border:none;background:none;border-radius:9px;font-family:inherit;font-size:0.8rem;font-weight:700;color:var(--text2);cursor:pointer;text-transform:capitalize}
+    .mes-item:hover{background:var(--surface2);color:var(--text)}
+    .mes-item.sel{background:var(--nd-terracota);color:#fff}
+    .mes-item.hoy{box-shadow:inset 0 0 0 1.5px var(--nd-terracota)}
     .invalid-feedback { color: var(--red); font-size: 0.72rem; margin-top: 4px; display: none; }
     .char-counter { font-size: 0.72rem; color: var(--muted); text-align: right; margin-top: 4px; }
     
@@ -434,13 +451,27 @@
 <!-- REPORTE GASTOS -->
 <div id="section-gastos" class="section sw">
     <div class="pg-head"><div class="pg-title"><svg class="ic"><use href="#ic-balance"></use></svg>Reporte de Gastos</div><div class="pg-sub">Gastos del consorcio — transparencia total</div></div>
-    <div class="table-wrap" style="padding:16px;margin-bottom:16px">
-        <div class="f-row" style="align-items:flex-end">
-            <div class="fg" style="margin-bottom:0"><label class="fl">Desde</label><input type="date" id="gas-desde" class="fc" onchange="loadGastos()"></div>
-            <div class="fg" style="margin-bottom:0"><label class="fl">Hasta</label><input type="date" id="gas-hasta" class="fc" onchange="loadGastos()"></div>
-            <div class="fg" style="margin-bottom:0"><label class="fl">Categoría</label><select id="gas-cat" class="fc" onchange="loadGastos()"><option value="">Todas</option><option value="electricidad">Electricidad</option><option value="gas">Gas</option><option value="agua">Agua</option><option value="limpieza">Limpieza</option><option value="ascensor">Ascensor</option><option value="seguro">Seguro</option><option value="honorarios">Honorarios</option><option value="otro">Otro</option></select></div>
-            <button class="btn btn-secondary" onclick="loadGastos()"><svg class="ic ic-sm"><use href="#ic-buscar"></use></svg>Filtrar</button>
+    <!-- Por mes, igual que la pantalla de Gastos del administrador: se abre en
+         el mes corriente y los demás están a un clic. Las fechas sueltas quedan
+         escondidas: las escribe el navegador de meses y las lee loadGastos. -->
+    <div class="gas-filtros">
+        <div class="mes-nav" id="gas-mes-nav">
+            <button class="mes-arrow" onclick="gasMoverMes(-1)" aria-label="Mes anterior" title="Mes anterior"><svg class="ic ic-sm"><use href="#ic-volver"></use></svg></button>
+            <button class="mes-actual" id="gas-mes-label" onclick="gasTogglePicker(event)" aria-haspopup="true" aria-expanded="false">—</button>
+            <button class="mes-arrow" onclick="gasMoverMes(1)" aria-label="Mes siguiente" title="Mes siguiente"><svg class="ic ic-sm" style="transform:rotate(180deg)"><use href="#ic-volver"></use></svg></button>
+            <div class="mes-pop" id="gas-mes-pop">
+                <div class="mes-pop-head">
+                    <button class="mes-arrow" onclick="gasMoverAnio(-1)" aria-label="Año anterior"><svg class="ic ic-sm"><use href="#ic-volver"></use></svg></button>
+                    <strong id="gas-pop-anio">2026</strong>
+                    <button class="mes-arrow" onclick="gasMoverAnio(1)" aria-label="Año siguiente"><svg class="ic ic-sm" style="transform:rotate(180deg)"><use href="#ic-volver"></use></svg></button>
+                </div>
+                <div class="mes-grid" id="gas-mes-grid"></div>
+            </div>
         </div>
+        <button class="btn btn-secondary btn-sm" id="gas-btn-hoy" style="display:none" onclick="gasIrAlMesDeHoy()">Volver al mes actual</button>
+        <select id="gas-cat" class="fc" style="width:auto" onchange="loadGastos()"><option value="">Todas las categorías</option><option value="electricidad">Electricidad</option><option value="gas">Gas</option><option value="agua">Agua</option><option value="limpieza">Limpieza</option><option value="ascensor">Ascensor</option><option value="seguro">Seguro</option><option value="honorarios">Honorarios</option><option value="impuesto">Impuesto</option><option value="mantenimiento">Mantenimiento</option><option value="sueldos">Sueldos</option><option value="otro">Otro</option></select>
+        <span class="gas-total" id="gas-total-label"></span>
+        <input type="hidden" id="gas-desde"><input type="hidden" id="gas-hasta">
     </div>
     
     <div class="table-wrap">
@@ -1243,51 +1274,78 @@ function dlCobros(fmt){
     window.location.href='/api/vecinos/cobros/export'+(p.length?'?'+p.join('&'):'');
 }
 
+/* ── Reporte de gastos, por mes ──────────────────────────────────────────────
+   Se abre en el mes corriente, como la pantalla del administrador. Cambiar de
+   mes limpia la tabla al toque (o la pinta desde memoria si ya se vio) y una
+   respuesta vieja nunca pisa a la nueva. */
+const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const dd=n=>String(n).padStart(2,'0');
+const gasHoy=()=>{const h=new Date();return{y:h.getFullYear(),m:h.getMonth()+1}};
+S.gasMes=null;S.gasPopAnio=null;S.gasTurno=0;S.gasMemoria={};
+function gasAplicarMes(){
+    const {y,m}=S.gasMes;const ult=new Date(y,m,0).getDate();
+    document.getElementById('gas-desde').value=`${y}-${dd(m)}-01`;
+    document.getElementById('gas-hasta').value=`${y}-${dd(m)}-${dd(ult)}`;
+    document.getElementById('gas-mes-label').textContent=`${MESES[m-1]} ${y}`;
+    const h=gasHoy();document.getElementById('gas-btn-hoy').style.display=(h.y===y&&h.m===m)?'none':'';
+}
+function gasMoverMes(delta){let {y,m}=S.gasMes||gasHoy();m+=delta;if(m<1){m=12;y--}if(m>12){m=1;y++}S.gasMes={y,m};gasAplicarMes();loadGastos()}
+function gasIrAlMesDeHoy(){S.gasMes=gasHoy();gasAplicarMes();loadGastos()}
+function gasTogglePicker(ev){if(ev)ev.stopPropagation();const pop=document.getElementById('gas-mes-pop');const ab=pop.classList.toggle('open');document.getElementById('gas-mes-label').setAttribute('aria-expanded',ab?'true':'false');if(!ab)return;S.gasPopAnio=(S.gasMes||gasHoy()).y;gasPintarPicker()}
+function gasMoverAnio(d){S.gasPopAnio+=d;gasPintarPicker()}
+function gasPintarPicker(){
+    const h=gasHoy();document.getElementById('gas-pop-anio').textContent=S.gasPopAnio;
+    document.getElementById('gas-mes-grid').innerHTML=MESES.map((n,i)=>{const m=i+1;const sel=S.gasMes&&S.gasMes.y===S.gasPopAnio&&S.gasMes.m===m;const hoy=h.y===S.gasPopAnio&&h.m===m;
+        return `<button class="mes-item${sel?' sel':''}${hoy&&!sel?' hoy':''}" onclick="gasElegirMes(${S.gasPopAnio},${m})">${n.slice(0,3)}</button>`}).join('');
+}
+function gasElegirMes(y,m){S.gasMes={y,m};document.getElementById('gas-mes-pop').classList.remove('open');gasAplicarMes();loadGastos()}
+document.addEventListener('click',e=>{const nav=document.getElementById('gas-mes-nav');if(nav&&!nav.contains(e.target))document.getElementById('gas-mes-pop').classList.remove('open')});
+
 async function loadGastos(){
-    const tb=document.getElementById('tb-gastos');tb.innerHTML='<tr><td colspan="6" class="tbl-empty">Cargando...</td></tr>';
+    if(!S.gasMes){S.gasMes=gasHoy();gasAplicarMes()}
+    const tb=document.getElementById('tb-gastos');
     const p=new URLSearchParams();const d=document.getElementById('gas-desde').value;const h=document.getElementById('gas-hasta').value;const c=document.getElementById('gas-cat').value;
     if(d)p.set('desde',d);if(h)p.set('hasta',h);if(c)p.set('categoria',c);
+    const url='/api/vecinos/gastos-reporte?'+p;const turno=++S.gasTurno;
+    if(S.gasMemoria[url])pintarGastosVecino(S.gasMemoria[url]);
+    else{tb.innerHTML='<tr><td colspan="6" class="tbl-empty">Cargando...</td></tr>';document.getElementById('gas-total-label').textContent='';
+        const l=tb.closest('.table-wrap').querySelector('.nd-list');if(l)l.innerHTML='<div class="tbl-empty">Cargando...</div>'}
     try{
-        const data=await api('/api/vecinos/gastos-reporte?'+p);
-        if(!data.length){tb.innerHTML='<tr><td colspan="6" class="tbl-empty">Sin gastos para el período</td></tr>'; return}
-        
-        let totalAcumulado = 0;
-        
-        const rows = data.map(g=> {
-            totalAcumulado += g.monto || 0;
-            return `<tr class="data-row">
-                <td data-val="${g.fecha_gasto || ''}">${fmtD(g.fecha_gasto)}</td>
-                <td>${esc(g.descripcion||'–')}</td>
-                <td>${esc(g.categoria||'–')}</td>
-                <td data-val="${g.monto || 0}"><strong>${fmt$(g.monto)}</strong></td>
-                <td>${g.pagado?'<span class="badge ok">Sí</span>':'<span class="badge pending">No</span>'}</td>
-                <td>${g.archivo_nombre?`<a href="/api/gastos/${g.id}/comprobante" target="_blank" style="color:var(--blue);font-size:0.8rem" aria-label="Adjunto" title="Adjunto"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg></a>`:'–'}</td>
-            </tr>`;
-        });
-        
-        // Add totals row
-        rows.push(`<tr class="totales-row">
-            <td>Total Registrado</td>
-            <td colspan="2"></td>
-            <td>${fmt$(totalAcumulado)}</td>
-            <td colspan="2"></td>
-        </tr>`);
-        
-        tb.innerHTML=rows.join('');
-
-        /* La lista que se lee en mobile, del mismo `data` que arma los <tr>. */
-        const wrapG = tb.closest('.table-wrap');
-        let listG = wrapG.querySelector('.nd-list');
-        if (!listG) { listG = document.createElement('div'); listG.className = 'nd-list'; wrapG.appendChild(listG); }
-        listG.innerHTML = data.map(g => `<div class="nd-row" style="cursor:default">
-            <span class="nd-row-ic ok"><svg class="ic"><use href="#ic-balance"></use></svg></span>
-            <span class="nd-row-main">
-                <span class="nd-row-t">${esc(g.descripcion || '–')}</span>
-                <span class="nd-row-s">${esc(g.categoria || 'sin categoría')} · ${fmtD(g.fecha_gasto)}</span>
-            </span>
-            <span class="nd-row-amt">${fmt$(g.monto)}</span>
-        </div>`).join('');
-    }catch(e){tb.innerHTML='<tr><td colspan="6" class="tbl-empty">Error al cargar gastos</td></tr>'}
+        const data=await api(url);
+        if(turno!==S.gasTurno)return;
+        S.gasMemoria[url]=data;
+        pintarGastosVecino(data);
+    }catch(e){if(turno===S.gasTurno)tb.innerHTML='<tr><td colspan="6" class="tbl-empty">Error al cargar gastos</td></tr>'}
+}
+function pintarGastosVecino(data){
+    const tb=document.getElementById('tb-gastos');
+    const wrapG=tb.closest('.table-wrap');
+    let listG=wrapG.querySelector('.nd-list');
+    if(!listG){listG=document.createElement('div');listG.className='nd-list';wrapG.appendChild(listG)}
+    const donde=S.gasMes?`en ${MESES[S.gasMes.m-1]} de ${S.gasMes.y}`:'';
+    if(!data.length){tb.innerHTML=`<tr><td colspan="6" class="tbl-empty">No hay gastos cargados ${donde}</td></tr>`;listG.innerHTML=`<div class="tbl-empty">No hay gastos cargados ${donde}</div>`;document.getElementById('gas-total-label').textContent='';return}
+    let totalAcumulado=0;
+    const rows=data.map(g=>{
+        totalAcumulado+=g.monto||0;
+        return `<tr class="data-row">
+            <td data-val="${g.fecha_gasto||''}">${fmtD(g.fecha_gasto)}</td>
+            <td>${esc(g.descripcion||'–')}</td>
+            <td>${esc(g.categoria||'–')}</td>
+            <td data-val="${g.monto||0}"><strong>${fmt$(g.monto)}</strong></td>
+            <td>${g.pagado?'<span class="badge ok">Sí</span>':'<span class="badge pending">No</span>'}</td>
+            <td>${g.archivo_nombre?`<a href="/api/gastos/${g.id}/comprobante" target="_blank" style="color:var(--blue);font-size:0.8rem" aria-label="Comprobante" title="Ver comprobante"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg></a>`:'–'}</td>
+        </tr>`});
+    rows.push(`<tr class="totales-row"><td>Total del mes</td><td colspan="2"></td><td>${fmt$(totalAcumulado)}</td><td colspan="2"></td></tr>`);
+    tb.innerHTML=rows.join('');
+    document.getElementById('gas-total-label').textContent='Total: '+fmt$(totalAcumulado);
+    listG.innerHTML=data.map(g=>`<div class="nd-row" style="cursor:default">
+        <span class="nd-row-ic ok"><svg class="ic"><use href="#ic-balance"></use></svg></span>
+        <span class="nd-row-main">
+            <span class="nd-row-t">${esc(g.descripcion||'–')}</span>
+            <span class="nd-row-s">${esc(g.categoria||'sin categoría')} · ${fmtD(g.fecha_gasto)}</span>
+        </span>
+        <span class="nd-row-amt">${fmt$(g.monto)}</span>
+    </div>`).join('');
 }
 
 async function loadReclamos(){
@@ -1973,6 +2031,25 @@ function sortTable(colIdx, tableId) {
     const tot = tbody.querySelector('.totales-row');
     if (tot) tbody.appendChild(tot);
 }
+
+/* Un importe de siete u ocho cifras no entra a 1,65rem en una tarjeta angosta:
+   se achica hasta que entre (con un piso legible) en vez de salirse del borde.
+   Corre cada vez que cambia un número y al cambiar el ancho de la ventana. */
+function ajustarNumeros(raiz){
+    (raiz||document).querySelectorAll('.stat-value').forEach(el=>{
+        el.style.fontSize='';
+        if(!el.offsetParent)return;
+        let t=parseFloat(getComputedStyle(el).fontSize);
+        while(el.scrollWidth>el.clientWidth+1&&t>12){t-=1;el.style.fontSize=t+'px'}
+    });
+}
+document.addEventListener('DOMContentLoaded',()=>{
+    if(!window.MutationObserver)return;
+    new MutationObserver(c=>{if(c.some(x=>x.target.closest&&x.target.closest('.stats-grid')))requestAnimationFrame(()=>ajustarNumeros())})
+        .observe(document.body,{childList:true,subtree:true,characterData:true});
+});
+let ajusteNumPend=null;
+window.addEventListener('resize',()=>{clearTimeout(ajusteNumPend);ajusteNumPend=setTimeout(()=>ajustarNumeros(),120)});
 
 window.addEventListener('DOMContentLoaded',init);
 </script>
