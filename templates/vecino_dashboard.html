@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-visual">
     <title>Mi Consorcio | Niddo</title>
     {% include '_head_app.html' %}
     <meta name="description" content="Dashboard de vecino Niddo — gestioná tus expensas, reservas, reclamos y comunicados del consorcio.">
@@ -225,7 +225,7 @@
     .cal-booked{background:var(--nd-terracota-dim);border:1px solid var(--nd-terracota);color:var(--nd-terracota-hondo);font-weight:600}
     .cal-booked-time{display:block;font-weight:400;opacity:0.8;font-size:0.68rem}
     .cal-selection{background:var(--accent);opacity:0.85;color:var(--accent-ink);font-weight:700;border:1px solid var(--nd-terracota-hondo);pointer-events:none;display:none}
-    .res-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:14px 16px 16px}
+    .res-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;padding:14px 16px 16px}
     .res-dow{font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:center;padding-bottom:2px}
     .res-dia{position:relative;min-height:66px;border:1px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;padding:6px 8px;text-align:left;font-family:inherit;display:flex;flex-direction:column;gap:4px;transition:all .15s}
     .res-dia:hover:not(:disabled){border-color:var(--nd-terracota);box-shadow:0 2px 10px rgba(232,115,74,.15)}

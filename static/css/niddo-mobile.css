@@ -74,6 +74,9 @@
         border: 2px solid #fff;
     }
 
+    /* Con el teclado abierto (niddo-mobile.js) la tab bar se va. */
+    .nd-teclado #nd-tabbar, .nd-teclado .nd-tabbar { display: none !important; }
+
     /* El contenido tiene que despejar la tab bar más la safe area. */
     .app-main {
         padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
@@ -836,6 +839,15 @@
     }
     .nd-mobile .tabs::-webkit-scrollbar { display: none; }
     .nd-mobile .tab-btn { min-height: 44px; white-space: nowrap; flex-shrink: 0; }
+
+    /* Formularios del admin: tres columnas en 360px dejaban "Elec" y
+       "$ 184.!" cortados. En el teléfono, una columna (dos para campos
+       cortos como piso y tipo no alcanza a justificar la excepción). */
+    .nd-mobile .form-row,
+    .nd-mobile .form-row3 { grid-template-columns: 1fr; gap: 0; }
+    /* El "?" de la sección ya está en la barra de arriba. */
+    .nd-mobile .page-header .nd-ayuda-btn { display: none; }
+    .nd-mobile .page-header.nd-con-ayuda { padding-right: 0; }
 
     /* Los filtros en fila desbordan; que se apilen. */
     .nd-mobile .page-header > div { flex-wrap: wrap; }

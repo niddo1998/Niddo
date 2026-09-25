@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-visual">
     <title>Panel Administrador | Niddo</title>
     {% include '_head_app.html' %}
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -48,10 +48,13 @@
                 'filter-gastos-consorcio',
                 'filter-cobros-consorcio',
                 'filter-mora-consorcio',
-                'filter-liq-consorcio',
-                'auto-consorcio',
-                'm-gasto-consorcio'
+                'filter-liq-consorcio'
             ],
+            /* Los selectores de consorcio de los formularios (gasto, carga con
+               IA) NO van en el contexto: el contexto les escribía el valor y los
+               escondía, así que editar un gasto en el teléfono le borraba el
+               consorcio (o lo mudaba al del contexto) y guardar fallaba. Arrancan
+               con el consorcio activo, pero se ven y se pueden cambiar. */
             groups: [
                 { label: 'Operación', items: [
                     { section: 'dashboard',     label: 'Hoy',            icon: 'ic-panel' },
@@ -3324,6 +3327,14 @@ function hoyLocalISO() {
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+/* El consorcio con el que conviene arrancar un formulario: el del filtro de
+   Gastos, que en el teléfono es el del contexto del cajón. Vacío si se están
+   mirando todos. */
+function consorcioSugerido() {
+    const f = $('filter-gastos-consorcio');
+    return (f && f.value) || '';
+}
+
 function openGastoChoice() {
     openModal('modal-gasto-choice');
 }
@@ -3340,6 +3351,7 @@ function openAutoExtract() {
     resetAutoExtract();
     const opts = '<option value="">Seleccionar...</option>' + consorcios.map(c=>`<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('');
     $('auto-consorcio').innerHTML = opts;
+    $('auto-consorcio').value = consorcioSugerido();
     openModal('modal-auto-extract');
 
     // Dropzone events
@@ -3647,11 +3659,13 @@ function ndNuevoGastoManual() {
 }
 
 function ndCargaRapida() {
+    // openGastoModal ya preselecciona el consorcio del contexto. Con uno solo
+    // no hay nada que preguntar.
     openGastoModal();
-    /* openGastoModal repuebla el select de consorcio y lo deja vacío para un
-       gasto nuevo. En mobile el consorcio no se pregunta: sale del contexto,
-       así que hay que devolvérselo después de que lo limpie. */
-    NiddoMobile.reaplicarContexto();
+    if (!$('m-gasto-consorcio').value && consorcios.length === 1) {
+        $('m-gasto-consorcio').value = consorcios[0].id;
+        onGastoConsorcioChange();
+    }
 
     const modal = $('modal-gasto');
     const body = modal.querySelector('.modal-body');
@@ -3673,7 +3687,18 @@ function ndCargaRapida() {
 
     const cats = [...$('m-gasto-cat').options].filter(o => o.value);
 
-    p.innerHTML = `
+    /* Si no hay un consorcio elegido (el contexto está en "todos"), se
+       pregunta acá arriba: el resto del formulario está escondido y sin
+       consorcio el gasto no se puede guardar. */
+    const elegirConsorcio = $('m-gasto-consorcio').value ? '' : `
+        <div class="nd-lbl-sec">Consorcio</div>
+        <select class="form-ctrl" id="nd-rapido-consorcio"
+                onchange="$('m-gasto-consorcio').value = this.value; onGastoConsorcioChange()">
+            <option value="">Elegí el edificio...</option>
+            ${consorcios.map(c => `<option value="${c.id}">${escHtml(c.nombre)}</option>`).join('')}
+        </select>`;
+
+    p.innerHTML = elegirConsorcio + `
         <div class="nd-monto-big" id="nd-monto-vista">$0</div>
         <div class="nd-monto-hint">Monto del gasto</div>
         <div class="nd-numpad">
@@ -3910,7 +3935,10 @@ function openGastoModal(id) {
     toggleGastoAlcance();
 
     if (!id) {
-        $('m-gasto-consorcio').value = '';
+        // Un gasto nuevo arranca en el consorcio que se está mirando (el del
+        // filtro, o el del contexto en el teléfono); si son todos, se elige.
+        $('m-gasto-consorcio').value = consorcioSugerido();
+        if ($('m-gasto-consorcio').value) onGastoConsorcioChange();
         ['m-gasto-desc','m-gasto-monto','m-gasto-notas'].forEach(f=>$(f).value='');
         $('m-gasto-fecha').value = new Date().toISOString().split('T')[0];
         /* El gasto se carga cuando ya se pagó: ese es el caso normal y por eso

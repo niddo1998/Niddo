@@ -726,6 +726,26 @@
         }
     }
 
+    /* Android: con el teclado abierto, la tab bar fija sube con él y tapa el
+       campo que se está escribiendo (en iPhone el teclado la cubre). Mientras
+       hay un campo de texto enfocado, la tab bar no se muestra. El viewport
+       además declara interactive-widget=resizes-visual, que en Chrome deja al
+       teclado encima de la página como en Safari. */
+    function esCampoDeTexto(el) {
+        if (!el || !el.tagName) return false;
+        if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true;
+        if (el.tagName !== 'INPUT') return false;
+        return !/^(checkbox|radio|button|submit|file|range|color)$/i.test(el.type);
+    }
+    document.addEventListener('focusin', function (e) {
+        if (esCampoDeTexto(e.target)) document.documentElement.classList.add('nd-teclado');
+    });
+    document.addEventListener('focusout', function () {
+        setTimeout(function () {
+            if (!esCampoDeTexto(document.activeElement)) document.documentElement.classList.remove('nd-teclado');
+        }, 60);
+    });
+
     document.addEventListener('DOMContentLoaded', function () {
         wrapNav();
         initSheets();
