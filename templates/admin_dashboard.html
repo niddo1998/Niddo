@@ -73,7 +73,7 @@
                     /* Página propia, no sección: en móvil el sidebar no existe
                        y sin esta entrada el panel de aprobaciones sólo se
                        alcanzaba escribiendo la URL. */
-                    { href: '/superadmin',      label: 'Aprobaciones',   icon: 'ic-vecino' }
+                    { href: '/superadmin',      label: 'Panel Super Admin', icon: 'ic-panel' }
                     {% endif %}
                 ]}
             ]
@@ -525,7 +525,8 @@
         <div class="nav-section-label">Sistema</div>
         <a class="nav-link" onclick="show('config',this)"><svg class="ic"><use href="#ic-config"></use></svg>Configuración</a>
         {% if es_superadmin %}
-        <a class="nav-link" href="/superadmin"><svg class="ic"><use href="#ic-vecino"></use></svg>Aprobaciones</a>
+        <div class="nav-section-label">Plataforma</div>
+        <a class="nav-link" href="/superadmin"><svg class="ic"><use href="#ic-panel"></use></svg>Panel Super Admin</a>
         {% endif %}
     </div>
     <div class="sidebar-footer">
@@ -1740,7 +1741,7 @@
             <div style="border-top:1px solid var(--border);padding-top:16px;">
                 <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:.84rem;">
                     <span style="color:var(--muted);">Rol</span>
-                    <span class="b b-p">Administrador</span>
+                    <span class="b b-p">{% if es_superadmin %}Super administrador{% else %}Administrador{% endif %}</span>
                 </div>
                 <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:.84rem;">
                     <span style="color:var(--muted);">Consorcios</span>
