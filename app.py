@@ -2480,11 +2480,41 @@ def _generar_recurrentes_silencioso(admin_id):
         return 0
 
 
+# Cada cuánto se vuelve a barrer las plantillas recurrentes desde la lista de
+# gastos. Antes se barría en cada GET, y la pantalla de Gastos pide uno por
+# cada cambio de mes o de consorcio: dos consultas extra por clic para una
+# respuesta que casi nunca cambia en el día.
+RECURRENTES_CADA_SEG = 600
+
+
+def _recurrentes_al_dia(admin_id):
+    """Genera los recurrentes pendientes, como mucho una vez cada diez minutos.
+
+    El recuerdo vive en la sesión y está atado al administrador y al día: al
+    cambiar de fecha o de cuenta (impersonación) se vuelve a barrer igual. Crear
+    o editar un gasto lo borra (`_olvidar_recurrentes`), porque puede haber
+    nacido una plantilla nueva.
+    """
+    ahora = datetime.now(timezone.utc)
+    visto = session.get('recurrentes_revisados') or {}
+    if (visto.get('admin') == admin_id and visto.get('dia') == str(date.today())
+            and ahora.timestamp() - float(visto.get('at') or 0) < RECURRENTES_CADA_SEG):
+        return 0
+    creados = _generar_recurrentes_silencioso(admin_id)
+    session['recurrentes_revisados'] = {'admin': admin_id, 'dia': str(date.today()),
+                                        'at': ahora.timestamp()}
+    return creados
+
+
+def _olvidar_recurrentes():
+    session.pop('recurrentes_revisados', None)
+
+
 @app.route('/api/gastos', methods=['GET'])
 @require_auth(allowed_roles=['admin'])
 def api_gastos_list():
     admin_id = get_admin_id()
-    _generar_recurrentes_silencioso(admin_id)
+    _recurrentes_al_dia(admin_id)
     q = supabase.table('gastos') \
         .select('*, consorcios(nombre), unidades_funcionales(numero, piso)') \
         .eq('admin_id', admin_id)
@@ -2551,6 +2581,7 @@ def _unidad_es_del_consorcio(unidad_id, consorcio_id):
 @require_auth(allowed_roles=['admin'])
 def api_gastos_create():
     admin_id = get_admin_id()
+    _olvidar_recurrentes()
     # Soporte multipart/form-data para archivos adjuntos
     d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
     payload = {
@@ -2625,6 +2656,7 @@ def api_gastos_create():
 @require_auth(allowed_roles=['admin'])
 def api_gastos_update(gid):
     admin_id = get_admin_id()
+    _olvidar_recurrentes()
     d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
     # Lo que el formulario dejó de pedir tampoco se acepta acá: un PUT sin esas
     # claves no las toca, así que el dato viejo de un gasto ya cargado se
@@ -3013,6 +3045,7 @@ def api_gastos_carga_masiva():
     la diferencia entre que el administrador corrija tres renglones y que
     vuelva a empezar de cero por un typo en la fila 148.
     """
+    _olvidar_recurrentes()
     admin_id = get_admin_id()
     file = request.files.get('file')
     if not file:

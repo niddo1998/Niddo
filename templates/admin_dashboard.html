@@ -2134,11 +2134,83 @@ const toast = (msg,type='ok') => {
     $('toasts').appendChild(t);
     setTimeout(() => t.remove(), 3200);
 };
+/* ── Datos sin lag ────────────────────────────────────────────────────────────
+   Tres cosas hacían que cambiar de mes o de consorcio se sintiera lento y, peor,
+   mostrara por unos segundos datos que no correspondían:
+
+   1. La tabla vieja quedaba en pantalla hasta que llegaba la nueva. Ahora la
+      pantalla se limpia o se pinta desde la memoria apenas se toca el filtro.
+   2. Dos cambios seguidos disparaban dos pedidos, y si el primero llegaba
+      último pisaba al segundo. Cada carga pide un turno y sólo pinta si sigue
+      siendo el último (`pedirTurno` / `sigueSiendo`).
+   3. Volver a un mes ya visto pedía todo de nuevo. Las lecturas quedan un
+      minuto en memoria (`apiEnMemoria`) y se revalidan igual por detrás.
+
+   La memoria se vacía con cualquier escritura (POST, PUT, DELETE), sea por
+   `api()` o por un `fetch` directo con FormData: después de guardar, nada
+   viejo puede volver a pintarse. */
+const apiMemoria = new Map();
+const API_MEMORIA_MS = 60000;
+const fetchOriginal = window.fetch.bind(window);
+window.fetch = (url, opts = {}) => {
+    if ((opts.method || 'GET').toUpperCase() !== 'GET') apiMemoria.clear();
+    return fetchOriginal(url, opts);
+};
 const api = async (url, opts={}) => {
     const r = await fetch(url, {headers:{'Content-Type':'application/json'}, ...opts});
     if (!r.ok) { const e = await r.json().catch(()=>({error:'Error'})); throw new Error(e.error||'Error'); }
-    return r.json();
+    const data = await r.json();
+    if ((opts.method || 'GET').toUpperCase() === 'GET') apiMemoria.set(url, {t: Date.now(), data});
+    return data;
 };
+function apiEnMemoria(url) {
+    const m = apiMemoria.get(url);
+    return m && Date.now() - m.t < API_MEMORIA_MS ? m.data : null;
+}
+/* Trae algo a la memoria sin pintarlo: el mes de al lado, por si lo pedís. */
+function precargar(url) {
+    if (apiEnMemoria(url)) return;
+    api(url).catch(() => {});
+}
+const turnos = {};
+const pedirTurno = clave => (turnos[clave] = (turnos[clave] || 0) + 1);
+const sigueSiendo = (clave, turno) => turnos[clave] === turno;
+/* El molde de todas las cargas de una tabla: turno, memoria, "Cargando..."
+   mientras no hay nada que mostrar, y pintar sólo si sigue siendo lo último
+   que se pidió. Devuelve los datos, o undefined si llegaron tarde. */
+async function cargarTabla({clave, url, tbody, columnas, pintar, alFallar}) {
+    const turno = pedirTurno(clave);
+    const enMemoria = apiEnMemoria(url);
+    if (enMemoria) pintar(enMemoria);
+    else if (tbody) filaCargando(tbody, columnas);
+    try {
+        const data = await api(url);
+        if (!sigueSiendo(clave, turno)) return;
+        pintar(data);
+        return data;
+    } catch (e) {
+        if (!sigueSiendo(clave, turno)) return;
+        if (alFallar) alFallar(e); else toast(e.message, 'err');
+    }
+}
+
+/* La lista de mobile de una tabla que quedó vacía. Sin esto el teléfono
+   seguía mostrando las filas de la consulta anterior. */
+function listaVacia(tbodyId, texto) {
+    const tb = $(tbodyId);
+    const wrap = tb && (tb.closest('.card') || tb.closest('.table-wrap'));
+    const lista = wrap && wrap.querySelector('.nd-list');
+    if (lista) lista.innerHTML = `<div class="tbl-empty">${texto}</div>`;
+}
+function filaCargando(tbodyId, columnas, texto = 'Cargando...') {
+    const tb = $(tbodyId);
+    if (tb) tb.innerHTML = `<tr><td colspan="${columnas}" class="tbl-empty">${texto}</td></tr>`;
+    /* La lista de mobile se arma aparte del <tbody>: también se vacía, si no
+       el teléfono seguía mostrando el mes anterior. */
+    const wrap = tb && (tb.closest('.card') || tb.closest('.table-wrap'));
+    const lista = wrap && wrap.querySelector('.nd-list');
+    if (lista) lista.innerHTML = `<div class="tbl-empty">${texto}</div>`;
+}
 function openModal(id) { $(id).classList.add('open'); }
 function closeModal(id) { $(id).classList.remove('open'); }
 function statusBadge(estado) {
@@ -2171,14 +2243,22 @@ function poblarDiasCarga() {
    viajes en serie para dibujar lo mismo. */
 async function loadDashboard() {
     $('dash-fecha').textContent = new Date().toLocaleDateString('es-AR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    const url = '/api/dashboard/resumen';
+    const turno = pedirTurno('dashboard');
+    if (apiEnMemoria(url)) pintarDashboard(apiEnMemoria(url));
     let d;
     try {
-        d = await api('/api/dashboard/resumen');
+        d = await api(url);
     } catch (e) {
-        $('dash-semaforo').innerHTML =
+        if (sigueSiendo('dashboard', turno)) $('dash-semaforo').innerHTML =
             `<div class="tbl-empty">No se pudo cargar el panel: ${escHtml(e.message)}</div>`;
         return;
     }
+    if (!sigueSiendo('dashboard', turno)) return;
+    pintarDashboard(d);
+}
+
+function pintarDashboard(d) {
     dashDegradado(d.degradado);
     dashSemaforo(d);
     dashPlata(d.plata);
@@ -2555,27 +2635,39 @@ async function openDetail(id, nombre, dir) {
     currentConsorioId = id;
     $('detail-nombre').textContent = nombre;
     $('detail-dir').textContent = dir||'—';
-    document.querySelector('.card').style.display = 'none';
-    document.querySelector('.page-header').style.display = 'none';
+    /* Acotado a la sección: `document.querySelector('.card')` a secas agarraba
+       la primera tarjeta de la página —la del Panel— y el listado de
+       consorcios quedaba a la vista arriba del detalle. */
+    document.querySelector('#sec-consorcios > .card').style.display = 'none';
+    document.querySelector('#sec-consorcios > .page-header').style.display = 'none';
     $('consorcio-detail').style.display = 'block';
-    await loadUFs();
-    await loadPendingNeighbors();
+    /* Lo del consorcio anterior se borra antes de pedir lo nuevo: si no, sus
+       unidades y solicitudes quedaban en pantalla hasta que llegaba la
+       respuesta, rotuladas con el nombre del consorcio nuevo. */
+    currentUFs = [];
+    filaCargando('tbody-ufs', 7);
+    $('consorcio-vecinos-pendientes-card').style.display = 'none';
+    $('tbody-vecinos-pendientes').innerHTML = '';
+    await Promise.all([loadUFs(), loadPendingNeighbors()]);
 }
 
 function closeDetail() {
     currentConsorioId = null;
     $('consorcio-detail').style.display = 'none';
     $('consorcio-vecinos-pendientes-card').style.display = 'none';
-    document.querySelector('#sec-consorcios .card').style.display = '';
-    document.querySelector('#sec-consorcios .page-header').style.display = '';
+    document.querySelector('#sec-consorcios > .card').style.display = '';
+    document.querySelector('#sec-consorcios > .page-header').style.display = '';
 }
 
 let currentUFs = [];
 
 async function loadUFs() {
     if (!currentConsorioId) return;
+    const cid = currentConsorioId;
+    const turno = pedirTurno('ufs');
     try {
-        const ufs = await api(`/api/consorcios/${currentConsorioId}/unidades`);
+        const ufs = await api(`/api/consorcios/${cid}/unidades`);
+        if (!sigueSiendo('ufs', turno) || cid !== currentConsorioId) return;
         currentUFs = ufs;
         const tb = $('tbody-ufs');
         if (!ufs.length) { tb.innerHTML = '<tr><td colspan="7" class="tbl-empty">Sin unidades. Añadí la primera o usá carga masiva.</td></tr>'; return; }
@@ -2661,8 +2753,11 @@ let pendingNeighborsList = [];
 
 async function loadPendingNeighbors() {
     if (!currentConsorioId) return;
+    const cid = currentConsorioId;
+    const turno = pedirTurno('pendientes');
     try {
-        const list = await api(`/api/consorcios/${currentConsorioId}/vecinos/pendientes`);
+        const list = await api(`/api/consorcios/${cid}/vecinos/pendientes`);
+        if (!sigueSiendo('pendientes', turno) || cid !== currentConsorioId) return;
         pendingNeighborsList = list;
         const card = $('consorcio-vecinos-pendientes-card');
         const tb = $('tbody-vecinos-pendientes');
@@ -3035,61 +3130,90 @@ async function confirmarTarifas() {
 
 let currentGastos = [];
 
-async function loadGastos() {
+function urlGastos(desde, hasta) {
     const params = new URLSearchParams();
     const cid = $('filter-gastos-consorcio')?.value; if (cid) params.set('consorcio_id',cid);
-    const desde = $('filter-gastos-desde')?.value; if (desde) params.set('desde',desde);
-    const hasta = $('filter-gastos-hasta')?.value; if (hasta) params.set('hasta',hasta);
-    try {
-        const data = await api('/api/gastos?'+params);
-        currentGastos = data;
-        const tb = $('tbody-gastos');
-        if (!data.length) {
-            const donde = gastosMes ? `en ${MESES[gastosMes.m - 1]} de ${gastosMes.y}` : 'en el período elegido';
-            tb.innerHTML = `<tr><td colspan="9" class="tbl-empty">No hay gastos cargados ${donde}.</td></tr>`;
-            $('gastos-total-label').textContent = '';
-            return;
-        }
-        const total = data.reduce((s,g)=>s+(g.monto||0),0);
-        $('gastos-total-label').textContent = `Total: ${fmt(total)}`;
-        /* La fila entera abre el detalle del gasto, donde se edita y se baja
-           el comprobante. Los botones de la derecha frenan la propagación. */
-        tb.innerHTML = data.map(g => `
-            <tr class="row-link" onclick="openGastoModal('${g.id}')" title="Ver y editar el gasto">
-                <td>${fmtFecha(g.fecha_gasto)}</td>
-                <td>${escHtml((g.consorcios||{}).nombre||'—')}</td>
-                <td><strong>${escHtml(g.descripcion)}</strong>${g.unidad_id?`<span class="b b-b" style="margin-left:6px;">UF ${escHtml((g.unidades_funcionales||{}).numero||'—')}</span>`:''}${g.comprobante_numero?`<div class="text-muted text-sm">${escHtml([g.comprobante_tipo,g.comprobante_numero].filter(Boolean).join(' '))}</div>`:''}${g.notas?`<div class="text-muted text-sm">${escHtml(g.notas)}</div>`:''}</td>
-                <td>${categoriaBadge(g.categoria)}</td>
-                <td><strong>${fmt(g.monto)}</strong>${g.tarifa_confirmada === false ? '<span class="b b-y" style="margin-left:6px;">sin confirmar</span>' : ''}</td>
-                <td>${g.pagado ? '<span class="b b-g">Pagado</span>' : '<span class="b b-y">Pendiente</span>'}</td>
-                <td>${g.recurrente ? `<span class="b b-b">${escHtml(g.frecuencia||'recurrente')}</span>` : (g.gasto_origen_id ? '<span class="b b-b">automático</span>' : '—')}</td>
-                <td onclick="event.stopPropagation()">${g.archivo_nombre
-                    ? `<div class="inline-actions">
-                        <a href="/api/gastos/${g.id}/comprobante" target="_blank" rel="noopener" class="btn-s btn-sm" aria-label="Ver comprobante" title="Ver ${escHtml(g.archivo_nombre)}"><svg class="ic ic-sm"><use href="#ic-ojo"></use></svg></a>
-                        <a href="/api/gastos/${g.id}/comprobante?descargar=1" class="btn-s btn-sm" aria-label="Descargar comprobante" title="Descargar ${escHtml(g.archivo_nombre)}"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg></a>
-                      </div>`
-                    : '<span class="text-muted text-sm">—</span>'}</td>
-                <td><div class="inline-actions" onclick="event.stopPropagation()">
-                    <button class="btn-s btn-sm" onclick="openGastoModal('${g.id}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button>
-                    <button class="btn-danger btn-sm" onclick="deleteGasto('${g.id}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
-                </div></td>
-            </tr>`).join('');
+    if (desde) params.set('desde',desde);
+    if (hasta) params.set('hasta',hasta);
+    return '/api/gastos?' + params;
+}
 
-        /* Ídem para gastos: la tabla tiene 8 columnas. */
-        NiddoMobile.renderList('tbody-gastos', data, g => {
-            const cat = g.categoria ? escHtml(g.categoria) : 'sin categoría';
-            /* Tocar el gasto abre su detalle: en el teléfono no hay columna de
-               acciones, y sin esto un gasto cargado no se podía corregir. */
-            return `<button class="nd-row" onclick="openGastoModal('${g.id}')">
-                <span class="nd-row-ic ${g.pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-expensa"></use></svg></span>
-                <span class="nd-row-main">
-                    <span class="nd-row-t">${escHtml(g.descripcion || '–')}${g.archivo_nombre ? ' <svg class="ic ic-sm" aria-label="Con comprobante"><use href="#ic-adjunto"></use></svg>' : ''}</span>
-                    <span class="nd-row-s">${cat} · ${fmtFecha(g.fecha_gasto)}${g.pagado ? '' : ' · sin pagar'}</span>
-                </span>
-                <span class="nd-row-amt">${fmt(g.monto)}</span>
-            </button>`;
-        });
-    } catch(e) { toast(e.message,'err'); }
+async function loadGastos() {
+    const url = urlGastos($('filter-gastos-desde')?.value, $('filter-gastos-hasta')?.value);
+    const turno = pedirTurno('gastos');
+    const enMemoria = apiEnMemoria(url);
+    if (enMemoria) pintarGastos(enMemoria);
+    else { filaCargando('tbody-gastos', 9); $('gastos-total-label').textContent = ''; }
+    try {
+        const data = await api(url);
+        if (!sigueSiendo('gastos', turno)) return;
+        pintarGastos(data);
+        precargarMesesVecinos();
+    } catch(e) { if (sigueSiendo('gastos', turno)) toast(e.message,'err'); }
+}
+
+/* Con el mes a la vista cargado, se traen el anterior y el siguiente: las
+   flechas son lo que se toca después, y así el cambio es instantáneo. */
+function precargarMesesVecinos() {
+    if (!gastosMes) return;
+    [-1, 1].forEach(delta => {
+        let {y, m} = gastosMes;
+        m += delta;
+        if (m < 1) { m = 12; y--; }
+        if (m > 12) { m = 1; y++; }
+        precargar(urlGastos(`${y}-${dosDigitos(m)}-01`, `${y}-${dosDigitos(m)}-${dosDigitos(ultimoDiaDelMes(y, m))}`));
+    });
+}
+
+function pintarGastos(data) {
+    currentGastos = data;
+    const tb = $('tbody-gastos');
+    if (!data.length) {
+        const donde = gastosMes ? `en ${MESES[gastosMes.m - 1]} de ${gastosMes.y}` : 'en el período elegido';
+        tb.innerHTML = `<tr><td colspan="9" class="tbl-empty">No hay gastos cargados ${donde}.</td></tr>`;
+        listaVacia('tbody-gastos', `No hay gastos cargados ${donde}.`);
+        $('gastos-total-label').textContent = '';
+        return;
+    }
+    const total = data.reduce((s,g)=>s+(g.monto||0),0);
+    $('gastos-total-label').textContent = `Total: ${fmt(total)}`;
+    /* La fila entera abre el detalle del gasto, donde se edita y se baja
+       el comprobante. Los botones de la derecha frenan la propagación. */
+    tb.innerHTML = data.map(g => `
+        <tr class="row-link" onclick="openGastoModal('${g.id}')" title="Ver y editar el gasto">
+            <td>${fmtFecha(g.fecha_gasto)}</td>
+            <td>${escHtml((g.consorcios||{}).nombre||'—')}</td>
+            <td><strong>${escHtml(g.descripcion)}</strong>${g.unidad_id?`<span class="b b-b" style="margin-left:6px;">UF ${escHtml((g.unidades_funcionales||{}).numero||'—')}</span>`:''}${g.comprobante_numero?`<div class="text-muted text-sm">${escHtml([g.comprobante_tipo,g.comprobante_numero].filter(Boolean).join(' '))}</div>`:''}${g.notas?`<div class="text-muted text-sm">${escHtml(g.notas)}</div>`:''}</td>
+            <td>${categoriaBadge(g.categoria)}</td>
+            <td><strong>${fmt(g.monto)}</strong>${g.tarifa_confirmada === false ? '<span class="b b-y" style="margin-left:6px;">sin confirmar</span>' : ''}</td>
+            <td>${g.pagado ? '<span class="b b-g">Pagado</span>' : '<span class="b b-y">Pendiente</span>'}</td>
+            <td>${g.recurrente ? `<span class="b b-b">${escHtml(g.frecuencia||'recurrente')}</span>` : (g.gasto_origen_id ? '<span class="b b-b">automático</span>' : '—')}</td>
+            <td onclick="event.stopPropagation()">${g.archivo_nombre
+                ? `<div class="inline-actions">
+                    <a href="/api/gastos/${g.id}/comprobante" target="_blank" rel="noopener" class="btn-s btn-sm" aria-label="Ver comprobante" title="Ver ${escHtml(g.archivo_nombre)}"><svg class="ic ic-sm"><use href="#ic-ojo"></use></svg></a>
+                    <a href="/api/gastos/${g.id}/comprobante?descargar=1" class="btn-s btn-sm" aria-label="Descargar comprobante" title="Descargar ${escHtml(g.archivo_nombre)}"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg></a>
+                  </div>`
+                : '<span class="text-muted text-sm">—</span>'}</td>
+            <td><div class="inline-actions" onclick="event.stopPropagation()">
+                <button class="btn-s btn-sm" onclick="openGastoModal('${g.id}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button>
+                <button class="btn-danger btn-sm" onclick="deleteGasto('${g.id}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>
+            </div></td>
+        </tr>`).join('');
+
+    /* Ídem para gastos: la tabla tiene 8 columnas. */
+    NiddoMobile.renderList('tbody-gastos', data, g => {
+        const cat = g.categoria ? escHtml(g.categoria) : 'sin categoría';
+        /* Tocar el gasto abre su detalle: en el teléfono no hay columna de
+           acciones, y sin esto un gasto cargado no se podía corregir. */
+        return `<button class="nd-row" onclick="openGastoModal('${g.id}')">
+            <span class="nd-row-ic ${g.pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-expensa"></use></svg></span>
+            <span class="nd-row-main">
+                <span class="nd-row-t">${escHtml(g.descripcion || '–')}${g.archivo_nombre ? ' <svg class="ic ic-sm" aria-label="Con comprobante"><use href="#ic-adjunto"></use></svg>' : ''}</span>
+                <span class="nd-row-s">${cat} · ${fmtFecha(g.fecha_gasto)}${g.pagado ? '' : ' · sin pagar'}</span>
+            </span>
+            <span class="nd-row-amt">${fmt(g.monto)}</span>
+        </button>`;
+    });
 }
 
 // ── Auto-extraction ───────────────────────────────────────────────────────────
@@ -3895,13 +4019,13 @@ const AVISO_LABEL = {pendiente: 'Sin revisar', aceptado: 'Aceptado', rechazado: 
 async function loadAvisos() {
     const params = new URLSearchParams();
     const cid = $('filter-avisos-consorcio')?.value; if (cid) params.set('consorcio_id', cid);
-    try {
-        avisos = await api('/api/admin/avisos-pago?' + params);
-        renderAvisos();
-    } catch (e) {
-        $('tbody-avisos').innerHTML = `<tr><td colspan="9" class="tbl-empty">No se pudieron cargar: ${escHtml(e.message)}</td></tr>`;
-    }
-    actualizarBadgeAvisos();
+    await cargarTabla({
+        clave: 'avisos', url: '/api/admin/avisos-pago?' + params, tbody: 'tbody-avisos', columnas: 9,
+        pintar: data => { avisos = data; renderAvisos(); actualizarBadgeAvisos(); },
+        alFallar: e => {
+            $('tbody-avisos').innerHTML = `<tr><td colspan="9" class="tbl-empty">No se pudieron cargar: ${escHtml(e.message)}</td></tr>`;
+        },
+    });
 }
 
 function actualizarBadgeAvisos() {
@@ -4012,42 +4136,45 @@ async function loadCobros() {
     const params = new URLSearchParams();
     const cid = $('filter-cobros-consorcio')?.value; if(cid) params.set('consorcio_id',cid);
     const periodo = $('filter-cobros-periodo')?.value; if(periodo) params.set('periodo',periodo);
-    try {
-        const data = await api('/api/cobros?'+params);
-        const tb = $('tbody-cobros');
-        if (!data.length) { tb.innerHTML = '<tr><td colspan="10" class="tbl-empty">Sin cobros en el período</td></tr>'; renderCobrosKpis([]); return; }
-        renderCobrosKpis(data);
-        tb.innerHTML = data.map(c => {
-            const uf = c.unidades_funcionales||{};
-            const con = c.consorcios||{};
-            return `<tr>
-                <td>${escHtml(con.nombre||'—')}</td>
-                <td><strong>${escHtml(uf.numero||'—')}</strong></td>
-                <td>${uf.vecino_nombre||'<span class="text-muted">—</span>'}</td>
-                <td>${c.periodo||'—'}</td>
-                <td>${fmt(c.monto_base)}</td>
-                <td>${c.interes_mora ? fmt(c.interes_mora) : '—'}</td>
-                <td><strong>${fmt(c.total)}</strong></td>
-                <td>${statusBadge(c.estado)}</td>
-                <td class="text-muted">${c.fecha_vencimiento||'—'}</td>
-                <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${c.interes_mora||0}','${escHtml(c.notas||'')}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button></td>
-            </tr>`;}).join('');
+    const url = '/api/cobros?' + params;
+    if (!apiEnMemoria(url)) $('cobros-kpis').innerHTML = '';
+    await cargarTabla({clave: 'cobros', url, tbody: 'tbody-cobros', columnas: 10, pintar: pintarCobros});
+}
 
-        /* La misma fuente de datos, en la forma que se lee en un teléfono.
-           La tabla tiene 10 columnas. */
-        NiddoMobile.renderList('tbody-cobros', data, c => {
-            const uf = c.unidades_funcionales || {};
-            const pagado = c.estado === 'pagado';
-            return `<div class="nd-row" style="cursor:default">
-                <span class="nd-row-ic ${pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-cobro"></use></svg></span>
-                <span class="nd-row-main">
-                    <span class="nd-row-t">${escHtml(uf.numero || '–')} · ${uf.vecino_nombre || 'Sin vecino'}</span>
-                    <span class="nd-row-s"><span class="dot ${pagado ? 'ok' : 'danger'}"></span>${c.periodo || '–'} · ${pagado ? 'Pagada' : 'Vence ' + (c.fecha_vencimiento || '—')}</span>
-                </span>
-                <span class="nd-row-amt">${fmt(c.total)}</span>
-            </div>`;
-        });
-    } catch(e) { toast(e.message,'err'); }
+function pintarCobros(data) {
+    const tb = $('tbody-cobros');
+    if (!data.length) { tb.innerHTML = '<tr><td colspan="10" class="tbl-empty">Sin cobros en el período</td></tr>'; listaVacia('tbody-cobros', 'Sin cobros en el período'); renderCobrosKpis([]); return; }
+    renderCobrosKpis(data);
+    tb.innerHTML = data.map(c => {
+        const uf = c.unidades_funcionales||{};
+        const con = c.consorcios||{};
+        return `<tr>
+            <td>${escHtml(con.nombre||'—')}</td>
+            <td><strong>${escHtml(uf.numero||'—')}</strong></td>
+            <td>${uf.vecino_nombre||'<span class="text-muted">—</span>'}</td>
+            <td>${c.periodo||'—'}</td>
+            <td>${fmt(c.monto_base)}</td>
+            <td>${c.interes_mora ? fmt(c.interes_mora) : '—'}</td>
+            <td><strong>${fmt(c.total)}</strong></td>
+            <td>${statusBadge(c.estado)}</td>
+            <td class="text-muted">${c.fecha_vencimiento||'—'}</td>
+            <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${c.interes_mora||0}','${escHtml(c.notas||'')}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button></td>
+        </tr>`;}).join('');
+
+    /* La misma fuente de datos, en la forma que se lee en un teléfono.
+       La tabla tiene 10 columnas. */
+    NiddoMobile.renderList('tbody-cobros', data, c => {
+        const uf = c.unidades_funcionales || {};
+        const pagado = c.estado === 'pagado';
+        return `<div class="nd-row" style="cursor:default">
+            <span class="nd-row-ic ${pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-cobro"></use></svg></span>
+            <span class="nd-row-main">
+                <span class="nd-row-t">${escHtml(uf.numero || '–')} · ${uf.vecino_nombre || 'Sin vecino'}</span>
+                <span class="nd-row-s"><span class="dot ${pagado ? 'ok' : 'danger'}"></span>${c.periodo || '–'} · ${pagado ? 'Pagada' : 'Vence ' + (c.fecha_vencimiento || '—')}</span>
+            </span>
+            <span class="nd-row-amt">${fmt(c.total)}</span>
+        </div>`;
+    });
 }
 
 function renderCobrosKpis(data) {
@@ -4065,36 +4192,38 @@ function renderCobrosKpis(data) {
 async function loadMora() {
     const params = new URLSearchParams();
     const cid = $('filter-mora-consorcio')?.value; if(cid) params.set('consorcio_id',cid);
-    try {
-        const data = await api('/api/cobros/mora?'+params);
-        $('mora-count-label').textContent = data.length ? `${data.length} vecino(s) en mora` : 'Sin morosos';
-        const tb = $('tbody-mora');
-        if (!data.length) { tb.innerHTML = '<tr><td colspan="10" class="tbl-empty">¡Sin morosos!</td></tr>'; return; }
-        /* La tasa es la del consorcio de cada fila. Antes se leía del input de
-           la pantalla de Configuración: si no habías entrado nunca ahí el
-           campo estaba vacío y el interés se calculaba con un 2% diario
-           inventado por el `||2`, para todos los edificios por igual. */
-        const tasaDe = cid => +(consorcios.find(x => x.id === cid)?.tasa_interes_mora || 0);
-        const today = new Date();
-        tb.innerHTML = data.map(c => {
-            const uf = c.unidades_funcionales||{}; const con = c.consorcios||{};
-            const vto = c.fecha_vencimiento ? new Date(c.fecha_vencimiento) : null;
-            const dias = vto ? Math.max(0,Math.ceil((today-vto)/(1000*60*60*24))) : '—';
-            const interes = typeof dias === 'number'
-                ? (c.monto_base||0)*tasaDe(c.consorcio_id)/100*dias : 0;
-            return `<tr style="background:rgba(196,80,43,.04)">
-                <td>${escHtml(con.nombre||'—')}</td>
-                <td><strong>${escHtml(uf.numero||'—')}</strong></td>
-                <td>${uf.vecino_nombre||'—'}</td>
-                <td class="text-muted">${uf.vecino_email||'—'}</td>
-                <td>${c.periodo||'—'}</td>
-                <td>${fmt(c.monto_base)}</td>
-                <td style="color:var(--nd-terracota-hondo)">+${fmt(interes)}</td>
-                <td><strong>${fmt((c.monto_base||0)+interes)}</strong></td>
-                <td>${statusBadge(c.estado)}</td>
-                <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${interes.toFixed(2)}','')"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg>Actualizar</button></td>
-            </tr>`;}).join('');
-    } catch(e) { toast(e.message,'err'); }
+    await cargarTabla({clave: 'mora', url: '/api/cobros/mora?' + params, tbody: 'tbody-mora',
+                       columnas: 10, pintar: pintarMora});
+}
+
+function pintarMora(data) {
+    $('mora-count-label').textContent = data.length ? `${data.length} vecino(s) en mora` : 'Sin morosos';
+    const tb = $('tbody-mora');
+    if (!data.length) { tb.innerHTML = '<tr><td colspan="10" class="tbl-empty">¡Sin morosos!</td></tr>'; return; }
+    /* La tasa es la del consorcio de cada fila. Antes se leía del input de
+       la pantalla de Configuración: si no habías entrado nunca ahí el
+       campo estaba vacío y el interés se calculaba con un 2% diario
+       inventado por el `||2`, para todos los edificios por igual. */
+    const tasaDe = cid => +(consorcios.find(x => x.id === cid)?.tasa_interes_mora || 0);
+    const today = new Date();
+    tb.innerHTML = data.map(c => {
+        const uf = c.unidades_funcionales||{}; const con = c.consorcios||{};
+        const vto = c.fecha_vencimiento ? new Date(c.fecha_vencimiento) : null;
+        const dias = vto ? Math.max(0,Math.ceil((today-vto)/(1000*60*60*24))) : '—';
+        const interes = typeof dias === 'number'
+            ? (c.monto_base||0)*tasaDe(c.consorcio_id)/100*dias : 0;
+        return `<tr style="background:rgba(196,80,43,.04)">
+            <td>${escHtml(con.nombre||'—')}</td>
+            <td><strong>${escHtml(uf.numero||'—')}</strong></td>
+            <td>${uf.vecino_nombre||'—'}</td>
+            <td class="text-muted">${uf.vecino_email||'—'}</td>
+            <td>${c.periodo||'—'}</td>
+            <td>${fmt(c.monto_base)}</td>
+            <td style="color:var(--nd-terracota-hondo)">+${fmt(interes)}</td>
+            <td><strong>${fmt((c.monto_base||0)+interes)}</strong></td>
+            <td>${statusBadge(c.estado)}</td>
+            <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${interes.toFixed(2)}','')"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg>Actualizar</button></td>
+        </tr>`;}).join('');
 }
 
 function openCobroModal(id,estado,fechaPago,interes,notas) {
@@ -4159,23 +4288,30 @@ async function loadBalance() {
     const cid = $('filter-balance-consorcio')?.value; if(cid) params.set('consorcio_id',cid);
     const desde = $('filter-balance-desde')?.value; if(desde) params.set('desde',desde);
     const hasta = $('filter-balance-hasta')?.value; if(hasta) params.set('hasta',hasta);
-    try {
-        const d = await api('/api/balance?'+params);
-        $('bal-ingresos').textContent = fmt(d.ingresos);
-        $('bal-egresos').textContent = fmt(d.egresos);
-        const res = d.resultado;
-        const el = $('bal-resultado');
-        el.textContent = fmt(res);
-        el.style.color = res >= 0 ? 'var(--nd-verde)' : 'var(--nd-terracota-hondo)';
+    const url = '/api/balance?' + params;
+    if (!apiEnMemoria(url)) {
+        ['bal-ingresos', 'bal-egresos', 'bal-resultado'].forEach(id => $(id).textContent = '—');
+        filaCargando('tbody-bal-cobros', 3);
+        filaCargando('tbody-bal-gastos', 4);
+    }
+    await cargarTabla({clave: 'balance', url, pintar: pintarBalance});
+}
 
-        $('tbody-bal-cobros').innerHTML = d.cobros.length
-            ? d.cobros.map(c=>`<tr><td>${escHtml((c.consorcios||{}).nombre||'—')}</td><td>${c.periodo||'—'}</td><td>${fmt(c.total)}</td></tr>`).join('')
-            : '<tr><td colspan="3" class="tbl-empty">Sin ingresos</td></tr>';
+function pintarBalance(d) {
+    $('bal-ingresos').textContent = fmt(d.ingresos);
+    $('bal-egresos').textContent = fmt(d.egresos);
+    const res = d.resultado;
+    const el = $('bal-resultado');
+    el.textContent = fmt(res);
+    el.style.color = res >= 0 ? 'var(--nd-verde)' : 'var(--nd-terracota-hondo)';
 
-        $('tbody-bal-gastos').innerHTML = d.gastos.length
-            ? d.gastos.map(g=>`<tr><td>${escHtml((g.consorcios||{}).nombre||'—')}</td><td>${escHtml(g.descripcion||'—')}</td><td>${escHtml(g.categoria||'—')}</td><td>${fmt(g.monto)}</td></tr>`).join('')
-            : '<tr><td colspan="4" class="tbl-empty">Sin egresos</td></tr>';
-    } catch(e) { toast(e.message,'err'); }
+    $('tbody-bal-cobros').innerHTML = d.cobros.length
+        ? d.cobros.map(c=>`<tr><td>${escHtml((c.consorcios||{}).nombre||'—')}</td><td>${c.periodo||'—'}</td><td>${fmt(c.total)}</td></tr>`).join('')
+        : '<tr><td colspan="3" class="tbl-empty">Sin ingresos</td></tr>';
+
+    $('tbody-bal-gastos').innerHTML = d.gastos.length
+        ? d.gastos.map(g=>`<tr><td>${escHtml((g.consorcios||{}).nombre||'—')}</td><td>${escHtml(g.descripcion||'—')}</td><td>${escHtml(g.categoria||'—')}</td><td>${fmt(g.monto)}</td></tr>`).join('')
+        : '<tr><td colspan="4" class="tbl-empty">Sin egresos</td></tr>';
 }
 
 function exportBalance(fmt_) {
@@ -4207,16 +4343,23 @@ async function loadAmenitiesAndReservations() {
         $('tbody-amenities-reservations').innerHTML = '<tr><td colspan="7" class="tbl-empty">Seleccioná un consorcio para ver las reservas</td></tr>';
         return;
     }
+    const turno = pedirTurno('amenities');
+    const urlA = `/api/consorcios/${cid}/amenities`, urlR = `/api/reservas_amenities?consorcio_id=${cid}`;
+    if (apiEnMemoria(urlA) && apiEnMemoria(urlR)) {
+        loadedAmenities = apiEnMemoria(urlA); loadedReservations = apiEnMemoria(urlR);
+        renderAmenities(); renderAmenitiesReservations();
+    } else {
+        filaCargando('tbody-amenities', 5);
+        filaCargando('tbody-amenities-reservations', 7);
+    }
     try {
-        const [amenities, reservations] = await Promise.all([
-            api(`/api/consorcios/${cid}/amenities`),
-            api(`/api/reservas_amenities?consorcio_id=${cid}`)
-        ]);
+        const [amenities, reservations] = await Promise.all([api(urlA), api(urlR)]);
+        if (!sigueSiendo('amenities', turno)) return;
         loadedAmenities = amenities;
         loadedReservations = reservations;
         renderAmenities();
         renderAmenitiesReservations();
-    } catch(e) { toast(e.message, 'err'); }
+    } catch(e) { if (sigueSiendo('amenities', turno)) toast(e.message, 'err'); }
 }
 
 function renderAmenities() {
@@ -4372,27 +4515,29 @@ async function initLiquidaciones() {
 async function loadLiquidaciones() {
     const params = new URLSearchParams();
     const cid = $('filter-liq-consorcio')?.value; if(cid) params.set('consorcio_id',cid);
-    try {
-        const data = await api('/api/liquidaciones?'+params);
-        const tb = $('tbody-liquidaciones');
-        if (!data.length) { tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">Sin liquidaciones. Creá la primera seleccionando un consorcio y período.</td></tr>'; return; }
-        tb.innerHTML = data.map(l => {
-            const estadoBadge = l.estado === 'publicada' ? 'b-g' : l.estado === 'cerrada' ? 'b-gr' : 'b-y';
-            const estadoLabel = l.estado === 'publicada' ? 'Publicada' : l.estado === 'cerrada' ? 'Cerrada' : 'Borrador';
-            const rev = l.numero_revision || 1;
-            const revBadge = rev > 1 ? ` <span class="b b-y" title="Reliquidación del mismo período">rev. ${rev}</span>` : '';
-            return `<tr>
-                <td><strong>${l.periodo}</strong>${revBadge}</td>
-                <td>${escHtml((l.consorcios||{}).nombre||'—')}</td>
-                <td>${fmt(l.total_egresos)}</td>
-                <td style="font-weight:600;color:${(l.saldo_final||0)>=0?'var(--nd-verde)':'var(--nd-terracota-hondo)'}">${fmt(l.saldo_final)}</td>
-                <td><span class="b ${estadoBadge}">${estadoLabel}</span></td>
-                <td><div class="inline-actions">
-                    <button class="btn-s btn-sm" onclick="openLiqDetail('${l.id}')">Ver detalle</button>
-                    ${l.estado==='borrador'?`<button class="btn-danger btn-sm" onclick="deleteLiquidacion('${l.id}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>`:''}
-                </div></td>
-            </tr>`;}).join('');
-    } catch(e) { toast(e.message,'err'); }
+    await cargarTabla({clave: 'liquidaciones', url: '/api/liquidaciones?' + params,
+                       tbody: 'tbody-liquidaciones', columnas: 6, pintar: pintarLiquidaciones});
+}
+
+function pintarLiquidaciones(data) {
+    const tb = $('tbody-liquidaciones');
+    if (!data.length) { tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">Sin liquidaciones. Creá la primera seleccionando un consorcio y período.</td></tr>'; return; }
+    tb.innerHTML = data.map(l => {
+        const estadoBadge = l.estado === 'publicada' ? 'b-g' : l.estado === 'cerrada' ? 'b-gr' : 'b-y';
+        const estadoLabel = l.estado === 'publicada' ? 'Publicada' : l.estado === 'cerrada' ? 'Cerrada' : 'Borrador';
+        const rev = l.numero_revision || 1;
+        const revBadge = rev > 1 ? ` <span class="b b-y" title="Reliquidación del mismo período">rev. ${rev}</span>` : '';
+        return `<tr>
+            <td><strong>${l.periodo}</strong>${revBadge}</td>
+            <td>${escHtml((l.consorcios||{}).nombre||'—')}</td>
+            <td>${fmt(l.total_egresos)}</td>
+            <td style="font-weight:600;color:${(l.saldo_final||0)>=0?'var(--nd-verde)':'var(--nd-terracota-hondo)'}">${fmt(l.saldo_final)}</td>
+            <td><span class="b ${estadoBadge}">${estadoLabel}</span></td>
+            <td><div class="inline-actions">
+                <button class="btn-s btn-sm" onclick="openLiqDetail('${l.id}')">Ver detalle</button>
+                ${l.estado==='borrador'?`<button class="btn-danger btn-sm" onclick="deleteLiquidacion('${l.id}')" aria-label="Eliminar" title="Eliminar"><svg class="ic ic-sm"><use href="#ic-basura"></use></svg></button>`:''}
+            </div></td>
+        </tr>`;}).join('');
 }
 
 // ── Selector de gastos de la nueva liquidación ────────────────────────────────
@@ -5016,8 +5161,10 @@ const inicialDe = t => (t || '?').trim().charAt(0).toUpperCase();
 async function loadHilos(opciones = {}) {
     const params = new URLSearchParams();
     const cid = $('filter-mensajes-consorcio')?.value; if (cid) params.set('consorcio_id', cid);
+    const turno = pedirTurno(opciones.silencioso ? 'hilos-badge' : 'hilos');
     try {
         const data = await api('/api/admin/mensajes?' + params);
+        if (!sigueSiendo(opciones.silencioso ? 'hilos-badge' : 'hilos', turno)) return;
         hilos = data.hilos || [];
         vecinosDelAdmin = data.vecinos || [];
     } catch (e) {
@@ -5183,17 +5330,16 @@ async function empezarHilo() {
 let comunicados = [];
 
 async function loadComunicados() {
-    const tb = $('tbody-comunicados');
-    tb.innerHTML = '<tr><td colspan="6" class="tbl-empty">Cargando...</td></tr>';
-    try {
-        const params = new URLSearchParams();
-        const cid = $('filter-comunicados-consorcio')?.value; if (cid) params.set('consorcio_id', cid);
-        comunicados = await api('/api/admin/comunicados?' + params);
-    } catch (e) {
-        tb.innerHTML = `<tr><td colspan="6" class="tbl-empty">No se pudieron cargar: ${escHtml(e.message)}</td></tr>`;
-        return;
-    }
-    renderComunicados();
+    const params = new URLSearchParams();
+    const cid = $('filter-comunicados-consorcio')?.value; if (cid) params.set('consorcio_id', cid);
+    await cargarTabla({
+        clave: 'comunicados', url: '/api/admin/comunicados?' + params,
+        tbody: 'tbody-comunicados', columnas: 6,
+        pintar: data => { comunicados = data; renderComunicados(); },
+        alFallar: e => {
+            $('tbody-comunicados').innerHTML = `<tr><td colspan="6" class="tbl-empty">No se pudieron cargar: ${escHtml(e.message)}</td></tr>`;
+        },
+    });
 }
 
 function renderComunicados() {
@@ -5265,18 +5411,17 @@ async function borrarComunicado(id) {
 function initReclamos() { loadReclamos(); }
 
 async function loadReclamos() {
-    const tb = $('tbody-reclamos');
-    tb.innerHTML = '<tr><td colspan="7" class="tbl-empty">Cargando...</td></tr>';
-    try {
-        const p = new URLSearchParams();
-        const cid = $('filter-reclamos-consorcio')?.value; if (cid) p.set('consorcio_id', cid);
-        const est = $('filter-reclamos-estado')?.value;    if (est) p.set('estado', est);
-        reclamosCargados = await api('/api/admin/reclamos' + (p.toString() ? '?' + p : ''));
-        renderReclamos();
-        actualizarBadgeReclamos();
-    } catch (e) {
-        tb.innerHTML = `<tr><td colspan="7" class="tbl-empty">Error: ${escHtml(e.message)}</td></tr>`;
-    }
+    const p = new URLSearchParams();
+    const cid = $('filter-reclamos-consorcio')?.value; if (cid) p.set('consorcio_id', cid);
+    const est = $('filter-reclamos-estado')?.value;    if (est) p.set('estado', est);
+    await cargarTabla({
+        clave: 'reclamos', url: '/api/admin/reclamos' + (p.toString() ? '?' + p : ''),
+        tbody: 'tbody-reclamos', columnas: 7,
+        pintar: data => { reclamosCargados = data; renderReclamos(); actualizarBadgeReclamos(); },
+        alFallar: e => {
+            $('tbody-reclamos').innerHTML = `<tr><td colspan="7" class="tbl-empty">Error: ${escHtml(e.message)}</td></tr>`;
+        },
+    });
 }
 
 function renderReclamos() {
