@@ -1332,7 +1332,7 @@
                 <div class="form-group">
                     <label class="form-label">1. Descargá la plantilla</label>
                     <div class="section-info" style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px;">
-                        <span style="flex:1 1 260px;min-width:0;">Bajá el Excel, completá los datos y volvé a subirlo. Podés crear varios consorcios y sus unidades funcionales en un mismo archivo.</span>
+                        <span style="flex:1 1 260px;min-width:0;">El Excel trae tres pestañas: <b>Instrucciones</b>, un <b>Ejemplo</b> completo y <b>Carga</b>, que es la única que se lee. Una fila por unidad funcional; podés crear varios consorcios en el mismo archivo.</span>
                         <a class="btn-s btn-sm" href="/api/consorcios/plantilla" style="white-space:nowrap;"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Descargar plantilla</a>
                     </div>
                 </div>
@@ -1375,7 +1375,7 @@
                 <div class="form-group">
                     <label class="form-label">1. Descargá la plantilla</label>
                     <div class="section-info" style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px;">
-                        <span style="flex:1 1 260px;min-width:0;">Bajá el Excel, completá una fila por gasto y volvé a subirlo. Trae tus consorcios y unidades listados para elegir de un desplegable.</span>
+                        <span style="flex:1 1 260px;min-width:0;">El Excel trae tres pestañas: <b>Instrucciones</b>, un <b>Ejemplo</b> con gastos inventados y <b>Carga</b>, que es la única que se lee. Consorcio y unidad se eligen de un desplegable.</span>
                         <a class="btn-s btn-sm" href="/api/gastos/plantilla" style="white-space:nowrap;"><svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Descargar plantilla</a>
                     </div>
                 </div>
@@ -1383,7 +1383,7 @@
                     <label class="form-label">Qué lleva cada fila</label>
                     <div class="section-info" style="display:block;">
                         <b>Obligatorios:</b> consorcio, fecha (DD/MM/AAAA), descripcion, monto.<br>
-                        <b>Opcionales:</b> categoria, unidad, coeficiente, pagado, recurrente, frecuencia, dia_carga, notas.<br>
+                        <b>Opcionales:</b> categoria, unidad, pagado, recurrente, frecuencia, dia_carga, notas.<br>
                         <span class="text-muted">El consorcio y la unidad tienen que existir de antes: se buscan por nombre y no se crean. Un gasto repetido (mismo consorcio, fecha, descripción y monto) se omite en vez de duplicarse.</span>
                     </div>
                 </div>

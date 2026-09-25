@@ -258,24 +258,12 @@ def pdf_response(buf: io.BytesIO, filename: str) -> Response:
     return send_file(buf, mimetype='application/pdf', download_name=filename, as_attachment=True)
 
 
-def make_excel(headers: list, rows: list, sheet_name: str):
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = sheet_name
-    header_fill = PatternFill("solid", fgColor="7C3AED")
-    header_font = Font(color="FFFFFF", bold=True, size=11)
-    for col, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col, value=h)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal='center')
-        ws.column_dimensions[cell.column_letter].width = max(len(h) + 4, 14)
-    for r, row in enumerate(rows, 2):
-        for c, val in enumerate(row, 1):
-            ws.cell(row=r, column=c, value=val)
-    return wb
+def make_excel(headers: list, rows: list, sheet_name: str, titulo: str = None,
+               subtitulo: str = None, totales=None):
+    """Un exporte .xlsx con la marca de Niddo (ver excel_niddo.py)."""
+    from excel_niddo import libro_con_tabla
+    return libro_con_tabla(titulo or sheet_name, headers, rows, sheet_name,
+                           subtitulo=subtitulo, totales=totales)
 
 
 TIPOS_UF_VALIDOS = ['departamento', 'local', 'cochera', 'baulera']
@@ -310,75 +298,132 @@ def es_fila_ejemplo_gastos(descripcion, fecha_iso, monto) -> bool:
         return False
 
 
-def build_carga_masiva_template(consorcios_existentes: list):
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment
-    from openpyxl.worksheet.datavalidation import DataValidation
-    header_fill = PatternFill("solid", fgColor="7C3AED")
-    header_font = Font(color="FFFFFF", bold=True, size=11)
-    example_font = Font(italic=True, color="9CA3AF")
+# La pestaña que el sistema lee en las plantillas de carga masiva. Las otras
+# dos (Instrucciones y Ejemplo) son para la persona y no se importan nunca: el
+# ejemplo está en su propia pestaña justamente para que no haya fila de
+# ejemplo que alguien se olvide de borrar.
+HOJA_CARGA = 'Carga'
 
-    def style_header(ws, headers):
-        for col, h in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col, value=h)
-            cell.fill = header_fill
-            cell.font = header_font
-            cell.alignment = Alignment(horizontal='center')
-            ws.column_dimensions[cell.column_letter].width = max(len(h) + 4, 16)
+HEADERS_PLANTILLA_CONSORCIOS = [
+    'consorcio*', 'direccion', 'cuit', 'encargado', 'tel_encargado',
+    'unidad*', 'piso', 'tipo', 'superficie_m2', 'ambientes', 'vecino_nombre', 'vecino_email',
+]
+ALIAS_COLUMNAS_CONSORCIO = {
+    'consorcio': 'consorcio', 'edificio': 'consorcio', 'nombre': 'consorcio',
+    'direccion': 'direccion', 'domicilio': 'direccion',
+    'cuit': 'cuit',
+    'encargado': 'encargado', 'encargado_nombre': 'encargado',
+    'tel_encargado': 'tel_encargado', 'encargado_tel': 'tel_encargado', 'telefono_encargado': 'tel_encargado',
+    'unidad': 'unidad', 'uf': 'unidad', 'numero': 'unidad', 'unidad_funcional': 'unidad',
+    'piso': 'piso',
+    'tipo': 'tipo',
+    'superficie_m2': 'superficie_m2', 'superficie': 'superficie_m2', 'm2': 'superficie_m2', 'metros': 'superficie_m2',
+    'ambientes': 'ambientes',
+    'vecino_nombre': 'vecino_nombre', 'vecino': 'vecino_nombre', 'propietario': 'vecino_nombre',
+    'vecino_email': 'vecino_email', 'email': 'vecino_email', 'mail': 'vecino_email',
+}
+
+EJEMPLO_CONSORCIOS = [
+    ['Torres del Parque', 'Av. Rivadavia 5200, CABA', '30-71234567-8', 'Carlos Gómez', '11 4567-8910',
+     '1A', '1', 'departamento', 62, 3, 'Laura Fernández', 'laura@mail.com'],
+    ['Torres del Parque', '', '', '', '', '1B', '1', 'departamento', 48, 2, 'Martín Ruiz', 'martin@mail.com'],
+    ['Torres del Parque', '', '', '', '', 'PB', '0', 'local', 90, 1, 'Kiosco Don José', ''],
+    ['Torres del Parque', '', '', '', '', 'C1', '-1', 'cochera', 12, None, '', ''],
+    ['Edificio Belgrano', 'Juramento 2100, CABA', '', '', '', '3C', '3', 'departamento', 75, 4, 'Ana López', 'ana@mail.com'],
+]
+
+
+def _lista_oculta(wb, nombre_col, valores, col):
+    """Escribe una lista en la hoja oculta de listas y devuelve su rango.
+
+    Los desplegables apuntan a un rango y no a una lista literal: la literal se
+    corta a 255 caracteres y con ocho edificios ya parte nombres al medio. La
+    hoja va oculta para que la planilla tenga sólo sus tres pestañas.
+    """
+    from openpyxl.utils import get_column_letter
+    ws = wb['_listas'] if '_listas' in wb.sheetnames else wb.create_sheet('_listas')
+    ws.sheet_state = 'hidden'
+    ws.cell(row=1, column=col, value=nombre_col)
+    for r, v in enumerate(valores, 2):
+        ws.cell(row=r, column=col, value=v)
+    letra = get_column_letter(col)
+    return f"'_listas'!${letra}$2:${letra}${max(len(valores), 1) + 1}"
+
+
+def _desplegable(ws, formula, rango):
+    from openpyxl.worksheet.datavalidation import DataValidation
+    dv = DataValidation(type='list', formula1=formula, allow_blank=True, showErrorMessage=False)
+    ws.add_data_validation(dv)
+    dv.add(rango)
+
+
+def _numero_o_none(v):
+    """Un número de celda (acepta coma decimal), o None."""
+    if v in (None, ''):
+        return None
+    if isinstance(v, (int, float)):
+        return v
+    try:
+        return float(str(v).replace('.', '').replace(',', '.')) if ',' in str(v) else float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def build_carga_masiva_template(consorcios_existentes: list):
+    """La plantilla de carga masiva de consorcios y unidades: tres pestañas.
+
+    Instrucciones, Ejemplo (un edificio inventado, completo) y Carga, que es la
+    única que se lee. Una fila por unidad; los datos del consorcio se escriben
+    en su primera fila y en las demás alcanza con el nombre.
+    """
+    import openpyxl
+    from excel_niddo import encabezado_de_marca, hoja_instrucciones, tabla, FILAS_TITULO
 
     wb = openpyxl.Workbook()
-
     ws_info = wb.active
     ws_info.title = 'Instrucciones'
-    ws_info.column_dimensions['A'].width = 100
-    info_lines = [
-        ("Carga masiva de Consorcios y UF's", True),
-        ('', False),
-        ('1. Completá la hoja "Consorcios" para crear edificios nuevos. Dejala vacía si solo vas a cargar', False),
-        ('   unidades de consorcios que ya existen.', False),
-        ('2. Completá la hoja "Unidades" con las UF a cargar. En la columna "consorcio" escribí el nombre', False),
-        ('   exacto del consorcio (nuevo, tal como lo escribiste en la hoja "Consorcios", o uno ya existente,', False),
-        ('   tal como figura en la hoja "Consorcios existentes").', False),
-        ('3. Guardá el archivo y subilo en el panel. No cambies los nombres de las hojas ni de las columnas.', False),
-        ('', False),
-        ('Campos obligatorios: nombre (Consorcios); consorcio y numero (Unidades). El resto es opcional.', False),
-        (f'Valores válidos para "tipo": {", ".join(TIPOS_UF_VALIDOS)}.', False),
-        ('Si un consorcio o una unidad ya existe, se reutiliza/omite automáticamente (no se duplica).', False),
-    ]
-    for i, (text, bold) in enumerate(info_lines, 1):
-        cell = ws_info.cell(row=i, column=1, value=text)
-        if bold:
-            cell.font = Font(bold=True, size=13)
+    hoja_instrucciones(ws_info, "Carga masiva de consorcios y unidades", [
+        ('titulo', 'Cómo se usa'),
+        ('paso', ('1', 'Mirá la pestaña «Ejemplo»: es un edificio inventado, cargado como se espera.')),
+        ('paso', ('2', 'Completá la pestaña «Carga»: una fila por unidad funcional. Los datos del consorcio '
+                       '(dirección, CUIT, encargado) van en su primera fila; en las demás alcanza con el nombre.')),
+        ('paso', ('3', 'Guardá el archivo y subilo en Consorcios → Carga masiva. Sólo se lee la pestaña «Carga».')),
+        ('espacio', ''),
+        ('titulo', 'Columnas'),
+        ('campo', ('consorcio *', 'Nombre del edificio. Si ya existe uno tuyo con ese nombre, las unidades se '
+                                  'le agregan; si no, se crea.')),
+        ('campo', ('direccion', 'Dirección del edificio. Opcional.')),
+        ('campo', ('cuit', 'CUIT del consorcio. Opcional.')),
+        ('campo', ('encargado / tel_encargado', 'Nombre y teléfono del encargado. Opcionales.')),
+        ('campo', ('unidad *', 'Número o letra de la unidad funcional: 1A, 3B, PB, C1. Si la dejás vacía se '
+                               'crea sólo el consorcio.')),
+        ('campo', ('piso', 'Opcional.')),
+        ('campo', ('tipo', f'{", ".join(TIPOS_UF_VALIDOS)}. Vacío = departamento.')),
+        ('campo', ('superficie_m2', 'Metros cuadrados de la unidad. Es la base del reparto de expensas por m², '
+                                    'que es el que viene configurado.')),
+        ('campo', ('ambientes', 'Cantidad de ambientes. Sólo hace falta si el consorcio reparte por ambientes.')),
+        ('campo', ('vecino_nombre / vecino_email', 'Quién vive o es dueño. Opcionales: el vecino también puede '
+                                                   'pedir su alta desde la app.')),
+        ('espacio', ''),
+        ('nota', 'Una unidad que ya existe en ese consorcio se saltea: subir dos veces el mismo archivo no duplica nada.'),
+        ('nota', 'Los campos con * son obligatorios.'),
+    ])
 
-    ws_c = wb.create_sheet('Consorcios')
-    style_header(ws_c, ['nombre*', 'direccion', 'cuit', 'pisos', 'unidades_totales', 'encargado_nombre', 'encargado_tel'])
-    example_c = ['Edificio Ejemplo 123 (borrar fila)', 'Av. Siempreviva 742', '30-12345678-9', 8, 24, 'Juan Pérez', '+54 9 11 1234-5678']
-    for c, val in enumerate(example_c, 1):
-        ws_c.cell(row=2, column=c, value=val).font = example_font
+    ws_ej = wb.create_sheet('Ejemplo')
+    encabezado_de_marca(ws_ej, 'Ejemplo', 'Así se ve una carga completa. Esta pestaña no se importa.')
+    tabla(ws_ej, HEADERS_PLANTILLA_CONSORCIOS, EJEMPLO_CONSORCIOS,
+          formatos={8: 'numero', 9: 'numero'})
 
-    ws_u = wb.create_sheet('Unidades')
-    style_header(ws_u, ['consorcio*', 'numero*', 'piso', 'tipo', 'superficie_m2', 'vecino_nombre', 'vecino_email'])
-    example_u = ['Edificio Ejemplo 123 (borrar fila)', '3B', '3', 'departamento', 65.5, 'Juan Pérez', 'juan@mail.com']
-    for c, val in enumerate(example_u, 1):
-        ws_u.cell(row=2, column=c, value=val).font = example_font
-    tipo_dv = DataValidation(type='list', formula1=f'"{",".join(TIPOS_UF_VALIDOS)}"', allow_blank=True, showErrorMessage=False)
-    ws_u.add_data_validation(tipo_dv)
-    tipo_dv.add('D2:D1000')
+    ws = wb.create_sheet(HOJA_CARGA)
+    encabezado_de_marca(ws, 'Carga', 'Completá desde la fila de abajo del encabezado. Esta es la pestaña que se importa.')
+    fila = tabla(ws, HEADERS_PLANTILLA_CONSORCIOS, [], formatos={8: 'numero', 9: 'numero'},
+                 anchos={0: 26, 1: 28, 2: 16, 3: 18, 4: 16, 5: 10, 6: 8, 7: 16, 8: 14, 9: 12, 10: 22, 11: 24})
+    desde, hasta = fila + 1, fila + 1000
+    _desplegable(ws, _lista_oculta(wb, 'tipo', list(TIPOS_UF_VALIDOS), 1), f'H{desde}:H{hasta}')
     if consorcios_existentes:
-        nombres = [c['nombre'] for c in consorcios_existentes]
-        con_dv = DataValidation(type='list', formula1=f'"{",".join(nombres)[:255]}"', allow_blank=True, showErrorMessage=False)
-        ws_u.add_data_validation(con_dv)
-        con_dv.add('A2:A1000')
-
-    ws_ref = wb.create_sheet('Consorcios existentes')
-    style_header(ws_ref, ['nombre', 'direccion'])
-    for r, c in enumerate(consorcios_existentes, 2):
-        ws_ref.cell(row=r, column=1, value=c['nombre'])
-        ws_ref.cell(row=r, column=2, value=c.get('direccion', ''))
-    if not consorcios_existentes:
-        ws_ref.cell(row=2, column=1, value='(todavía no tenés consorcios cargados)').font = example_font
-
-    wb.active = 0
+        _desplegable(ws, _lista_oculta(wb, 'consorcio', [c['nombre'] for c in consorcios_existentes], 2),
+                     f'A{desde}:A{hasta}')
+    wb.active = wb.sheetnames.index(HOJA_CARGA)
     return wb
 
 
@@ -427,9 +472,11 @@ ALIAS_COLUMNAS_GASTO = {
 
 COLUMNAS_GASTO_OBLIGATORIAS = ('consorcio', 'fecha_gasto', 'descripcion', 'monto')
 
+# Sin coeficiente desde v20: el gasto se reparte con el método del consorcio.
+# El alias `coeficiente` sigue leyéndose para las planillas viejas.
 HEADERS_PLANTILLA_GASTOS = [
     'consorcio*', 'fecha*', 'descripcion*', 'monto*', 'categoria', 'unidad',
-    'coeficiente', 'pagado', 'recurrente', 'frecuencia', 'dia_carga', 'notas',
+    'pagado', 'recurrente', 'frecuencia', 'dia_carga', 'notas',
 ]
 
 FORMATOS_FECHA = ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%d/%m/%y', '%Y/%m/%d')
@@ -460,15 +507,22 @@ def leer_filas_por_encabezado(ws, alias: dict):
     Leer por encabezado y no por posición es lo que hace que agregar, correr o
     sacar una columna del archivo no desplace todos los datos una casilla.
     """
-    primera = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), ()) or ()
+    from excel_niddo import fila_de_encabezado
+    # Los archivos que arma Niddo tienen logo y título arriba del encabezado;
+    # los hechos a mano, el encabezado en la fila 1. Se busca.
+    fila_enc = fila_de_encabezado(ws, lambda v: _norm_col(v) in alias)
+    primera = next(ws.iter_rows(min_row=fila_enc, max_row=fila_enc, values_only=True), ()) or ()
     columnas = {}
     for idx, celda in enumerate(primera):
         canon = alias.get(_norm_col(celda))
         if canon and canon not in columnas:
             columnas[canon] = idx
     filas = []
-    for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), 2):
+    for i, row in enumerate(ws.iter_rows(min_row=fila_enc + 1, values_only=True), fila_enc + 1):
         if not row or all(v in (None, '') for v in row):
+            continue
+        # La fila de totales que agregan los exportes de Niddo no es un dato.
+        if isinstance(row[0], str) and row[0].strip().lower() == 'total':
             continue
         filas.append((i, {k: (row[idx] if idx < len(row) else None) for k, idx in columnas.items()}))
     return columnas, filas
@@ -552,116 +606,80 @@ def _bool_excel(valor, campo: str) -> bool:
 
 
 def build_gastos_template(consorcios: list, unidades: list):
-    """La plantilla .xlsx de carga masiva de gastos.
+    """La plantilla de carga masiva de gastos: Instrucciones, Ejemplo y Carga.
 
-    Las hojas de referencia no son decorativas: la validación de la columna
-    "consorcio" apunta a la lista de la hoja "Consorcios existentes", así que el
-    administrador elige de un desplegable en vez de escribir un nombre que
-    después no matchea.
+    Sólo se lee «Carga». Los desplegables de consorcio y unidad apuntan a una
+    hoja oculta con los tuyos, así se elige en vez de escribir un nombre que
+    después no coincide.
     """
     import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment
-    from openpyxl.worksheet.datavalidation import DataValidation
-    header_fill = PatternFill("solid", fgColor="7C3AED")
-    header_font = Font(color="FFFFFF", bold=True, size=11)
-    example_font = Font(italic=True, color="9CA3AF")
-
-    def style_header(ws, headers):
-        for col, h in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col, value=h)
-            cell.fill = header_fill
-            cell.font = header_font
-            cell.alignment = Alignment(horizontal='center')
-            ws.column_dimensions[cell.column_letter].width = max(len(h) + 4, 16)
-
-    def lista_dv(ws, opciones, rango):
-        dv = DataValidation(type='list', formula1=f'"{",".join(opciones)}"',
-                            allow_blank=True, showErrorMessage=False)
-        ws.add_data_validation(dv)
-        dv.add(rango)
+    from excel_niddo import encabezado_de_marca, hoja_instrucciones, tabla
 
     wb = openpyxl.Workbook()
-
     ws_info = wb.active
     ws_info.title = 'Instrucciones'
-    ws_info.column_dimensions['A'].width = 105
-    info_lines = [
-        ('Carga masiva de Gastos', True),
-        ('', False),
-        ('1. Completá la hoja "Gastos": una fila por gasto. Borrá la fila de ejemplo en gris cursiva.', False),
-        ('2. En "consorcio" elegí del desplegable o escribí el nombre exacto, tal como figura en la hoja', False),
-        ('   "Consorcios existentes". Lo mismo con "unidad": esta carga no crea consorcios ni unidades', False),
-        ('   nuevas, sólo los referencia. Si no existen, cargalos antes.', False),
-        ('3. Guardá el archivo y subilo en el panel. No cambies el nombre de la hoja ni el de las columnas.', False),
-        ('', False),
-        ('CAMPOS OBLIGATORIOS (sin ellos la fila no se importa):', True),
-        ('   • consorcio — nombre exacto de un consorcio tuyo.', False),
-        ('   • fecha — fecha del gasto, formato DD/MM/AAAA. Ej: 05/06/2026.', False),
-        ('   • descripcion — qué es el gasto. Ej: "Factura Edesur junio 2026".', False),
-        ('   • monto — número mayor a cero. Podés escribirlo como 15430.50 o 15.430,50.', False),
-        ('', False),
-        ('CAMPOS OPCIONALES (si los dejás vacíos el gasto se carga igual):', True),
-        (f'   • categoria — una de: {", ".join(CATEGORIAS_GASTO)}. Si va vacía o no coincide, queda "otro".', False),
-        ('   • unidad — número de UF si el gasto es de una sola unidad y NO se prorratea entre todas.', False),
-        ('     Dejala vacía para el caso normal: gasto general del consorcio.', False),
-        (f'   • coeficiente — {", ".join(COEFICIENTES)}. Con qué porcentaje de cada UF se reparte. Vacío = A.', False),
-        ('   • pagado — Sí / No. Vacío se toma como Sí: el gasto se carga cuando ya se pagó.', False),
-        ('   • recurrente — Sí / No. Un gasto recurrente se vuelve a generar solo cada período.', False),
-        (f'   • frecuencia — {", ".join(FRECUENCIAS_GASTO)}. Sólo aplica si "recurrente" es Sí (vacío = mensual).', False),
-        ('   • dia_carga — día del mes (1 a 31) en que se genera el recurrente. Sólo si "recurrente" es Sí.', False),
-        ('   • notas — número de factura, medidor, lo que quieras dejar anotado.', False),
-        ('', False),
-        ('Si un gasto ya existe con el mismo consorcio, fecha, descripción y monto, se omite y no se duplica.', False),
-        ('Eso es lo que hace que volver a subir el mismo archivo por error no cargue todo dos veces.', False),
-        ('', False),
-        ('El Excel que baja el botón "Excel" de la pantalla de Gastos se puede volver a subir acá: sus', False),
-        ('columnas se reconocen solas. Lo que no viaja en el archivo son los comprobantes adjuntos.', False),
-    ]
-    for i, (text, bold) in enumerate(info_lines, 1):
-        cell = ws_info.cell(row=i, column=1, value=text)
-        if bold:
-            cell.font = Font(bold=True, size=13 if i == 1 else 11)
+    hoja_instrucciones(ws_info, 'Carga masiva de gastos', [
+        ('titulo', 'Cómo se usa'),
+        ('paso', ('1', 'Mirá la pestaña «Ejemplo»: son gastos inventados, cargados como se espera.')),
+        ('paso', ('2', 'Completá la pestaña «Carga»: una fila por gasto. Consorcio y unidad se eligen del '
+                       'desplegable: esta carga no crea edificios ni unidades, sólo los usa.')),
+        ('paso', ('3', 'Guardá el archivo y subilo en Gastos → Carga masiva. Sólo se lee la pestaña «Carga».')),
+        ('espacio', ''),
+        ('titulo', 'Obligatorios (sin ellos la fila no se importa)'),
+        ('campo', ('consorcio *', 'Uno de tus consorcios, tal como figura en Niddo.')),
+        ('campo', ('fecha *', 'Fecha del gasto, DD/MM/AAAA. Ej: 05/06/2026.')),
+        ('campo', ('descripcion *', 'Qué es el gasto. Ej: «Factura Edesur junio 2026».')),
+        ('campo', ('monto *', 'Mayor a cero. Se puede escribir 15430,50 o $ 15.430,50.')),
+        ('espacio', ''),
+        ('titulo', 'Opcionales'),
+        ('campo', ('categoria', f'{", ".join(CATEGORIAS_GASTO)}. Vacía o distinta = «otro».')),
+        ('campo', ('unidad', 'Sólo si el gasto es de UNA unidad y no se reparte entre todas (una reparación '
+                             'dentro de un departamento). Vacía = gasto general del consorcio.')),
+        ('campo', ('pagado', 'Sí / No. Vacío = Sí: el gasto se carga cuando ya se pagó.')),
+        ('campo', ('recurrente', 'Sí / No. Un recurrente se vuelve a generar solo cada período.')),
+        ('campo', ('frecuencia', f'{", ".join(FRECUENCIAS_GASTO)}. Sólo si es recurrente (vacía = mensual).')),
+        ('campo', ('dia_carga', 'Día del mes (1 a 31) en que se genera el recurrente.')),
+        ('campo', ('notas', 'Número de factura, medidor, lo que quieras dejar anotado.')),
+        ('espacio', ''),
+        ('nota', 'Un gasto con el mismo consorcio, fecha, descripción y monto que uno ya cargado se saltea: '
+                 'subir dos veces el mismo archivo no duplica nada.'),
+        ('nota', 'El Excel que baja el botón «Excel» de Gastos también se puede subir acá.'),
+    ])
 
-    ws_g = wb.create_sheet('Gastos')
-    style_header(ws_g, HEADERS_PLANTILLA_GASTOS)
-    nombre_ejemplo = consorcios[0]['nombre'] if consorcios else 'Edificio Ejemplo 123'
-    ejemplo = [nombre_ejemplo, '05/06/2026', EJEMPLO_GASTOS_DESCRIPCION, EJEMPLO_GASTOS_MONTO,
-               'electricidad', '', 'A', 'Si', 'No', '', '', 'Factura B-0001-00012345']
-    for c, val in enumerate(ejemplo, 1):
-        ws_g.cell(row=2, column=c, value=val).font = example_font
+    nombre = consorcios[0]['nombre'] if consorcios else 'Torres del Parque'
+    uf = next((u.get('numero') for u in unidades if u.get('consorcio') == nombre), None) or '1A'
+    ws_ej = wb.create_sheet('Ejemplo')
+    encabezado_de_marca(ws_ej, 'Ejemplo', 'Gastos inventados, para ver cómo se carga. Esta pestaña no se importa.')
+    tabla(ws_ej, HEADERS_PLANTILLA_GASTOS, [
+        [nombre, '05/06/2026', EJEMPLO_GASTOS_DESCRIPCION, EJEMPLO_GASTOS_MONTO, 'electricidad', '', 'Sí', 'No', '', '', 'Factura B 0001-00012345'],
+        [nombre, '01/06/2026', 'Sueldo encargado junio', 1250000, 'sueldos', '', 'Sí', 'Sí', 'mensual', 1, ''],
+        [nombre, '10/06/2026', 'Abono mantenimiento ascensor', 98000, 'ascensor', '', 'No', 'Sí', 'mensual', 10, 'Vence el 20'],
+        [nombre, '12/06/2026', 'Destapación cañería baño', 45000, 'mantenimiento', uf, 'Sí', 'No', '', '', 'Sólo esa unidad'],
+    ], formatos={1: 'texto', 3: 'pesos', 9: 'numero'})
 
-    lista_dv(ws_g, CATEGORIAS_GASTO, 'E2:E2000')
-    lista_dv(ws_g, COEFICIENTES, 'G2:G2000')
-    lista_dv(ws_g, ('Si', 'No'), 'H2:H2000')
-    lista_dv(ws_g, ('Si', 'No'), 'I2:I2000')
-    lista_dv(ws_g, FRECUENCIAS_GASTO, 'J2:J2000')
-
-    ws_c = wb.create_sheet('Consorcios existentes')
-    style_header(ws_c, ['nombre', 'direccion'])
-    for r, c in enumerate(consorcios, 2):
-        ws_c.cell(row=r, column=1, value=c.get('nombre', ''))
-        ws_c.cell(row=r, column=2, value=c.get('direccion', ''))
+    ws = wb.create_sheet(HOJA_CARGA)
+    encabezado_de_marca(ws, 'Carga', 'Completá desde la fila de abajo del encabezado. Esta es la pestaña que se importa.')
+    fila = tabla(ws, HEADERS_PLANTILLA_GASTOS, [], formatos={1: 'texto', 3: 'pesos', 9: 'numero'},
+                 anchos={0: 26, 1: 13, 2: 38, 3: 16, 4: 16, 5: 10, 6: 10, 7: 12, 8: 13, 9: 11, 10: 30})
+    desde, hasta = fila + 1, fila + 2000
+    col = 1
+    for letra, nombre_lista, valores in (
+            ('E', 'categoria', list(CATEGORIAS_GASTO)),
+            ('G', 'si_no', ['Sí', 'No']),
+            ('H', 'si_no', ['Sí', 'No']),
+            ('I', 'frecuencia', list(FRECUENCIAS_GASTO))):
+        _desplegable(ws, _lista_oculta(wb, nombre_lista, valores, col), f'{letra}{desde}:{letra}{hasta}')
+        col += 1
     if consorcios:
-        # Rango y no lista literal: la validación por texto de openpyxl se corta
-        # a 255 caracteres y con ocho edificios ya deja nombres partidos al medio.
-        dv_con = DataValidation(
-            type='list', allow_blank=True, showErrorMessage=False,
-            formula1=f"'Consorcios existentes'!$A$2:$A${len(consorcios) + 1}")
-        ws_g.add_data_validation(dv_con)
-        dv_con.add('A2:A2000')
-    else:
-        ws_c.cell(row=2, column=1, value='(todavía no tenés consorcios cargados)').font = example_font
-
-    ws_u = wb.create_sheet('Unidades existentes')
-    style_header(ws_u, ['consorcio', 'unidad', 'piso'])
-    for r, u in enumerate(unidades, 2):
-        ws_u.cell(row=r, column=1, value=u.get('consorcio', ''))
-        ws_u.cell(row=r, column=2, value=u.get('numero', ''))
-        ws_u.cell(row=r, column=3, value=u.get('piso', ''))
-    if not unidades:
-        ws_u.cell(row=2, column=1, value='(todavía no tenés unidades cargadas)').font = example_font
-
-    wb.active = 0
+        _desplegable(ws, _lista_oculta(wb, 'consorcio', [c.get('nombre', '') for c in consorcios], col),
+                     f'A{desde}:A{hasta}')
+        col += 1
+    if unidades:
+        _desplegable(ws, _lista_oculta(wb, 'unidad', sorted({str(u.get('numero') or '') for u in unidades}), col),
+                     f'F{desde}:F{hasta}')
+    for r in range(desde, desde + 200):
+        ws.cell(row=r, column=4).number_format = '"$" #,##0.00'
+    wb.active = wb.sheetnames.index(HOJA_CARGA)
     return wb
 
 def make_pdf(title: str, headers: list, rows: list) -> io.BytesIO:
@@ -673,20 +691,46 @@ def make_pdf(title: str, headers: list, rows: list) -> io.BytesIO:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=1*cm, rightMargin=1*cm,
                             topMargin=1.5*cm, bottomMargin=1*cm)
+    from reportlab.lib.styles import ParagraphStyle
     styles = getSampleStyleSheet()
-    elements = [Paragraph(title, styles['Title']), Spacer(1, 0.4*cm)]
-    data = [headers] + rows
+    # Los mismos colores que la app y que el PDF de la liquidación: el violeta
+    # que había acá era de una marca vieja.
+    logo = ParagraphStyle('logo', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=18,
+                          textColor=colors.HexColor('#2A211C'), leading=22)
+    titulo = ParagraphStyle('titulo', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=13,
+                            textColor=colors.HexColor('#2A211C'), leading=17, spaceBefore=4)
+    sub = ParagraphStyle('sub', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#8A7F75'))
+    elements = [Paragraph('nidd<font color="#E8734A">o</font>', logo), Paragraph(title, titulo),
+                Paragraph(f'Generado el {date.today().strftime("%d/%m/%Y")}', sub), Spacer(1, 0.4*cm)]
+    # Importes como $ 1.234,56 y fechas dd/mm/aaaa, igual que en pantalla: las
+    # filas llegan como las guarda la base.
+    from excel_niddo import _es_monto, _es_fecha
+
+    def celda(h, v):
+        txt = '' if v is None else str(v)
+        if _es_monto(h) and txt:
+            try:
+                return pesos(float(txt))
+            except ValueError:
+                return txt
+        if _es_fecha(h) and re.match(r'^\d{4}-\d{2}-\d{2}', txt):
+            return f'{txt[8:10]}/{txt[5:7]}/{txt[:4]}'
+        return txt
+    data = [headers] + [[celda(h, v) for h, v in zip(headers, r)] for r in rows]
     col_w = (landscape(A4)[0] - 2*cm) / max(len(headers), 1)
     t = Table(data, colWidths=[col_w] * len(headers), repeatRows=1)
     t.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#7C3AED')),
-        ('TEXTCOLOR',  (0,0), (-1,0), colors.white),
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2F6F5E')),
+        ('TEXTCOLOR',  (0,0), (-1,0), colors.HexColor('#F6EFE7')),
         ('FONTNAME',   (0,0), (-1,0), 'Helvetica-Bold'),
         ('FONTSIZE',   (0,0), (-1,-1), 8),
-        ('GRID',       (0,0), (-1,-1), 0.4, colors.HexColor('#cccccc')),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f5f0ff')]),
+        ('TEXTCOLOR',  (0,1), (-1,-1), colors.HexColor('#2A211C')),
+        ('LINEBELOW',  (0,0), (-1,-1), 0.4, colors.HexColor('#E7DDD2')),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#FBF6EF')]),
         ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
         ('ALIGN',      (0,0), (-1,-1), 'CENTER'),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
     ]))
     elements.append(t)
     doc.build(elements)
@@ -2286,16 +2330,51 @@ def api_carga_masiva():
     ids_reutilizados = set()
     nuevos_consorcios = []
 
-    if 'Consorcios' in wb.sheetnames:
-        ws_c = wb['Consorcios']
-        for i, row in enumerate(ws_c.iter_rows(min_row=2, values_only=True), 2):
+    # La plantilla de hoy tiene una sola pestaña de datos («Carga»), una fila
+    # por unidad. Se traduce a las dos listas de la plantilla anterior
+    # —consorcios y unidades— y de ahí sigue el mismo camino.
+    filas_consorcios, filas_unidades_nuevas = [], []
+    if HOJA_CARGA in wb.sheetnames:
+        columnas, filas = leer_filas_por_encabezado(wb[HOJA_CARGA], ALIAS_COLUMNAS_CONSORCIO)
+        if 'consorcio' not in columnas:
+            return jsonify({'error': 'A la pestaña «Carga» le falta la columna «consorcio». '
+                                     'Descargá la plantilla y usá esos encabezados.'}), 400
+        vistos = set()
+        for i, f in filas:
+            nombre = _texto_celda(f.get('consorcio'))
+            if not nombre:
+                errores.append({'hoja': HOJA_CARGA, 'fila': i, 'mensaje': 'Falta el nombre del consorcio'})
+                continue
+            if nombre.lower() not in vistos:
+                vistos.add(nombre.lower())
+                filas_consorcios.append((i, [nombre, _texto_celda(f.get('direccion')), _texto_celda(f.get('cuit')),
+                                             None, None, _texto_celda(f.get('encargado')),
+                                             _texto_celda(f.get('tel_encargado'))]))
+            if _texto_celda(f.get('unidad')):
+                filas_unidades_nuevas.append((i, [nombre, _texto_celda(f.get('unidad')), _texto_celda(f.get('piso')),
+                                                  _texto_celda(f.get('tipo')), f.get('superficie_m2'),
+                                                  _texto_celda(f.get('vecino_nombre')), _texto_celda(f.get('vecino_email')),
+                                                  f.get('ambientes')]))
+    elif 'Consorcios' in wb.sheetnames:
+        # Rellenadas: una planilla vieja con columnas de menos no puede voltear el import.
+        filas_consorcios = [(i, tuple(row or ()) + (None,) * 8)
+                            for i, row in enumerate(wb['Consorcios'].iter_rows(min_row=2, values_only=True), 2)]
+    if 'Unidades' in wb.sheetnames and HOJA_CARGA not in wb.sheetnames:
+        filas_unidades_nuevas = [(i, (tuple(row) + (None,) * 8)[:7])
+                                 for i, row in enumerate(wb['Unidades'].iter_rows(min_row=2, values_only=True), 2)
+                                 if row and not all(v in (None, '') for v in row)]
+    hoja_c = HOJA_CARGA if HOJA_CARGA in wb.sheetnames else 'Consorcios'
+    hoja_u = HOJA_CARGA if HOJA_CARGA in wb.sheetnames else 'Unidades'
+
+    if filas_consorcios:
+        for i, row in filas_consorcios:
             if not row or all(v in (None, '') for v in row):
                 continue
             nombre = str(row[0]).strip() if row[0] else ''
             if es_fila_ejemplo(nombre):
                 continue
             if not nombre:
-                errores.append({'hoja': 'Consorcios', 'fila': i, 'mensaje': 'Falta el nombre del consorcio'})
+                errores.append({'hoja': hoja_c, 'fila': i, 'mensaje': 'Falta el nombre del consorcio'})
                 continue
             key = nombre.lower()
             if key in mapa_consorcios:
@@ -2322,23 +2401,20 @@ def api_carga_masiva():
     nuevas_ufs = []
     consorcio_ids_tocados = set()
 
-    if 'Unidades' in wb.sheetnames:
-        ws_u = wb['Unidades']
-        filas_unidades = [(i, row) for i, row in enumerate(ws_u.iter_rows(min_row=2, values_only=True), 2)
-                           if row and not all(v in (None, '') for v in row)]
-        for i, row in filas_unidades:
+    if filas_unidades_nuevas:
+        for i, row in filas_unidades_nuevas:
             nombre_con = str(row[0]).strip() if row[0] else ''
             if es_fila_ejemplo(nombre_con):
                 continue
             con_id = mapa_consorcios.get(nombre_con.lower())
             if not nombre_con or not con_id:
-                errores.append({'hoja': 'Unidades', 'fila': i, 'mensaje': f'Consorcio no encontrado: "{nombre_con}"'})
+                errores.append({'hoja': hoja_u, 'fila': i, 'mensaje': f'Consorcio no encontrado: "{nombre_con}"'})
                 continue
             if con_id in ids_originales:
                 ids_reutilizados.add(con_id)
-            numero = str(row[1]).strip() if row[1] else ''
+            numero = _texto_celda(row[1]) if row[1] not in (None, '') else ''
             if not numero:
-                errores.append({'hoja': 'Unidades', 'fila': i, 'mensaje': 'Falta el número de unidad'})
+                errores.append({'hoja': hoja_u, 'fila': i, 'mensaje': 'Falta el número de unidad'})
                 continue
             tipo = str(row[3]).strip().lower() if row[3] else 'departamento'
             if tipo not in TIPOS_UF_VALIDOS:
@@ -2349,9 +2425,10 @@ def api_carga_masiva():
                 'numero': numero,
                 'piso': str(row[2]) if row[2] not in (None, '') else '',
                 'tipo': tipo,
-                'superficie_m2': row[4] or None,
+                'superficie_m2': _numero_o_none(row[4]),
                 'vecino_nombre': row[5] or '',
                 'vecino_email': row[6] or '',
+                **({'ambientes': _entero_o_none(row[7])} if len(row) > 7 and row[7] not in (None, '') else {}),
             })
 
     # Evitar duplicar UF ya existentes en el mismo consorcio
@@ -2392,7 +2469,7 @@ def export_consorcios_excel(cid):
     headers = ['UF', 'Piso', 'Tipo', 'Superficie m²', 'Vecino', 'Email']
     rows = [[u['numero'], u.get('piso',''), u.get('tipo',''), u.get('superficie_m2',''),
              u.get('vecino_nombre',''), u.get('vecino_email','')] for u in ufs]
-    wb = make_excel(headers, rows, 'Unidades')
+    wb = make_excel(headers, rows, 'Unidades', titulo=f"Unidades de {con.get('nombre', '')}")
     return excel_response(wb, f"consorcio_{con.get('nombre','')}.xlsx")
 
 
@@ -3053,7 +3130,7 @@ def api_gastos_export():
     if fmt == 'pdf':
         buf = make_pdf('Historial de Gastos', headers, [list(map(str, r)) for r in rows])
         return pdf_response(buf, 'gastos.pdf')
-    wb = make_excel(headers, rows, 'Gastos')
+    wb = make_excel(headers, rows, 'Gastos', titulo='Gastos', totales=[4])
     return excel_response(wb, 'gastos.xlsx')
 
 
@@ -3098,9 +3175,13 @@ def api_gastos_carga_masiva():
     except Exception:
         return jsonify({'error': 'No se pudo leer el archivo. Verificá que sea el .xlsx de la plantilla.'}), 400
 
-    # "Gastos" es la hoja de la plantilla; si no está se usa la primera, que es
-    # lo que llega cuando el archivo salió de exportar y tiene una sola hoja.
-    ws = wb['Gastos'] if 'Gastos' in wb.sheetnames else wb[wb.sheetnames[0]]
+    # "Carga" es la pestaña de la plantilla; "Gastos", la de la plantilla
+    # anterior. Si no está ninguna se usa la primera, que es lo que llega cuando
+    # el archivo salió de exportar y tiene una sola hoja.
+    for nombre_hoja in (HOJA_CARGA, 'Gastos', wb.sheetnames[0]):
+        if nombre_hoja in wb.sheetnames:
+            ws = wb[nombre_hoja]
+            break
     columnas, filas = leer_filas_por_encabezado(ws, ALIAS_COLUMNAS_GASTO)
 
     faltantes = [c for c in COLUMNAS_GASTO_OBLIGATORIAS if c not in columnas]
@@ -3375,7 +3456,7 @@ def api_cobros_export():
     if fmt == 'pdf':
         buf = make_pdf('Cobros / Expensas', headers, [list(map(str, r)) for r in rows])
         return pdf_response(buf, 'cobros.pdf')
-    wb = make_excel(headers, rows, 'Cobros')
+    wb = make_excel(headers, rows, 'Cobros', titulo='Cobros y expensas', totales=[4, 5, 6])
     return excel_response(wb, 'cobros.xlsx')
 
 
@@ -3459,15 +3540,15 @@ def api_balance_export():
     headers = ['Tipo', 'Consorcio', 'Descripción/Período', 'Categoría', 'Monto']
     rows = []
     for c in cobros:
-        rows.append(['INGRESO', (c.get('consorcios') or {}).get('nombre',''), c.get('periodo',''), 'Expensas', str(c.get('total',0))])
+        rows.append(['INGRESO', (c.get('consorcios') or {}).get('nombre',''), c.get('periodo',''), 'Expensas', float(c.get('total') or 0)])
     for g in gastos:
-        rows.append(['EGRESO', (g.get('consorcios') or {}).get('nombre',''), g.get('descripcion',''), g.get('categoria',''), str(g.get('monto',0))])
+        rows.append(['EGRESO', (g.get('consorcios') or {}).get('nombre',''), g.get('descripcion',''), g.get('categoria',''), -float(g.get('monto') or 0)])
 
     fmt = request.args.get('fmt', 'excel')
     if fmt == 'pdf':
-        buf = make_pdf('Balance Financiero', headers, rows)
+        buf = make_pdf('Balance Financiero', headers, [r[:4] + [pesos(r[4])] for r in rows])
         return pdf_response(buf, 'balance.pdf')
-    wb = make_excel(headers, rows, 'Balance')
+    wb = make_excel(headers, rows, 'Balance', titulo='Balance: ingresos y egresos', totales=[4])
     return excel_response(wb, 'balance.xlsx')
 
 
@@ -4639,7 +4720,7 @@ def api_vecinos_cobros_export():
     if request.args.get('fmt') == 'pdf':
         buf = make_pdf('Mi cuenta corriente', headers, [[str(x) for x in r] for r in rows])
         return pdf_response(buf, 'mi_cuenta_corriente.pdf')
-    wb = make_excel(headers, rows, 'Cuenta corriente')
+    wb = make_excel(headers, rows, 'Cuenta corriente', titulo='Mi cuenta corriente', totales=[1, 2, 3])
     return excel_response(wb, 'mi_cuenta_corriente.xlsx')
 
 
@@ -4688,7 +4769,7 @@ def api_vecinos_cupon_pago(rid):
     elements.append(Spacer(1, 0.6*cm))
     data = [['Campo', 'Detalle'], ['Período', cobro.get('periodo', '')], ['Monto Base', pesos(cobro.get('monto_base', 0))], ['Interés/Mora', pesos(cobro.get('interes_mora', 0))], ['TOTAL A PAGAR', pesos(cobro.get('total', 0))], ['Estado', str(cobro.get('estado', '')).upper()], ['Vencimiento', cobro.get('fecha_vencimiento', 'N/A')]]
     t = Table(data, colWidths=[8*cm, 9*cm])
-    t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#7C3AED')), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('FONTNAME', (0,4), (-1,4), 'Helvetica-Bold'), ('FONTSIZE', (0,0), (-1,-1), 10), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')), ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f5f0ff')]), ('ALIGN', (1,0), (1,-1), 'RIGHT')]))
+    t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2F6F5E')), ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#F6EFE7')), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('FONTNAME', (0,4), (-1,4), 'Helvetica-Bold'), ('FONTSIZE', (0,0), (-1,-1), 10), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')), ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#FBF6EF')]), ('ALIGN', (1,0), (1,-1), 'RIGHT')]))
     elements.append(t)
     elements.append(Spacer(1, 0.8*cm))
     elements.append(Paragraph('<i>Para informar su pago, ingrese al panel y use "Informar Pago".</i>', styles['Normal']))
