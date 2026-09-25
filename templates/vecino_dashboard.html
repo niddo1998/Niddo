@@ -17,6 +17,7 @@
     window.NIDDO_MOBILE_CONFIG = { usesHash: true };
     </script>
     <script src="{{ url_for('static', filename='js/niddo-mobile.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/niddo-numeros.js') }}" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -598,7 +599,7 @@
                 <div class="f-row">
                     <div class="fg">
                         <label class="fl">Monto Abonado ($) *</label>
-                        <input type="number" id="pg-monto" class="fc" placeholder="0.00" step="0.01" required oninput="validarCampo('pg-monto')">
+                        <input type="number" id="pg-monto" class="fc" data-monto step="0.01" required oninput="validarCampo('pg-monto')">
                         <div class="invalid-feedback" id="err-pg-monto">Ingresa un monto válido mayor a 0.</div>
                     </div>
                     <div class="fg">
@@ -1707,7 +1708,9 @@ function validarCampo(id) {
     const err = document.getElementById('err-' + id);
 
     let ok;
-    if (el.type === 'number') {
+    // Los campos numéricos ya no son type="number" (niddo-numeros.js los pasa
+    // a texto con formato), pero `value` sigue devolviendo el número crudo.
+    if (el.type === 'number' || el.dataset.ndNumero) {
         const val = parseFloat(el.value);
         ok = !isNaN(val) && val > 0;
     } else {
