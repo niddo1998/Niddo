@@ -8,6 +8,8 @@ reserva. Es una notificación de algo ya guardado; si Resend está caído, la
 reserva tiene que quedar igual.
 """
 
+from datetime import date, timedelta
+
 import pytest
 
 
@@ -19,7 +21,11 @@ def mails(monkeypatch, app_modulo):
     return enviados
 
 
-RESERVA = {'amenity_id': 'amen-1', 'fecha': '2026-09-10',
+# Siempre en el futuro: el servidor rechaza las reservas en fechas pasadas, y
+# una fecha fija hacía que la suite entera empezara a fallar el día después.
+FECHA = (date.today() + timedelta(days=10)).isoformat()
+
+RESERVA = {'amenity_id': 'amen-1', 'fecha': FECHA,
            'hora_inicio': '18:00', 'hora_fin': '20:00'}
 
 
@@ -29,13 +35,13 @@ def test_le_llega_el_mail_al_vecino(client, mails):
     assert len(mails) == 1
     destinatarios, asunto, html = mails[0]
     assert destinatarios == ['uno@test']
-    assert 'SUM' in asunto and '2026-09-10' in asunto
+    assert 'SUM' in asunto and FECHA in asunto
 
 
 def test_el_mail_lleva_dia_horario_y_espacio(client, mails):
     client.post('/api/reservas_amenities', json=RESERVA)
     html = mails[0][2]
-    for dato in ('SUM', 'Mío', '2026-09-10', '18:00', '20:00'):
+    for dato in ('SUM', 'Mío', FECHA, '18:00', '20:00'):
         assert dato in html, dato
 
 
