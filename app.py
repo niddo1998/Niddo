@@ -1504,11 +1504,11 @@ def _mail_respuesta_reclamo(reclamo: dict, estado_nuevo: str, respuesta: str) ->
     cuerpo = f"""
       <p style="margin:0 0 16px">{saludo}</p>
       <p style="margin:0 0 22px">La administración actualizó tu reclamo
-      <strong>{titulo}</strong>.</p>
+      <strong>{escape(titulo)}</strong>.</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:22px">
         <tr><td style="padding:7px 0;color:#574C42;width:130px">Estado</td><td style="padding:7px 0"><strong>{legible}</strong></td></tr>
       </table>
-      {f'<p style="margin:0 0 8px;color:#574C42;font-size:13px"><strong>Respuesta:</strong></p><p style="margin:0 0 22px">{respuesta}</p>' if respuesta else ''}
+      {f'<p style="margin:0 0 8px;color:#574C42;font-size:13px"><strong>Respuesta:</strong></p><p style="margin:0 0 22px;white-space:pre-wrap">{escape(respuesta)}</p>' if respuesta else ''}
       <a href="{url_for('dashboard', role='vecino', _external=True)}"
          style="display:inline-block;background:#E8734A;color:#fff;text-decoration:none;
          padding:12px 24px;border-radius:12px;font-weight:700">Ver en el portal</a>"""
@@ -4797,7 +4797,7 @@ def api_reclamos_list():
     if request.args.get('estado'):
         q = q.eq('estado', request.args['estado'])
     res = q.order('created_at', desc=True).execute()
-    return jsonify(res.data)
+    return jsonify(_con_resumen_de_conversacion(res.data or [], lado='vecino'))
 
 
 @app.route('/api/reclamos', methods=['POST'])
@@ -4852,6 +4852,143 @@ def api_reclamos_adjunto(rid):
     return enviar_adjunto(reclamo.data['adjunto_base64'],
                           reclamo.data.get('adjunto_nombre', 'adjunto'),
                           reclamo.data.get('adjunto_mime'))
+
+
+# ── Novedades ──────────────────────────────────────────────────────────────────
+def _avisar_novedad(tipo, **datos):
+    """Avisa por push al otro lado que pasó algo. Nunca voltea la request.
+
+    Lo que dispara el aviso ya quedó guardado: que falle la notificación no es
+    motivo para que el que la originó vea un error.
+    """
+    try:
+        _push_por_novedad(tipo, **datos)
+    except Exception:
+        app.logger.exception('No se pudo avisar la novedad %s', tipo)
+
+
+def _push_por_novedad(tipo, **datos):
+    """Se completa con las notificaciones push (ver más abajo)."""
+    return None
+
+
+# ── La conversación de cada reclamo ────────────────────────────────────────────
+# El reclamo tenía una sola `respuesta_admin` que se pisaba en cada edición y el
+# vecino no podía contestar: si la respuesta no le servía, tenía que abrir otro
+# reclamo. Ahora cada reclamo es una conversación. La descripción original sigue
+# en `reclamos`; lo que escriben los dos lados después va en `reclamo_mensajes`.
+
+COLUMNAS_RECLAMO_MENSAJE = ('id, reclamo_id, autor, admin_id, cuerpo, '
+                            'adjunto_nombre, adjunto_mime, leido_at, created_at')
+
+ESTADOS_RECLAMO = ('activo', 'en_proceso', 'resuelto', 'cerrado')
+
+
+def _mensajes_de_reclamos(ids):
+    """{reclamo_id: [mensajes en orden]} sin el base64 de los adjuntos."""
+    if not ids:
+        return {}
+    try:
+        filas = supabase.table('reclamo_mensajes').select(COLUMNAS_RECLAMO_MENSAJE) \
+            .in_('reclamo_id', list(ids)).order('created_at').execute().data or []
+    except Exception:
+        # Sin v21 la pantalla sigue andando como antes, sin conversación.
+        app.logger.warning('No se pudo leer reclamo_mensajes (¿falta v21?)')
+        return {}
+    por_reclamo = {}
+    for f in filas:
+        por_reclamo.setdefault(f['reclamo_id'], []).append(f)
+    for lista in por_reclamo.values():
+        lista.sort(key=lambda m: str(m.get('created_at') or ''))
+    return por_reclamo
+
+
+def _con_resumen_de_conversacion(reclamos, lado):
+    """Le suma a cada reclamo lo que la lista necesita mostrar de su conversación.
+
+    - `respondido`: la administración contestó al menos una vez.
+    - `ultimo_autor`: quién escribió lo último ('vecino' si nadie contestó).
+    - `sin_leer`: mensajes del otro lado que `lado` todavía no abrió.
+    - `mensajes`: cuántos hay, sin contar la descripción original.
+    """
+    conv = _mensajes_de_reclamos([r['id'] for r in reclamos])
+    otro = 'admin' if lado == 'vecino' else 'vecino'
+    for r in reclamos:
+        msgs = conv.get(r['id'], [])
+        r['mensajes'] = len(msgs)
+        r['respondido'] = any(m['autor'] == 'admin' for m in msgs) or bool(r.get('respuesta_admin'))
+        r['ultimo_autor'] = msgs[-1]['autor'] if msgs else ('admin' if r.get('respuesta_admin') else 'vecino')
+        r['ultimo_mensaje_at'] = msgs[-1].get('created_at') if msgs else r.get('created_at')
+        r['sin_leer'] = len([m for m in msgs if m['autor'] == otro and not m.get('leido_at')])
+    return reclamos
+
+
+def _marcar_leidos_reclamo(rid, autor_del_otro):
+    try:
+        supabase.table('reclamo_mensajes').update({'leido_at': now_iso()}) \
+            .eq('reclamo_id', rid).eq('autor', autor_del_otro).is_('leido_at', 'null').execute()
+    except Exception:
+        app.logger.exception('No se pudieron marcar como leídos los mensajes del reclamo %s', rid)
+
+
+def _reclamo_del_vecino(rid, vecino_id):
+    fila = supabase.table('reclamos') \
+        .select('id, vecino_id, consorcio_id, titulo, estado, created_at, updated_at') \
+        .eq('id', rid).execute().data
+    if not fila or fila[0].get('vecino_id') != vecino_id:
+        _no_es_tuyo()
+    return fila[0]
+
+
+@app.route('/api/reclamos/<rid>/mensajes')
+@require_auth(allowed_roles=['vecino'])
+def api_reclamo_mensajes(rid):
+    """La conversación del reclamo. Abrirla es leer lo que contestó la administración."""
+    _reclamo_del_vecino(rid, get_vecino_id())
+    msgs = _mensajes_de_reclamos([rid]).get(rid, [])
+    _marcar_leidos_reclamo(rid, 'admin')
+    return jsonify(msgs)
+
+
+@app.route('/api/reclamos/<rid>/mensajes', methods=['POST'])
+@require_auth(allowed_roles=['vecino'])
+def api_reclamo_mensaje_vecino(rid):
+    """El vecino le contesta a la administración dentro del reclamo.
+
+    Un reclamo cerrado no se reabre por acá: está terminado y para algo nuevo
+    se abre otro. Uno resuelto sí: si el vecino contesta es porque no quedó
+    resuelto, así que vuelve a "en proceso" y le aparece al administrador.
+    """
+    reclamo = _reclamo_del_vecino(rid, get_vecino_id())
+    if reclamo.get('estado') == 'cerrado':
+        return jsonify({'error': 'Este reclamo está cerrado. Si el problema sigue, abrí uno nuevo.'}), 409
+    cuerpo, extra, error = _cuerpo_y_adjunto('adjunto')
+    if error:
+        return error
+    res = supabase.table('reclamo_mensajes').insert({
+        'reclamo_id': rid, 'autor': 'vecino', 'cuerpo': cuerpo, **extra,
+    }).execute()
+    cambios = {'updated_at': now_iso()}
+    if reclamo.get('estado') == 'resuelto':
+        cambios['estado'] = 'en_proceso'
+    supabase.table('reclamos').update(cambios).eq('id', rid).execute()
+    _avisar_novedad('admin_reclamo_respuesta', reclamo=reclamo, cuerpo=cuerpo)
+    return jsonify(_mensaje_publico(res.data[0] if res.data else {})), 201
+
+
+@app.route('/api/reclamos/mensajes/<mid>/adjunto')
+@require_auth(allowed_roles=['vecino'])
+def api_reclamo_mensaje_adjunto_vecino(mid):
+    fila = supabase.table('reclamo_mensajes') \
+        .select('reclamo_id, adjunto_base64, adjunto_nombre, adjunto_mime') \
+        .eq('id', mid).execute().data
+    if not fila:
+        _no_es_tuyo()
+    _reclamo_del_vecino(fila[0]['reclamo_id'], get_vecino_id())
+    if not fila[0].get('adjunto_base64'):
+        return jsonify({'error': 'Ese mensaje no tiene adjunto'}), 404
+    return enviar_adjunto(fila[0]['adjunto_base64'], fila[0].get('adjunto_nombre', 'adjunto'),
+                          fila[0].get('adjunto_mime'))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -5409,7 +5546,7 @@ def api_admin_reclamos_list():
     if request.args.get('estado'):
         q = q.eq('estado', request.args['estado'])
     res = q.order('created_at', desc=True).execute()
-    return jsonify(res.data)
+    return jsonify(_con_resumen_de_conversacion(res.data or [], lado='admin'))
 
 
 @app.route('/api/admin/reclamos/<rid>', methods=['PUT'])
@@ -5419,9 +5556,25 @@ def api_admin_reclamos_update(rid):
     d = request.json or {}
     allowed = ('estado', 'respuesta_admin')
     payload = {k: v for k, v in d.items() if k in allowed}
+    if 'estado' in payload and payload['estado'] not in ESTADOS_RECLAMO:
+        return jsonify({'error': 'Estado de reclamo desconocido'}), 400
     payload['updated_at'] = now_iso()
     res = supabase.table('reclamos').update(payload).eq('id', rid).execute()
     actualizado = res.data[0] if res.data else {}
+
+    # Una respuesta mandada por acá (el cliente viejo) también entra a la
+    # conversación, así el vecino la ve en el mismo lugar que las demás.
+    respuesta = (payload.get('respuesta_admin') or '').strip()
+    if actualizado and respuesta:
+        previos = _mensajes_de_reclamos([rid]).get(rid, [])
+        ultima_admin = next((m for m in reversed(previos) if m['autor'] == 'admin'), None)
+        if not ultima_admin or ultima_admin.get('cuerpo') != respuesta:
+            try:
+                supabase.table('reclamo_mensajes').insert({
+                    'reclamo_id': rid, 'autor': 'admin', 'admin_id': get_admin_id(),
+                    'cuerpo': respuesta}).execute()
+            except Exception:
+                app.logger.exception('No se pudo guardar la respuesta en la conversación')
 
     # El aviso va después de guardar y sin poder voltear la respuesta: el
     # reclamo ya se movió, y que Resend esté caído no es motivo para que el
@@ -5457,6 +5610,80 @@ def api_admin_reclamos_adjunto(rid):
     return enviar_adjunto(reclamo['adjunto_base64'],
                           reclamo.get('adjunto_nombre', 'adjunto'),
                           reclamo.get('adjunto_mime'))
+
+
+@app.route('/api/admin/reclamos/<rid>/mensajes')
+@require_auth(allowed_roles=['admin'])
+def api_admin_reclamo_mensajes(rid):
+    """La conversación del reclamo, del lado de la administración."""
+    fila_de_consorcio_propio('reclamos', rid)
+    msgs = _mensajes_de_reclamos([rid]).get(rid, [])
+    _marcar_leidos_reclamo(rid, 'vecino')
+    return jsonify(msgs)
+
+
+@app.route('/api/admin/reclamos/<rid>/mensajes', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_reclamo_responder(rid):
+    """El administrador contesta dentro del reclamo, y de paso le cambia el estado.
+
+    Contestar un reclamo que nadie había tocado lo pasa a "en proceso" salvo que
+    se elija otro estado: ya hay alguien atendiéndolo, y es lo que el vecino
+    tiene que ver. Resolverlo o cerrarlo sigue pidiendo una respuesta, igual que
+    antes, para que el vecino sepa qué se hizo.
+    """
+    fila_de_consorcio_propio('reclamos', rid)
+    reclamo = supabase.table('reclamos').select('*').eq('id', rid).execute().data
+    reclamo = reclamo[0] if reclamo else {}
+
+    d = request.form if request.content_type and 'multipart' in request.content_type else request.json or {}
+    estado = (d.get('estado') or '').strip() or None
+    if estado and estado not in ESTADOS_RECLAMO:
+        return jsonify({'error': 'Estado de reclamo desconocido'}), 400
+
+    cuerpo, extra, error = _cuerpo_y_adjunto('adjunto')
+    if error:
+        # Cambiar sólo el estado, sin escribir nada, también vale, salvo para
+        # resolver o cerrar.
+        if estado and estado not in ('resuelto', 'cerrado') and not request.files:
+            supabase.table('reclamos').update({'estado': estado, 'updated_at': now_iso()}) \
+                .eq('id', rid).execute()
+            return jsonify({'ok': True, 'estado': estado})
+        if estado in ('resuelto', 'cerrado'):
+            return jsonify({'error': 'Escribile al vecino qué se hizo antes de cerrar el reclamo'}), 400
+        return error
+
+    res = supabase.table('reclamo_mensajes').insert({
+        'reclamo_id': rid, 'autor': 'admin', 'admin_id': get_admin_id(),
+        'cuerpo': cuerpo, **extra,
+    }).execute()
+    nuevo_estado = estado or ('en_proceso' if reclamo.get('estado') == 'activo' else reclamo.get('estado'))
+    cambios = {'estado': nuevo_estado, 'updated_at': now_iso()}
+    if cuerpo:
+        cambios['respuesta_admin'] = cuerpo
+    supabase.table('reclamos').update(cambios).eq('id', rid).execute()
+
+    try:
+        _mail_respuesta_reclamo({**reclamo, **cambios}, nuevo_estado, cuerpo)
+    except Exception:
+        app.logger.exception('Falló el aviso del reclamo %s', rid)
+    _avisar_novedad('vecino_reclamo_respuesta', reclamo=reclamo, cuerpo=cuerpo)
+    return jsonify(_mensaje_publico(res.data[0] if res.data else {})), 201
+
+
+@app.route('/api/admin/reclamos/mensajes/<mid>/adjunto')
+@require_auth(allowed_roles=['admin'])
+def api_admin_reclamo_mensaje_adjunto(mid):
+    fila = supabase.table('reclamo_mensajes') \
+        .select('reclamo_id, adjunto_base64, adjunto_nombre, adjunto_mime') \
+        .eq('id', mid).execute().data
+    if not fila:
+        _no_es_tuyo()
+    fila_de_consorcio_propio('reclamos', fila[0]['reclamo_id'])
+    if not fila[0].get('adjunto_base64'):
+        return jsonify({'error': 'Ese mensaje no tiene adjunto'}), 404
+    return enviar_adjunto(fila[0]['adjunto_base64'], fila[0].get('adjunto_nombre', 'adjunto'),
+                          fila[0].get('adjunto_mime'))
 
 
 @app.route('/api/admin/avisos-pago')

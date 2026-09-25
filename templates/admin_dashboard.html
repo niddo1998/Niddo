@@ -372,6 +372,8 @@
         .burbuja .meta { font-size: .68rem; color: var(--muted); margin-top: 4px; }
         .burbuja a { color: var(--teal); font-weight: 600; }
         .chat-escribir { border-top: 1px solid var(--border); padding: 10px 14px; }
+        .rec-conv { display: flex; flex-direction: column; gap: 10px; max-height: 42vh; overflow-y: auto;
+                    padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; }
         .chat-fila { display: flex; gap: 8px; align-items: flex-end; }
         .chat-fila textarea { flex: 1; resize: none; }
         .chat-adjunto { font-size: .74rem; color: var(--muted); margin-bottom: 6px; }
@@ -974,25 +976,34 @@
         </div>
         <div class="modal-body">
             <div id="m-rec-meta" style="font-size:0.82rem;color:var(--muted);margin-bottom:12px"></div>
-            <div id="m-rec-desc" style="background:var(--nd-crema);border-radius:8px;padding:14px;margin-bottom:14px;font-size:0.9rem;line-height:1.7;white-space:pre-wrap"></div>
-            <div id="m-rec-adjunto" style="margin-bottom:16px"></div>
-            <div class="form-group">
-                <label class="form-label">Estado</label>
-                <select class="form-ctrl" id="m-rec-estado">
-                    <option value="activo">Activo</option>
-                    <option value="en_proceso">En proceso</option>
-                    <option value="resuelto">Resuelto</option>
-                    <option value="cerrado">Cerrado</option>
-                </select>
+            <div id="m-rec-adjunto" style="margin-bottom:12px"></div>
+            <!-- La conversación: la descripción del vecino es el primer mensaje
+                 y abajo sigue lo que escribieron los dos. -->
+            <div class="rec-conv" id="m-rec-conv"></div>
+            <div class="form-group" style="margin-top:14px;">
+                <label class="form-label">Responderle al vecino</label>
+                <textarea class="form-ctrl" id="m-rec-respuesta" rows="3" placeholder="Lo ve en su portal y le llega por mail"></textarea>
+                <div class="chat-adjunto" id="m-rec-archivo-nombre" style="display:none;margin-top:6px;"></div>
             </div>
-            <div class="form-group">
-                <label class="form-label">Respuesta al vecino</label>
-                <textarea class="form-ctrl" id="m-rec-respuesta" rows="4" placeholder="Lo que escribas acá lo ve el vecino en su portal"></textarea>
+            <div class="form-row" style="align-items:end;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label class="form-label">Estado</label>
+                    <select class="form-ctrl" id="m-rec-estado">
+                        <option value="activo">Activo</option>
+                        <option value="en_proceso">En proceso</option>
+                        <option value="resuelto">Resuelto</option>
+                        <option value="cerrado">Cerrado</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <button class="btn-s btn-sm" type="button" onclick="$('m-rec-archivo').click()"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>Adjuntar archivo</button>
+                    <input type="file" id="m-rec-archivo" accept="image/*,.pdf" style="display:none" onchange="recArchivoElegido(this)">
+                </div>
             </div>
         </div>
         <div class="modal-footer">
-            <button class="btn-s" onclick="closeModal('modal-reclamo')">Cancelar</button>
-            <button class="btn-p" onclick="guardarReclamo()">Guardar y responder</button>
+            <button class="btn-s" onclick="closeModal('modal-reclamo')">Cerrar</button>
+            <button class="btn-p" onclick="guardarReclamo()"><svg class="ic ic-sm"><use href="#ic-mensaje"></use></svg>Responder</button>
         </div>
     </div>
 </div>
@@ -5135,6 +5146,7 @@ let reclamoActual = null;
 
 // Las clases son las que ya define el CSS de la hoja: b-r terracota (pide
 // atención), b-y amarillo (en curso), b-g verde (cerrado bien), b-gr gris.
+const RECLAMO_ESTADO = {activo: 'Activo', en_proceso: 'En proceso', resuelto: 'Resuelto', cerrado: 'Cerrado'};
 const RECLAMO_BADGE = {
     activo:     'b-r',
     en_proceso: 'b-y',
@@ -5465,8 +5477,10 @@ function renderReclamos() {
             <td>${escHtml(v.nombre) || escHtml(v.email) || '—'}${v.unidad ? ' · UF ' + escHtml(v.unidad) : ''}</td>
             <td><strong>${escHtml(r.titulo)}</strong>${r.adjunto_nombre ? ' <svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>' : ''}</td>
             <td>${escHtml(r.categoria) || '—'}</td>
-            <td><span class="b ${RECLAMO_BADGE[r.estado] || 'b-gy'}">${escHtml(r.estado)}</span></td>
-            <td><button class="btn-s btn-xs" onclick="abrirReclamo('${r.id}')">Atender</button></td>
+            <td><span class="b ${RECLAMO_BADGE[r.estado] || 'b-gr'}">${RECLAMO_ESTADO[r.estado] || escHtml(r.estado)}</span>
+                ${r.sin_leer ? `<span class="b b-r" style="margin-left:4px;">Respuesta del vecino</span>`
+                  : r.respondido ? `<span class="b b-g" style="margin-left:4px;">Respondido</span>` : ''}</td>
+            <td><button class="btn-s btn-xs" onclick="abrirReclamo('${r.id}')">${r.respondido ? 'Ver conversación' : 'Responder'}</button></td>
         </tr>`;
     }).join('');
 }
@@ -5482,7 +5496,7 @@ function actualizarBadgeReclamos() {
     });
 }
 
-function abrirReclamo(id) {
+async function abrirReclamo(id) {
     reclamoActual = reclamosCargados.find(r => r.id === id);
     if (!reclamoActual) return;
     const r = reclamoActual, v = r.vecinos || {}, con = r.consorcios || {};
@@ -5493,18 +5507,67 @@ function abrirReclamo(id) {
         v.unidad ? 'UF ' + escHtml(v.unidad) : '', escHtml(r.categoria),
         r.created_at ? new Date(r.created_at).toLocaleDateString('es-AR') : ''
     ].filter(Boolean).join(' · ');
-    $('m-rec-desc').textContent = r.descripcion || '';
 
     // El adjunto viaja por la ruta del admin: la del vecino compara contra el
     // vecino dueño y desde acá siempre daría 404.
     $('m-rec-adjunto').innerHTML = r.adjunto_nombre
         ? `<a class="btn-s btn-sm" href="/api/admin/reclamos/${r.id}/adjunto" target="_blank" rel="noopener">
              <svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>${escHtml(r.adjunto_nombre)}</a>`
-        : '<span style="font-size:0.8rem;color:var(--muted)">Sin adjunto</span>';
+        : '';
 
     $('m-rec-estado').value = r.estado || 'activo';
-    $('m-rec-respuesta').value = r.respuesta_admin || '';
+    $('m-rec-respuesta').value = '';
+    recQuitarArchivo();
+    pintarConversacionReclamo(r, null);
     openModal('modal-reclamo');
+    try {
+        const msgs = await api(`/api/admin/reclamos/${r.id}/mensajes`);
+        if (reclamoActual !== r) return;
+        pintarConversacionReclamo(r, msgs);
+        // Abrirla es leerla: el "Respuesta del vecino" de la lista se va ya.
+        if (r.sin_leer) { r.sin_leer = 0; renderReclamos(); actualizarBadgeReclamos(); }
+    } catch (e) {
+        $('m-rec-conv').insertAdjacentHTML('beforeend',
+            `<div class="text-muted text-sm">No se pudo cargar la conversación: ${escHtml(e.message)}</div>`);
+    }
+}
+
+/* La descripción original y después cada mensaje, como en un chat: lo del
+   vecino a la izquierda y lo de la administración a la derecha. */
+function pintarConversacionReclamo(r, msgs) {
+    const v = r.vecinos || {};
+    const cuando = f => f ? new Date(f).toLocaleString('es-AR',
+        {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) : '';
+    const burbuja = (mia, cuerpo, meta, adjunto) => `<div class="burbuja ${mia ? 'mia' : 'suya'}">
+        ${cuerpo ? escHtml(cuerpo).replace(/\n/g, '<br>') : ''}${adjunto || ''}
+        <div class="meta">${meta}</div></div>`;
+    let html = burbuja(false, r.descripcion, `${escHtml(v.nombre || 'Vecino')} · ${cuando(r.created_at)}`);
+    if (msgs === null) {
+        html += '<div class="text-muted text-sm" style="text-align:center;">Cargando la conversación...</div>';
+    } else if (!msgs.length && r.respuesta_admin) {
+        html += burbuja(true, r.respuesta_admin, 'Vos');
+    } else {
+        html += msgs.map(m => burbuja(m.autor === 'admin', m.cuerpo,
+            `${m.autor === 'admin' ? 'Vos' : escHtml(v.nombre || 'Vecino')} · ${cuando(m.created_at)}${m.autor === 'admin' && m.leido_at ? ' · leído' : ''}`,
+            m.adjunto_nombre ? `<div style="margin-top:6px;"><a href="/api/admin/reclamos/mensajes/${m.id}/adjunto" target="_blank" rel="noopener">📎 ${escHtml(m.adjunto_nombre)}</a></div>` : '')).join('');
+    }
+    const cont = $('m-rec-conv');
+    cont.innerHTML = html;
+    cont.scrollTop = cont.scrollHeight;
+}
+
+let recArchivo = null;
+function recArchivoElegido(input) {
+    recArchivo = input.files[0] || null;
+    const el = $('m-rec-archivo-nombre');
+    if (!recArchivo) { el.style.display = 'none'; return; }
+    el.innerHTML = `📎 ${escHtml(recArchivo.name)} · <a onclick="recQuitarArchivo()" style="cursor:pointer;color:var(--nd-terracota-hondo);">quitar</a>`;
+    el.style.display = '';
+}
+function recQuitarArchivo() {
+    recArchivo = null;
+    $('m-rec-archivo').value = '';
+    $('m-rec-archivo-nombre').style.display = 'none';
 }
 
 async function guardarReclamo() {
@@ -5514,18 +5577,34 @@ async function guardarReclamo() {
 
     // Cerrar sin una línea de explicación deja al vecino con un reclamo
     // "resuelto" y ninguna idea de qué se hizo.
-    if (['resuelto', 'cerrado'].includes(estado) && !respuesta) {
+    if (['resuelto', 'cerrado'].includes(estado) && !respuesta && !reclamoActual.respondido) {
         toast('Escribile al vecino qué se hizo antes de cerrar el reclamo', 'err');
         return;
     }
+    if (!respuesta && !recArchivo && estado === reclamoActual.estado) {
+        toast('Escribí una respuesta o cambiá el estado', 'warn');
+        return;
+    }
 
+    const fd = new FormData();
+    fd.append('cuerpo', respuesta);
+    // El estado viaja sólo si se tocó: contestar uno activo sin elegir nada lo
+    // pasa solo a "En proceso" (lo decide el servidor).
+    if (estado !== reclamoActual.estado) fd.append('estado', estado);
+    if (recArchivo) fd.append('adjunto', recArchivo);
     try {
-        await api(`/api/admin/reclamos/${reclamoActual.id}`, {
-            method: 'PUT',
-            body: JSON.stringify({ estado, respuesta_admin: respuesta })
-        });
+        let r;
+        if (respuesta || recArchivo) {
+            r = await fetch(`/api/admin/reclamos/${reclamoActual.id}/mensajes`, {method: 'POST', body: fd});
+        } else {
+            // Sólo cambia el estado: ya hubo una respuesta antes.
+            r = await fetch(`/api/admin/reclamos/${reclamoActual.id}`, {
+                method: 'PUT', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({estado})});
+        }
+        if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Error ' + r.status); }
         closeModal('modal-reclamo');
-        toast('Reclamo actualizado — el vecino ya ve la respuesta');
+        toast(respuesta || recArchivo ? 'Respuesta enviada — el vecino ya la ve' : 'Estado actualizado');
         loadReclamos();
     } catch (e) { toast(e.message, 'err'); }
 }

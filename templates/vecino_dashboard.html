@@ -189,6 +189,7 @@
     .md-detail{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;overflow-y:auto}
     .md-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--muted);gap:12px}
     .md-empty-icon{font-size:3rem;opacity:0.3}
+    .rec-conv{display:flex;flex-direction:column;gap:10px;max-height:46vh;overflow-y:auto;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius)}
     
     .acc-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden}
     .acc-btn{width:100%;background:none;border:none;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:0.9rem;font-weight:600;color:var(--text);font-family:var(--font);text-align:left;transition:background 0.15s}
@@ -808,7 +809,8 @@ const fmtD=d=>d?new Date(d+'T00:00:00').toLocaleDateString('es-AR'):'–';
 const badgeMap={pagado:'ok',pendiente:'pending',vencido:'danger',en_mora:'danger',activo:'ok',en_proceso:'pending',resuelto:'ok',cerrado:'muted',activa:'ok',cerrada:'muted',confirmada:'ok',cancelada:'danger'};
 const ebadge = e => {
     const clm = {pagado:'ok', pendiente:'pending', vencido:'danger', en_mora:'danger', activo:'ok', en_proceso:'pending', resuelto:'ok', cerrado:'muted', aceptado:'ok', rechazado:'danger', vencida:'muted'};
-    return `<span class="state-dot" title="${esc(e||'')}"><span class="dot ${clm[e]||'muted'}"></span><span style="font-size:0.75rem;font-weight:600">${esc(e||'–')}</span></span>`;
+    const txt = {pagado:'Pagado', pendiente:'Pendiente', vencido:'Vencido', en_mora:'En mora', activo:'Activo', en_proceso:'En proceso', resuelto:'Resuelto', cerrado:'Cerrado', aceptado:'Aceptado', rechazado:'Rechazado', vencida:'Vencida', confirmada:'Confirmada', cancelada:'Cancelada'};
+    return `<span class="state-dot" title="${esc(txt[e]||e||'')}"><span class="dot ${clm[e]||'muted'}"></span><span style="font-size:0.75rem;font-weight:600">${esc(txt[e]||e||'–')}</span></span>`;
 };
 
 async function api(url,opts={}){
@@ -1268,18 +1270,77 @@ async function loadGastos(){
 async function loadReclamos(){
     document.getElementById('rec-list').innerHTML='<div style="padding:20px;color:var(--muted);text-align:center;font-size:0.85rem">Cargando...</div>';
     const est=document.getElementById('rec-filter').value;
-    try{S.recs=await api('/api/reclamos'+(est?'?estado='+est:''));renderRecList()}
+    try{S.recs=await api('/api/reclamos'+(est?'?estado='+est:''));renderRecList();if(S.recAbierto&&!S.recs.find(r=>r.id===S.recAbierto))S.recAbierto=null}
     catch(e){document.getElementById('rec-list').innerHTML='<div style="padding:20px;color:var(--nd-terracota-hondo);text-align:center">Error al cargar</div>'}
 }
+const REC_ESTADO={activo:'Activo',en_proceso:'En proceso',resuelto:'Resuelto',cerrado:'Cerrado'};
 function renderRecList(){
     const el=document.getElementById('rec-list');
     if(!S.recs.length){el.innerHTML='<div style="padding:32px;text-align:center;color:var(--muted)"><div style="margin-bottom:8px;color:var(--nd-verde)"><svg class="ic ic-xl"><use href="#ic-pagado"></use></svg></div><div style="font-size:0.85rem">Sin reclamos registrados</div></div>';return}
-    el.innerHTML=S.recs.map(r=>`<div class="md-item" id="ri-${r.id}" onclick="openRec('${r.id}')"><div class="md-it">${esc(r.titulo)}</div><div class="md-im">${ebadge(r.estado)}<span>${new Date(r.created_at).toLocaleDateString('es-AR')}</span></div></div>`).join('')
+    el.innerHTML=S.recs.map(r=>`<div class="md-item${S.recAbierto===r.id?' active':''}" id="ri-${r.id}" onclick="openRec('${r.id}')">
+        <div class="md-it">${esc(r.titulo)}${r.sin_leer?'<span class="badge info" style="margin-left:6px;font-size:0.58rem">Respuesta nueva</span>':''}</div>
+        <div class="md-im">${ebadge(r.estado)}<span>${new Date(r.created_at).toLocaleDateString('es-AR')}</span>${r.respondido&&!r.sin_leer?'<span style="color:var(--teal);font-weight:600">· Respondido</span>':''}</div></div>`).join('')
 }
-function openRec(id){
-    document.querySelectorAll('.md-item').forEach(i=>i.classList.remove('active'));const it=document.getElementById('ri-'+id);if(it)it.classList.add('active');
+/* El detalle es una conversación: lo que escribió el vecino, lo que contestó la
+   administración y un cuadro para seguir. El adjunto va arriba de todo, que es
+   lo primero que se busca al abrir un reclamo. */
+async function openRec(id){
+    S.recAbierto=id;
+    document.querySelectorAll('#rec-list .md-item').forEach(i=>i.classList.remove('active'));const it=document.getElementById('ri-'+id);if(it)it.classList.add('active');
     const r=S.recs.find(x=>x.id===id);if(!r)return;
-    document.getElementById('rec-detail').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:10px"><h2 style="font-size:1rem;font-weight:800">${esc(r.titulo)}</h2>${ebadge(r.estado)}</div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;font-size:0.78rem;color:var(--muted)"><span>${esc(r.categoria)}</span><span>${new Date(r.created_at).toLocaleDateString('es-AR')}</span><span>${new Date(r.updated_at).toLocaleDateString('es-AR')}</span></div><div style="background:var(--surface2);border-radius:8px;padding:14px;margin-bottom:16px;font-size:0.85rem;line-height:1.7;color:var(--text2)">${esc(r.descripcion)}</div>${r.respuesta_admin?`<div style="background:var(--blue-dim);border:1px solid rgba(47,111,94,0.2);border-radius:8px;padding:14px;margin-bottom:16px"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--blue);margin-bottom:6px">Respuesta Admin</div><div style="font-size:0.85rem;color:var(--text2);line-height:1.7">${esc(r.respuesta_admin)}</div></div>`:''} ${r.adjunto_nombre?`<a href="/api/reclamos/${r.id}/adjunto" target="_blank" class="btn btn-secondary btn-sm" style="margin-bottom:14px"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>${esc(r.adjunto_nombre)}</a>`:''}<div style="display:flex;gap:8px">${r.estado==='activo'?`<button class="btn btn-danger btn-sm" onclick="cancelarRec('${r.id}')">Cancelar Reclamo</button>`:''}</div>`
+    pintarRec(r,null);
+    try{
+        const msgs=await api('/api/reclamos/'+id+'/mensajes');
+        if(S.recAbierto!==id)return;
+        pintarRec(r,msgs);
+        if(r.sin_leer){r.sin_leer=0;renderRecList()}
+    }catch(e){pintarRec(r,[])}
+}
+function pintarRec(r,msgs){
+    const cuando=f=>f?new Date(f).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+    const burbuja=(mia,cuerpo,meta,adj)=>`<div class="burbuja ${mia?'mia':'suya'}">${cuerpo?esc(cuerpo).replace(/\n/g,'<br>'):''}${adj||''}<div class="meta">${meta}</div></div>`;
+    let conv=burbuja(true,r.descripcion,'Vos · '+cuando(r.created_at));
+    if(msgs===null)conv+='<div style="text-align:center;color:var(--muted);font-size:0.8rem">Cargando...</div>';
+    else if(!msgs.length&&r.respuesta_admin)conv+=burbuja(false,r.respuesta_admin,'Administración');
+    else conv+=msgs.map(m=>burbuja(m.autor==='vecino',m.cuerpo,(m.autor==='vecino'?'Vos':'Administración')+' · '+cuando(m.created_at),
+        m.adjunto_nombre?`<div style="margin-top:6px"><a href="/api/reclamos/mensajes/${m.id}/adjunto" target="_blank" rel="noopener">📎 ${esc(m.adjunto_nombre)}</a></div>`:'')).join('');
+    const puedeContestar=r.estado!=='cerrado';
+    document.getElementById('rec-detail').innerHTML=`
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:10px"><h2 style="font-size:1rem;font-weight:800">${esc(r.titulo)}</h2>${ebadge(r.estado)}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:0.78rem;color:var(--muted)"><span>${esc(r.categoria)}</span><span>Creado el ${new Date(r.created_at).toLocaleDateString('es-AR')}</span></div>
+        ${r.adjunto_nombre?`<a href="/api/reclamos/${r.id}/adjunto" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="margin-bottom:14px"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg>${esc(r.adjunto_nombre)}</a>`:''}
+        <div class="rec-conv" id="rec-conv">${conv}</div>
+        ${puedeContestar?`<div class="chat-escribir" style="border:1px solid var(--border);border-radius:var(--radius);margin-top:12px">
+            <div class="chat-adjunto" id="rec-adj-nombre" style="display:none"></div>
+            <div class="chat-fila">
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('rec-archivo').click()" title="Adjuntar" aria-label="Adjuntar archivo"><svg class="ic ic-sm"><use href="#ic-adjunto"></use></svg></button>
+                <input type="file" id="rec-archivo" accept="image/*,.pdf" style="display:none" onchange="recArchivoElegido(this)">
+                <textarea class="fc" id="rec-texto" rows="2" maxlength="4000" placeholder="${r.respondido?'Contestale a la administración...':'Agregá algo más a tu reclamo...'}" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();responderRec('${r.id}')}"></textarea>
+                <button class="btn btn-primary" onclick="responderRec('${r.id}')">Enviar</button>
+            </div>
+            ${r.estado==='resuelto'?'<div style="font-size:0.72rem;color:var(--muted);margin-top:6px">Si contestás, el reclamo vuelve a "En proceso".</div>':''}
+        </div>`:'<div style="font-size:0.78rem;color:var(--muted);margin-top:12px">Este reclamo está cerrado. Si el problema sigue, abrí uno nuevo.</div>'}
+        <div style="display:flex;gap:8px;margin-top:12px">${r.estado==='activo'?`<button class="btn btn-danger btn-sm" onclick="cancelarRec('${r.id}')">Cancelar reclamo</button>`:''}</div>`;
+    const c=document.getElementById('rec-conv');if(c)c.scrollTop=c.scrollHeight;
+}
+let recArchivo=null;
+function recArchivoElegido(input){
+    recArchivo=input.files[0]||null;const el=document.getElementById('rec-adj-nombre');
+    if(!recArchivo){el.style.display='none';return}
+    el.innerHTML=`📎 ${esc(recArchivo.name)} · <a onclick="recArchivo=null;document.getElementById('rec-archivo').value='';this.parentNode.style.display='none'" style="cursor:pointer;color:var(--nd-terracota-hondo)">quitar</a>`;el.style.display='block';
+}
+async function responderRec(id){
+    const txt=document.getElementById('rec-texto');const texto=(txt?.value||'').trim();
+    if(!texto&&!recArchivo){toast('Escribí algo o adjuntá un archivo','warn');return}
+    const fd=new FormData();fd.append('cuerpo',texto);if(recArchivo)fd.append('adjunto',recArchivo);
+    try{
+        const res=await fetch('/api/reclamos/'+id+'/mensajes',{method:'POST',body:fd});
+        if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error||'Error '+res.status)}
+        recArchivo=null;
+        await loadReclamos();
+        await openRec(id);
+        toast('Mensaje enviado','ok');
+    }catch(e){toast(e.message,'err')}
 }
 async function cancelarRec(id){
     if(!confirm('¿Cancelar este reclamo?'))return;
