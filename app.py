@@ -86,6 +86,9 @@ def pesos(n) -> str:
     return f'{signo}${NBSP_MONEDA}{entero},{dec}'
 
 
+app.jinja_env.filters['pesos'] = pesos
+
+
 def fmt_numero(n, decimales=2) -> str:
     """Un número con coma decimal y sin ceros de más: 99,5 o 33,333."""
     txt = f'{float(n or 0):,.{decimales}f}'.replace(',', '\u0001').replace('.', ',').replace('\u0001', '.')
@@ -5709,6 +5712,14 @@ def api_admin_archivos_create():
     return jsonify(res.data[0] if res.data else {}), 201
 
 
+@app.route('/api/admin/consorcios/<cid>/reglamento')
+@require_auth(allowed_roles=['admin'])
+def api_admin_reglamento(cid):
+    """El reglamento vigente del consorcio, el que abre el QR de la liquidación."""
+    consorcio_propio(cid, 'id')
+    return jsonify(_reglamento_de(cid))
+
+
 @app.route('/api/admin/archivos/<aid>', methods=['DELETE'])
 @require_auth(allowed_roles=['admin'])
 def api_admin_archivos_delete(aid):
@@ -6777,7 +6788,7 @@ def api_liquidacion_prorrateo_update(lid, pid):
 
 # ── Resumen personalizado por UF ───────────────────────────────────────────────
 
-def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
+def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf, enlace=None):
     """Genera el HTML del resumen personalizado para una UF.
 
     Todo lo que viene de la base pasa por `escape()`. Este HTML sale por dos
@@ -6977,6 +6988,11 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
     </table>
 </div>
 
+{f'''<div style="text-align:center;margin-top:16px;">
+    <a href="{escape(enlace)}" style="display:inline-block;background:#F2B705;color:#3A2A08;font-weight:800;font-size:15px;text-decoration:none;padding:13px 26px;border-radius:999px;">Ver la liquidación completa y los comprobantes</a>
+    <p style="margin:8px 0 0;font-size:12px;color:#8A7F75;">El PDF con todas las unidades, cada comprobante, el reglamento y el manual de buenas prácticas.</p>
+</div>''' if enlace else ''}
+
 <!-- Datos de pago -->
 <div style="background:#fff;border-radius:16px;margin-top:16px;padding:20px;border:1px solid #EFE6DB;">
     <h3 style="margin:0 0 14px;font-size:15px;font-weight:700;color:#111;">💳 Datos de pago</h3>
@@ -7074,7 +7090,140 @@ def _pdf_de_liquidacion(liq, consorcio, lid):
         .eq('liquidacion_id', lid).execute().data or []
     prorrateos.sort(key=lambda p: str((p.get('unidades_funcionales') or {}).get('numero') or ''))
 
-    return construir_pdf(liq, consorcio, datos_admin, rubros, prorrateos)
+    return construir_pdf(liq, consorcio, datos_admin, rubros, prorrateos,
+                         enlace=enlace_publico_liquidacion(liq))
+
+
+# ── La liquidación pública (QR de las Disp. DGDyPC 1146/2024 y 521/2025) ─────
+# En CABA cada liquidación tiene que llevar un QR o link a los comprobantes del
+# período, y desde abril de 2025 también al reglamento de propiedad horizontal
+# y al Manual de Buenas Prácticas Consorciales. El link no puede pedir login:
+# lo escanea cualquier consorcista desde el papel. Por eso es un token largo y
+# al azar por liquidación, que no se deduce del id.
+
+MANUAL_BUENAS_PRACTICAS_URL = os.environ.get(
+    'MANUAL_BUENAS_PRACTICAS_URL',
+    'https://boletinoficial.buenosaires.gob.ar/normativaba/norma/776269')
+
+
+def url_publica(ruta):
+    """URL absoluta de Niddo. Fuera de una request (el cron) usa NIDDO_URL."""
+    base = os.environ.get('NIDDO_URL', '')
+    if not base:
+        try:
+            base = request.url_root
+        except RuntimeError:
+            base = 'https://niddo-eta.vercel.app'
+    return base.rstrip('/') + ruta
+
+
+def token_publico_de(liq):
+    """El token de la página pública de la liquidación; lo crea la primera vez.
+
+    Si la columna todavía no existe (migración v24 sin correr) devuelve None y
+    la liquidación sale sin QR, como antes, en vez de romper el PDF.
+    """
+    if liq.get('token_publico'):
+        return liq['token_publico']
+    import secrets
+    token = secrets.token_urlsafe(12)
+    try:
+        supabase.table('liquidaciones').update({'token_publico': token}) \
+            .eq('id', liq.get('id')).execute()
+    except Exception:
+        app.logger.warning('liquidaciones.token_publico no existe: falta la migración v24')
+        return None
+    liq['token_publico'] = token
+    return token
+
+
+def enlace_publico_liquidacion(liq):
+    token = token_publico_de(liq) if liq.get('id') else None
+    return url_publica(f'/l/{token}') if token else None
+
+
+def _liquidacion_por_token(token):
+    if not token or len(token) < 12:
+        abort(404)
+    try:
+        res = supabase.table('liquidaciones').select(LIQ_CONSORCIO_PDF) \
+            .eq('token_publico', token).execute().data
+    except Exception:
+        res = None
+    if not res:
+        abort(404)
+    return res[0]
+
+
+def _reglamento_de(consorcio_id):
+    """El último reglamento que subió el admin para el consorcio, sin el archivo."""
+    res = supabase.table('archivos_consorcio').select('id, nombre, created_at') \
+        .eq('consorcio_id', consorcio_id).eq('categoria', 'reglamento') \
+        .order('created_at', desc=True).limit(1).execute().data
+    return res[0] if res else None
+
+
+@app.route('/l/<token>')
+def liquidacion_publica(token):
+    liq = _liquidacion_por_token(token)
+    consorcio = liq.get('consorcios') or {}
+    rubros = _rubros_con_items(liq['id'])
+    gasto_ids = [it['gasto_id'] for r in rubros for it in r['items'] if it.get('gasto_id')]
+    con_comprobante = set()
+    if gasto_ids:
+        con_comprobante = {c['gasto_id'] for c in supabase.table('comprobantes_gastos')
+                           .select('gasto_id').in_('gasto_id', gasto_ids).execute().data}
+    for r in rubros:
+        for it in r['items']:
+            it['tiene_comprobante'] = it.get('gasto_id') in con_comprobante
+    admin = supabase.table('administradores') \
+        .select('nombre, nombre_contacto, matricula, cuit, direccion, telefono, email_contacto, email') \
+        .eq('id', liq.get('admin_id')).execute().data
+    resp = make_response(render_template(
+        'liquidacion_publica.html', liq=liq, consorcio=consorcio, rubros=rubros,
+        admin=admin[0] if admin else {}, token=token,
+        periodo=periodo_largo_es(liq.get('periodo')),
+        reglamento=_reglamento_de(liq.get('consorcio_id')),
+        manual_url=MANUAL_BUENAS_PRACTICAS_URL,
+        total=round(sum(float(r.get('subtotal') or 0) for r in rubros), 2)))
+    # La página no tiene que quedar en buscadores ni mandar el token a terceros.
+    resp.headers['X-Robots-Tag'] = 'noindex, nofollow'
+    resp.headers['Referrer-Policy'] = 'no-referrer'
+    return resp
+
+
+@app.route('/l/<token>/pdf')
+def liquidacion_publica_pdf(token):
+    liq = _liquidacion_por_token(token)
+    consorcio = liq.get('consorcios') or {}
+    buf = io.BytesIO(_pdf_de_liquidacion(liq, consorcio, liq['id']))
+    return pdf_response(buf, _nombre_pdf_liquidacion(liq, consorcio))
+
+
+@app.route('/l/<token>/comprobante/<gid>')
+def liquidacion_publica_comprobante(token, gid):
+    """Sólo comprobantes de gastos que están en ESTA liquidación."""
+    liq = _liquidacion_por_token(token)
+    rubros = _rubros_con_items(liq['id'])
+    if gid not in {it.get('gasto_id') for r in rubros for it in r['items']}:
+        abort(404)
+    res = supabase.table('comprobantes_gastos').select('*').eq('gasto_id', gid).execute().data
+    if not res:
+        abort(404)
+    comp = res[0]
+    return enviar_adjunto(comp['archivo_base64'], comp.get('archivo_nombre', 'comprobante.pdf'),
+                          comp.get('mime_type'))
+
+
+@app.route('/l/<token>/reglamento')
+def liquidacion_publica_reglamento(token):
+    liq = _liquidacion_por_token(token)
+    reg = _reglamento_de(liq.get('consorcio_id'))
+    if not reg:
+        abort(404)
+    fila = supabase.table('archivos_consorcio').select('*').eq('id', reg['id']).execute().data[0]
+    return enviar_adjunto(fila['archivo_base64'], fila.get('nombre') or 'reglamento.pdf',
+                          fila.get('mime_type'))
 
 
 def _generar_cobros_de_liquidacion(liq, prorrateos):
@@ -7184,78 +7333,55 @@ def api_liquidacion_enviar(lid):
         _avisar_novedad('vecino_expensa', periodo=periodo_largo_es(liq.get('periodo')),
                         unidades=[p.get('unidad_id') for p in prorrateos])
 
-    # El PDF se arma UNA vez para todo el consorcio, no uno por unidad: es la
-    # liquidación entera y es idéntica para todos, así que generarla 40 veces
-    # sería 40 veces el mismo trabajo dentro de una request que ya manda 40
-    # mails. Si falla, los mails salen igual sin adjunto: el resumen del cuerpo
-    # es el que el vecino lee, y quedarse sin avisar es peor que sin PDF.
-    pdf_bytes = None
-    try:
-        pdf_bytes = _pdf_de_liquidacion(liq, consorcio, lid)
-    except Exception:
-        app.logger.exception('No se pudo generar el PDF de la liquidación %s', lid)
-
-    enviados = 0
-    fallidos = 0
+    # Los mails salen por lote (hasta 100 por llamada a Resend) y no de a uno:
+    # de a uno eran dos viajes de red por unidad, en serie, y con 40 unidades
+    # la request pasaba los 10 s de Vercel y la liquidación quedaba a medio
+    # publicar. El lote de Resend no acepta adjuntos, así que el PDF ya no va
+    # pegado: el mail lleva el link a la página pública de la liquidación, que
+    # además tiene los comprobantes y el reglamento que pide la Disp. 1146/2024.
+    enlace = enlace_publico_liquidacion(liq)
     from_email = os.environ.get('RESEND_FROM_EMAIL', 'Niddo <noreply@niddo.app>')
+    asunto = (
+        # El asunto distingue la complementaria: es lo primero que ve el
+        # vecino y con el mismo texto los dos mails se confunden entre sí.
+        f'📋 Expensa complementaria — {consorcio.get("nombre", "")} — {liq.get("periodo", "")}'
+        if int(liq.get('numero_revision') or 1) > 1 else
+        f'📋 Resumen de expensas — {consorcio.get("nombre", "")} — {liq.get("periodo", "")}'
+    )
 
+    envios = []      # una fila de resumen_envios por unidad
+    mensajes = []    # (índice en envios, mensaje) de los que tienen a quién mandar
     for prorrateo in prorrateos:
         uf = prorrateo.get('unidades_funcionales', {})
         destinos = destinatarios_de_unidad(prorrateo.get('unidad_id'), uf, registrados)
-        email_destino = ', '.join(destinos)
-
-        html = _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf)
-
-        estado = 'enviado'
-        error_detalle = None
-        fecha_envio = now_iso()
-
-        if email_destino and resend.api_key:
-            try:
-                periodo_display = liq.get('periodo', '')
-                mensaje = {
-                    'from': from_email,
-                    'to': destinos,
-                    'subject': (
-                        # El asunto distingue la complementaria: es lo primero que ve el
-                        # vecino y con el mismo texto los dos mails se confunden entre sí.
-                        f'📋 Expensa complementaria — {consorcio.get("nombre", "")} — {periodo_display}'
-                        if int(liq.get('numero_revision') or 1) > 1 else
-                        f'📋 Resumen de expensas — {consorcio.get("nombre", "")} — {periodo_display}'
-                    ),
-                    'html': html,
-                }
-                if pdf_bytes:
-                    mensaje['attachments'] = [{
-                        'filename': _nombre_pdf_liquidacion(liq, consorcio),
-                        'content': list(pdf_bytes),
-                    }]
-                resend.Emails.send(mensaje)
-                enviados += 1
-            except Exception as e:
-                estado = 'fallido'
-                error_detalle = str(e)
-                fallidos += 1
-        elif not email_destino:
-            estado = 'fallido'
-            error_detalle = 'Sin email configurado'
-            fallidos += 1
+        html = _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf, enlace=enlace)
+        fila = {
+            'liquidacion_id': lid, 'unidad_id': uf.get('id'), 'canal': 'email',
+            'estado': 'enviado', 'email_destino': ', '.join(destinos),
+            'fecha_envio': now_iso(), 'error_detalle': None, 'resumen_html': html,
+        }
+        if not destinos:
+            fila.update(estado='fallido', fecha_envio=None, error_detalle='Sin email configurado')
         elif not resend.api_key:
-            estado = 'fallido'
-            error_detalle = 'RESEND_API_KEY no configurada'
-            fallidos += 1
+            fila.update(estado='fallido', fecha_envio=None, error_detalle='RESEND_API_KEY no configurada')
+        else:
+            mensajes.append((len(envios), {'from': from_email, 'to': destinos,
+                                           'subject': asunto, 'html': html}))
+        envios.append(fila)
 
-        # Registrar envío
-        supabase.table('resumen_envios').insert({
-            'liquidacion_id': lid,
-            'unidad_id': uf.get('id'),
-            'canal': 'email',
-            'estado': estado,
-            'email_destino': email_destino,
-            'fecha_envio': fecha_envio if estado == 'enviado' else None,
-            'error_detalle': error_detalle,
-            'resumen_html': html,
-        }).execute()
+    for i in range(0, len(mensajes), 100):
+        lote = mensajes[i:i + 100]
+        try:
+            resend.Batch.send([m for _, m in lote])
+        except Exception as e:
+            app.logger.exception('Falló un lote de mails de la liquidación %s', lid)
+            for j, _ in lote:
+                envios[j].update(estado='fallido', fecha_envio=None, error_detalle=str(e)[:500])
+
+    if envios:
+        supabase.table('resumen_envios').insert(envios).execute()
+    enviados = sum(1 for e in envios if e['estado'] == 'enviado')
+    fallidos = len(envios) - enviados
 
     # Actualizar estado de liquidación a publicada
     if enviados > 0:

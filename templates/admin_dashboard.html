@@ -1080,6 +1080,14 @@
         </div>
         <div class="text-muted text-sm" style="margin-bottom:10px;">Todo esto sale impreso en el encabezado y en los datos de pago de la liquidación.</div>
         <button class="btn-p btn-sm" onclick="guardarConfigConsorcio()">Guardar</button>
+        <div class="sep"></div>
+        <div class="form-group">
+            <label class="form-label" for="cfg-reglamento">Reglamento de propiedad horizontal</label>
+            <div class="text-muted text-sm" style="margin-bottom:6px;">Cada liquidación lleva un QR con los comprobantes del período, este reglamento y el Manual de Buenas Prácticas (Disp. 1146/2024 y 521/2025 de CABA).</div>
+            <div class="text-sm" id="cfg-reglamento-actual" style="margin-bottom:8px;">—</div>
+            <input type="file" class="form-ctrl" id="cfg-reglamento" accept="application/pdf,image/*" style="max-width:420px;">
+        </div>
+        <button class="btn-s btn-sm" onclick="subirReglamento()">Subir reglamento</button>
     </div>
 </div>
 
@@ -1827,7 +1835,7 @@
                     <input class="form-ctrl" id="perfil-cuit" maxlength="13" inputmode="numeric" placeholder="20-12345678-9"></div>
                 <div class="form-group"><label class="form-label" for="perfil-direccion">Dirección de la administración</label>
                     <input class="form-ctrl" id="perfil-direccion" maxlength="160" placeholder="Av. Corrientes 1234, piso 3, CABA"></div>
-                <button class="btn btn-primary" style="width:100%;" onclick="guardarDatosAdministracion()">Guardar</button>
+                <button class="btn-p" style="width:100%;justify-content:center;" onclick="guardarDatosAdministracion()">Guardar</button>
             </div>
         </div>
     </div>
@@ -5813,7 +5821,34 @@ async function loadConfigConsorcio() {
     $('cfg-alias').value = c.banco_alias || '';
     card.style.display = 'block';
     cfgConsorcioCargado = cid;
+    pintarReglamento(cid);
     marcarLimpio('config');
+}
+
+async function pintarReglamento(cid) {
+    const el = $('cfg-reglamento-actual');
+    el.textContent = '—';
+    try {
+        const r = await api(`/api/admin/consorcios/${cid}/reglamento`);
+        el.textContent = r ? 'Vigente: ' + r.nombre : 'Todavía no subiste el reglamento: el QR de la liquidación lo va a mostrar como pendiente.';
+    } catch(e) { el.textContent = ''; }
+}
+async function subirReglamento() {
+    const cid = $('cfg-consorcio').value, f = $('cfg-reglamento').files[0];
+    if (!cid || !f) { toast('Elegí el archivo del reglamento', 'warn'); return; }
+    const fd = new FormData();
+    fd.append('consorcio_id', cid);
+    fd.append('categoria', 'reglamento');
+    fd.append('nombre', f.name);
+    fd.append('archivo', f);
+    try {
+        const r = await fetch('/api/admin/archivos', {method: 'POST', body: fd});
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'No se pudo subir el reglamento');
+        $('cfg-reglamento').value = '';
+        toast('Reglamento subido. Ya sale en el QR de las liquidaciones.');
+        pintarReglamento(cid);
+    } catch(e) { toast(e.message, 'err'); }
 }
 
 /* Qué hace falta cargar en cada unidad para el método elegido. Se dice acá,

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Expensas {{ periodo }} · {{ consorcio.nombre }} | Niddo</title>
+    {% include '_head_app.html' %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--text); line-height: 1.55; }
+        .wrap { max-width: 760px; margin: 0 auto; padding: 28px 16px 64px; }
+        .logo { font-family: var(--font-display); font-weight: 600; font-size: 22px; color: var(--nd-tinta); text-decoration: none; }
+        .logo span { color: var(--nd-terracota); }
+        .hero { background: var(--nd-terracota); color: var(--nd-tinta); border-radius: var(--r-xl); padding: 26px 24px; margin: 18px 0 20px; }
+        .hero .eyebrow { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; opacity: .8; }
+        .hero h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(24px, 6vw, 34px); line-height: 1.15; margin: 6px 0 4px; }
+        .hero p { font-size: 14px; }
+        .hero .total { font-family: var(--font-display); font-size: 28px; font-weight: 600; margin-top: 14px; }
+        .acciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-bottom: 26px; }
+        .accion { display: flex; gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+                  padding: 14px 16px; text-decoration: none; color: var(--text); font-weight: 700; font-size: 14px; }
+        .accion:hover { border-color: var(--nd-terracota); }
+        .accion small { display: block; font-weight: 600; color: var(--muted); font-size: 12px; }
+        .accion .dot { width: 36px; height: 36px; border-radius: 12px; flex: none; display: grid; place-items: center; font-size: 17px; }
+        .accion.off { opacity: .6; pointer-events: none; }
+        h2 { font-family: var(--font-display); font-weight: 600; font-size: 19px; margin: 6px 0 12px; }
+        .rubro { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); margin-bottom: 12px; overflow: hidden; }
+        .rubro-h { display: flex; justify-content: space-between; gap: 10px; padding: 12px 16px; background: var(--surface2); font-weight: 800; font-size: 14px; }
+        .item { display: flex; justify-content: space-between; gap: 12px; padding: 11px 16px; border-top: 1px solid var(--border2); font-size: 14px; }
+        .item .desc { min-width: 0; }
+        .item .meta { color: var(--muted); font-size: 12px; }
+        .item .monto { font-weight: 700; white-space: nowrap; text-align: right; }
+        .item a { color: var(--nd-terracota-hondo); font-size: 12px; font-weight: 700; }
+        .admin { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px; font-size: 13.5px; margin-top: 24px; }
+        .admin b { display: block; font-size: 14px; margin-bottom: 4px; }
+        .pie { text-align: center; color: var(--muted); font-size: 12px; margin-top: 28px; }
+        .vacio { color: var(--muted); font-size: 14px; padding: 14px 16px; }
+    </style>
+</head>
+<body>
+<main class="wrap">
+    <a class="logo" href="/">nidd<span>o</span></a>
+
+    <section class="hero">
+        <div class="eyebrow">Liquidación de expensas{% if (liq.numero_revision or 1) > 1 %} · complementaria{% endif %}</div>
+        <h1>{{ consorcio.nombre }}</h1>
+        <p>{{ consorcio.direccion or '' }}{% if consorcio.direccion %} · {% endif %}{{ periodo }}</p>
+        <div class="total">{{ total | pesos }}</div>
+        <p>Gastos del período{% if liq.fecha_vencimiento_1 %} · 1° vencimiento {{ liq.fecha_vencimiento_1 }}{% endif %}</p>
+    </section>
+
+    <div class="acciones">
+        <a class="accion" href="/l/{{ token }}/pdf" target="_blank" rel="noopener">
+            <span class="dot" style="background:var(--nd-terracota-dim)">📄</span>
+            <span>Liquidación completa<small>El PDF con todas las unidades</small></span>
+        </a>
+        {% if reglamento %}
+        <a class="accion" href="/l/{{ token }}/reglamento" target="_blank" rel="noopener">
+            <span class="dot" style="background:var(--nd-verde-dim)">📘</span>
+            <span>Reglamento de propiedad horizontal<small>{{ reglamento.nombre }}</small></span>
+        </a>
+        {% else %}
+        <span class="accion off">
+            <span class="dot" style="background:var(--nd-verde-dim)">📘</span>
+            <span>Reglamento de propiedad horizontal<small>La administración todavía no lo subió</small></span>
+        </span>
+        {% endif %}
+        <a class="accion" href="{{ manual_url }}" target="_blank" rel="noopener noreferrer">
+            <span class="dot" style="background:var(--nd-amarillo-dim)">📗</span>
+            <span>Manual de Buenas Prácticas Consorciales<small>Disp. DGDyPC 521/2025</small></span>
+        </a>
+    </div>
+
+    <h2>Gastos y comprobantes</h2>
+    {% for r in rubros | sort(attribute='numero_rubro') %}
+    <div class="rubro">
+        <div class="rubro-h"><span>{{ r.numero_rubro }}. {{ r.nombre or r.titulo or 'Rubro' }}</span><span>{{ r.subtotal | pesos }}</span></div>
+        {% for it in r['items'] %}
+        <div class="item">
+            <div class="desc">
+                {{ it.descripcion }}
+                <div class="meta">
+                    {% if it.proveedor_nombre %}{{ it.proveedor_nombre }}{% endif %}
+                    {% if it.proveedor_cuit %} · CUIT {{ it.proveedor_cuit }}{% endif %}
+                    {% if it.comprobante_tipo or it.comprobante_numero %} · {{ it.comprobante_tipo or '' }} {{ it.comprobante_numero or '' }}{% endif %}
+                    {% if it.fecha_pago %} · pagado {{ it.fecha_pago }}{% endif %}
+                </div>
+            </div>
+            <div class="monto">
+                {{ it.monto | pesos }}
+                {% if it.tiene_comprobante %}<br><a href="/l/{{ token }}/comprobante/{{ it.gasto_id }}" target="_blank" rel="noopener">Ver comprobante</a>{% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="vacio">Sin gastos en este rubro.</div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="vacio">Esta liquidación todavía no tiene gastos cargados.</p>
+    {% endfor %}
+
+    <div class="admin">
+        <b>Administración</b>
+        {{ admin.nombre_contacto or admin.nombre or '' }}
+        {% if admin.matricula %} · Matrícula RPA {{ admin.matricula }}{% endif %}
+        {% if admin.cuit %} · CUIT {{ admin.cuit }}{% endif %}
+        {% if admin.direccion %}<br>{{ admin.direccion }}{% endif %}
+        {% if admin.telefono or admin.email_contacto or admin.email %}<br>{{ admin.telefono or '' }}{% if admin.telefono and (admin.email_contacto or admin.email) %} · {% endif %}{{ admin.email_contacto or admin.email or '' }}{% endif %}
+    </div>
+
+    <p class="pie">Publicado con nidd<span style="color:var(--nd-terracota)">o</span> según las Disp. DGDyPC 1146/2024 y 521/2025 de la Ciudad de Buenos Aires.</p>
+</main>
+</body>
+</html>

@@ -28,6 +28,8 @@ from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.graphics.barcode.qr import QrCodeWidget
+from reportlab.graphics.shapes import Drawing
 from reportlab.lib.units import cm
 from reportlab.platypus import (BaseDocTemplate, Frame, KeepTogether, NextPageTemplate,
                                 PageBreak, PageTemplate, Paragraph, Spacer, Table,
@@ -401,7 +403,39 @@ def _subtotales_por_coeficiente(prorrateos, coeficientes, E, ancho, metodo=None)
     return _cuadro('Subtotales por coeficiente', filas, E, ancho)
 
 
-def construir_pdf(liq, consorcio, admin, rubros, prorrateos, banco=None):
+def _bloque_qr(enlace, E, ancho):
+    """El QR que piden las Disp. DGDyPC 1146/2024 y 521/2025 (CABA).
+
+    Lleva a la página pública de esta liquidación: los comprobantes escaneados
+    del período, el reglamento de propiedad horizontal y el manual de buenas
+    prácticas consorciales. El link va también en texto, para quien la lea en
+    la pantalla y no pueda escanear su propia pantalla.
+    """
+    lado = 2.6 * cm
+    w = QrCodeWidget(enlace, barLevel='M')
+    x0, y0, x1, y1 = w.getBounds()
+    qr = Drawing(lado, lado, transform=[lado / (x1 - x0), 0, 0, lado / (y1 - y0), 0, 0])
+    qr.add(w)
+    texto = [
+        Paragraph('<b>Comprobantes, reglamento y manual de buenas prácticas</b>', E['sub']),
+        Paragraph('Escaneá el código para ver los comprobantes de cada gasto de este '
+                  'período, el reglamento de propiedad horizontal y el Manual de Buenas '
+                  'Prácticas Consorciales (Disp. DGDyPC 1146/2024 y 521/2025).', E['sub']),
+        Paragraph(f'<link href="{enlace}" color="#C4502B">{enlace}</link>', E['sub']),
+    ]
+    t = Table([[qr, texto]], colWidths=[lado + 0.4 * cm, ancho - lado - 0.4 * cm])
+    t.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOX', (0, 0), (-1, -1), 0.6, BORDE),
+        ('BACKGROUND', (0, 0), (-1, -1), CREMA),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    return [t, Spacer(1, 10)]
+
+
+def construir_pdf(liq, consorcio, admin, rubros, prorrateos, banco=None, enlace=None):
     """Arma la liquidación completa y devuelve los bytes del PDF.
 
     Todo lo que necesita llega por parámetro: no toca la base ni la red, así
@@ -441,6 +475,8 @@ def construir_pdf(liq, consorcio, admin, rubros, prorrateos, banco=None):
 
     coeficientes = _coeficientes_en_uso(prorrateos)
     story = _encabezado(liq, consorcio, admin, E)
+    if enlace:
+        story += _bloque_qr(enlace, E, ancho_v)
 
     if int(liq.get('numero_revision') or 1) > 1:
         story.append(_cuadro(
