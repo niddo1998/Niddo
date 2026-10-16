@@ -135,8 +135,8 @@ const PARA_LANZAR = [
       nota:"Mi perfil del admin carga matrícula RPA, CUIT (validado con el dígito verificador) y dirección; el PDF los imprime en el encabezado." },
     { t:"Cargar la composición del saldo del período", e:"listo", quien:"mio",
       nota:"Saldo en banco, fondo de reserva y en poder del administrador se cargan en el cierre de la liquidación y salen en el cuadro «Composición del saldo» del PDF." },
-    { t:"Registrar el pago y cerrar el círculo", e:"listo", quien:"mio",
-      nota:"Con Mercado Pago conectado el pago se marca solo por webhook (verificado contra la API). Sin MP, el vecino informa con comprobante y el admin acepta; el vecino recibe un push." },
+    { t:"Registrar el pago y cerrar el círculo", e:"parcial", quien:"mio",
+      nota:"El vecino informa el pago con comprobante, el admin lo acepta y el vecino recibe un push. Mercado Pago quedó apagado por decisión (el código de Checkout Pro está en el repo sin pantalla)." },
   ]},
   { grupo:"Que no se rompa delante de un cliente", intro:"Lo que falla en producción y no en los tests.", items:[
     { t:"El envío se corta por timeout", e:"listo", quien:"mio",
@@ -150,7 +150,7 @@ const PARA_LANZAR = [
   ]},
   { grupo:"Legal y datos", intro:"Estás guardando datos de personas que no son tus clientes: los vecinos de tus clientes.", items:[
     { t:"Términos y condiciones + política de privacidad", e:"parcial", quien:"tuyo",
-      nota:"/terminos y /privacidad publicados, con los roles de la Ley 25.326. Falta que los revise un abogado y cargar razón social, CUIT y domicilio (NIDDO_RAZON_SOCIAL, NIDDO_CUIT, NIDDO_DOMICILIO)." },
+      nota:"/terminos y /privacidad publicados, con los roles de la Ley 25.326. Falta revisión de un abogado y el mail de contacto (NIDDO_EMAIL_CONTACTO). Razón social, CUIT y domicilio se agregan cuando exista la sociedad." },
     { t:"Aislamiento entre administradores", e:"listo", quien:"mio",
       nota:"Chequeo de pertenencia request por request, RLS en las 26 tablas y tests que lo protegen. La última excepción era /api/dashboard/kpis, que contaba la morosidad de toda la plataforma sin filtrar por administrador —la service_role key saltea la RLS, así que nada lo frenaba—: ese endpoint ya no existe y el que lo reemplaza filtra, con test propio." },
     { t:"Que el alta de un vecino la apruebe el admin", e:"listo", quien:"mio",
@@ -163,8 +163,8 @@ const PARA_LANZAR = [
 ];
 
 const DESPUES = [
-  { t:"Que el vecino pague desde la app", e:"parcial", quien:"tuyo",
-    nota:"Checkout Pro de Mercado Pago por consorcio, con el token cifrado. Falta que cada administración conecte su cuenta en Configuración." },
+  { t:"Que el vecino pague desde la app", e:"falta", quien:"tuyo",
+    nota:"Se dejó de lado por ahora. El backend de Checkout Pro (mercadopago_niddo.py, webhook, token cifrado) quedó en el repo sin pantalla para conectarlo." },
   { t:"Mora automática", e:"listo", quien:"mio",
     nota:"El cron diario pasa a vencido el cobro impago después de los días de gracia y avisa al vecino y al admin. El interés lo suma la liquidación siguiente." },
   { t:"Mensajería real (comunicados y chat)", e:"listo", quien:"mio",

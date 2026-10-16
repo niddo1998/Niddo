@@ -103,3 +103,34 @@ def test_el_pdf_muestra_la_composicion_del_saldo_si_esta_cargada():
     con = texto({'periodo': '2026-08', 'saldo_bancario': 1000, 'saldo_superfondo': 500})
     assert 'Composición del saldo' in con
     assert 'Fondo de reserva' in con
+
+
+def test_quiero_ser_piloto_abre_el_registro_de_admin(app_modulo, base):
+    app_modulo.app.config['TESTING'] = True
+    html = app_modulo.app.test_client().get('/').get_data(as_text=True)
+    assert 'href="/auth/login?role=admin&amp;registro=1"' in html
+    assert 'Mercado Pago' not in html
+
+
+def test_registro_pide_a_auth0_la_pantalla_de_alta(app_modulo, base, monkeypatch):
+    pedidos = []
+    monkeypatch.setattr(app_modulo.auth0, 'authorize_redirect',
+                        lambda **k: pedidos.append(k) or ('', 302))
+    app_modulo.app.config['TESTING'] = True
+    c = app_modulo.app.test_client()
+    c.get('/auth/login?role=admin&registro=1')
+    c.get('/auth/login?role=admin')
+    assert pedidos[0].get('screen_hint') == 'signup'
+    assert 'screen_hint' not in pedidos[1]
+    with c.session_transaction() as s:
+        assert s['pending_role'] == 'admin'
+
+
+def test_los_legales_no_inventan_datos_de_la_sociedad(app_modulo, base, monkeypatch):
+    for v in ('NIDDO_RAZON_SOCIAL', 'NIDDO_CUIT', 'NIDDO_DOMICILIO'):
+        monkeypatch.delenv(v, raising=False)
+    app_modulo.app.config['TESTING'] = True
+    html = app_modulo.app.test_client().get('/terminos').get_data(as_text=True)
+    assert 'es una plataforma web' in html
+    assert 'CUIT' not in html
+    assert 'Mercado Pago' not in html

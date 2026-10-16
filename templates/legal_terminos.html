@@ -11,9 +11,8 @@
 </div>
 
 <h2>1. Quiénes somos y qué es Niddo</h2>
-<p>Niddo ("Niddo", "nosotros") es un servicio de {{ legal.razon_social }}{% if legal.cuit %}, CUIT {{ legal.cuit }}{% endif %}{% if legal.domicilio %}, con domicilio en {{ legal.domicilio }}{% endif %}.
-Es una plataforma web para que las administraciones de consorcios liquiden expensas, registren gastos y cobros,
-y se comuniquen con los vecinos, y para que los vecinos consulten su cuenta, paguen, hagan reclamos y reserven
+<p>Niddo ("Niddo", "nosotros"){% if legal.razon_social %} es un servicio de {{ legal.razon_social }}{% if legal.cuit %}, CUIT {{ legal.cuit }}{% endif %}{% if legal.domicilio %}, con domicilio en {{ legal.domicilio }}{% endif %}. Es{% else %} es{% endif %} una plataforma web para que las administraciones de consorcios liquiden expensas, registren gastos y cobros,
+y se comuniquen con los vecinos, y para que los vecinos consulten su cuenta, informen sus pagos, hagan reclamos y reserven
 espacios comunes.</p>
 
 <h2>2. Quién usa Niddo</h2>
@@ -29,13 +28,13 @@ espacios comunes.</p>
     <li>la exactitud de los gastos, comprobantes, coeficientes, saldos y datos de las unidades;</li>
     <li>revisar cada liquidación antes de enviarla y cumplir la normativa que le aplique (en CABA, la Ley 941 y sus disposiciones);</li>
     <li>tener la base legal para cargar los datos de los vecinos y de los proveedores;</li>
-    <li>las cuentas bancarias y de cobro que conecta, incluida su cuenta de Mercado Pago.</li>
+    <li>los datos de las cuentas bancarias donde cobra las expensas.</li>
 </ul>
 
 <h2>4. Pagos</h2>
-<p>Cuando un consorcio conecta Mercado Pago, el vecino le paga directamente a la cuenta del consorcio. Niddo no
-recibe, retiene ni administra ese dinero, y no es parte de la operación: rigen los términos de Mercado Pago. Niddo
-sólo registra el pago en la cuenta del vecino cuando Mercado Pago lo informa como aprobado.</p>
+<p>Niddo no recibe, retiene ni administra dinero de las expensas. Los vecinos le pagan directamente a la cuenta del
+consorcio y pueden informar el pago en la app con su comprobante; la administración decide si lo acepta. Niddo sólo
+registra lo que la administración confirma.</p>
 
 <h2>5. Uso aceptable</h2>
 <p>No podés usar Niddo para cargar información falsa o de terceros sin autorización, intentar acceder a datos de otro

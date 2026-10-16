@@ -82,8 +82,7 @@
                 l: ['Cómo se reparten las expensas: por m² (lo habitual), ambientes, partes iguales o porcentaje.',
                     'Interés por mora, días de gracia y recargo del segundo vencimiento.',
                     'Datos bancarios para que los vecinos sepan cómo pagar.',
-                    'El reglamento que abre el QR de cada liquidación.',
-                    'Mercado Pago, para que los vecinos paguen desde la app.']
+                    'El reglamento que abre el QR de cada liquidación.']
             }
         },
         vecino: {
@@ -91,8 +90,7 @@
                 t: 'Inicio', i: 'ic-edificio',
                 d: 'Tu resumen: la expensa de este mes, cómo pagarla y las novedades del edificio.',
                 l: ['Descargá el resumen de tu expensa con el detalle de gastos.',
-                    '«Informar pago» le avisa a la administración que ya pagaste, con el comprobante.',
-                    'Si tu edificio tiene Mercado Pago, la pagás ahí mismo y queda registrada sola.']
+                    '«Informar pago» le avisa a la administración que ya pagaste, con el comprobante.']
             },
             comunicados: {
                 t: 'Comunicados', i: 'ic-megafono',

@@ -1230,8 +1230,7 @@ def _api_errors_como_json(e):
 # ── Páginas públicas ───────────────────────────────────────────────────────────
 @app.route('/')
 def index():
-    wa = re.sub(r'\D', '', os.environ.get('NIDDO_WHATSAPP', ''))
-    return render_template('index.html', whatsapp=wa, legal=datos_legales())
+    return render_template('index.html', legal=datos_legales())
 
 
 # El service worker y el manifest tienen que servirse desde la raíz: el
@@ -1263,7 +1262,7 @@ def favicon():
 
 def datos_legales():
     return {
-        'razon_social': os.environ.get('NIDDO_RAZON_SOCIAL', 'Niddo'),
+        'razon_social': os.environ.get('NIDDO_RAZON_SOCIAL', ''),
         'cuit': os.environ.get('NIDDO_CUIT', ''),
         'domicilio': os.environ.get('NIDDO_DOMICILIO', ''),
         'email': os.environ.get('NIDDO_EMAIL_CONTACTO', 'soporte@niddo.app'),
@@ -1297,6 +1296,10 @@ def auth_login():
         role = 'vecino'
     session['pending_role'] = role
     callback_url = url_for('auth_callback', _external=True)
+    # `?registro=1` (el «Quiero ser piloto» de la landing) abre Auth0 directo en
+    # la pantalla de crear cuenta; el que ya tiene una entra desde ahí mismo.
+    if request.args.get('registro') == '1':
+        return auth0.authorize_redirect(redirect_uri=callback_url, screen_hint='signup')
     return auth0.authorize_redirect(redirect_uri=callback_url)
 
 

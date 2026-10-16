@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
-    {% set piloto_url = ('https://wa.me/' ~ whatsapp ~ '?text=' ~ ('Hola! Administro consorcios y quiero sumarme al piloto de Niddo.' | urlencode)) if whatsapp else '/login' %}
+    {% set piloto_url = '/auth/login?role=admin&registro=1' %}
     <style>
         /* Ruta Barrio del manual: terracota humana, verde comunidad, un guiño
            amarillo. Los colores salen de niddo-brand.css; acá sólo el layout. */
@@ -190,7 +190,7 @@
         </a>
         <div class="nav-der">
             <a class="ingresar" href="/login">Ingresar</a>
-            <a class="btn btn-piloto btn-sm" href="{{ piloto_url }}"{% if whatsapp %} target="_blank" rel="noopener"{% endif %}>Quiero ser piloto</a>
+            <a class="btn btn-piloto btn-sm" href="{{ piloto_url }}">Quiero ser piloto</a>
         </div>
     </div>
 </nav>
@@ -201,7 +201,7 @@
             <h1>Cerrá el mes de tus consorcios sin pelearte con el Excel.</h1>
             <p class="bajada">Sacás una foto de cada factura, Niddo arma la liquidación con el formato de la Ley 941 y cada vecino recibe lo que le toca pagar, con el QR a los comprobantes.</p>
             <div class="acciones">
-                <a class="btn btn-piloto" href="{{ piloto_url }}"{% if whatsapp %} target="_blank" rel="noopener"{% endif %}>Quiero ser piloto</a>
+                <a class="btn btn-piloto" href="{{ piloto_url }}">Quiero ser piloto</a>
                 <a class="btn btn-linea" href="#el-mes">Ver cómo es un mes</a>
             </div>
             <p class="nota">Estamos sumando las primeras administraciones. Es gratis mientras dure el piloto y te ayudamos a pasar tu primer edificio.</p>
@@ -220,7 +220,7 @@
             <div class="exp-monto">
                 <small>Expensas de octubre 2026</small>
                 <strong>$ 78.400</strong>
-                <span class="pagar">Pagar con Mercado Pago</span>
+                <span class="pagar">Informar pago</span>
             </div>
             <div class="exp-filas">
                 <div><span>Expensa ordinaria (4,2 %)</span><span>$ 71.950</span></div>
@@ -247,7 +247,7 @@
                 <li><h3>Cargás los gastos</h3><p>Subís la foto o el PDF de la factura y Niddo lee el proveedor, el CUIT y el monto. Si son muchos, los subís en una planilla.</p></li>
                 <li><h3>Liquidás</h3><p>Se reparte por m², ambientes, partes iguales o el porcentaje de cada unidad, con saldo anterior e intereses.</p></li>
                 <li><h3>Enviás</h3><p>Cada vecino recibe su resumen por mail y lo ve en la app. La liquidación completa sale en PDF, lista para imprimir.</p></li>
-                <li><h3>Cobrás</h3><p>El vecino paga con Mercado Pago o informa la transferencia con el comprobante. Lo que vence pasa a mora solo.</p></li>
+                <li><h3>Cobrás</h3><p>El vecino transfiere y te informa el pago con el comprobante; vos lo aceptás y su cuenta se actualiza. Lo que vence pasa a mora solo.</p></li>
             </ol>
         </div>
     </section>
@@ -274,7 +274,7 @@
             <div>
                 <h2 class="titulo-sec" id="vec-t">Y los vecinos dejan de escribirte a las once de la noche.</h2>
                 <div class="cosas">
-                    <div class="cosa" style="--c:var(--nd-terracota)"><div><b>Ven su expensa y la pagan</b><span>Con el detalle de qué se pagó y el comprobante de cada gasto.</span></div></div>
+                    <div class="cosa" style="--c:var(--nd-terracota)"><div><b>Ven su expensa e informan el pago</b><span>Con el detalle de qué se pagó y el comprobante de cada gasto.</span></div></div>
                     <div class="cosa" style="--c:var(--nd-verde)"><div><b>Hacen reclamos que quedan registrados</b><span>Cada reclamo es una conversación con fotos, y saben en qué estado está.</span></div></div>
                     <div class="cosa" style="--c:var(--nd-amarillo)"><div><b>Reservan el SUM o la parrilla</b><span>Con calendario, horarios y aviso al resto del edificio.</span></div></div>
                     <div class="cosa" style="--c:var(--nd-tinta)"><div><b>Les llega un aviso al celular</b><span>Cuando sale la expensa, antes de que venza, cuando les responden. No hace falta bajar nada de una tienda: se instala desde el navegador.</span></div></div>
@@ -323,12 +323,12 @@
                 <div>
                     <h2 id="pil-t">Buscamos diez administraciones para el piloto.</h2>
                     <p>Usás Niddo con tus edificios reales, nos contás qué te sobra y qué te falta, y lo construimos con vos.</p>
-                    <a class="btn btn-piloto" href="{{ piloto_url }}"{% if whatsapp %} target="_blank" rel="noopener"{% endif %}>{% if whatsapp %}Escribinos por WhatsApp{% else %}Quiero ser piloto{% endif %}</a>
+                    <a class="btn btn-piloto" href="{{ piloto_url }}">Quiero ser piloto</a>
                 </div>
                 <div class="trato">
                     <div><b>Gratis durante el piloto</b><span>Cuando empecemos a cobrar te avisamos con 30 días, y te podés ir con todos tus datos.</span></div>
                     <div><b>Te ayudamos a migrar</b><span>Pasamos tu primer edificio juntos.</span></div>
-                    <div><b>Hablás con quien lo hace</b><span>Una llamada cada dos semanas y un WhatsApp directo.</span></div>
+                    <div><b>Hablás con quien lo hace</b><span>Una llamada cada dos semanas para ver qué te sirve y qué no.</span></div>
                 </div>
             </div>
         </div>
@@ -339,7 +339,7 @@
             <h2 class="titulo-sec" id="faq-t">Lo que nos preguntan.</h2>
             <div class="faq">
                 <details><summary>¿Cuánto cuesta?</summary><p>Mientras dura el piloto, nada. Después va a ser un precio por unidad funcional por mes. Te avisamos con 30 días de anticipación y te podés ir cuando quieras, con todos tus datos.</p></details>
-                <details><summary>¿La plata pasa por Niddo?</summary><p>No. Si conectás Mercado Pago, el vecino le paga directo a la cuenta del consorcio. Si cobrás por transferencia, sigue siendo tu cuenta de siempre: el vecino informa el pago con el comprobante y vos lo aceptás.</p></details>
+                <details><summary>¿La plata pasa por Niddo?</summary><p>No. El vecino le paga a la cuenta del consorcio, la de siempre, e informa el pago con el comprobante desde la app. Vos lo aceptás y su cuenta queda al día.</p></details>
                 <details><summary>¿Los vecinos tienen que bajar una app?</summary><p>No. Entran desde el navegador del celular y, si quieren, la agregan a la pantalla de inicio. Así también reciben los avisos.</p></details>
                 <details><summary>¿Qué pasa con los datos de mis edificios?</summary><p>Son tuyos. Cada administración ve sólo sus consorcios, los podés exportar en Excel cuando quieras y no los usamos para nada más. Está todo en la <a href="/privacidad">política de privacidad</a>.</p></details>
                 <details><summary>Administro fuera de CABA, ¿me sirve?</summary><p>Sí. La liquidación, los cobros, los reclamos y las reservas funcionan igual en cualquier lugar. Lo de la Ley 941 es un plus para CABA.</p></details>
@@ -360,7 +360,7 @@
             <a href="/privacidad">Política de privacidad</a>
             <a href="mailto:{{ legal.email }}">{{ legal.email }}</a>
         </nav>
-        <p>© 2026 {{ legal.razon_social }}</p>
+        <p>© 2026 Niddo</p>
     </div>
 </footer>
 </body>
