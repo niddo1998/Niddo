@@ -573,7 +573,7 @@
 
 <div class="topbar">
     <button class="topbar-btn" onclick="ayudaDeLaSeccion()" title="Ayuda" aria-label="Ayuda"><svg class="ic"><use href="#ic-ayuda"></use></svg></button>
-    <button class="topbar-btn profile-circle" id="topbar-perfil-btn" onclick="openModal('modal-perfil'); pintarPerfilPush()" title="Mi Perfil">—</button>
+    <button class="topbar-btn profile-circle" id="topbar-perfil-btn" onclick="openModal('modal-perfil'); pintarPerfilPush(); cargarDatosAdministracion()" title="Mi Perfil">—</button>
 </div>
 
 <!-- Cuatro destinos, no cinco: "Más" dejó de ser un tab y su contenido pasó
@@ -1817,6 +1817,17 @@
                     <span id="perfil-push"></span>
                 </div>
                 <div class="text-muted text-sm" id="perfil-push-ayuda" style="display:none;margin-top:2px;"></div>
+            </div>
+            <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:8px;">
+                <h4 style="font-size:.85rem;font-weight:700;margin:0 0 4px;">Datos de la administración</h4>
+                <p class="text-muted text-sm" style="margin:0 0 12px;">Salen en el encabezado de cada liquidación. La Ley 941 pide la matrícula del RPA.</p>
+                <div class="form-group"><label class="form-label" for="perfil-matricula">Matrícula RPA</label>
+                    <input class="form-ctrl" id="perfil-matricula" maxlength="40" placeholder="Ej: 12345"></div>
+                <div class="form-group"><label class="form-label" for="perfil-cuit">CUIT de la administración</label>
+                    <input class="form-ctrl" id="perfil-cuit" maxlength="13" inputmode="numeric" placeholder="20-12345678-9"></div>
+                <div class="form-group"><label class="form-label" for="perfil-direccion">Dirección de la administración</label>
+                    <input class="form-ctrl" id="perfil-direccion" maxlength="160" placeholder="Av. Corrientes 1234, piso 3, CABA"></div>
+                <button class="btn btn-primary" style="width:100%;" onclick="guardarDatosAdministracion()">Guardar</button>
             </div>
         </div>
     </div>
@@ -5903,6 +5914,26 @@ async function guardarAgendado() {
     const topBtn = $('topbar-perfil-btn');
     if (topBtn) topBtn.textContent = initials;
 })();
+
+/* Matrícula, CUIT y dirección: van al encabezado del PDF de la liquidación. */
+async function cargarDatosAdministracion() {
+    try {
+        const yo = await api('/api/me');
+        $('perfil-matricula').value = yo.matricula || '';
+        $('perfil-cuit').value = yo.cuit || '';
+        $('perfil-direccion').value = yo.direccion || '';
+    } catch(e) { /* el modal sigue sirviendo sin estos datos */ }
+}
+async function guardarDatosAdministracion() {
+    try {
+        await api('/api/me', {method: 'PUT', body: JSON.stringify({
+            matricula: $('perfil-matricula').value,
+            cuit: $('perfil-cuit').value,
+            direccion: $('perfil-direccion').value,
+        })});
+        toast('Listo, tus próximas liquidaciones salen con estos datos');
+    } catch(e) { toast(e.message, 'err'); }
+}
 /* El interruptor de notificaciones del perfil: activarlas acá cuando se
    cerró la tarjeta, o apagarlas en este dispositivo. */
 const PUSH_AYUDA = {

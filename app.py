@@ -4636,8 +4636,21 @@ def api_me():
 # editable y hay que acordarse de prohibirla. Acá nace prohibida.
 CAMPOS_PERFIL_EDITABLES = {
     'vecino': ('nombre', 'telefono'),
-    'admin': ('nombre', 'nombre_contacto', 'telefono'),
+    # cuit, matricula y direccion salen en el encabezado del PDF de la
+    # liquidación: la Ley 941 pide la matrícula del RPA en cada una.
+    'admin': ('nombre', 'nombre_contacto', 'telefono', 'cuit', 'matricula', 'direccion'),
 }
+
+
+def _cuit_valido(cuit):
+    """11 dígitos con el dígito verificador de ARCA. Acepta guiones."""
+    d = re.sub(r'\D', '', cuit or '')
+    if len(d) != 11:
+        return False
+    pesos = (5, 4, 3, 2, 7, 6, 5, 4, 3, 2)
+    resto = 11 - sum(int(a) * b for a, b in zip(d, pesos)) % 11
+    verificador = 0 if resto == 11 else 9 if resto == 10 else resto
+    return verificador == int(d[10])
 
 
 @app.route('/api/me', methods=['PUT'])
@@ -4661,6 +4674,11 @@ def api_me_update():
                                  f'{", ".join(permitidos)}'}), 400
     if 'nombre' in payload and not payload['nombre']:
         return jsonify({'error': 'El nombre no puede quedar vacío'}), 400
+    if payload.get('cuit'):
+        if not _cuit_valido(payload['cuit']):
+            return jsonify({'error': 'El CUIT no es válido. Revisá los 11 números.'}), 400
+        d = re.sub(r'\D', '', payload['cuit'])
+        payload['cuit'] = f'{d[:2]}-{d[2:10]}-{d[10]}'
 
     res = supabase.table(table).update(payload).eq('auth0_id', user['sub']).execute()
     if not res.data:
