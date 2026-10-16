@@ -91,7 +91,8 @@
                 t: 'Inicio', i: 'ic-edificio',
                 d: 'Tu resumen: la expensa de este mes, cómo pagarla y las novedades del edificio.',
                 l: ['Descargá el resumen de tu expensa con el detalle de gastos.',
-                    '«Informar pago» le avisa a la administración que ya pagaste, con el comprobante.']
+                    '«Informar pago» le avisa a la administración que ya pagaste, con el comprobante.',
+                    'Si tu edificio tiene Mercado Pago, la pagás ahí mismo y queda registrada sola.']
             },
             comunicados: {
                 t: 'Comunicados', i: 'ic-megafono',

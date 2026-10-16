@@ -413,8 +413,7 @@
         <div><div class="pg-title"><svg class="ic"><use href="#ic-expensa"></use></svg>Mis Expensas</div><div class="pg-sub">Cuenta corriente, historial y pagos</div></div>
         <div style="display:flex;gap:8px;align-items:center">
             <div><label class="fl" style="margin:0 6px 0 0;font-size:0.75rem">Desde</label><input type="date" id="exp-desde" class="fc" style="width:140px" onchange="loadCobros()"></div>
-            ${cobro.pago_online?`<button class="btn btn-primary" onclick="pagarConMP('${esc(cobro.id)}',this)"><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>Pagar con Mercado Pago</button>
-            <button class="btn btn-secondary" onclick="openDrawer('drawer-pago')">Ya pagué por otro medio</button>`:`<button class="btn btn-primary" onclick="openDrawer('drawer-pago')"><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>Informar Pago</button>`}
+            <button class="btn btn-primary" onclick="openDrawer('drawer-pago')"><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>Informar Pago</button>
         </div>
     </div>
     <div class="stats-grid">
@@ -1038,8 +1037,9 @@ function renderCobroWgt(cobro){
             ${ebadge(cobro.estado)}
             <span style="font-size:0.8rem;color:var(--text2)">Vence el ${venc} (Período: ${cobro.periodo||'–'})</span>
         </div>
-        <div style="display:flex;align-items:center;gap:12px">
-            <button class="btn btn-primary" onclick="openDrawer('drawer-pago')"><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>Informar Pago</button>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            ${cobro.pago_online?`<button class="btn btn-primary" onclick="pagarConMP('${esc(cobro.id)}',this)"><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>Pagar con Mercado Pago</button>
+            <button class="btn btn-secondary" onclick="openDrawer('drawer-pago')">Ya pagué por otro medio</button>`:`<button class="btn btn-primary" onclick="openDrawer('drawer-pago')"><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>Informar Pago</button>`}
             <a class="btn btn-secondary" href="/api/vecinos/cobros/${cobro.id}/resumen" title="El detalle de gastos del edificio y lo que te toca pagar">
                 <svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Descargar resumen
             </a>
