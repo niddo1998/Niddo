@@ -13,3 +13,9 @@
 alter table liquidaciones add column if not exists token_publico text;
 create unique index if not exists liquidaciones_token_publico_key
   on liquidaciones (token_publico) where token_publico is not null;
+
+-- ── Saldo anterior por unidad (migrar desde otro sistema) ──
+-- Lo que cada unidad debía en el sistema anterior. Entra una sola vez, como
+-- saldo anterior de la primera liquidación de la unidad en Niddo. Negativo es
+-- saldo a favor.
+alter table unidades_funcionales add column if not exists saldo_inicial numeric(14,2) default 0;

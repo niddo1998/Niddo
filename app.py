@@ -310,6 +310,7 @@ HOJA_CARGA = 'Carga'
 HEADERS_PLANTILLA_CONSORCIOS = [
     'consorcio*', 'direccion', 'cuit', 'encargado', 'tel_encargado',
     'unidad*', 'piso', 'tipo', 'superficie_m2', 'ambientes', 'vecino_nombre', 'vecino_email',
+    'saldo_anterior',
 ]
 ALIAS_COLUMNAS_CONSORCIO = {
     'consorcio': 'consorcio', 'edificio': 'consorcio', 'nombre': 'consorcio',
@@ -324,12 +325,14 @@ ALIAS_COLUMNAS_CONSORCIO = {
     'ambientes': 'ambientes',
     'vecino_nombre': 'vecino_nombre', 'vecino': 'vecino_nombre', 'propietario': 'vecino_nombre',
     'vecino_email': 'vecino_email', 'email': 'vecino_email', 'mail': 'vecino_email',
+    'saldo_anterior': 'saldo_anterior', 'saldo': 'saldo_anterior', 'deuda': 'saldo_anterior',
+    'deuda_anterior': 'saldo_anterior', 'saldo_inicial': 'saldo_anterior',
 }
 
 EJEMPLO_CONSORCIOS = [
     ['Torres del Parque', 'Av. Rivadavia 5200, CABA', '30-71234567-8', 'Carlos Gómez', '11 4567-8910',
-     '1A', '1', 'departamento', 62, 3, 'Laura Fernández', 'laura@mail.com'],
-    ['Torres del Parque', '', '', '', '', '1B', '1', 'departamento', 48, 2, 'Martín Ruiz', 'martin@mail.com'],
+     '1A', '1', 'departamento', 62, 3, 'Laura Fernández', 'laura@mail.com', 0],
+    ['Torres del Parque', '', '', '', '', '1B', '1', 'departamento', 48, 2, 'Martín Ruiz', 'martin@mail.com', 152300],
     ['Torres del Parque', '', '', '', '', 'PB', '0', 'local', 90, 1, 'Kiosco Don José', ''],
     ['Torres del Parque', '', '', '', '', 'C1', '-1', 'cochera', 12, None, '', ''],
     ['Edificio Belgrano', 'Juramento 2100, CABA', '', '', '', '3C', '3', 'departamento', 75, 4, 'Ana López', 'ana@mail.com'],
@@ -407,20 +410,24 @@ def build_carga_masiva_template(consorcios_existentes: list):
         ('campo', ('ambientes', 'Cantidad de ambientes. Sólo hace falta si el consorcio reparte por ambientes.')),
         ('campo', ('vecino_nombre / vecino_email', 'Quién vive o es dueño. Opcionales: el vecino también puede '
                                                    'pedir su alta desde la app.')),
+        ('campo', ('saldo_anterior', 'Lo que la unidad debe hoy, según tu sistema anterior. Entra en la primera '
+                                     'liquidación que hagas con Niddo como saldo anterior, con su interés. Si tiene '
+                                     'saldo a favor, ponelo en negativo. Vacío = 0.')),
         ('espacio', ''),
-        ('nota', 'Una unidad que ya existe en ese consorcio se saltea: subir dos veces el mismo archivo no duplica nada.'),
+        ('nota', 'Una unidad que ya existe en ese consorcio se saltea: subir dos veces el mismo archivo no duplica nada. '
+                 'Lo único que se actualiza de una unidad existente es el saldo_anterior, si viene cargado.'),
         ('nota', 'Los campos con * son obligatorios.'),
     ])
 
     ws_ej = wb.create_sheet('Ejemplo')
     encabezado_de_marca(ws_ej, 'Ejemplo', 'Así se ve una carga completa. Esta pestaña no se importa.')
     tabla(ws_ej, HEADERS_PLANTILLA_CONSORCIOS, EJEMPLO_CONSORCIOS,
-          formatos={8: 'numero', 9: 'numero'})
+          formatos={8: 'numero', 9: 'numero', 12: 'pesos'})
 
     ws = wb.create_sheet(HOJA_CARGA)
     encabezado_de_marca(ws, 'Carga', 'Completá desde la fila de abajo del encabezado. Esta es la pestaña que se importa.')
-    fila = tabla(ws, HEADERS_PLANTILLA_CONSORCIOS, [], formatos={8: 'numero', 9: 'numero'},
-                 anchos={0: 26, 1: 28, 2: 16, 3: 18, 4: 16, 5: 10, 6: 8, 7: 16, 8: 14, 9: 12, 10: 22, 11: 24})
+    fila = tabla(ws, HEADERS_PLANTILLA_CONSORCIOS, [], formatos={8: 'numero', 9: 'numero', 12: 'pesos'},
+                 anchos={0: 26, 1: 28, 2: 16, 3: 18, 4: 16, 5: 10, 6: 8, 7: 16, 8: 14, 9: 12, 10: 22, 11: 24, 12: 16})
     desde, hasta = fila + 1, fila + 1000
     _desplegable(ws, _lista_oculta(wb, 'tipo', list(TIPOS_UF_VALIDOS), 1), f'H{desde}:H{hasta}')
     if consorcios_existentes:
@@ -2268,6 +2275,8 @@ def api_ufs_create(cid):
         'porcentaje_c': d.get('porcentaje_c') or 0,
         'porcentaje_e': d.get('porcentaje_e') or 0,
     }
+    if _numero_o_none(d.get('saldo_inicial')) is not None:
+        payload['saldo_inicial'] = _numero_o_none(d.get('saldo_inicial'))
     res = supabase.table('unidades_funcionales').insert(payload).execute()
     return jsonify(res.data[0] if res.data else {}), 201
 
@@ -2289,6 +2298,7 @@ def api_ufs_update(cid, uid):
         'porcentaje_b': d.get('porcentaje_b'),
         'porcentaje_c': d.get('porcentaje_c'),
         'porcentaje_e': d.get('porcentaje_e'),
+        'saldo_inicial': _numero_o_none(d.get('saldo_inicial')),
     }.items() if v is not None}
     res = supabase.table('unidades_funcionales').update(payload).eq('id', uid).eq('consorcio_id', cid).execute()
     return jsonify(res.data[0] if res.data else {})
@@ -2357,7 +2367,7 @@ def api_carga_masiva():
                 filas_unidades_nuevas.append((i, [nombre, _texto_celda(f.get('unidad')), _texto_celda(f.get('piso')),
                                                   _texto_celda(f.get('tipo')), f.get('superficie_m2'),
                                                   _texto_celda(f.get('vecino_nombre')), _texto_celda(f.get('vecino_email')),
-                                                  f.get('ambientes')]))
+                                                  f.get('ambientes'), f.get('saldo_anterior')]))
     elif 'Consorcios' in wb.sheetnames:
         # Rellenadas: una planilla vieja con columnas de menos no puede voltear el import.
         filas_consorcios = [(i, tuple(row or ()) + (None,) * 8)
@@ -2432,20 +2442,29 @@ def api_carga_masiva():
                 'vecino_nombre': row[5] or '',
                 'vecino_email': row[6] or '',
                 **({'ambientes': _entero_o_none(row[7])} if len(row) > 7 and row[7] not in (None, '') else {}),
+                **({'saldo_inicial': _numero_o_none(row[8])} if len(row) > 8 and _numero_o_none(row[8]) is not None else {}),
             })
 
     # Evitar duplicar UF ya existentes en el mismo consorcio
     numeros_existentes = set()
     if consorcio_ids_tocados:
-        existentes_uf = supabase.table('unidades_funcionales').select('consorcio_id,numero') \
+        existentes_uf = supabase.table('unidades_funcionales').select('id,consorcio_id,numero') \
             .in_('consorcio_id', list(consorcio_ids_tocados)).execute().data or []
-        numeros_existentes = {(u['consorcio_id'], u['numero'].strip().lower()) for u in existentes_uf}
+        numeros_existentes = {(u['consorcio_id'], u['numero'].strip().lower()): u['id'] for u in existentes_uf}
 
     ufs_a_insertar = []
     unidades_omitidas = 0
+    saldos_actualizados = 0
     vistas_en_archivo = set()
     for uf in nuevas_ufs:
         key = (uf['consorcio_id'], uf['numero'].strip().lower())
+        if key in numeros_existentes and 'saldo_inicial' in uf:
+            # Migrar es en dos tandas: primero las unidades, después la deuda
+            # que se exportó del sistema anterior. La segunda no duplica nada.
+            supabase.table('unidades_funcionales').update({'saldo_inicial': uf['saldo_inicial']}) \
+                .eq('id', numeros_existentes[key]).execute()
+            saldos_actualizados += 1
+            continue
         if key in numeros_existentes or key in vistas_en_archivo:
             unidades_omitidas += 1
             continue
@@ -2460,6 +2479,7 @@ def api_carga_masiva():
         'consorcios_reutilizados': len(ids_reutilizados),
         'unidades_creadas': len(ufs_a_insertar),
         'unidades_omitidas': unidades_omitidas,
+        'saldos_actualizados': saldos_actualizados,
         'errores': errores,
     })
 
@@ -6618,6 +6638,14 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
         for c in cobros_ant:
             cobros_ant_por_uf.setdefault(c['unidad_id'], c)
 
+    # La deuda que la unidad traía del sistema anterior entra una sola vez: en
+    # la primera liquidación, cuando todavía no tiene ningún cobro en Niddo.
+    # Desde ahí la arrastra el cobro del mes, como cualquier otra deuda.
+    con_historia = set()
+    if uf_ids and numero_revision <= 1 and any(_numero_o_none(uf.get('saldo_inicial')) for uf in ufs):
+        con_historia = {c['unidad_id'] for c in supabase.table('cobros').select('unidad_id')
+                        .in_('unidad_id', uf_ids).lt('periodo', periodo).execute().data}
+
     amenities_por_uf = _cargos_de_amenities(consorcio_id, periodo, uf_ids)
 
     prorrateo_rows = []
@@ -6631,6 +6659,8 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
             saldo_ant = float(c.get('total', 0))
             if c.get('estado') == 'pagado':
                 pago = float(c.get('total', 0))
+        elif numero_revision <= 1 and uf['id'] not in con_historia:
+            saldo_ant = float(_numero_o_none(uf.get('saldo_inicial')) or 0)
 
         # Puede quedar negativo: es un crédito y se arrastra a favor del vecino.
         saldo_pend = round(saldo_ant - pago, 2)
