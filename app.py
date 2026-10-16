@@ -14,7 +14,7 @@ from flask import (
 from authlib.integrations.flask_client import OAuth
 from markupsafe import escape
 from dotenv import load_dotenv
-from supabase import create_client, Client
+import db
 
 from recurrentes import periodos_pendientes, ultimo_dia_del_mes
 
@@ -57,11 +57,11 @@ auth0 = oauth.register(
     server_metadata_url=f'https://{AUTH0_DOMAIN}/.well-known/openid-configuration',
 )
 
-# ── Supabase ───────────────────────────────────────────────────────────────────
-supabase: Client = create_client(
-    os.environ['SUPABASE_URL'],
-    os.environ['SUPABASE_SERVICE_KEY'],
-)
+# ── Base de datos ──────────────────────────────────────────────────────────────
+# Postgres en Neon. `db` habla el mismo idioma que el cliente de Supabase que se
+# usaba antes (table().select().eq()...execute()), así que las consultas de abajo
+# no cambiaron; el nombre `supabase` se mantiene para no tocar ninguna de ellas.
+supabase = db.create_client(os.environ.get('DATABASE_URL'))
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 # Espacio duro entre el signo y el número, igual que en el PDF: el importe no se

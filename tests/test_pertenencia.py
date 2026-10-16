@@ -23,8 +23,7 @@ import pytest
 
 # Igual que en test_generacion.py: `app.py` lee estas variables al importarse.
 os.environ.setdefault('SECRET_KEY', 'test')
-os.environ.setdefault('SUPABASE_URL', 'https://test.supabase.co')
-os.environ.setdefault('SUPABASE_SERVICE_KEY', 'test')
+os.environ.setdefault('DATABASE_URL', 'postgresql://test@localhost/test')
 os.environ.setdefault('AUTH0_DOMAIN', 'test.auth0.com')
 os.environ.setdefault('AUTH0_CLIENT_ID', 'test')
 os.environ.setdefault('AUTH0_CLIENT_SECRET', 'test')
