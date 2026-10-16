@@ -81,7 +81,9 @@
                 d: 'Los datos de cada consorcio que usan la liquidación y los resúmenes.',
                 l: ['Cómo se reparten las expensas: por m² (lo habitual), ambientes, partes iguales o porcentaje.',
                     'Interés por mora, días de gracia y recargo del segundo vencimiento.',
-                    'Datos bancarios para que los vecinos sepan cómo pagar.']
+                    'Datos bancarios para que los vecinos sepan cómo pagar.',
+                    'El reglamento que abre el QR de cada liquidación.',
+                    'Mercado Pago, para que los vecinos paguen desde la app.']
             }
         },
         vecino: {

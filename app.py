@@ -109,6 +109,15 @@ def pesos(n) -> str:
 app.jinja_env.filters['pesos'] = pesos
 
 
+def fecha_ar(valor):
+    """'2026-10-10' → '10/10/2026'. Devuelve lo que le den si no es fecha."""
+    t = str(valor or '')[:10]
+    return f'{t[8:10]}/{t[5:7]}/{t[:4]}' if re.fullmatch(r'\d{4}-\d{2}-\d{2}', t) else (valor or '')
+
+
+app.jinja_env.filters['fecha'] = fecha_ar
+
+
 def fmt_numero(n, decimales=2) -> str:
     """Un número con coma decimal y sin ceros de más: 99,5 o 33,333."""
     txt = f'{float(n or 0):,.{decimales}f}'.replace(',', '\u0001').replace('.', ',').replace('\u0001', '.')
@@ -1221,7 +1230,8 @@ def _api_errors_como_json(e):
 # ── Páginas públicas ───────────────────────────────────────────────────────────
 @app.route('/')
 def index():
-    return render_template('index.html')
+    wa = re.sub(r'\D', '', os.environ.get('NIDDO_WHATSAPP', ''))
+    return render_template('index.html', whatsapp=wa, legal=datos_legales())
 
 
 # El service worker y el manifest tienen que servirse desde la raíz: el

@@ -3,418 +3,365 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Niddo — Administración de consorcios</title>
+    <title>Niddo | Administración de consorcios</title>
     {% include '_head_app.html' %}
-    <meta name="description" content="La plataforma más simple para administrar consorcios. Expensas, vecinos y finanzas en un solo lugar.">
+    <meta name="description" content="Cargás las facturas, Niddo arma la liquidación con el formato de la Ley 941 y cada vecino recibe lo que le toca pagar. Buscamos administraciones para el piloto.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
+    {% set piloto_url = ('https://wa.me/' ~ whatsapp ~ '?text=' ~ ('Hola! Administro consorcios y quiero sumarme al piloto de Niddo.' | urlencode)) if whatsapp else '/login' %}
     <style>
+        /* Ruta Barrio del manual: terracota humana, verde comunidad, un guiño
+           amarillo. Los colores salen de niddo-brand.css; acá sólo el layout. */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-        /* Paleta y tipografia viven en niddo-brand.css.
-           Aca solo los acentos ilustrativos de las tarjetas, todos dentro
-           de la paleta del manual. */
-        :root {
-            --blue-50: var(--nd-crema);
-            --violet-100: var(--nd-verde-dim);   --violet-500: var(--nd-verde);
-            --teal-100:   var(--nd-verde-dim);   --teal-500:   var(--nd-verde-bosque);
-            --coral-100:  var(--nd-terracota-dim); --coral-500: var(--nd-terracota-hondo);
-        }
-
         html { scroll-behavior: smooth; }
+        body { background: var(--nd-crema-claro); color: var(--nd-tinta); font-family: var(--font); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+        img, svg { display: block; }
+        a { color: inherit; }
+        :focus-visible { outline: 3px solid var(--nd-verde); outline-offset: 3px; border-radius: 8px; }
+        .wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
+        h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.015em; line-height: 1.08; text-wrap: balance; }
 
-        body {
-            font-family: var(--font);
-            background: var(--bg-canvas);
-            color: var(--text);
-            line-height: 1.6;
-            -webkit-font-smoothing: antialiased;
-            transition: background 0.3s, color 0.3s;
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: .5em; font-weight: 800; font-size: 1rem; text-decoration: none;
+               padding: .95rem 1.6rem; border-radius: var(--r-pill); border: 2px solid transparent; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+        .btn:hover { transform: translateY(-1px); }
+        .btn-piloto { background: var(--nd-amarillo); color: var(--nd-tinta-calida); box-shadow: 0 10px 24px -12px rgba(58,42,8,.55); }
+        .btn-linea { border-color: currentColor; color: var(--nd-tinta); }
+        .btn-sm { padding: .6rem 1.1rem; font-size: .92rem; }
+
+        /* ── Nav ── */
+        nav { position: absolute; inset: 0 0 auto; z-index: 5; }
+        nav .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 20px; }
+        .marca { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+        .marca svg { width: 34px; height: 34px; }
+        .marca b { font-family: var(--font-display); font-weight: 600; font-size: 1.7rem; color: var(--nd-crema); letter-spacing: -.02em; }
+        .marca b i { font-style: normal; color: var(--nd-verde-bosque); }
+        .nav-der { display: flex; align-items: center; gap: 18px; }
+        .nav-der .ingresar { color: var(--nd-tinta); font-weight: 800; text-decoration: none; }
+
+        /* ── Hero: el panel terracota del manual, con la expensa adentro ── */
+        .hero { background: var(--nd-terracota); border-radius: 0 0 var(--r-xl) var(--r-xl); padding: 112px 0 72px; overflow: hidden; position: relative; }
+        .hero .wrap { display: grid; grid-template-columns: 1.1fr .9fr; gap: 56px; align-items: center; }
+        .hero h1 { font-size: clamp(2.5rem, 6vw, 4.4rem); color: var(--nd-tinta); }
+        .hero p.bajada { font-size: clamp(1.05rem, 1.6vw, 1.25rem); color: var(--nd-tinta); max-width: 34rem; margin: 22px 0 32px; }
+        .hero .acciones { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+        .hero .nota { margin-top: 18px; font-size: .92rem; color: var(--nd-tinta-calida); max-width: 30rem; }
+
+        .expensa { position: relative; background: #fff; border-radius: var(--r-xl); padding: 22px; box-shadow: 0 40px 70px -40px rgba(42,33,28,.6); max-width: 400px; justify-self: end; width: 100%; }
+        .exp-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+        .exp-top .mini { font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; }
+        .exp-top .mini i { font-style: normal; color: var(--nd-terracota); }
+        .exp-top .uf { font-size: .82rem; font-weight: 700; color: var(--nd-gris-calido); background: var(--nd-crema); border-radius: var(--r-pill); padding: 4px 10px; }
+        .exp-monto { background: var(--nd-terracota); color: #fff; border-radius: var(--r-lg); padding: 18px; }
+        .exp-monto small { font-size: .82rem; opacity: .92; font-weight: 700; }
+        .exp-monto strong { display: block; font-family: var(--font-display); font-size: 2.5rem; line-height: 1.1; margin: 4px 0 14px; color: #fff; }
+        .exp-monto .pagar { display: block; text-align: center; background: var(--nd-amarillo); color: var(--nd-tinta-calida); font-weight: 800; border-radius: var(--r-pill); padding: 11px; font-size: .95rem; }
+        .exp-filas { margin-top: 14px; }
+        .exp-filas div { display: flex; justify-content: space-between; font-size: .9rem; padding: 7px 2px; border-bottom: 1px dashed var(--nd-borde); }
+        .exp-filas div span:last-child { font-weight: 800; font-variant-numeric: tabular-nums; }
+        .exp-qr { display: flex; gap: 12px; align-items: center; margin-top: 14px; background: var(--nd-crema); border-radius: var(--r-md); padding: 10px 12px; font-size: .82rem; color: var(--nd-gris-calido); line-height: 1.35; }
+        .exp-qr svg { width: 46px; height: 46px; flex: none; }
+        .exp-qr b { color: var(--nd-tinta); display: block; }
+
+        /* Los tres vecinos se juntan al cargar: la única animación de la página. */
+        .vecinos { position: absolute; width: 84px; height: 84px; left: -54px; top: -58px; }
+        .vecinos circle { transform-box: fill-box; transform-origin: center; }
+        @media (prefers-reduced-motion: no-preference) {
+            .vecinos .v1 { animation: llega-1 .9s cubic-bezier(.2,.8,.2,1.2) both .15s; }
+            .vecinos .v2 { animation: llega-2 .9s cubic-bezier(.2,.8,.2,1.2) both .3s; }
+            .vecinos .v3 { animation: llega-3 .9s cubic-bezier(.2,.8,.2,1.2) both .45s; }
+            .expensa { animation: aparece .7s ease-out both .2s; }
         }
+        @keyframes llega-1 { from { transform: translate(0, -260%) scale(.4); opacity: 0; } }
+        @keyframes llega-2 { from { transform: translate(-260%, 120%) scale(.4); opacity: 0; } }
+        @keyframes llega-3 { from { transform: translate(260%, 120%) scale(.4); opacity: 0; } }
+        @keyframes aparece { from { transform: translateY(24px) rotate(1.5deg); opacity: 0; } }
 
-        h1, h2, h3 { font-family: var(--font-display); font-weight: 700; text-wrap: balance; letter-spacing: -0.01em; }
+        section { padding: 96px 0; }
+        .titulo-sec { font-size: clamp(2rem, 4.2vw, 3rem); max-width: 22ch; }
+        .intro-sec { font-size: 1.12rem; color: var(--nd-gris-calido); max-width: 40rem; margin-top: 14px; }
 
-        /* NAV */
-        nav {
-            position: sticky;
-            top: 0; left: 0; right: 0;
-            z-index: 100;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            padding: 1.1rem 2rem;
-            background: color-mix(in srgb, var(--bg) 78%, transparent);
-            backdrop-filter: blur(14px) saturate(1.4);
-            border-bottom: 1px solid var(--hairline);
+        /* ── El mes: es una secuencia de verdad, por eso va numerada ── */
+        .pasos { list-style: none; margin-top: 52px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; position: relative; counter-reset: paso; }
+        .pasos::before { content: ''; position: absolute; top: 27px; left: 28px; right: 12%; height: 3px; background: repeating-linear-gradient(90deg, var(--nd-borde) 0 10px, transparent 10px 18px); }
+        .pasos li { position: relative; padding-right: 26px; counter-increment: paso; }
+        .pasos li::before { content: counter(paso); display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; margin-bottom: 20px; position: relative; }
+        .pasos li:nth-child(1)::before { background: var(--nd-terracota); color: var(--nd-tinta); }
+        .pasos li:nth-child(2)::before { background: var(--nd-verde); color: var(--nd-crema); }
+        .pasos li:nth-child(3)::before { background: var(--nd-amarillo); color: var(--nd-tinta-calida); }
+        .pasos li:nth-child(4)::before { background: var(--nd-tinta); color: var(--nd-crema); }
+        .pasos h3 { font-size: 1.4rem; margin-bottom: 8px; }
+        .pasos p { color: var(--nd-gris-calido); font-size: 1rem; }
+
+        /* ── La ley: bloque verde, lista que se puede chequear ── */
+        .ley { background: var(--nd-verde); color: var(--nd-crema); border-radius: var(--r-xl); padding: 64px clamp(24px, 6vw, 72px); display: grid; grid-template-columns: .9fr 1.1fr; gap: 48px; }
+        .ley h2 { color: var(--nd-crema); font-size: clamp(2rem, 4vw, 2.8rem); }
+        .ley .intro-sec { color: var(--nd-crema); opacity: .9; }
+        .ley ul { list-style: none; display: grid; gap: 18px; align-content: start; }
+        .ley li { display: grid; grid-template-columns: 28px 1fr; gap: 14px; font-size: 1.02rem; }
+        .ley li::before { content: ''; width: 24px; height: 24px; margin-top: 3px; border-radius: 50%; background: var(--nd-amarillo) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233A2A08' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center/16px no-repeat; }
+        .ley li b { display: block; font-size: 1.08rem; }
+        .ley li span { opacity: .88; }
+
+        /* ── Vecinos: lo que ve el otro lado ── */
+        .vecino-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+        .cosas { margin-top: 30px; display: grid; gap: 22px; }
+        .cosa { display: grid; grid-template-columns: 14px 1fr; gap: 16px; }
+        .cosa::before { content: ''; width: 14px; height: 14px; border-radius: 50%; margin-top: 7px; background: var(--c, var(--nd-terracota)); }
+        .cosa b { font-size: 1.1rem; display: block; }
+        .cosa span { color: var(--nd-gris-calido); }
+        .telefono { background: var(--nd-tinta); border-radius: 44px; padding: 12px; max-width: 320px; margin-inline: auto; box-shadow: 0 40px 60px -40px rgba(42,33,28,.7); }
+        .pantalla { background: var(--nd-crema-claro); border-radius: 34px; padding: 22px 16px; display: grid; gap: 10px; }
+        .pantalla .hola { font-family: var(--font-display); font-size: 1.3rem; padding: 4px 4px 6px; }
+        .burbuja { background: #fff; border-radius: var(--r-lg); padding: 12px 14px; font-size: .88rem; border: 1px solid var(--nd-borde); }
+        .burbuja small { display: block; font-weight: 800; font-size: .76rem; color: var(--nd-gris-calido); margin-bottom: 2px; }
+        .burbuja.admin { background: var(--nd-verde); color: var(--nd-crema); border-color: transparent; margin-left: 28px; }
+        .burbuja.admin small { color: var(--nd-crema); opacity: .85; }
+        .burbuja.push { display: flex; gap: 10px; align-items: center; }
+        .burbuja.push svg { width: 30px; height: 30px; flex: none; }
+        .dias { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font-size: .74rem; font-weight: 700; color: var(--nd-gris-calido); }
+        .dias span { padding: 6px 0; border-radius: 10px; }
+        .dias .ocupado { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
+        .dias .tuyo { background: var(--nd-amarillo); color: var(--nd-tinta-calida); }
+
+        /* ── Migrar ── */
+        .migrar { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+        .planilla { background: #fff; border: 1px solid var(--nd-borde); border-radius: var(--r-lg); overflow: hidden; font-size: .86rem; box-shadow: var(--shadow-card); }
+        .planilla table { width: 100%; border-collapse: collapse; }
+        .planilla th { background: var(--nd-verde-dim); color: var(--nd-verde-bosque); text-align: left; font-weight: 800; padding: 10px 12px; }
+        .planilla td { padding: 9px 12px; border-top: 1px solid var(--border2); font-variant-numeric: tabular-nums; }
+        .planilla td:last-child, .planilla th:last-child { text-align: right; }
+        .planilla tr.debe td:last-child { color: var(--nd-terracota-hondo); font-weight: 800; }
+        .planilla caption { caption-side: bottom; text-align: left; padding: 10px 12px; color: var(--nd-gris-calido); font-size: .8rem; background: var(--nd-crema); }
+
+        /* ── Piloto ── */
+        .piloto { background: var(--nd-amarillo); border-radius: var(--r-xl); padding: 64px clamp(24px, 6vw, 72px); display: grid; grid-template-columns: 1.2fr .8fr; gap: 40px; align-items: center; color: var(--nd-tinta-calida); }
+        .piloto h2 { font-size: clamp(2.1rem, 4.5vw, 3.2rem); color: var(--nd-tinta); }
+        .piloto p { font-size: 1.1rem; margin-top: 14px; max-width: 34rem; }
+        .trato { background: var(--nd-crema-claro); border-radius: var(--r-lg); padding: 24px; display: grid; gap: 14px; color: var(--nd-tinta); }
+        .trato div { display: grid; gap: 2px; }
+        .trato b { font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; }
+        .trato span { color: var(--nd-gris-calido); font-size: .95rem; }
+        .piloto .btn-piloto { background: var(--nd-tinta); color: var(--nd-amarillo); margin-top: 28px; box-shadow: none; }
+
+        /* ── Preguntas ── */
+        .faq { max-width: 760px; margin-top: 32px; }
+        .faq details { border-bottom: 1px solid var(--nd-borde); }
+        .faq summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 16px; padding: 20px 0; font-weight: 800; font-size: 1.1rem; }
+        .faq summary::-webkit-details-marker { display: none; }
+        .faq summary::after { content: '+'; font-family: var(--font-display); font-size: 1.6rem; line-height: 1; color: var(--nd-terracota-hondo); transition: transform .2s; }
+        .faq details[open] summary::after { transform: rotate(45deg); }
+        .faq details p { padding: 0 0 20px; color: var(--nd-gris-calido); max-width: 62ch; }
+
+        footer { background: var(--nd-tinta); color: var(--nd-crema); margin-top: 40px; border-radius: var(--r-xl) var(--r-xl) 0 0; padding: 48px 0; }
+        footer .wrap { display: flex; flex-wrap: wrap; gap: 24px; justify-content: space-between; align-items: center; }
+        footer .marca b { color: var(--nd-crema); }
+        footer .marca b i { color: var(--nd-terracota); }
+        footer nav { position: static; display: flex; flex-wrap: wrap; gap: 20px; font-size: .95rem; }
+        footer nav a { text-decoration: none; opacity: .85; }
+        footer nav a:hover { opacity: 1; text-decoration: underline; }
+        footer p { width: 100%; font-size: .85rem; opacity: .6; }
+
+        @media (max-width: 900px) {
+            .hero { padding-top: 96px; }
+            .hero .wrap, .ley, .vecino-grid, .migrar, .piloto { grid-template-columns: 1fr; }
+            .expensa { justify-self: start; }
+            .pasos { grid-template-columns: 1fr 1fr; row-gap: 40px; }
+            .pasos::before { display: none; }
+            section { padding: 72px 0; }
         }
-
-        .nav-right { display: flex; align-items: center; gap: 0.6rem; }
-
-
-        .nav-links { display: flex; align-items: center; gap: 2rem; list-style: none; }
-        .nav-links a { color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 600; transition: color 0.2s; }
-        .nav-links a:hover { color: var(--text); }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: .45em;
-            justify-content: center;
-            padding: 0.65rem 1.4rem;
-            border-radius: var(--r-md);
-            font-size: 0.9rem;
-            font-weight: 700;
-            text-decoration: none;
-            transition: all 0.2s;
-            cursor: pointer;
-            border: 1px solid transparent;
-        }
-
-        /* Registrarse es la conversion: lleva el amarillo de acento, igual que el
-           "Suma tu edificio" del manual. */
-        .btn-primary { background: var(--cta); color: var(--cta-ink); }
-        .btn-primary:hover { box-shadow: 0 8px 20px -6px color-mix(in srgb, var(--cta) 60%, transparent); transform: translateY(-1px); }
-
-        .btn-outline { background: transparent; color: var(--accent-strong); border-color: var(--accent); }
-        .btn-outline:hover { background: var(--accent-soft); }
-
-        .btn-ghost { background: var(--surface); color: var(--text); border-color: var(--hairline); }
-        .btn-ghost:hover { border-color: var(--accent); }
-
-        /* HERO */
-        .hero {
-            padding: 5.5rem 1.5rem 2.5rem;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-        .hero::before {
-            content: '';
-            position: absolute;
-            inset: -20% -10% auto -10%;
-            height: 460px;
-            background: radial-gradient(60% 100% at 50% 0%, var(--accent-soft), transparent 70%);
-            pointer-events: none;
-        }
-        .hero-content { position: relative; max-width: 680px; margin: 0 auto; }
-
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            padding: 0.35rem 0.9rem;
-            background: var(--blue-100);
-            border-radius: 999px;
-            font-size: 0.8rem;
-            font-weight: 700;
-            color: var(--accent);
-            margin-bottom: 1.5rem;
-        }
-        .badge-dot { width: 6px; height: 6px; background: var(--mint-500); border-radius: 50%; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-        @media (prefers-reduced-motion: reduce) { .badge-dot { animation: none; } }
-
-        h1 { font-size: clamp(2.2rem, 4.6vw, 3.4rem); font-weight: 800; line-height: 1.15; margin-bottom: 1.25rem; }
-
-        .hero p { font-size: 1.05rem; color: var(--text-muted); max-width: 500px; margin: 0 auto 1.9rem; }
-
-        .hero-actions { display: flex; gap: 0.9rem; justify-content: center; flex-wrap: wrap; margin-bottom: 0.9rem; }
-        .hero-actions .btn { padding: 0.85rem 1.9rem; font-size: 0.95rem; }
-
-        .hero-alt { display: block; font-size: 0.82rem; color: var(--text-faint); text-decoration: none; font-weight: 600; }
-        .hero-alt:hover { color: var(--text-muted); }
-
-        /* STATS */
-        .stats {
-            display: flex;
-            justify-content: center;
-            gap: 3rem;
-            flex-wrap: wrap;
-            padding: 3rem 1.5rem;
-            border-top: 1px solid var(--hairline);
-            border-bottom: 1px solid var(--hairline);
-        }
-        .stat-item { text-align: center; }
-        .stat-num { font-size: 1.9rem; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
-        .stat-label { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem; }
-
-        /* HIGHLIGHT BAND */
-        .highlight {
-            max-width: 980px;
-            margin: 3.5rem auto 0;
-            padding: 0 1.5rem;
-        }
-        .highlight-in {
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
-            flex-wrap: wrap;
-            background: linear-gradient(120deg, var(--accent-soft), transparent 65%);
-            border: 1px solid var(--hairline);
-            border-radius: var(--r-lg);
-            padding: 2rem 2.2rem;
-        }
-        .highlight h3 { font-size: 1.1rem; font-weight: 800; margin-bottom: 0.3rem; }
-        .highlight p { color: var(--text-muted); font-size: 0.92rem; margin: 0; }
-        .highlight-text { flex: 1; min-width: 240px; }
-
-        /* SECTIONS */
-        .section { padding: 4.5rem 1.5rem; max-width: 1100px; margin: 0 auto; }
-        .section-label {
-            text-align: center;
-            font-size: 0.8rem;
-            font-weight: 700;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: var(--accent);
-            margin-bottom: 1rem;
-        }
-        h2 { font-size: clamp(1.7rem, 3vw, 2.3rem); font-weight: 800; text-align: center; margin-bottom: 1rem; }
-        .section-sub { text-align: center; color: var(--text-muted); font-size: 1.02rem; max-width: 540px; margin: 0 auto 3rem; }
-
-        .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; }
-
-        .card {
-            background: var(--surface);
-            border: 1px solid var(--hairline);
-            border-radius: var(--r-lg);
-            padding: 1.9rem;
-            box-shadow: var(--shadow-card);
-            transition: border-color 0.25s, transform 0.25s;
-        }
-        .card:hover { border-color: var(--accent); transform: translateY(-3px); }
-        .card-icon {
-            width: 44px; height: 44px; border-radius: var(--r-md);
-            background: var(--nd-terracota-dim);
-            color: var(--nd-terracota-hondo);
-            display: flex; align-items: center; justify-content: center;
-            margin-bottom: 1.1rem;
-        }
-        .card.cat-mint .card-icon { background: var(--nd-verde-dim); color: var(--nd-verde-bosque); }
-        .card.cat-amber .card-icon { background: var(--nd-amarillo-dim); color: var(--nd-tinta-calida); }
-        .card.cat-violet .card-icon { background: var(--nd-verde-dim); color: var(--nd-verde-bosque); }
-        .card.cat-teal .card-icon { background: var(--nd-verde-dim); color: var(--nd-verde-bosque); }
-        .card.cat-coral .card-icon { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
-        .card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
-        .card p { font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; }
-
-        /* PILLARS */
-        .pillar {
-            background: var(--surface);
-            border: 1px solid var(--hairline);
-            border-radius: var(--r-lg);
-            padding: 2rem 1.6rem;
-            box-shadow: var(--shadow-card);
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .pillar .card-icon { width: 54px; height: 54px; border-radius: var(--r-md); margin-bottom: 1rem; }
-        .pillar h3 { font-size: 1.05rem; font-weight: 800; margin-bottom: 0.5rem; }
-        .pillar p { font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 1rem; }
-
-        /* CTA SECTION */
-        .cta-section {
-            margin: 2rem 1.5rem 5rem;
-            background: linear-gradient(150deg, var(--accent-soft), transparent);
-            border: 1px solid var(--hairline);
-            border-radius: var(--r-lg);
-            padding: 4rem 2rem;
-            text-align: center;
-            max-width: 800px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        .cta-section h2 { margin-bottom: 0.75rem; }
-        .cta-section p { color: var(--text-muted); margin-bottom: 2rem; font-size: 1.02rem; }
-        .cta-actions { display: flex; gap: 0.9rem; justify-content: center; flex-wrap: wrap; }
-        .cta-actions .btn { padding: 0.9rem 2rem; font-size: 0.98rem; }
-
-        /* FOOTER */
-        footer {
-            border-top: 1px solid var(--hairline);
-            padding: 2rem 1.5rem;
-            text-align: center;
-            color: var(--text-faint);
-            font-size: 0.85rem;
-        }
-        footer a { color: inherit; text-decoration: none; margin: 0 6px; transition: color 0.2s; }
-        footer a:hover { color: var(--text-muted); }
-
-        @media (max-width: 600px) {
-            .stats { gap: 1.5rem; }
-            .nav-links { display: none; }
-            nav { padding: 0.9rem 1.1rem; }
-            .nav-right { gap: 0.45rem; }
-            .nav-right .btn { padding: 0.55rem 0.9rem; font-size: 0.82rem; white-space: nowrap; }
+        @media (max-width: 560px) {
+            .nav-der .ingresar { display: none; }
+            .pasos { grid-template-columns: 1fr; }
+            .hero .acciones .btn { width: 100%; }
+            .vecinos { display: none; }
         }
     </style>
 </head>
 <body>
 {% include '_icons.html' %}
 
-    <!-- NAV -->
-    <nav>
-        <a href="/" class="nd-logo">nidd<span class="o">o</span></a>
-        <ul class="nav-links">
-            <li><a href="#solucion">Solución</a></li>
-            <li><a href="#beneficios">Beneficios</a></li>
-        </ul>
-        <div class="nav-right">
-            <a href="/login" class="btn btn-outline">Iniciar sesión</a>
-            <a href="/login" class="btn btn-primary">Registrarme</a>
+<nav aria-label="Principal">
+    <div class="wrap">
+        <a class="marca" href="/" aria-label="Niddo, inicio">
+            <svg aria-hidden="true"><use href="#nd-isotipo-claro"></use></svg>
+            <b>nidd<i>o</i></b>
+        </a>
+        <div class="nav-der">
+            <a class="ingresar" href="/login">Ingresar</a>
+            <a class="btn btn-piloto btn-sm" href="{{ piloto_url }}"{% if whatsapp %} target="_blank" rel="noopener"{% endif %}>Quiero ser piloto</a>
         </div>
-    </nav>
+    </div>
+</nav>
 
-    <!-- HERO -->
-    <section class="hero">
-        <div class="hero-content">
-            <div class="badge">
-                <span class="badge-dot"></span>
-                +300 administradores activos
+<header class="hero">
+    <div class="wrap">
+        <div>
+            <h1>Cerrá el mes de tus consorcios sin pelearte con el Excel.</h1>
+            <p class="bajada">Sacás una foto de cada factura, Niddo arma la liquidación con el formato de la Ley 941 y cada vecino recibe lo que le toca pagar, con el QR a los comprobantes.</p>
+            <div class="acciones">
+                <a class="btn btn-piloto" href="{{ piloto_url }}"{% if whatsapp %} target="_blank" rel="noopener"{% endif %}>Quiero ser piloto</a>
+                <a class="btn btn-linea" href="#el-mes">Ver cómo es un mes</a>
             </div>
-            <h1>
-                Administrá tu consorcio<br>
-                sin complicaciones
-            </h1>
-            <p>Expensas, finanzas, vecinos y reclamos en una sola plataforma. Simple, rápido y todo automatizado.</p>
-            <div class="hero-actions">
-                <a href="/login" class="btn btn-primary">Registrarme gratis</a>
-                <a href="/login" class="btn btn-outline">Iniciar sesión</a>
+            <p class="nota">Estamos sumando las primeras administraciones. Es gratis mientras dure el piloto y te ayudamos a pasar tu primer edificio.</p>
+        </div>
+
+        <figure class="expensa" aria-label="Así le llega la expensa a un vecino">
+            <svg class="vecinos" viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="v1" cx="50" cy="30" r="15" fill="#F6EFE7"></circle>
+                <circle class="v2" cx="28" cy="68" r="15" fill="#2F6F5E"></circle>
+                <circle class="v3" cx="72" cy="68" r="15" fill="#F2B705"></circle>
+            </svg>
+            <div class="exp-top">
+                <span class="mini">nidd<i>o</i></span>
+                <span class="uf">UF 3B, Torres del Parque</span>
             </div>
-            <a href="#solucion" class="hero-alt">Ver cómo funciona ↓</a>
+            <div class="exp-monto">
+                <small>Expensas de octubre 2026</small>
+                <strong>$ 78.400</strong>
+                <span class="pagar">Pagar con Mercado Pago</span>
+            </div>
+            <div class="exp-filas">
+                <div><span>Expensa ordinaria (4,2 %)</span><span>$ 71.950</span></div>
+                <div><span>Reserva del SUM</span><span>$ 6.450</span></div>
+                <div><span>Saldo anterior</span><span>$ 0</span></div>
+            </div>
+            <div class="exp-qr">
+                <svg viewBox="0 0 7 7" aria-hidden="true" shape-rendering="crispEdges">
+                    <rect width="7" height="7" fill="#fff"/>
+                    <path fill="#2A211C" d="M0 0h3v3H0zM4 0h3v3H4zM0 4h3v3H0zM1 1h1v1H1zM5 1h1v1H5zM1 5h1v1H1zM4 4h1v1H4zM6 4h1v1H6zM5 5h1v1H5zM4 6h1v1H4zM6 6h1v1H6z" fill-rule="evenodd"/>
+                </svg>
+                <span><b>Comprobantes del mes</b>Cada factura, el reglamento y el manual de buenas prácticas.</span>
+            </div>
+        </figure>
+    </div>
+</header>
+
+<main>
+    <section id="el-mes">
+        <div class="wrap">
+            <h2 class="titulo-sec">Un mes de expensas, de punta a punta.</h2>
+            <p class="intro-sec">Lo que hoy te lleva días entre planillas, mails y transferencias sueltas, en un solo lugar.</p>
+            <ol class="pasos">
+                <li><h3>Cargás los gastos</h3><p>Subís la foto o el PDF de la factura y Niddo lee el proveedor, el CUIT y el monto. Si son muchos, los subís en una planilla.</p></li>
+                <li><h3>Liquidás</h3><p>Se reparte por m², ambientes, partes iguales o el porcentaje de cada unidad, con saldo anterior e intereses.</p></li>
+                <li><h3>Enviás</h3><p>Cada vecino recibe su resumen por mail y lo ve en la app. La liquidación completa sale en PDF, lista para imprimir.</p></li>
+                <li><h3>Cobrás</h3><p>El vecino paga con Mercado Pago o informa la transferencia con el comprobante. Lo que vence pasa a mora solo.</p></li>
+            </ol>
         </div>
     </section>
 
-    <!-- STATS -->
-    <div class="stats">
-        <div class="stat-item">
-            <div class="stat-num">+300</div>
-            <div class="stat-label">Administradores activos</div>
+    <section aria-labelledby="ley-t">
+        <div class="wrap">
+            <div class="ley">
+                <div>
+                    <h2 id="ley-t">Lo que pide la Ley 941, ya resuelto.</h2>
+                    <p class="intro-sec">Si administrás en CABA, cada liquidación sale con lo que te pueden reclamar.</p>
+                </div>
+                <ul>
+                    <li><div><b>El formato de la liquidación</b><span>Los diez rubros, el detalle de cada gasto con proveedor y comprobante, el estado patrimonial y el prorrateo de todas las unidades.</span></div></li>
+                    <li><div><b>El QR a los comprobantes</b><span>Impreso en cada liquidación, como pide la Disposición 1146/2024. Abre una página con cada factura del mes.</span></div></li>
+                    <li><div><b>Reglamento y manual de buenas prácticas</b><span>Subís el reglamento una vez y viaja con cada liquidación, junto al manual (Disposición 521/2025).</span></div></li>
+                    <li><div><b>Tu matrícula en el encabezado</b><span>Matrícula RPA, CUIT y domicilio de la administración, en cada hoja.</span></div></li>
+                </ul>
+            </div>
         </div>
-        <div class="stat-item">
-            <div class="stat-num">+10K</div>
-            <div class="stat-label">Vecinos en la plataforma</div>
+    </section>
+
+    <section aria-labelledby="vec-t">
+        <div class="wrap vecino-grid">
+            <div>
+                <h2 class="titulo-sec" id="vec-t">Y los vecinos dejan de escribirte a las once de la noche.</h2>
+                <div class="cosas">
+                    <div class="cosa" style="--c:var(--nd-terracota)"><div><b>Ven su expensa y la pagan</b><span>Con el detalle de qué se pagó y el comprobante de cada gasto.</span></div></div>
+                    <div class="cosa" style="--c:var(--nd-verde)"><div><b>Hacen reclamos que quedan registrados</b><span>Cada reclamo es una conversación con fotos, y saben en qué estado está.</span></div></div>
+                    <div class="cosa" style="--c:var(--nd-amarillo)"><div><b>Reservan el SUM o la parrilla</b><span>Con calendario, horarios y aviso al resto del edificio.</span></div></div>
+                    <div class="cosa" style="--c:var(--nd-tinta)"><div><b>Les llega un aviso al celular</b><span>Cuando sale la expensa, antes de que venza, cuando les responden. No hace falta bajar nada de una tienda: se instala desde el navegador.</span></div></div>
+                </div>
+            </div>
+            <div class="telefono" aria-hidden="true">
+                <div class="pantalla">
+                    <div class="hola">Hola, Sofía</div>
+                    <div class="burbuja push"><svg viewBox="0 0 100 100"><use href="#nd-isotipo"></use></svg><div><small>Niddo, ahora</small>Tu expensa vence el jueves. Son $ 78.400.</div></div>
+                    <div class="burbuja"><small>Vos</small>Hay una pérdida de agua en el palier del 3°.</div>
+                    <div class="burbuja admin"><small>Administración</small>El plomero pasa mañana entre 9 y 11. ¿Te queda bien?</div>
+                    <div class="burbuja"><small>SUM, noviembre</small>
+                        <div class="dias"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+                            <span>3</span><span>4</span><span class="ocupado">5</span><span>6</span><span>7</span><span class="tuyo">8</span><span class="ocupado">9</span></div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="stat-item">
-            <div class="stat-num">99.9%</div>
-            <div class="stat-label">Disponibilidad</div>
+    </section>
+
+    <section aria-labelledby="mig-t">
+        <div class="wrap migrar">
+            <div>
+                <h2 class="titulo-sec" id="mig-t">Traés tu cartera como está.</h2>
+                <p class="intro-sec">Una planilla con tus edificios, sus unidades y lo que debe cada una. La subís y la primera liquidación ya arranca con el saldo anterior de cada vecino.</p>
+                <p class="intro-sec">El primer edificio lo pasamos juntos, por videollamada.</p>
+            </div>
+            <div class="planilla">
+                <table>
+                    <caption>La planilla de carga, con la deuda que trae cada unidad.</caption>
+                    <thead><tr><th>Consorcio</th><th>Unidad</th><th>m²</th><th>Saldo anterior</th></tr></thead>
+                    <tbody>
+                        <tr><td>Torres del Parque</td><td>1A</td><td>62</td><td>$ 0</td></tr>
+                        <tr class="debe"><td>Torres del Parque</td><td>1B</td><td>48</td><td>$ 152.300</td></tr>
+                        <tr><td>Torres del Parque</td><td>3B</td><td>55</td><td>$ 0</td></tr>
+                        <tr><td>Edificio Belgrano</td><td>3C</td><td>75</td><td>$ 0</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
+    </section>
+
+    <section aria-labelledby="pil-t">
+        <div class="wrap">
+            <div class="piloto">
+                <div>
+                    <h2 id="pil-t">Buscamos diez administraciones para el piloto.</h2>
+                    <p>Usás Niddo con tus edificios reales, nos contás qué te sobra y qué te falta, y lo construimos con vos.</p>
+                    <a class="btn btn-piloto" href="{{ piloto_url }}"{% if whatsapp %} target="_blank" rel="noopener"{% endif %}>{% if whatsapp %}Escribinos por WhatsApp{% else %}Quiero ser piloto{% endif %}</a>
+                </div>
+                <div class="trato">
+                    <div><b>Gratis durante el piloto</b><span>Cuando empecemos a cobrar te avisamos con 30 días, y te podés ir con todos tus datos.</span></div>
+                    <div><b>Te ayudamos a migrar</b><span>Pasamos tu primer edificio juntos.</span></div>
+                    <div><b>Hablás con quien lo hace</b><span>Una llamada cada dos semanas y un WhatsApp directo.</span></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section aria-labelledby="faq-t">
+        <div class="wrap">
+            <h2 class="titulo-sec" id="faq-t">Lo que nos preguntan.</h2>
+            <div class="faq">
+                <details><summary>¿Cuánto cuesta?</summary><p>Mientras dura el piloto, nada. Después va a ser un precio por unidad funcional por mes. Te avisamos con 30 días de anticipación y te podés ir cuando quieras, con todos tus datos.</p></details>
+                <details><summary>¿La plata pasa por Niddo?</summary><p>No. Si conectás Mercado Pago, el vecino le paga directo a la cuenta del consorcio. Si cobrás por transferencia, sigue siendo tu cuenta de siempre: el vecino informa el pago con el comprobante y vos lo aceptás.</p></details>
+                <details><summary>¿Los vecinos tienen que bajar una app?</summary><p>No. Entran desde el navegador del celular y, si quieren, la agregan a la pantalla de inicio. Así también reciben los avisos.</p></details>
+                <details><summary>¿Qué pasa con los datos de mis edificios?</summary><p>Son tuyos. Cada administración ve sólo sus consorcios, los podés exportar en Excel cuando quieras y no los usamos para nada más. Está todo en la <a href="/privacidad">política de privacidad</a>.</p></details>
+                <details><summary>Administro fuera de CABA, ¿me sirve?</summary><p>Sí. La liquidación, los cobros, los reclamos y las reservas funcionan igual en cualquier lugar. Lo de la Ley 941 es un plus para CABA.</p></details>
+            </div>
+        </div>
+    </section>
+</main>
+
+<footer>
+    <div class="wrap">
+        <a class="marca" href="/" aria-label="Niddo, inicio">
+            <svg aria-hidden="true"><use href="#nd-isotipo"></use></svg>
+            <b>nidd<i>o</i></b>
+        </a>
+        <nav aria-label="Pie">
+            <a href="/login">Ingresar</a>
+            <a href="/terminos">Términos y condiciones</a>
+            <a href="/privacidad">Política de privacidad</a>
+            <a href="mailto:{{ legal.email }}">{{ legal.email }}</a>
+        </nav>
+        <p>© 2026 {{ legal.razon_social }}</p>
     </div>
-
-    <!-- HIGHLIGHT -->
-    <div class="highlight">
-        <div class="highlight-in">
-            <div class="highlight-text">
-                <h3>Todo lo administrativo, en un solo lugar</h3>
-                <p>Expensas, conciliación bancaria y comunicación con vecinos automatizadas, para que tu equipo gestione más consorcios sin sumar trabajo manual.</p>
-            </div>
-            <a href="/login" class="btn btn-primary">Registrarme gratis</a>
-        </div>
-    </div>
-
-    <!-- SOLUCIÓN -->
-    <div class="section" id="solucion">
-        <div class="section-label">Cómo funciona</div>
-        <h2>Una plataforma, dos portales</h2>
-        <p class="section-sub">Administradores y vecinos trabajan sobre los mismos datos, cada uno desde su propio acceso.</p>
-        <div class="grid-3">
-            <div class="pillar">
-                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-edificio"></use></svg></div>
-                <h3>Administradores</h3>
-                <p>Expensas, balance, sueldos y mensajería de toda tu cartera de consorcios en un solo panel.</p>
-            </div>
-            <div class="pillar">
-                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-vecino"></use></svg></div>
-                <h3>Vecinos</h3>
-                <p>Pagan su expensa, reservan amenities, votan y hacen seguimiento de reclamos desde el celular.</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- PARA ADMINS -->
-    <div class="section" id="beneficios" style="padding-top: 0;">
-        <div class="section-label">Para administradores</div>
-        <h2>Todo lo que necesitás para gestionar</h2>
-        <p class="section-sub">Desde la liquidación de expensas hasta los sueldos del personal, automatizado y en un solo lugar.</p>
-
-        <div class="grid-3">
-            <div class="card">
-                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-expensa"></use></svg></div>
-                <h3>Expensas automáticas</h3>
-                <p>Liquidación inteligente con QR obligatorio CABA, reconocimiento de facturas con IA y envío digital.</p>
-            </div>
-            <div class="card cat-mint">
-                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-balance"></use></svg></div>
-                <h3>Contabilidad y balance</h3>
-                <p>Balance automático, conciliación bancaria y reportes exportables. Gestioná toda tu cartera desde un panel.</p>
-            </div>
-            <div class="card cat-amber">
-                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-proveedor"></use></svg></div>
-                <h3>Sueldos y compliance</h3>
-                <p>Liquidación de sueldos por convenio, aguinaldos, vacaciones y presentación de cargas sociales.</p>
-            </div>
-            <div class="card cat-violet">
-                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-megafono"></use></svg></div>
-                <h3>Reclamos y amenities</h3>
-                <p>Los reclamos del edificio y las reservas de espacios comunes entran por el mismo panel, con aviso al vecino.</p>
-            </div>
-            <div class="card cat-teal">
-                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-cobro"></use></svg></div>
-                <h3>Inversión del float</h3>
-                <p>El capital en tránsito genera rendimiento automáticamente. Exclusivo de Niddo.</p>
-            </div>
-            <div class="card cat-coral">
-                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-liquidacion"></use></svg></div>
-                <h3>White label y API</h3>
-                <p>Branding personalizable, trabajo en equipo multiusuario e integraciones por API abierta.</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- PARA VECINOS -->
-    <div class="section" style="padding-top: 0;">
-        <div class="section-label">Para vecinos</div>
-        <h2>Viví tu consorcio sin fricción</h2>
-        <p class="section-sub">Pagá expensas, reservá amenities, participá en votaciones y seguí tus reclamos en tiempo real.</p>
-
-        <div class="grid-3">
-            <div class="card">
-                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-cobro"></use></svg></div>
-                <h3>Pagos por QR</h3>
-                <p>Pagá tu expensa con cualquier billetera virtual. Historial completo y comprobantes instantáneos.</p>
-            </div>
-            <div class="card cat-amber">
-                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-campana"></use></svg></div>
-                <h3>Comunicación directa</h3>
-                <p>Notificaciones en tiempo real, anuncios del consorcio y canal de comunicación con administración.</p>
-            </div>
-            <div class="card cat-violet">
-                <div class="card-icon"><svg class="ic ic-lg"><use href="#ic-reserva"></use></svg></div>
-                <h3>Votaciones y reclamos</h3>
-                <p>Participá en asambleas online, cargá reclamos y hacé seguimiento hasta su resolución.</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- CTA -->
-    <div class="cta-section">
-        <h2>Empezá hoy sin costo</h2>
-        <p>Probá Niddo gratis por 30 días. Sin tarjeta de crédito, sin letra chica.</p>
-        <div class="cta-actions">
-            <a href="/login" class="btn btn-primary">Registrarme gratis</a>
-            <a href="/login" class="btn btn-outline">Iniciar sesión</a>
-        </div>
-    </div>
-
-    <!-- FOOTER -->
-    <footer>
-        <p>© 2026 Niddo · <a href="/login">Iniciar sesión</a> · <a href="/login">Registrarme</a></p>
-    </footer>
-
+</footer>
 </body>
 </html>

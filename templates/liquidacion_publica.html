@@ -17,7 +17,7 @@
         .logo { font-family: var(--font-display); font-weight: 600; font-size: 22px; color: var(--nd-tinta); text-decoration: none; }
         .logo span { color: var(--nd-terracota); }
         .hero { background: var(--nd-terracota); color: var(--nd-tinta); border-radius: var(--r-xl); padding: 26px 24px; margin: 18px 0 20px; }
-        .hero .eyebrow { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; opacity: .8; }
+        .hero .eyebrow { font-size: 14px; font-weight: 800; opacity: .85; }
         .hero h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(24px, 6vw, 34px); line-height: 1.15; margin: 6px 0 4px; }
         .hero p { font-size: 14px; }
         .hero .total { font-family: var(--font-display); font-size: 28px; font-weight: 600; margin-top: 14px; }
@@ -51,7 +51,7 @@
         <h1>{{ consorcio.nombre }}</h1>
         <p>{{ consorcio.direccion or '' }}{% if consorcio.direccion %} · {% endif %}{{ periodo }}</p>
         <div class="total">{{ total | pesos }}</div>
-        <p>Gastos del período{% if liq.fecha_vencimiento_1 %} · 1° vencimiento {{ liq.fecha_vencimiento_1 }}{% endif %}</p>
+        <p>Gastos del período{% if liq.fecha_vencimiento_1 %} · 1° vencimiento {{ liq.fecha_vencimiento_1 | fecha }}{% endif %}</p>
     </section>
 
     <div class="acciones">
@@ -88,7 +88,7 @@
                     {% if it.proveedor_nombre %}{{ it.proveedor_nombre }}{% endif %}
                     {% if it.proveedor_cuit %} · CUIT {{ it.proveedor_cuit }}{% endif %}
                     {% if it.comprobante_tipo or it.comprobante_numero %} · {{ it.comprobante_tipo or '' }} {{ it.comprobante_numero or '' }}{% endif %}
-                    {% if it.fecha_pago %} · pagado {{ it.fecha_pago }}{% endif %}
+                    {% if it.fecha_pago %} · pagado {{ it.fecha_pago | fecha }}{% endif %}
                 </div>
             </div>
             <div class="monto">
