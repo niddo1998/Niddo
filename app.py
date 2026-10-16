@@ -1276,7 +1276,7 @@ def auth_login():
         role = 'vecino'
     session['pending_role'] = role
     callback_url = url_for('auth_callback', _external=True)
-    # `?registro=1` (el «Quiero ser piloto» de la landing) abre Auth0 directo en
+    # `?registro=1` (el «Empezar Demo» de la landing) abre Auth0 directo en
     # la pantalla de crear cuenta; el que ya tiene una entra desde ahí mismo.
     if request.args.get('registro') == '1':
         return auth0.authorize_redirect(redirect_uri=callback_url, screen_hint='signup')

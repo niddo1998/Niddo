@@ -142,3 +142,10 @@ def test_el_mail_de_contacto_por_defecto_es_el_de_niddo(app_modulo, base, monkey
     c = app_modulo.app.test_client()
     for ruta in ('/', '/terminos', '/privacidad'):
         assert 'mailto:niddo1998@gmail.com' in c.get(ruta).get_data(as_text=True)
+
+
+def test_los_botones_de_la_landing_dicen_empezar_demo(app_modulo, base):
+    app_modulo.app.config['TESTING'] = True
+    html = app_modulo.app.test_client().get('/').get_data(as_text=True)
+    assert html.count('>Empezar Demo<') == 3
+    assert 'Quiero ser piloto' not in html
