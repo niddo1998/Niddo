@@ -490,6 +490,8 @@ def test_el_dueno_publica_un_comunicado_en_su_cartelera(client, base):
                           'cuerpo': 'Mañana de 9 a 12'})
     assert r.status_code == 201
     assert len(base['comunicados']) == 1
+    # NOT NULL en la base; el doble no lo valida, así que se mira acá.
+    assert base['comunicados'][0]['asunto'] == 'Corte de agua'
 
 
 def test_el_dueno_programa_el_envio_de_su_consorcio(client, base):

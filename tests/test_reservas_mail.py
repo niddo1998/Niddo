@@ -87,6 +87,9 @@ def test_avisar_al_edificio_publica_un_comunicado(client, mails, base, app_modul
     assert com['admin_id'] == 'admin-1'          # le llega también a la administración
     assert com['autor_vecino_id'] == 'vec-1'
     assert 'SUM' in com['titulo'] and '18:00' in com['titulo']
+    # `asunto` es NOT NULL en la base y el doble no lo valida: sin esta línea
+    # el aviso daba 500 en producción y la suite seguía en verde.
+    assert com['asunto'] == com['titulo']
     assert 'Festejo un cumple' in com['cuerpo']
 
 

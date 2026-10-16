@@ -3802,8 +3802,9 @@ def _comunicado_de_reserva(reserva, amenity, vecino_id, mensaje):
     cuerpo = f"{quien} reservó {nombre_am} el {cuando}, de {horario}."
     if mensaje:
         cuerpo += f"\n\n{mensaje[:600]}"
+    titulo = f'{nombre_am} reservado el {cuando} ({horario})'
     fila = {'consorcio_id': cid, 'admin_id': admin[0] if admin else None,
-            'titulo': f'{nombre_am} reservado el {cuando} ({horario})', 'cuerpo': cuerpo,
+            'titulo': titulo, 'asunto': titulo, 'cuerpo': cuerpo,
             'importante': False, 'autor_vecino_id': vecino_id, 'reserva_id': reserva.get('id')}
     try:
         creado = supabase.table('comunicados').insert(fila).execute().data
@@ -5615,7 +5616,11 @@ def api_admin_comunicados_list():
 def api_admin_comunicados_create():
     admin_id = get_admin_id()
     d = request.json or {}
-    payload = {'consorcio_id': d.get('consorcio_id'), 'admin_id': admin_id, 'titulo': (d.get('titulo') or '').strip(), 'cuerpo': (d.get('cuerpo') or '').strip(), 'importante': bool(d.get('importante', False))}
+    titulo = (d.get('titulo') or '').strip()
+    # `asunto` es la columna original y quedó NOT NULL en la base; todo lo que
+    # se muestra lee `titulo`. Sin escribir las dos el INSERT fallaba siempre y
+    # publicar un comunicado daba 500.
+    payload = {'consorcio_id': d.get('consorcio_id'), 'admin_id': admin_id, 'titulo': titulo, 'asunto': titulo, 'cuerpo': (d.get('cuerpo') or '').strip(), 'importante': bool(d.get('importante', False))}
     if not payload['titulo'] or not payload['cuerpo'] or not payload['consorcio_id']:
         return jsonify({'error': 'Faltan campos obligatorios'}), 400
     # El comunicado lo leen los vecinos del consorcio, no el administrador: sin
