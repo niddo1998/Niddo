@@ -19,3 +19,14 @@ create unique index if not exists liquidaciones_token_publico_key
 -- saldo anterior de la primera liquidación de la unidad en Niddo. Negativo es
 -- saldo a favor.
 alter table unidades_funcionales add column if not exists saldo_inicial numeric(14,2) default 0;
+
+-- ── Mercado Pago por consorcio ──
+-- El access token de la cuenta del edificio, cifrado (Fernet, ver cifrado.py).
+-- Tabla aparte de consorcios a propósito: así ningún select('*') de
+-- consorcios lo puede mandar al navegador.
+create table if not exists consorcio_secretos (
+  consorcio_id uuid primary key references consorcios(id) on delete cascade,
+  mp_access_token_cifrado text,
+  mp_cuenta text,
+  updated_at timestamp with time zone default now()
+);

@@ -4772,7 +4772,12 @@ def api_vecinos_cobro_actual():
     if not unidad_id:
         return jsonify(None)
     res = supabase.table('cobros').select('*').eq('unidad_id', unidad_id).in_('estado', ['pendiente', 'vencido', 'en_mora']).order('periodo', desc=True).limit(1).execute()
-    return jsonify(res.data[0] if res.data else None)
+    if not res.data:
+        return jsonify(None)
+    cobro = res.data[0]
+    # Si el edificio conectó Mercado Pago, la pantalla ofrece pagar ahí mismo.
+    cobro['pago_online'] = bool(_token_mp(cobro.get('consorcio_id')))
+    return jsonify(cobro)
 
 
 @app.route('/api/vecinos/cobros/export')
@@ -4842,6 +4847,134 @@ def api_vecinos_resumen(rid):
     consorcio = liq.get('consorcios') or {}
     buf = io.BytesIO(_pdf_de_liquidacion(liq, consorcio, lid))
     return pdf_response(buf, _nombre_pdf_liquidacion(liq, consorcio))
+
+
+# ── Pagar la expensa con Mercado Pago ─────────────────────────────────────────
+# Cada consorcio conecta su propia cuenta: la plata entra directo al edificio.
+# El token vive cifrado en `consorcio_secretos`, una tabla aparte para que
+# ningún select('*') de consorcios lo mande al navegador.
+
+def _token_mp(cid):
+    from cifrado import descifrar
+    try:
+        fila = supabase.table('consorcio_secretos').select('mp_access_token_cifrado') \
+            .eq('consorcio_id', cid).execute().data
+    except Exception:
+        return None   # sin la migración v24, simplemente no hay pago online
+    return descifrar(fila[0].get('mp_access_token_cifrado')) if fila else None
+
+
+@app.route('/api/admin/consorcios/<cid>/mercadopago', methods=['GET'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_mp_estado(cid):
+    consorcio_propio(cid, 'id')
+    try:
+        fila = supabase.table('consorcio_secretos').select('mp_cuenta, updated_at') \
+            .eq('consorcio_id', cid).execute().data
+    except Exception:
+        fila = None
+    if not fila or not fila[0].get('mp_cuenta'):
+        return jsonify({'conectado': False})
+    return jsonify({'conectado': True, 'cuenta': fila[0]['mp_cuenta']})
+
+
+@app.route('/api/admin/consorcios/<cid>/mercadopago', methods=['PUT'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_mp_conectar(cid):
+    import mercadopago_niddo as mp
+    from cifrado import cifrar
+    consorcio_propio(cid, 'id')
+    token = ((request.json or {}).get('access_token') or '').strip()
+    if not token.startswith(('APP_USR-', 'TEST-')):
+        return jsonify({'error': 'Pegá el Access Token de Mercado Pago: empieza con APP_USR-'}), 400
+    try:
+        yo = mp.cuenta(token)
+    except mp.ErrorMercadoPago:
+        return jsonify({'error': 'Mercado Pago no reconoció ese token. Revisá que sea el de producción.'}), 400
+    nombre = yo.get('email') or yo.get('nickname') or str(yo.get('id') or '')
+    supabase.table('consorcio_secretos').upsert({
+        'consorcio_id': cid, 'mp_access_token_cifrado': cifrar(token),
+        'mp_cuenta': nombre, 'updated_at': now_iso(),
+    }, on_conflict='consorcio_id').execute()
+    return jsonify({'conectado': True, 'cuenta': nombre})
+
+
+@app.route('/api/admin/consorcios/<cid>/mercadopago', methods=['DELETE'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_mp_desconectar(cid):
+    consorcio_propio(cid, 'id')
+    supabase.table('consorcio_secretos').update({
+        'mp_access_token_cifrado': None, 'mp_cuenta': None, 'updated_at': now_iso(),
+    }).eq('consorcio_id', cid).execute()
+    return jsonify({'conectado': False})
+
+
+@app.route('/api/vecinos/cobros/<rid>/pagar', methods=['POST'])
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_pagar_mp(rid):
+    """Arma el link de Checkout Pro para este cobro y lo devuelve."""
+    import mercadopago_niddo as mp
+    cobro = supabase.table('cobros').select('*').eq('id', rid).execute().data
+    if not cobro:
+        _no_es_tuyo()
+    cobro = cobro[0]
+    unidad_propia(cobro.get('unidad_id'))
+    if cobro.get('estado') == 'pagado':
+        return jsonify({'error': 'Esta expensa ya está paga'}), 400
+    token = _token_mp(cobro.get('consorcio_id'))
+    if not token:
+        return jsonify({'error': 'Tu edificio todavía no tiene el pago con Mercado Pago'}), 400
+    con = supabase.table('consorcios').select('nombre').eq('id', cobro['consorcio_id']).execute().data
+    uf = supabase.table('unidades_funcionales').select('numero').eq('id', cobro['unidad_id']).execute().data
+    try:
+        pref = mp.crear_preferencia(
+            token, cobro, (con[0] if con else {}).get('nombre', ''), (uf[0] if uf else {}).get('numero', ''),
+            url_volver=url_publica('/dashboard/vecino?pago=mp#expensas'),
+            url_webhook=url_publica(f"/webhooks/mercadopago/{cobro['consorcio_id']}"))
+    except mp.ErrorMercadoPago as e:
+        app.logger.warning('No se pudo crear la preferencia de MP: %s', e)
+        return jsonify({'error': 'Mercado Pago no respondió. Probá de nuevo en un rato.'}), 502
+    return jsonify({'url': pref['init_point']})
+
+
+@app.route('/webhooks/mercadopago/<cid>', methods=['POST', 'GET'])
+def webhook_mercadopago(cid):
+    """Mercado Pago avisa que hubo un pago. Se verifica contra su API, siempre.
+
+    Responde 200 aunque no haga nada: si no, Mercado Pago reintenta durante días.
+    """
+    import mercadopago_niddo as mp
+    cuerpo = request.get_json(silent=True) or {}
+    tipo = request.args.get('type') or request.args.get('topic') or cuerpo.get('type')
+    pid = (request.args.get('data.id') or (cuerpo.get('data') or {}).get('id')
+           or (request.args.get('id') if tipo == 'payment' else None))
+    if tipo != 'payment' or not pid or not str(pid).isdigit():
+        return jsonify({'ok': True})
+    token = _token_mp(cid)
+    if not token:
+        return jsonify({'ok': True})
+    try:
+        p = mp.pago(token, pid)
+    except mp.ErrorMercadoPago:
+        app.logger.exception('No se pudo leer el pago %s de MP', pid)
+        return jsonify({'error': 'reintentar'}), 502   # que Mercado Pago reintente
+    if p['estado'] != 'approved' or not p['cobro_id']:
+        return jsonify({'ok': True})
+    cobro = supabase.table('cobros').select('*').eq('id', p['cobro_id']) \
+        .eq('consorcio_id', cid).execute().data
+    if not cobro or cobro[0].get('estado') == 'pagado':
+        return jsonify({'ok': True})
+    cobro = cobro[0]
+    if p['monto'] + 0.01 < float(cobro.get('total') or 0):
+        app.logger.warning('Pago MP %s por menos del total del cobro %s', pid, cobro['id'])
+        return jsonify({'ok': True})
+    notas = (cobro.get('notas') or '').strip()
+    supabase.table('cobros').update({
+        'estado': 'pagado', 'fecha_pago': p['fecha'] or date.today().isoformat(),
+        'notas': (notas + ' · ' if notas else '') + f"Pagado con Mercado Pago (operación {p['id']})",
+    }).eq('id', cobro['id']).execute()
+    _avisar_novedad('pago_online', cobro=cobro, monto=p['monto'])
+    return jsonify({'ok': True})
 
 
 @app.route('/api/vecinos/cobros/<rid>/cupon')
@@ -7855,6 +7988,13 @@ def _push_por_novedad(tipo, **d):
         push_a('vecino', _vecinos_de_unidades(d.get('unidades') or []),
                f"Tu expensa de {d.get('periodo') or 'este mes'} ya está",
                'Entrá para ver el resumen y cómo pagarla.', vecino_url + '#expensas', 'expensas')
+    elif tipo == 'pago_online':
+        c = d['cobro']
+        push_a('admin', _admin_del_consorcio(c.get('consorcio_id')), 'Entró un pago por Mercado Pago',
+               f"{pesos(d.get('monto'))} de la expensa {c.get('periodo') or ''}. Ya quedó marcada como paga.",
+               admin_url + '#cobros', 'cobros')
+        push_a('vecino', _vecinos_de_unidades([c.get('unidad_id')]), 'Listo, tu expensa quedó paga',
+               f"Recibimos {pesos(d.get('monto'))} por Mercado Pago.", vecino_url + '#expensas', 'expensas')
     elif tipo == 'admin_reserva':
         push_a('admin', _admin_del_consorcio(d['consorcio_id']), 'Reserva nueva',
                d.get('texto') or '', admin_url + '#amenities', 'reservas')

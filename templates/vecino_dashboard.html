@@ -413,7 +413,8 @@
         <div><div class="pg-title"><svg class="ic"><use href="#ic-expensa"></use></svg>Mis Expensas</div><div class="pg-sub">Cuenta corriente, historial y pagos</div></div>
         <div style="display:flex;gap:8px;align-items:center">
             <div><label class="fl" style="margin:0 6px 0 0;font-size:0.75rem">Desde</label><input type="date" id="exp-desde" class="fc" style="width:140px" onchange="loadCobros()"></div>
-            <button class="btn btn-primary" onclick="openDrawer('drawer-pago')"><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>Informar Pago</button>
+            ${cobro.pago_online?`<button class="btn btn-primary" onclick="pagarConMP('${esc(cobro.id)}',this)"><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>Pagar con Mercado Pago</button>
+            <button class="btn btn-secondary" onclick="openDrawer('drawer-pago')">Ya pagué por otro medio</button>`:`<button class="btn btn-primary" onclick="openDrawer('drawer-pago')"><svg class="ic ic-sm"><use href="#ic-cobro"></use></svg>Informar Pago</button>`}
         </div>
     </div>
     <div class="stats-grid">
@@ -1043,6 +1044,18 @@ function renderCobroWgt(cobro){
                 <svg class="ic ic-sm"><use href="#ic-descargar"></use></svg>Descargar resumen
             </a>
         </div>`;
+}
+
+/* Checkout Pro de Mercado Pago: se va a pagar y vuelve con ?pago=mp. El cobro se
+   marca pago cuando Mercado Pago avisa por webhook, no al volver. */
+async function pagarConMP(id,btn){
+    btn.disabled=true;btn.textContent='Abriendo Mercado Pago…';
+    try{const r=await api('/api/vecinos/cobros/'+id+'/pagar',{method:'POST'});location.href=r.url}
+    catch(e){toast(e.message,'err');btn.disabled=false;btn.textContent='Pagar con Mercado Pago'}
+}
+if(new URLSearchParams(location.search).get('pago')==='mp'){
+    setTimeout(()=>toast('Si Mercado Pago aprobó el pago, en unos minutos tu expensa aparece como paga y te avisamos.'),800);
+    history.replaceState(null,'',location.pathname+location.hash);
 }
 
 function renderMediosWgt(medios){
