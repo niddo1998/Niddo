@@ -30,3 +30,13 @@ create table if not exists consorcio_secretos (
   mp_cuenta text,
   updated_at timestamp with time zone default now()
 );
+
+-- ── Avisos programados ──
+-- Una fila por aviso ya mandado ("vto-3-<cobro>", "reserva-<id>"…), para que
+-- correr el cron dos veces no notifique dos veces.
+create table if not exists avisos_enviados (
+  clave text primary key,
+  created_at timestamp with time zone default now()
+);
+
+notify pgrst, 'reload schema';

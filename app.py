@@ -4094,6 +4094,7 @@ def api_consorcio_vecino_aprobar(cid, vid):
         _mail_alta_vecino_resuelta(datos['vecino'], True, cid, datos['uf']['numero'])
     except Exception:
         app.logger.exception('Falló el aviso de aprobación del vecino %s', vid)
+    _avisar_novedad('vecino_alta', vecino_id=vid, unidad=datos['uf']['numero'])
     return jsonify({'ok': True, 'unidad': datos['uf']['numero']})
 
 
@@ -4373,10 +4374,9 @@ def api_dashboard_resumen():
                        and g.get('fecha_vencimiento')]
 
     # ── Cobros ────────────────────────────────────────────────────────────────
-    # La mora se calcula por fecha y no por `estado`: nada en la app pasa un
-    # cobro a 'vencido' el día del vencimiento, así que contar los que están en
-    # ese estado da cero para siempre. Mientras la mora no se materialice sola,
-    # el vencido es el pendiente cuya fecha ya pasó.
+    # La mora se calcula por fecha y no por `estado`: el cron diario pasa el
+    # cobro a 'vencido' recién después de los días de gracia, y si el cron no
+    # corrió, el estado se queda atrás. Por fecha, el número es el de hoy.
     impagos = supabase.table('cobros') \
         .select('id, total, estado, periodo, fecha_vencimiento, consorcio_id, unidad_id') \
         .in_('consorcio_id', cids).neq('estado', 'pagado').execute().data or []
@@ -5970,6 +5970,10 @@ def api_admin_reclamos_update(rid):
     # El aviso va después de guardar y sin poder voltear la respuesta: el
     # reclamo ya se movió, y que Resend esté caído no es motivo para que el
     # administrador vea un error sobre algo que sí quedó hecho.
+    if actualizado and (respuesta or payload.get('estado') in ('en_proceso', 'resuelto', 'cerrado')):
+        _avisar_novedad('vecino_reclamo_estado', reclamo=actualizado,
+                        estado=payload.get('estado'), cuerpo=respuesta)
+
     if actualizado:
         try:
             _mail_respuesta_reclamo(actualizado, payload.get('estado'),
@@ -6115,7 +6119,7 @@ def api_admin_avisos_pago_update(aid):
     # `fila_de_consorcio_propio` sólo trae id y consorcio_id: para saldar el
     # cobro hacen falta el cobro al que apunta y la fecha que declaró el vecino.
     aviso = supabase.table('avisos_pago') \
-        .select('id, consorcio_id, cobro_id, fecha_pago, unidad_id, estado') \
+        .select('id, consorcio_id, cobro_id, fecha_pago, unidad_id, estado, vecino_id, monto') \
         .eq('id', aid).single().execute().data or {}
     d = request.json or {}
     estado = d.get('estado')
@@ -6160,6 +6164,9 @@ def api_admin_avisos_pago_update(aid):
             .update({'estado': 'pendiente', 'fecha_pago': None}) \
             .eq('id', aviso['cobro_id']).eq('estado', 'pagado').execute()
         cobro = hecho.data[0] if hecho.data else None
+
+    if estado != aviso.get('estado') and estado in ('aceptado', 'rechazado'):
+        _avisar_novedad('vecino_aviso_pago', aviso=aviso, estado=estado)
 
     return jsonify({**actualizado, 'cobro': cobro})
 
@@ -7988,6 +7995,26 @@ def _push_por_novedad(tipo, **d):
         push_a('vecino', _vecinos_de_unidades(d.get('unidades') or []),
                f"Tu expensa de {d.get('periodo') or 'este mes'} ya está",
                'Entrá para ver el resumen y cómo pagarla.', vecino_url + '#expensas', 'expensas')
+    elif tipo == 'vecino_aviso_pago':
+        a = d['aviso']
+        if d['estado'] == 'aceptado':
+            titulo, cuerpo = 'Tu pago quedó registrado', f"La administración aceptó tu pago de {pesos(a.get('monto'))}."
+        else:
+            titulo, cuerpo = 'Revisá tu pago informado', 'La administración no pudo validarlo. Entrá para ver el detalle.'
+        push_a('vecino', [a.get('vecino_id')], titulo, cuerpo, vecino_url + '#expensas', 'expensas')
+    elif tipo == 'vecino_reclamo_estado':
+        r = d['reclamo']
+        if d.get('cuerpo'):
+            titulo, cuerpo = 'La administración respondió tu reclamo', d['cuerpo']
+        else:
+            titulo = {'en_proceso': 'Tu reclamo está en proceso', 'resuelto': 'Tu reclamo quedó resuelto',
+                      'cerrado': 'Tu reclamo se cerró'}.get(d.get('estado'), 'Tu reclamo se actualizó')
+            cuerpo = r.get('titulo') or ''
+        push_a('vecino', [r.get('vecino_id')], titulo, cuerpo, vecino_url + '#reclamos', 'reclamos')
+    elif tipo == 'vecino_alta':
+        push_a('vecino', [d['vecino_id']], '¡Bienvenido al edificio!',
+               f"La administración aprobó tu alta en la unidad {d.get('unidad') or ''}. Ya podés usar Niddo.",
+               vecino_url, 'alta')
     elif tipo == 'pago_online':
         c = d['cobro']
         push_a('admin', _admin_del_consorcio(c.get('consorcio_id')), 'Entró un pago por Mercado Pago',
@@ -7998,6 +8025,131 @@ def _push_por_novedad(tipo, **d):
     elif tipo == 'admin_reserva':
         push_a('admin', _admin_del_consorcio(d['consorcio_id']), 'Reserva nueva',
                d.get('texto') or '', admin_url + '#amenities', 'reservas')
+
+
+# ── Avisos programados (cron) ─────────────────────────────────────────────────
+# Lo que nadie dispara con un click: que se acerca el vencimiento, que la
+# expensa venció, que mañana tenés el SUM. Vercel Hobby sólo permite un cron
+# por día, así que los dispara GitHub Actions (.github/workflows/avisos.yml)
+# con un POST autenticado con CRON_SECRET. Cada aviso se manda una sola vez
+# aunque el cron corra de nuevo: la clave queda en `avisos_enviados`.
+
+ZONA_AR = timezone(timedelta(hours=-3))   # Argentina no tiene horario de verano
+
+
+def ahora_ar():
+    return datetime.now(ZONA_AR)
+
+
+def _cron_autorizado():
+    import hmac
+    esperado = os.environ.get('CRON_SECRET', '')
+    recibido = request.headers.get('Authorization', '')
+    return bool(esperado) and hmac.compare_digest(recibido, f'Bearer {esperado}')
+
+
+def _una_vez(clave):
+    """True la primera vez que se pide esta clave; después, False."""
+    try:
+        if supabase.table('avisos_enviados').select('clave').eq('clave', clave).execute().data:
+            return False
+        supabase.table('avisos_enviados').insert({'clave': clave}).execute()
+        return True
+    except Exception:
+        # Sin la tabla (v24 sin correr) o con la clave ya insertada por otra
+        # corrida en paralelo: mejor no avisar que avisar dos veces.
+        return False
+
+
+def _fecha(valor):
+    try:
+        return date.fromisoformat(str(valor)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def avisos_diarios(hoy=None):
+    """Recordatorios de vencimiento, mora automática y votaciones por cerrar."""
+    hoy = hoy or ahora_ar().date()
+    hecho = {'recordatorios': 0, 'vencidos': 0}
+
+    pendientes = supabase.table('cobros') \
+        .select('id, unidad_id, consorcio_id, periodo, total, fecha_vencimiento, estado') \
+        .eq('estado', 'pendiente').execute().data or []
+    gracia = {}
+    if pendientes:
+        cids = list({c['consorcio_id'] for c in pendientes if c.get('consorcio_id')})
+        gracia = {c['id']: int(c.get('dias_gracia_mora') or 0) for c in supabase.table('consorcios')
+                  .select('id, nombre, dias_gracia_mora').in_('id', cids).execute().data or []}
+
+    vencidos_por_consorcio = {}
+    for c in pendientes:
+        vto = _fecha(c.get('fecha_vencimiento'))
+        if not vto:
+            continue
+        faltan = (vto - hoy).days
+        if faltan in (3, 0) and _una_vez(f"vto-{faltan}-{c['id']}"):
+            titulo = 'Hoy vence tu expensa' if faltan == 0 else f"Tu expensa vence el {vto.strftime('%d/%m')}"
+            push_a('vecino', _vecinos_de_unidades([c['unidad_id']]), titulo,
+                   f"{pesos(c.get('total'))} de {periodo_largo_es(c.get('periodo'))}. Pagala desde la app.",
+                   '/dashboard/vecino#expensas', 'expensas')
+            hecho['recordatorios'] += 1
+        # Mora automática: pasado el vencimiento más los días de gracia del
+        # consorcio, el cobro queda vencido. El interés no se suma acá: lo
+        # calcula la próxima liquidación sobre el saldo impago, una sola vez.
+        if faltan < -gracia.get(c.get('consorcio_id'), 0):
+            supabase.table('cobros').update({'estado': 'vencido'}) \
+                .eq('id', c['id']).eq('estado', 'pendiente').execute()
+            hecho['vencidos'] += 1
+            vencidos_por_consorcio.setdefault(c['consorcio_id'], []).append(c)
+            if _una_vez(f"vencido-{c['id']}"):
+                push_a('vecino', _vecinos_de_unidades([c['unidad_id']]), 'Tu expensa venció',
+                       f"Quedaron {pesos(c.get('total'))} sin pagar de {periodo_largo_es(c.get('periodo'))}. "
+                       'Si ya pagaste, informalo desde la app.', '/dashboard/vecino#expensas', 'expensas')
+
+    for cid, cobros in vencidos_por_consorcio.items():
+        push_a('admin', _admin_del_consorcio(cid),
+               '1 expensa pasó a vencida' if len(cobros) == 1 else f'{len(cobros)} expensas pasaron a vencidas',
+               f"Suman {pesos(sum(float(c.get('total') or 0) for c in cobros))}. Mirá la morosidad en Cobros.",
+               '/dashboard/admin#cobros', 'cobros')
+    return hecho
+
+
+def avisos_cada_hora(ahora=None):
+    """Recordatorio de las reservas de amenities que empiezan en 1 a 3 horas."""
+    ahora = ahora or ahora_ar()
+    hoy = ahora.date().isoformat()
+    reservas = supabase.table('reservas_amenities') \
+        .select('id, vecino_id, fecha, hora_inicio, estado, amenities(nombre)') \
+        .eq('fecha', hoy).eq('estado', 'confirmada').execute().data or []
+    enviados = 0
+    for r in reservas:
+        try:
+            h, m = str(r.get('hora_inicio'))[:5].split(':')
+        except ValueError:
+            continue
+        inicio = ahora.replace(hour=int(h), minute=int(m), second=0, microsecond=0)
+        faltan = (inicio - ahora).total_seconds() / 3600
+        if 1 <= faltan <= 3 and _una_vez(f"reserva-{r['id']}"):
+            nombre = (r.get('amenities') or {}).get('nombre') or 'el espacio común'
+            push_a('vecino', [r.get('vecino_id')], f"Hoy a las {h}:{m} tenés {nombre}",
+                   'Te lo recordamos para que llegues a tiempo.', '/dashboard/vecino#reservas', 'reservas')
+            enviados += 1
+    return {'reservas': enviados}
+
+
+@app.route('/api/cron/diario', methods=['POST', 'GET'])
+def cron_diario():
+    if not _cron_autorizado():
+        return jsonify({'error': 'No autorizado'}), 401
+    return jsonify(avisos_diarios())
+
+
+@app.route('/api/cron/cada-hora', methods=['POST', 'GET'])
+def cron_cada_hora():
+    if not _cron_autorizado():
+        return jsonify({'error': 'No autorizado'}), 401
+    return jsonify(avisos_cada_hora())
 
 
 # ── Run ────────────────────────────────────────────────────────────────────────
