@@ -92,3 +92,14 @@ def test_las_paginas_legales_abren_sin_login(app_modulo, base, ruta, texto):
     r = app_modulo.app.test_client().get(ruta)
     assert r.status_code == 200
     assert texto in r.get_data(as_text=True)
+
+
+def test_el_pdf_muestra_la_composicion_del_saldo_si_esta_cargada():
+    from liquidacion_pdf import construir_pdf
+    import pymupdf
+    texto = lambda liq: ''.join(p.get_text() for p in pymupdf.open(
+        stream=construir_pdf(liq, {'nombre': 'Mío'}, {}, [], []), filetype='pdf'))
+    assert 'Composición del saldo' not in texto({'periodo': '2026-08'})
+    con = texto({'periodo': '2026-08', 'saldo_bancario': 1000, 'saldo_superfondo': 500})
+    assert 'Composición del saldo' in con
+    assert 'Fondo de reserva' in con

@@ -1260,6 +1260,12 @@
                         </select>
                     </div>
                 </div>
+                <div class="text-muted text-sm" style="margin:4px 0 8px;">Dónde está la plata al cierre. Sale en el estado patrimonial del PDF (Ley 941, art. 10 inc. c).</div>
+                <div class="form-row3">
+                    <div class="form-group"><label class="form-label">Saldo en banco</label><input type="number" step="0.01" class="form-ctrl" id="liq-saldo-banco" data-monto data-negativo></div>
+                    <div class="form-group"><label class="form-label">Fondo de reserva</label><input type="number" step="0.01" class="form-ctrl" id="liq-saldo-fondo" data-monto data-negativo></div>
+                    <div class="form-group"><label class="form-label">En poder del administrador</label><input type="number" step="0.01" class="form-ctrl" id="liq-saldo-admin" data-monto data-negativo></div>
+                </div>
                 <div class="form-group"><label class="form-label">Notas</label><textarea class="form-ctrl" id="liq-notas" rows="3"></textarea></div>
                 <button class="btn-p btn-sm" onclick="guardarConfigLiq()">Guardar cambios</button>
             </div>
@@ -2042,7 +2048,8 @@ const FORMULARIOS_VIGILADOS = {
     liquidacion: {
         seccion: 'liquidaciones',
         campos: ['liq-vto1', 'liq-vto2', 'liq-interes2', 'liq-saldo-ini',
-                 'liq-ingresos', 'liq-estado-sel', 'liq-notas'],
+                 'liq-ingresos', 'liq-estado-sel', 'liq-notas',
+                 'liq-saldo-banco', 'liq-saldo-fondo', 'liq-saldo-admin'],
         visible: () => $('liq-detail') && $('liq-detail').style.display !== 'none',
         guardar: () => guardarConfigLiq(),
         detalle: 'Editaste la configuración de la liquidación y todavía no la guardaste. Si salís ahora se pierde.',
@@ -4919,6 +4926,9 @@ async function openLiqDetail(lid) {
         $('liq-interes2').value = l.interes_2_vto || 0;
         $('liq-saldo-ini').value = l.saldo_inicial || 0;
         $('liq-ingresos').value = l.total_ingresos || 0;
+        $('liq-saldo-banco').value = l.saldo_bancario || 0;
+        $('liq-saldo-fondo').value = l.saldo_superfondo || 0;
+        $('liq-saldo-admin').value = l.saldo_administrador || 0;
         $('liq-estado-sel').value = l.estado || 'borrador';
         $('liq-notas').value = l.notas || '';
         marcarLimpio('liquidacion');
@@ -5194,6 +5204,9 @@ async function guardarConfigLiq() {
                 interes_2_vto: +$('liq-interes2').value || 0,
                 saldo_inicial: +$('liq-saldo-ini').value || 0,
                 total_ingresos: +$('liq-ingresos').value || 0,
+                saldo_bancario: +$('liq-saldo-banco').value || 0,
+                saldo_superfondo: +$('liq-saldo-fondo').value || 0,
+                saldo_administrador: +$('liq-saldo-admin').value || 0,
                 estado: $('liq-estado-sel').value,
                 notas: $('liq-notas').value,
             })

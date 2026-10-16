@@ -510,6 +510,16 @@ def construir_pdf(liq, consorcio, admin, rubros, prorrateos, banco=None, enlace=
         ('SALDO AL CIERRE', saldo_cierre, True),
     ], E, ancho_v, cita='Conf. Art. 10 inc. i Ley N° 941'))
 
+    # Dónde está la plata al cierre. Sólo si el admin lo cargó: un cuadro en
+    # cero diría que el consorcio no tiene un peso.
+    composicion = [(nombre, float(liq.get(clave) or 0), False) for nombre, clave in (
+        ('En cuenta bancaria', 'saldo_bancario'),
+        ('Fondo de reserva', 'saldo_superfondo'),
+        ('En poder del administrador', 'saldo_administrador'))]
+    if any(v for _, v, _ in composicion):
+        story.append(_cuadro('Composición del saldo', composicion + [
+            ('TOTAL', round(sum(v for _, v, _ in composicion), 2), True)], E, ancho_v))
+
     a_cobrar = round(sum(float(p.get('total_unidad') or 0) for p in prorrateos), 2)
     story.append(_cuadro('Estado patrimonial', [
         ('Saldo de disponibilidades al cierre', saldo_cierre, False),
