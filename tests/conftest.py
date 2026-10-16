@@ -17,6 +17,10 @@ os.environ.setdefault('DATABASE_URL', 'postgresql://test@localhost/test')
 os.environ.setdefault('AUTH0_DOMAIN', 'test.auth0.com')
 os.environ.setdefault('AUTH0_CLIENT_ID', 'test')
 os.environ.setdefault('AUTH0_CLIENT_SECRET', 'test')
+# Los tests nunca mandan mails de verdad, aunque el .env local tenga las
+# credenciales de Gmail o Resend: load_dotenv no pisa lo que ya está acá.
+for _var in ('GMAIL_USUARIO', 'GMAIL_APP_PASSWORD', 'RESEND_API_KEY'):
+    os.environ[_var] = ''
 # Sin esto la cookie de sesión sale marcada Secure y el cliente de test, que
 # habla http, no la manda: todas las requests darían 302 al login.
 os.environ['NIDDO_LOCAL'] = '1'

@@ -140,13 +140,13 @@ const PARA_LANZAR = [
   ]},
   { grupo:"Que no se rompa delante de un cliente", intro:"Lo que falla en producción y no en los tests.", items:[
     { t:"El envío se corta por timeout", e:"listo", quien:"mio",
-      nota:"Los mails salen por lote (Resend Batch, 100 por llamada) y los envíos se registran en un solo insert. El PDF ya no va adjunto: el mail lleva el link a la liquidación pública. maxDuration 60 s en vercel.json." },
+      nota:"Los mails salen todos juntos por una sola conexión a Gmail (correo.py; Resend queda de alternativa) y los envíos se registran en un solo insert. El PDF ya no va adjunto: el mail lleva el link a la liquidación pública. maxDuration 60 s en vercel.json." },
     { t:"Monitoreo de errores", e:"falta", quien:"tuyo",
       nota:"Se decidió no usar Sentry. Por ahora los errores se ven en los logs de Vercel (proyecto → Logs), pero nadie avisa cuando pasan." },
     { t:"Probar un mes real de punta a punta", e:"bloqueante", quien:"tuyo", esfuerzo:"medio día",
       nota:"Los 389 tests corren contra un doble de Supabase. <b>Nunca se hizo un mes completo con datos reales</b>: cargar, liquidar, enviar, que el vecino lo vea y registrar el pago. Es el control que más chances tiene de encontrar algo." },
-    { t:"Dominio verificado en Resend (SPF/DKIM)", e:"falta", quien:"tuyo", esfuerzo:"1 hora",
-      nota:"No lo puedo verificar desde acá. Si no está, la mitad de las liquidaciones caen en spam y el administrador se entera por teléfono." },
+    { t:"Que los mails lleguen a la bandeja de entrada", e:"parcial", quien:"tuyo",
+      nota:"Salen por Gmail desde niddo1998@gmail.com (gratis, firmados por Google). Falta cargar GMAIL_APP_PASSWORD en Vercel. Límite: ~500 destinatarios por día; para más hay que pasar a un dominio propio con Resend." },
   ]},
   { grupo:"Legal y datos", intro:"Estás guardando datos de personas que no son tus clientes: los vecinos de tus clientes.", items:[
     { t:"Términos y condiciones + política de privacidad", e:"parcial", quien:"tuyo",
