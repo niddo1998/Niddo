@@ -1374,29 +1374,19 @@ def _auditar(accion: str, target_id: str, motivo: Optional[str] = None) -> None:
 
 
 def _enviar_mail(destinatarios: list, asunto: str, html: str) -> None:
-    """Manda un mail por Resend sin frenar la request si falla.
+    """Manda un mail (Gmail o Resend, ver correo.py) sin frenar la request si falla.
 
     Los avisos son notificaciones, no la fuente de verdad: la solicitud ya quedó
-    guardada y el panel la muestra igual. Si Resend está caído, que se pierda el
-    mail es preferible a devolverle un error al usuario por algo ya hecho.
+    guardada y el panel la muestra igual. Si el mail no sale, que se pierda es
+    preferible a devolverle un error al usuario por algo ya hecho.
     """
+    import correo
     destinatarios = [d for d in destinatarios if d]
     if not destinatarios:
         return
-    try:
-        import resend
-        resend.api_key = os.environ.get('RESEND_API_KEY', '')
-        if not resend.api_key:
-            app.logger.warning('RESEND_API_KEY no configurada: no se envió "%s"', asunto)
-            return
-        resend.Emails.send({
-            'from': os.environ.get('RESEND_FROM_EMAIL', 'Niddo <noreply@niddo.app>'),
-            'to': destinatarios,
-            'subject': asunto,
-            'html': html,
-        })
-    except Exception:
-        app.logger.exception('Falló el envío de "%s"', asunto)
+    error = correo.enviar([{'to': destinatarios, 'subject': asunto, 'html': html}])[0]
+    if error:
+        app.logger.warning('No se envió "%s": %s', asunto, error)
 
 
 def _mail_shell(titulo: str, cuerpo: str) -> str:
@@ -7515,8 +7505,7 @@ def api_liquidacion_enviar(lid):
     # cuarenta vecinos, y lo único que no se puede deshacer después.
     liq = liquidacion_propia(lid, LIQ_CONSORCIO_PDF)
 
-    import resend
-    resend.api_key = os.environ.get('RESEND_API_KEY', '')
+    import correo
 
     consorcio = liq.get('consorcios', {})
 
@@ -7541,14 +7530,14 @@ def api_liquidacion_enviar(lid):
         _avisar_novedad('vecino_expensa', periodo=periodo_largo_es(liq.get('periodo')),
                         unidades=[p.get('unidad_id') for p in prorrateos])
 
-    # Los mails salen por lote (hasta 100 por llamada a Resend) y no de a uno:
-    # de a uno eran dos viajes de red por unidad, en serie, y con 40 unidades
-    # la request pasaba los 10 s de Vercel y la liquidación quedaba a medio
-    # publicar. El lote de Resend no acepta adjuntos, así que el PDF ya no va
-    # pegado: el mail lleva el link a la página pública de la liquidación, que
-    # además tiene los comprobantes y el reglamento que pide la Disp. 1146/2024.
+    # Los mails salen todos juntos (correo.py: una sola conexión a Gmail, o
+    # lotes de Resend) y los envíos se registran en un solo insert: de a uno,
+    # con 40 unidades, la request pasaba el límite de Vercel y la liquidación
+    # quedaba a medio publicar. El PDF no va pegado: el mail lleva el link a la
+    # página pública de la liquidación, que además tiene los comprobantes y el
+    # reglamento que pide la Disp. 1146/2024.
     enlace = enlace_publico_liquidacion(liq)
-    from_email = os.environ.get('RESEND_FROM_EMAIL', 'Niddo <noreply@niddo.app>')
+    hay_mail = correo.proveedor() is not None
     asunto = (
         # El asunto distingue la complementaria: es lo primero que ve el
         # vecino y con el mismo texto los dos mails se confunden entre sí.
@@ -7570,21 +7559,17 @@ def api_liquidacion_enviar(lid):
         }
         if not destinos:
             fila.update(estado='fallido', fecha_envio=None, error_detalle='Sin email configurado')
-        elif not resend.api_key:
-            fila.update(estado='fallido', fecha_envio=None, error_detalle='RESEND_API_KEY no configurada')
+        elif not hay_mail:
+            fila.update(estado='fallido', fecha_envio=None, error_detalle=correo.motivo_sin_proveedor())
         else:
-            mensajes.append((len(envios), {'from': from_email, 'to': destinos,
-                                           'subject': asunto, 'html': html}))
+            mensajes.append((len(envios), {'to': destinos, 'subject': asunto, 'html': html}))
         envios.append(fila)
 
-    for i in range(0, len(mensajes), 100):
-        lote = mensajes[i:i + 100]
-        try:
-            resend.Batch.send([m for _, m in lote])
-        except Exception as e:
-            app.logger.exception('Falló un lote de mails de la liquidación %s', lid)
-            for j, _ in lote:
-                envios[j].update(estado='fallido', fecha_envio=None, error_detalle=str(e)[:500])
+    errores = correo.enviar([m for _, m in mensajes])
+    for (j, _), error in zip(mensajes, errores):
+        if error:
+            app.logger.warning('No salió el mail de la liquidación %s: %s', lid, error)
+            envios[j].update(estado='fallido', fecha_envio=None, error_detalle=error[:500])
 
     if envios:
         supabase.table('resumen_envios').insert(envios).execute()
