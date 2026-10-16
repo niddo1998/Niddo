@@ -1088,17 +1088,6 @@
             <input type="file" class="form-ctrl" id="cfg-reglamento" accept="application/pdf,image/*" style="max-width:420px;">
         </div>
         <button class="btn-s btn-sm" onclick="subirReglamento()">Subir reglamento</button>
-        <div class="sep"></div>
-        <div class="form-group">
-            <label class="form-label" for="cfg-mp-token">Cobrar con Mercado Pago</label>
-            <div class="text-muted text-sm" style="margin-bottom:6px;">Los vecinos pagan la expensa desde la app y el pago se marca solo. La plata entra directo a la cuenta de Mercado Pago del edificio. El Access Token de producción está en mercadopago.com.ar/developers → Tus integraciones → Credenciales.</div>
-            <div class="text-sm" id="cfg-mp-estado" style="margin-bottom:8px;">—</div>
-            <div id="cfg-mp-form" style="display:flex;gap:8px;flex-wrap:wrap;">
-                <input type="password" class="form-ctrl" id="cfg-mp-token" placeholder="APP_USR-..." autocomplete="off" style="max-width:420px;flex:1 1 240px;">
-                <button class="btn-s btn-sm" onclick="conectarMP()">Conectar</button>
-            </div>
-            <button class="btn-s btn-sm" id="cfg-mp-desconectar" style="display:none;" onclick="desconectarMP()">Desconectar</button>
-        </div>
     </div>
 </div>
 
@@ -5851,7 +5840,6 @@ async function loadConfigConsorcio() {
     card.style.display = 'block';
     cfgConsorcioCargado = cid;
     pintarReglamento(cid);
-    pintarMP(cid);
     marcarLimpio('config');
 }
 
@@ -5862,36 +5850,6 @@ async function pintarReglamento(cid) {
         const r = await api(`/api/admin/consorcios/${cid}/reglamento`);
         el.textContent = r ? 'Vigente: ' + r.nombre : 'Todavía no subiste el reglamento: el QR de la liquidación lo va a mostrar como pendiente.';
     } catch(e) { el.textContent = ''; }
-}
-async function pintarMP(cid) {
-    $('cfg-mp-estado').textContent = '—';
-    try {
-        const r = await api(`/api/admin/consorcios/${cid}/mercadopago`);
-        $('cfg-mp-estado').textContent = r.conectado
-            ? '✅ Conectado a la cuenta ' + r.cuenta + '. Los vecinos ya ven el botón «Pagar con Mercado Pago».'
-            : 'Sin conectar: los vecinos informan el pago con comprobante, como hasta ahora.';
-        $('cfg-mp-form').style.display = r.conectado ? 'none' : 'flex';
-        $('cfg-mp-desconectar').style.display = r.conectado ? '' : 'none';
-    } catch(e) { $('cfg-mp-estado').textContent = ''; }
-}
-async function conectarMP() {
-    const cid = $('cfg-consorcio').value, token = $('cfg-mp-token').value.trim();
-    if (!cid || !token) { toast('Pegá el Access Token de Mercado Pago', 'warn'); return; }
-    try {
-        await api(`/api/admin/consorcios/${cid}/mercadopago`, {method: 'PUT', body: JSON.stringify({access_token: token})});
-        $('cfg-mp-token').value = '';
-        toast('Mercado Pago conectado');
-        pintarMP(cid);
-    } catch(e) { toast(e.message, 'err'); }
-}
-async function desconectarMP() {
-    const cid = $('cfg-consorcio').value;
-    if (!cid || !confirm('¿Desconectar Mercado Pago? Los vecinos dejan de ver el botón de pago.')) return;
-    try {
-        await api(`/api/admin/consorcios/${cid}/mercadopago`, {method: 'DELETE'});
-        toast('Mercado Pago desconectado');
-        pintarMP(cid);
-    } catch(e) { toast(e.message, 'err'); }
 }
 async function subirReglamento() {
     const cid = $('cfg-consorcio').value, f = $('cfg-reglamento').files[0];

@@ -33,7 +33,7 @@
     <a class="logo" href="/">nidd<span>o</span></a>
     {% block contenido %}{% endblock %}
     <div class="pie">
-        {{ legal.razon_social }}{% if legal.cuit %} · CUIT {{ legal.cuit }}{% endif %}{% if legal.domicilio %} · {{ legal.domicilio }}{% endif %} · <a href="mailto:{{ legal.email }}">{{ legal.email }}</a><br>
+        {% if legal.razon_social %}{{ legal.razon_social }} · {% endif %}{% if legal.cuit %}CUIT {{ legal.cuit }} · {% endif %}{% if legal.domicilio %}{{ legal.domicilio }} · {% endif %}<a href="mailto:{{ legal.email }}">{{ legal.email }}</a><br>
         <a href="/terminos">Términos y condiciones</a> · <a href="/privacidad">Política de privacidad</a> · <a href="/">Volver a Niddo</a>
     </div>
 </main>
