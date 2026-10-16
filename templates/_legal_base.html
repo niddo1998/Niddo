@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block titulo %}{% endblock %} | Niddo</title>
+    {% include '_head_app.html' %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/niddo-brand.css') }}">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--text); line-height: 1.7; }
+        .wrap { max-width: 720px; margin: 0 auto; padding: 28px 16px 72px; }
+        .logo { font-family: var(--font-display); font-weight: 600; font-size: 22px; color: var(--nd-tinta); text-decoration: none; }
+        .logo span { color: var(--nd-terracota); }
+        h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(28px, 6vw, 38px); line-height: 1.15; margin: 28px 0 6px; }
+        .fecha { color: var(--muted); font-size: 14px; margin-bottom: 26px; }
+        .resumen { background: var(--nd-verde-dim); border-radius: var(--r-lg); padding: 18px 20px; margin-bottom: 28px; font-size: 15px; }
+        .resumen b { color: var(--nd-verde-bosque); }
+        h2 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 30px 0 8px; }
+        p, li { font-size: 15.5px; color: var(--text); }
+        p + p { margin-top: 10px; }
+        ul { padding-left: 20px; margin: 8px 0; }
+        li + li { margin-top: 4px; }
+        a { color: var(--nd-terracota-hondo); font-weight: 700; }
+        .pie { margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13.5px; }
+    </style>
+</head>
+<body>
+<main class="wrap">
+    <a class="logo" href="/">nidd<span>o</span></a>
+    {% block contenido %}{% endblock %}
+    <div class="pie">
+        {{ legal.razon_social }}{% if legal.cuit %} · CUIT {{ legal.cuit }}{% endif %}{% if legal.domicilio %} · {{ legal.domicilio }}{% endif %} · <a href="mailto:{{ legal.email }}">{{ legal.email }}</a><br>
+        <a href="/terminos">Términos y condiciones</a> · <a href="/privacidad">Política de privacidad</a> · <a href="/">Volver a Niddo</a>
+    </div>
+</main>
+</body>
+</html>

@@ -83,3 +83,12 @@ def test_el_pdf_lleva_el_qr(app_modulo):
     texto = pymupdf.open(stream=pdf, filetype='pdf')[0].get_text()
     assert 'https://niddo.test/l/abc123abc123' in texto
     assert 'Buenas Prácticas' in texto
+
+
+@pytest.mark.parametrize('ruta,texto', [('/terminos', 'Términos y condiciones'),
+                                        ('/privacidad', 'Ley 25.326')])
+def test_las_paginas_legales_abren_sin_login(app_modulo, base, ruta, texto):
+    app_modulo.app.config['TESTING'] = True
+    r = app_modulo.app.test_client().get(ruta)
+    assert r.status_code == 200
+    assert texto in r.get_data(as_text=True)

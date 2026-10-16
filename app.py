@@ -22,6 +22,26 @@ from recurrentes import periodos_pendientes, ultimo_dia_del_mes
 # ── Config ─────────────────────────────────────────────────────────────────────
 load_dotenv()
 
+# Monitoreo de errores. Sin SENTRY_DSN no hace nada. Nunca manda datos
+# personales: ni cookies, ni headers, ni el cuerpo de la request, ni el usuario.
+if os.environ.get('SENTRY_DSN'):
+    import sentry_sdk
+
+    def _sin_datos_personales(evento, _hint):
+        req = evento.get('request') or {}
+        for clave in ('cookies', 'headers', 'data', 'query_string', 'env'):
+            req.pop(clave, None)
+        evento.pop('user', None)
+        return evento
+
+    sentry_sdk.init(
+        dsn=os.environ['SENTRY_DSN'],
+        environment=os.environ.get('VERCEL_ENV', 'local'),
+        send_default_pii=False,
+        traces_sample_rate=0.0,
+        before_send=_sin_datos_personales,
+    )
+
 # Resolve paths relative to *this* file so the app works both locally
 # and when imported from api/index.py on Vercel.
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -1224,6 +1244,31 @@ def manifest():
 @app.route('/favicon.ico')
 def favicon():
     return send_file(os.path.join(app.static_folder, 'img', 'favicon.ico'), mimetype='image/x-icon')
+
+
+# ── Legales ────────────────────────────────────────────────────────────────────
+# Quién es Niddo ante la ley sale de variables de entorno: es lo único de estas
+# páginas que cambia cuando se constituye la sociedad, y no debería pedir un
+# deploy de código.
+
+def datos_legales():
+    return {
+        'razon_social': os.environ.get('NIDDO_RAZON_SOCIAL', 'Niddo'),
+        'cuit': os.environ.get('NIDDO_CUIT', ''),
+        'domicilio': os.environ.get('NIDDO_DOMICILIO', ''),
+        'email': os.environ.get('NIDDO_EMAIL_CONTACTO', 'soporte@niddo.app'),
+        'actualizado': '16 de octubre de 2026',
+    }
+
+
+@app.route('/terminos')
+def terminos():
+    return render_template('legal_terminos.html', legal=datos_legales())
+
+
+@app.route('/privacidad')
+def privacidad():
+    return render_template('legal_privacidad.html', legal=datos_legales())
 
 
 @app.route('/login')
