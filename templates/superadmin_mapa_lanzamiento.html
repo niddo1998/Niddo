@@ -141,8 +141,8 @@ const PARA_LANZAR = [
   { grupo:"Que no se rompa delante de un cliente", intro:"Lo que falla en producción y no en los tests.", items:[
     { t:"El envío se corta por timeout", e:"listo", quien:"mio",
       nota:"Los mails salen por lote (Resend Batch, 100 por llamada) y los envíos se registran en un solo insert. El PDF ya no va adjunto: el mail lleva el link a la liquidación pública. maxDuration 60 s en vercel.json." },
-    { t:"Monitoreo de errores", e:"parcial", quien:"tuyo",
-      nota:"Sentry ya está integrado y no manda datos personales. Falta crear el proyecto en sentry.io y cargar SENTRY_DSN en Vercel." },
+    { t:"Monitoreo de errores", e:"falta", quien:"tuyo",
+      nota:"Se decidió no usar Sentry. Por ahora los errores se ven en los logs de Vercel (proyecto → Logs), pero nadie avisa cuando pasan." },
     { t:"Probar un mes real de punta a punta", e:"bloqueante", quien:"tuyo", esfuerzo:"medio día",
       nota:"Los 389 tests corren contra un doble de Supabase. <b>Nunca se hizo un mes completo con datos reales</b>: cargar, liquidar, enviar, que el vecino lo vea y registrar el pago. Es el control que más chances tiene de encontrar algo." },
     { t:"Dominio verificado en Resend (SPF/DKIM)", e:"falta", quien:"tuyo", esfuerzo:"1 hora",
