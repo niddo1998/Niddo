@@ -142,3 +142,16 @@ def test_el_mail_de_contacto_por_defecto_es_el_de_niddo(app_modulo, base, monkey
     c = app_modulo.app.test_client()
     for ruta in ('/', '/terminos', '/privacidad'):
         assert 'mailto:niddo1998@gmail.com' in c.get(ruta).get_data(as_text=True)
+
+
+def test_probar_sentry_es_solo_para_superadmin(app_modulo, base, monkeypatch):
+    app_modulo.app.config['TESTING'] = True
+    c = app_modulo.app.test_client()
+    assert c.get('/superadmin/probar-sentry').status_code in (302, 401, 403)
+    base['administradores'][0]['es_superadmin'] = True
+    with c.session_transaction() as s:
+        s['user'] = {'sub': 'auth0|admin', 'email': 'admin@test', 'name': 'Admin', 'role': 'admin'}
+    monkeypatch.delenv('SENTRY_DSN', raising=False)
+    r = c.get('/superadmin/probar-sentry')
+    assert r.status_code == 503
+    assert 'SENTRY_DSN' in r.get_json()['mensaje']

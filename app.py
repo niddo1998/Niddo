@@ -1871,6 +1871,19 @@ def _ufs_de_admin(aid: str, ix: dict) -> int:
                for c in ix['consorcios_por_admin'].get(aid, []))
 
 
+@app.route('/superadmin/probar-sentry')
+@require_superadmin
+def superadmin_probar_sentry():
+    """Manda un evento de prueba a Sentry para confirmar que el DSN anda."""
+    if not os.environ.get('SENTRY_DSN'):
+        return jsonify({'ok': False, 'mensaje': 'Falta SENTRY_DSN en Vercel (o no se hizo redeploy).'}), 503
+    import sentry_sdk
+    evento = sentry_sdk.capture_message('Prueba de Niddo: Sentry está conectado', level='error')
+    sentry_sdk.flush(timeout=5)
+    return jsonify({'ok': True, 'evento': evento,
+                    'mensaje': 'Listo: en Sentry → Issues tiene que aparecer «Prueba de Niddo».'})
+
+
 @app.route('/api/superadmin/metricas', methods=['GET'])
 @require_superadmin
 def api_superadmin_metricas():
