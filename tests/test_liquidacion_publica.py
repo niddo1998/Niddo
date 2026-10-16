@@ -134,3 +134,11 @@ def test_los_legales_no_inventan_datos_de_la_sociedad(app_modulo, base, monkeypa
     assert 'es una plataforma web' in html
     assert 'CUIT' not in html
     assert 'Mercado Pago' not in html
+
+
+def test_el_mail_de_contacto_por_defecto_es_el_de_niddo(app_modulo, base, monkeypatch):
+    monkeypatch.delenv('NIDDO_EMAIL_CONTACTO', raising=False)
+    app_modulo.app.config['TESTING'] = True
+    c = app_modulo.app.test_client()
+    for ruta in ('/', '/terminos', '/privacidad'):
+        assert 'mailto:niddo1998@gmail.com' in c.get(ruta).get_data(as_text=True)
