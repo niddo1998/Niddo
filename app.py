@@ -22,26 +22,6 @@ from recurrentes import periodos_pendientes, ultimo_dia_del_mes
 # ── Config ─────────────────────────────────────────────────────────────────────
 load_dotenv()
 
-# Monitoreo de errores. Sin SENTRY_DSN no hace nada. Nunca manda datos
-# personales: ni cookies, ni headers, ni el cuerpo de la request, ni el usuario.
-if os.environ.get('SENTRY_DSN'):
-    import sentry_sdk
-
-    def _sin_datos_personales(evento, _hint):
-        req = evento.get('request') or {}
-        for clave in ('cookies', 'headers', 'data', 'query_string', 'env'):
-            req.pop(clave, None)
-        evento.pop('user', None)
-        return evento
-
-    sentry_sdk.init(
-        dsn=os.environ['SENTRY_DSN'],
-        environment=os.environ.get('VERCEL_ENV', 'local'),
-        send_default_pii=False,
-        traces_sample_rate=0.0,
-        before_send=_sin_datos_personales,
-    )
-
 # Resolve paths relative to *this* file so the app works both locally
 # and when imported from api/index.py on Vercel.
 _HERE = os.path.dirname(os.path.abspath(__file__))
