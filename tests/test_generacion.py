@@ -19,8 +19,7 @@ import pytest
 # `app.py` lee estas variables al importarse. Valores de juguete: los tests no
 # tocan la red, el cliente de Supabase se reemplaza por el doble de abajo.
 os.environ.setdefault('SECRET_KEY', 'test')
-os.environ.setdefault('SUPABASE_URL', 'https://test.supabase.co')
-os.environ.setdefault('SUPABASE_SERVICE_KEY', 'test')
+os.environ.setdefault('DATABASE_URL', 'postgresql://test@localhost/test')
 os.environ.setdefault('AUTH0_DOMAIN', 'test.auth0.com')
 os.environ.setdefault('AUTH0_CLIENT_ID', 'test')
 os.environ.setdefault('AUTH0_CLIENT_SECRET', 'test')
