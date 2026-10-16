@@ -57,3 +57,6 @@ htmlcov/
 .claude/
 .vercel
 .env*
+
+# Auditorías de seguridad: el repo es público, se guardan sólo en local
+docs/auditorias/*seguridad*
