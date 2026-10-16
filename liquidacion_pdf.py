@@ -162,12 +162,16 @@ def _tabla_rubro(rubro, E, ancho):
     y lo que Niddo perdía: el resumen mostraba categoría e importe.
     """
     num = rubro.get('numero_rubro', '')
+    # Desde v20 el consorcio reparte todo con un solo método y la columna de
+    # coeficiente sería una fila de "A". Sólo aparece en una liquidación vieja
+    # que de verdad repartió gastos por coeficientes distintos.
+    con_coef = any((it.get('coeficiente') or 'A') != 'A' for it in rubro.get('items', []))
     filas = [[
         Paragraph('<b>Proveedor / CUIT</b>', E['celda']),
         Paragraph('<b>Comprobante</b>', E['celda']),
         Paragraph('<b>Detalle</b>', E['celda']),
         Paragraph('<b>Pago</b>', E['celda']),
-        Paragraph('<b>Coef.</b>', E['celda']),
+    ] + ([Paragraph('<b>Coef.</b>', E['celda'])] if con_coef else []) + [
         Paragraph('<b>Importe</b>', E['celda_r']),
     ]]
     for it in rubro.get('items', []):
@@ -184,23 +188,24 @@ def _tabla_rubro(rubro, E, ancho):
             Paragraph(comp, E['celda']),
             Paragraph(detalle, E['celda']),
             Paragraph(str(it.get('fecha_pago') or '—'), E['celda']),
-            Paragraph(str(it.get('coeficiente') or 'A'), E['celda']),
+        ] + ([Paragraph(str(it.get('coeficiente') or 'A'), E['celda'])] if con_coef else []) + [
             Paragraph(pesos(it.get('monto')), E['celda_r']),
         ])
 
     pct = porcentaje(rubro.get('porcentaje_sobre_total'), 2)
     filas.append([
         Paragraph(f"<b>Subtotal rubro {num}</b> &nbsp;·&nbsp; {pct}% del total",
-                  E['celda']), '', '', '', '',
+                  E['celda']), '', '', ''] + ([''] if con_coef else []) + [
         Paragraph(f"<b>{pesos(rubro.get('subtotal'))}</b>", E['celda_r']),
     ])
 
-    anchos = [ancho * p for p in (0.21, 0.15, 0.31, 0.12, 0.06, 0.15)]
+    proporciones = (0.21, 0.15, 0.31, 0.12, 0.06, 0.15) if con_coef else (0.21, 0.15, 0.37, 0.12, 0.15)
+    anchos = [ancho * p for p in proporciones]
     t = Table(filas, colWidths=anchos, repeatRows=1)
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), CREMA),
         ('BACKGROUND', (0, -1), (-1, -1), CREMA),
-        ('SPAN', (0, -1), (4, -1)),
+        ('SPAN', (0, -1), (-2, -1)),
         ('GRID', (0, 0), (-1, -1), 0.25, BORDE),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('TOPPADDING', (0, 0), (-1, -1), 3),
@@ -264,9 +269,12 @@ def _tabla_prorrateo(liq, consorcio, prorrateos, coeficientes_usados, E, ancho):
     """
     cab = [Paragraph(f'<b>{h}</b>', E['mini']) for h in
            ('UF', 'Propietario', 'Saldo ant.', 'Pago', 'Saldo pend.', 'Int.')]
+    # Un solo reparto (lo normal desde v20) no lleva letra: "% part." y
+    # "Expensa". Las letras quedan para una liquidación vieja con varios.
+    un_solo = coeficientes_usados == ['A']
     for c in coeficientes_usados:
-        cab += [Paragraph(f'<b>% {c}</b>', E['mini']),
-                Paragraph(f'<b>Expensa {c}</b>', E['mini_r'])]
+        cab += [Paragraph('<b>% part.</b>' if un_solo else f'<b>% {c}</b>', E['mini']),
+                Paragraph('<b>Expensa</b>' if un_solo else f'<b>Expensa {c}</b>', E['mini_r'])]
     cab += [Paragraph('<b>Otros</b>', E['mini_r']),
             Paragraph('<b>Red.</b>', E['mini_r']),
             Paragraph('<b>1er vto.</b>', E['mini_r']),
@@ -363,10 +371,28 @@ def _coeficientes_en_uso(prorrateos):
     return usados or ['A']
 
 
-def _subtotales_por_coeficiente(prorrateos, coeficientes, E, ancho):
-    """El bloque que los cuatro imprimen al cierre: cuánto se repartió por cada uno."""
+METODOS = {
+    'm2': 'metros cuadrados (superficie de la unidad / superficie total)',
+    'ambientes': 'ambientes (ambientes de la unidad / ambientes totales)',
+    'partes_iguales': 'partes iguales entre todas las unidades',
+    'porcentaje': 'porcentaje de participación de cada unidad',
+}
+
+
+def _subtotales_por_coeficiente(prorrateos, coeficientes, E, ancho, metodo=None):
+    """El bloque que los cuatro imprimen al cierre: cuánto se repartió por cada uno.
+
+    Con un solo reparto dice con qué método se hizo, que es lo primero que un
+    copropietario pregunta cuando compara su expensa con la del vecino.
+    """
     campo = {'A': 'expensa_a', 'B': 'expensa_b',
              'C': 'adicional_ordinaria', 'E': 'expensa_e'}
+    if coeficientes == ['A']:
+        total = round(sum(float(p.get('expensa_a') or 0) for p in prorrateos), 2)
+        detalle = METODOS.get(metodo or 'm2', METODOS['m2'])
+        return _cuadro('Total prorrateado',
+                       [(f'Reparto por {detalle}', total, False),
+                        ('TOTAL PRORRATEADO', total, True)], E, ancho)
     filas = [(f'Coeficiente {c}',
               round(sum(float(p.get(campo[c]) or 0) for p in prorrateos), 2), False)
              for c in coeficientes]
@@ -432,7 +458,8 @@ def construir_pdf(liq, consorcio, admin, rubros, prorrateos, banco=None):
     story.append(_cuadro('Total de gastos del período',
                          [('TOTAL DE GASTOS', total_gastos, True)], E, ancho_v))
 
-    story.append(_subtotales_por_coeficiente(prorrateos, coeficientes, E, ancho_v))
+    story.append(_subtotales_por_coeficiente(prorrateos, coeficientes, E, ancho_v,
+                                             metodo=consorcio.get('metodo_prorrateo')))
 
     # ── Los tres cuadros de la Ley 941 ──
     saldo_inicial = float(liq.get('saldo_inicial') or 0)

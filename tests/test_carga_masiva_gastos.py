@@ -23,7 +23,11 @@ XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 # nueva. Son las mismas que pide el formulario: proveedor, vencimiento, método
 # de pago y comprobante se sacaron de los dos lados a la vez.
 HEADERS = ['consorcio*', 'fecha*', 'descripcion*', 'monto*', 'categoria', 'unidad',
-           'coeficiente', 'pagado', 'recurrente', 'frecuencia', 'dia_carga', 'notas']
+           'pagado', 'recurrente', 'frecuencia', 'dia_carga', 'notas']
+
+# La planilla de antes de v20, con la columna de coeficiente. Se sigue leyendo.
+HEADERS_CON_COEFICIENTE = ['consorcio*', 'fecha*', 'descripcion*', 'monto*', 'categoria', 'unidad',
+                           'coeficiente', 'pagado', 'recurrente', 'frecuencia', 'dia_carga', 'notas']
 
 # Los encabezados que traía la plantilla anterior. Una planilla vieja se sube
 # igual: las columnas que ya no se piden no tienen alias y se ignoran.
@@ -71,35 +75,54 @@ def subir(client, buf, nombre='gastos.xlsx'):
 
 # ── La plantilla ──────────────────────────────────────────────────────────────
 
-def test_la_plantilla_se_baja_con_sus_hojas(admin, datos):
+def _plantilla(admin):
+    return openpyxl.load_workbook(io.BytesIO(admin.get('/api/gastos/plantilla').data))
+
+
+def _encabezados(ws):
+    """La fila de encabezados: la de la plantilla está debajo del logo."""
+    for row in ws.iter_rows(min_row=1, max_row=12, values_only=True):
+        if row and row[0] == 'consorcio*':
+            return [v for v in row if v is not None]
+    return []
+
+
+def test_la_plantilla_tiene_tres_pestanas_visibles(admin, datos):
+    """Instrucciones, un ejemplo con gastos inventados y la pestaña que se carga."""
     r = admin.get('/api/gastos/plantilla')
     assert r.status_code == 200
     assert r.mimetype == XLSX
     wb = openpyxl.load_workbook(io.BytesIO(r.data))
-    assert wb.sheetnames == ['Instrucciones', 'Gastos', 'Consorcios existentes',
-                             'Unidades existentes']
+    visibles = [ws.title for ws in wb.worksheets if ws.sheet_state == 'visible']
+    assert visibles == ['Instrucciones', 'Ejemplo', 'Carga']
+
+
+def test_el_ejemplo_trae_gastos_inventados_completos(admin, datos):
+    ws = _plantilla(admin)['Ejemplo']
+    filas = [r for r in ws.iter_rows(values_only=True) if r and r[0] == 'Mío']
+    assert len(filas) >= 3
 
 
 def test_la_plantilla_lista_las_referencias_del_administrador(admin, datos):
-    """Las hojas de referencia son de él: el edificio ajeno no aparece.
+    """El desplegable de consorcios es de él: el edificio ajeno no aparece.
 
     Sin el filtro, la plantilla es un listado de los consorcios de todos los
     administradores del sistema entregado en un Excel.
     """
-    wb = openpyxl.load_workbook(io.BytesIO(admin.get('/api/gastos/plantilla').data))
-    consorcios = [c[0] for c in wb['Consorcios existentes'].iter_rows(min_row=2, values_only=True)]
+    listas = _plantilla(admin)['_listas']
+    columnas = {listas.cell(row=1, column=c).value: c for c in range(1, listas.max_column + 1)}
+    consorcios = [listas.cell(row=r, column=columnas['consorcio']).value
+                  for r in range(2, listas.max_row + 1) if listas.cell(row=r, column=columnas['consorcio']).value]
     assert consorcios == ['Mío']
 
 
 def test_los_encabezados_de_la_plantilla_son_los_que_lee_el_import(admin, datos):
     """La plantilla que se baja y el parser que la lee no pueden divergir."""
-    wb = openpyxl.load_workbook(io.BytesIO(admin.get('/api/gastos/plantilla').data))
-    encabezados = [c.value for c in wb['Gastos'][1]]
-    assert encabezados == HEADERS
+    assert _encabezados(_plantilla(admin)['Carga']) == HEADERS
 
 
-def test_la_fila_de_ejemplo_de_la_plantilla_no_se_importa(admin, datos):
-    """Va marcada "(borrar fila)": quien no la borre no se lleva un gasto trucho."""
+def test_la_plantilla_sin_tocar_no_importa_nada(admin, datos):
+    """El ejemplo vive en su propia pestaña: no hay fila trucha que borrar."""
     r = subir(admin, io.BytesIO(admin.get('/api/gastos/plantilla').data))
     assert r.get_json()['gastos_creados'] == 0
     assert datos['gastos'] == []
@@ -126,7 +149,8 @@ def test_importa_una_fila_con_solo_los_obligatorios(admin, datos):
 def test_importa_todos_los_campos_opcionales(admin, datos):
     r = subir(admin, planilla([[
         'Mío', '2026-06-05', 'Factura Edesur junio', 15430.50, 'electricidad',
-        '1A', 'E', 'Sí', 'Sí', 'bimestral', 10, 'Factura B-0001-00012345']]))
+        '1A', 'E', 'Sí', 'Sí', 'bimestral', 10, 'Factura B-0001-00012345']],
+        headers=HEADERS_CON_COEFICIENTE))
     assert r.get_json()['errores'] == []
     g = datos['gastos'][0]
     assert g['categoria'] == 'electricidad'
@@ -293,12 +317,12 @@ def test_acepta_el_monto_como_lo_pega_el_administrador(admin, datos, escrito, es
     ('', True), (None, True),
 ])
 def test_el_pagado_se_escribe_de_muchas_formas(admin, datos, escrito, esperado):
-    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', escrito]]))
+    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', escrito]]))
     assert datos['gastos'][0]['pagado'] is esperado
 
 
 def test_un_si_o_no_ilegible_se_reporta(admin, datos):
-    d = subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', 'tal vez']])).get_json()
+    d = subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', 'tal vez']])).get_json()
     assert d['gastos_creados'] == 0
     assert 'pagado' in d['errores'][0]['mensaje'].lower()
 
@@ -311,20 +335,20 @@ def test_una_categoria_que_no_esta_en_la_lista_cae_en_otro(admin, datos):
 def test_la_frecuencia_y_el_dia_solo_valen_en_un_gasto_recurrente(admin, datos):
     """Un gasto común con día de carga es una plantilla que no genera nada y
     queda esperando a que alguien tilde "recurrente" sin querer."""
-    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', '', '', '', '',
-                            'No', 'mensual', 10]]))
+    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', 'No', 'mensual', 10]]))
     g = datos['gastos'][0]
     assert (g['recurrente'], g['frecuencia'], g['dia_carga']) == (False, '', None)
 
 
 def test_un_recurrente_sin_frecuencia_queda_mensual(admin, datos):
-    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', '', 'Sí']]))
+    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', 'Sí']]))
     assert datos['gastos'][0]['frecuencia'] == 'mensual'
 
 
 def test_un_dia_de_carga_fuera_del_mes_no_se_guarda(admin, datos):
-    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '', '',
+    subir(admin, planilla([['Mío', '2026-06-05', 'Luz', 100, '', '', '',
                             'Sí', 'mensual', 45]]))
+    assert datos['gastos'][0]['recurrente'] is True
     assert datos['gastos'][0]['dia_carga'] is None
 
 
@@ -399,11 +423,11 @@ def test_la_validacion_por_rango_no_lleva_el_igual_adelante(admin, datos):
     import re
     import zipfile
     z = zipfile.ZipFile(io.BytesIO(admin.get('/api/gastos/plantilla').data))
-    hoja = z.read('xl/worksheets/sheet2.xml').decode()
+    hoja = z.read('xl/worksheets/sheet3.xml').decode()
     formulas = re.findall(r'<formula1>(.*?)</formula1>', hoja, re.S)
-    assert formulas, 'la hoja "Gastos" perdió sus desplegables'
+    assert formulas, 'la pestaña "Carga" perdió sus desplegables'
     assert not [f for f in formulas if f.startswith('=')]
-    assert "'Consorcios existentes'!$A$2:$A$2" in formulas
+    assert any(f.startswith("'_listas'!") for f in formulas)
 
 
 def test_la_deduplicacion_no_mira_fuera_del_rango_del_archivo(admin, datos):
@@ -428,12 +452,15 @@ def test_la_plantilla_que_se_baja_se_completa_y_se_sube(admin, datos):
     único que agarra esa divergencia, porque el archivo sale del endpoint.
     """
     wb = openpyxl.load_workbook(io.BytesIO(admin.get('/api/gastos/plantilla').data))
-    ws = wb['Gastos']
-    ws.delete_rows(2)  # la fila de ejemplo, como haría el administrador
-    ws.append(['Mío', '2026-06-05', 'Factura Edesur junio', 15430.50, 'electricidad',
-               '1A', 'E', 'Sí', 'No', None, None, 'Factura B-0001-00012345'])
-    ws.append(['Mío', '2026-06-01', 'Limpieza junio', 92000, 'limpieza', None,
-               None, 'No', 'Sí', 'mensual', 5, None])
+    ws = wb['Carga']
+    fila = next(i for i, r in enumerate(ws.iter_rows(values_only=True), 1) if r and r[0] == 'consorcio*')
+    for n, valores in enumerate((
+            ['Mío', '05/06/2026', 'Factura Edesur junio', 15430.50, 'electricidad',
+             '1A', 'Sí', 'No', None, None, 'Factura B-0001-00012345'],
+            ['Mío', '01/06/2026', 'Limpieza junio', 92000, 'limpieza', None,
+             'No', 'Sí', 'mensual', 5, None]), 1):
+        for c, v in enumerate(valores, 1):
+            ws.cell(row=fila + n, column=c, value=v)
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -442,8 +469,20 @@ def test_la_plantilla_que_se_baja_se_completa_y_se_sube(admin, datos):
     assert (d['gastos_creados'], d['errores']) == (2, [])
     assert d['monto_total'] == 107430.50
     luz, limpieza = datos['gastos']
-    assert (luz['unidad_id'], luz['coeficiente'], luz['pagado']) == ('uf-1', 'E', True)
+    assert (luz['unidad_id'], luz['pagado']) == ('uf-1', True)
     assert (limpieza['recurrente'], limpieza['frecuencia'], limpieza['dia_carga']) == (True, 'mensual', 5)
+
+
+def test_el_excel_exportado_con_logo_se_vuelve_a_subir(admin, datos):
+    """El exporte trae logo y título arriba: el encabezado se busca, no se asume."""
+    datos['gastos'].append({'id': 'g1', 'admin_id': 'admin-1', 'consorcio_id': 'cons-1',
+                            'descripcion': 'Luz', 'categoria': 'electricidad', 'monto': 100,
+                            'fecha_gasto': '2026-06-05', 'pagado': True,
+                            'consorcios': {'nombre': 'Mío'}})
+    exportado = admin.get('/api/gastos/export?fmt=excel').data
+    datos['gastos'].clear()
+    d = subir(admin, io.BytesIO(exportado)).get_json()
+    assert (d['gastos_creados'], d['errores']) == (1, [])
 
 
 # ── Coeficiente ──────────────────────────────────────────────────────────────
@@ -456,7 +495,7 @@ def _fila(**extra):
     base = {'consorcio': 'Mío', 'fecha': '2026-08-01',
             'descripcion': 'Un gasto', 'monto': 1000}
     base.update(extra)
-    return [base.get(h.rstrip('*'), '') for h in HEADERS]
+    return [base.get(h.rstrip('*'), '') for h in HEADERS_CON_COEFICIENTE]
 
 
 @pytest.mark.parametrize('escrito,guardado', [
@@ -466,7 +505,7 @@ def _fila(**extra):
     ('', 'A'),           # planilla vieja, sin la columna
 ])
 def test_el_coeficiente_se_importa_y_se_normaliza(admin, datos, escrito, guardado):
-    r = subir(admin, planilla([_fila(coeficiente=escrito)]))
+    r = subir(admin, planilla([_fila(coeficiente=escrito)], headers=HEADERS_CON_COEFICIENTE))
     assert r.get_json()['errores'] == []
     assert datos['gastos'][0]['coeficiente'] == guardado
 
@@ -476,7 +515,7 @@ def test_una_letra_mal_tipeada_no_frena_el_resto_del_archivo(admin, datos):
     r = subir(admin, planilla([
         _fila(descripcion='Uno', coeficiente='Z'),
         _fila(descripcion='Dos', coeficiente='E'),
-    ]))
+    ], headers=HEADERS_CON_COEFICIENTE))
     assert r.get_json()['errores'] == []
     assert [g['coeficiente'] for g in datos['gastos']] == ['A', 'E']
 

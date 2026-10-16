@@ -188,9 +188,25 @@
         if (compact) compact.textContent = t;
     }
 
+    /* El header es fijo y su alto depende del título, de la safe area del
+       teléfono y de cuánto ocupan los chips: no es un número que se pueda
+       escribir en el CSS. Se mide sin scrollear (con el título grande
+       desplegado) y el contenido arranca justo debajo. Con un número fijo el
+       header tapaba el encabezado de cada sección, y con él botones como
+       "Informar pago" o "Nuevo reclamo". */
+    function medirHeader() {
+        var header = document.querySelector(headerSelector);
+        if (!header || window.scrollY > 4 || header.classList.contains('nd-scrolled')) return;
+        var alto = header.getBoundingClientRect().height;
+        if (alto > 0) document.documentElement.style.setProperty('--nd-header-alto', Math.ceil(alto) + 'px');
+    }
+
     function watchScroll() {
         var header = document.querySelector(headerSelector);
         if (!header) return;
+        medirHeader();
+        if (window.ResizeObserver) new ResizeObserver(medirHeader).observe(header);
+        window.addEventListener('resize', medirHeader);
         window.addEventListener('scroll', function () {
             header.classList.toggle('nd-scrolled', window.scrollY > 26);
         }, { passive: true });
@@ -260,7 +276,10 @@
                 html += '<' + tag + ' class="nd-dr-item"' + attrs + '>' +
                     '<svg class="ic"><use href="#' + it.icon + '"></use></svg>' +
                     '<span>' + it.label + '</span>' +
-                    (it.badge ? '<i class="nd-dr-badge">' + it.badge + '</i>' : '') +
+                    /* El numerito se deja puesto y escondido: lo llena
+                       NiddoMobile.setBadge cuando llegan las novedades. */
+                    '<i class="nd-dr-badge"' + (it.section ? ' data-nd-badge="' + it.section + '"' : '') +
+                    (it.badge ? '' : ' hidden') + '>' + (it.badge || '') + '</i>' +
                     '</' + tag + '>';
             });
         });
@@ -516,6 +535,37 @@
         overlay.classList.add('open');
     }
 
+    /* El numerito de una sección en el cajón y en su tab de abajo. La tab
+       suma lo de todas sus secciones (Comunidad = comunicados + reclamos +
+       mensajes). El botón ☰ muestra un punto si hay algo adentro del cajón. */
+    var badges = {};
+    NiddoMobile.setBadge = function (section, n) {
+        badges[section] = n || 0;
+        var d = document.querySelector('#nd-drawer [data-nd-badge="' + section + '"]');
+        if (d) { d.textContent = n || ''; d.hidden = !n; }
+        var porTab = {};
+        Object.keys(badges).forEach(function (sec) {
+            var tab = TAB_OF[sec] || sec;
+            porTab[tab] = (porTab[tab] || 0) + badges[sec];
+        });
+        var tabs = document.querySelectorAll('#nd-tabbar .bottom-btn, .nd-tabbar .bottom-btn');
+        for (var i = 0; i < tabs.length; i++) {
+            var b = tabs[i], cant = porTab[b.dataset.tab] || 0;
+            var el = b.querySelector('.nd-tab-badge');
+            if (!el && cant) {
+                el = document.createElement('i');
+                el.className = 'nd-tab-badge';
+                b.appendChild(el);
+            }
+            if (el) { el.textContent = cant; el.style.display = cant ? '' : 'none'; }
+        }
+        var menu = document.querySelector('.nd-menu-btn');
+        if (menu) {
+            var total = Object.keys(badges).reduce(function (a, k) { return a + badges[k]; }, 0);
+            menu.classList.toggle('nd-con-novedades', total > 0);
+        }
+    };
+
     NiddoMobile.openDrawer = openDrawer;
     NiddoMobile.closeDrawer = closeDrawer;
     NiddoMobile.setContexto = setCtx;
@@ -675,6 +725,26 @@
             });
         }
     }
+
+    /* Android: con el teclado abierto, la tab bar fija sube con él y tapa el
+       campo que se está escribiendo (en iPhone el teclado la cubre). Mientras
+       hay un campo de texto enfocado, la tab bar no se muestra. El viewport
+       además declara interactive-widget=resizes-visual, que en Chrome deja al
+       teclado encima de la página como en Safari. */
+    function esCampoDeTexto(el) {
+        if (!el || !el.tagName) return false;
+        if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true;
+        if (el.tagName !== 'INPUT') return false;
+        return !/^(checkbox|radio|button|submit|file|range|color)$/i.test(el.type);
+    }
+    document.addEventListener('focusin', function (e) {
+        if (esCampoDeTexto(e.target)) document.documentElement.classList.add('nd-teclado');
+    });
+    document.addEventListener('focusout', function () {
+        setTimeout(function () {
+            if (!esCampoDeTexto(document.activeElement)) document.documentElement.classList.remove('nd-teclado');
+        }, 60);
+    });
 
     document.addEventListener('DOMContentLoaded', function () {
         wrapNav();

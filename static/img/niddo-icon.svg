@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- App icon de la ruta "Barrio": el isotipo de los tres vecinos sobre terracota. -->
+  <rect width="512" height="512" rx="112" fill="#E8734A"/>
+  <circle cx="256" cy="194" r="58" fill="#F6EFE7"/>
+  <circle cx="171" cy="340" r="58" fill="#2F6F5E"/>
+  <circle cx="341" cy="340" r="58" fill="#F2B705"/>
+</svg>
