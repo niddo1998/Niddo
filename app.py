@@ -1265,7 +1265,7 @@ def datos_legales():
         'razon_social': os.environ.get('NIDDO_RAZON_SOCIAL', ''),
         'cuit': os.environ.get('NIDDO_CUIT', ''),
         'domicilio': os.environ.get('NIDDO_DOMICILIO', ''),
-        'email': os.environ.get('NIDDO_EMAIL_CONTACTO', 'soporte@niddo.app'),
+        'email': os.environ.get('NIDDO_EMAIL_CONTACTO', 'niddo1998@gmail.com'),
         'actualizado': '16 de octubre de 2026',
     }
 
@@ -7883,7 +7883,7 @@ def api_ayuda_vista():
 
 VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', '')
 VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', '')
-VAPID_CONTACTO = os.environ.get('VAPID_CONTACTO', 'mailto:soporte@niddo.app')
+VAPID_CONTACTO = os.environ.get('VAPID_CONTACTO', 'mailto:niddo1998@gmail.com')
 
 
 def push_disponible():
