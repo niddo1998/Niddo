@@ -1,0 +1,40 @@
+# Los avisos programados de Niddo: recordatorios de vencimiento, mora
+# automática y recordatorios de reservas. Vercel Hobby permite un solo cron por
+# día, así que los dispara GitHub. Cada aviso se manda una sola vez aunque esto
+# corra de nuevo (ver avisos_enviados en la base).
+#
+# Necesita dos secrets en el repo (Settings → Secrets and variables → Actions):
+#   NIDDO_URL    https://niddo-eta.vercel.app (o el dominio propio)
+#   CRON_SECRET  el mismo valor que la variable CRON_SECRET de Vercel
+
+name: Avisos programados
+
+on:
+  schedule:
+    - cron: '0 12 * * *'   # 9:00 en Argentina: vencimientos y mora
+    - cron: '15 * * * *'   # cada hora: reservas que empiezan pronto
+  workflow_dispatch:
+    inputs:
+      tarea:
+        description: 'Qué correr'
+        type: choice
+        options: [diario, cada-hora]
+        default: diario
+
+jobs:
+  avisar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Llamar a Niddo
+        env:
+          NIDDO_URL: ${{ secrets.NIDDO_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          TAREA: ${{ github.event.inputs.tarea || (github.event.schedule == '0 12 * * *' && 'diario' || 'cada-hora') }}
+        run: |
+          if [ -z "$NIDDO_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Faltan los secrets NIDDO_URL y CRON_SECRET"; exit 1
+          fi
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$NIDDO_URL/api/cron/$TAREA"

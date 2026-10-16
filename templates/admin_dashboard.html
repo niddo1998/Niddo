@@ -573,7 +573,7 @@
 
 <div class="topbar">
     <button class="topbar-btn" onclick="ayudaDeLaSeccion()" title="Ayuda" aria-label="Ayuda"><svg class="ic"><use href="#ic-ayuda"></use></svg></button>
-    <button class="topbar-btn profile-circle" id="topbar-perfil-btn" onclick="openModal('modal-perfil'); pintarPerfilPush()" title="Mi Perfil">—</button>
+    <button class="topbar-btn profile-circle" id="topbar-perfil-btn" onclick="openModal('modal-perfil'); pintarPerfilPush(); cargarDatosAdministracion()" title="Mi Perfil">—</button>
 </div>
 
 <!-- Cuatro destinos, no cinco: "Más" dejó de ser un tab y su contenido pasó
@@ -1080,6 +1080,25 @@
         </div>
         <div class="text-muted text-sm" style="margin-bottom:10px;">Todo esto sale impreso en el encabezado y en los datos de pago de la liquidación.</div>
         <button class="btn-p btn-sm" onclick="guardarConfigConsorcio()">Guardar</button>
+        <div class="sep"></div>
+        <div class="form-group">
+            <label class="form-label" for="cfg-reglamento">Reglamento de propiedad horizontal</label>
+            <div class="text-muted text-sm" style="margin-bottom:6px;">Cada liquidación lleva un QR con los comprobantes del período, este reglamento y el Manual de Buenas Prácticas (Disp. 1146/2024 y 521/2025 de CABA).</div>
+            <div class="text-sm" id="cfg-reglamento-actual" style="margin-bottom:8px;">—</div>
+            <input type="file" class="form-ctrl" id="cfg-reglamento" accept="application/pdf,image/*" style="max-width:420px;">
+        </div>
+        <button class="btn-s btn-sm" onclick="subirReglamento()">Subir reglamento</button>
+        <div class="sep"></div>
+        <div class="form-group">
+            <label class="form-label" for="cfg-mp-token">Cobrar con Mercado Pago</label>
+            <div class="text-muted text-sm" style="margin-bottom:6px;">Los vecinos pagan la expensa desde la app y el pago se marca solo. La plata entra directo a la cuenta de Mercado Pago del edificio. El Access Token de producción está en mercadopago.com.ar/developers → Tus integraciones → Credenciales.</div>
+            <div class="text-sm" id="cfg-mp-estado" style="margin-bottom:8px;">—</div>
+            <div id="cfg-mp-form" style="display:flex;gap:8px;flex-wrap:wrap;">
+                <input type="password" class="form-ctrl" id="cfg-mp-token" placeholder="APP_USR-..." autocomplete="off" style="max-width:420px;flex:1 1 240px;">
+                <button class="btn-s btn-sm" onclick="conectarMP()">Conectar</button>
+            </div>
+            <button class="btn-s btn-sm" id="cfg-mp-desconectar" style="display:none;" onclick="desconectarMP()">Desconectar</button>
+        </div>
     </div>
 </div>
 
@@ -1241,6 +1260,12 @@
                         </select>
                     </div>
                 </div>
+                <div class="text-muted text-sm" style="margin:4px 0 8px;">Dónde está la plata al cierre. Sale en el estado patrimonial del PDF (Ley 941, art. 10 inc. c).</div>
+                <div class="form-row3">
+                    <div class="form-group"><label class="form-label">Saldo en banco</label><input type="number" step="0.01" class="form-ctrl" id="liq-saldo-banco" data-monto data-negativo></div>
+                    <div class="form-group"><label class="form-label">Fondo de reserva</label><input type="number" step="0.01" class="form-ctrl" id="liq-saldo-fondo" data-monto data-negativo></div>
+                    <div class="form-group"><label class="form-label">En poder del administrador</label><input type="number" step="0.01" class="form-ctrl" id="liq-saldo-admin" data-monto data-negativo></div>
+                </div>
                 <div class="form-group"><label class="form-label">Notas</label><textarea class="form-ctrl" id="liq-notas" rows="3"></textarea></div>
                 <button class="btn-p btn-sm" onclick="guardarConfigLiq()">Guardar cambios</button>
             </div>
@@ -1351,6 +1376,8 @@
                 <div class="form-group"><label class="form-label">Nombre del vecino</label><input class="form-ctrl" id="m-uf-vec-nombre"></div>
                 <div class="form-group"><label class="form-label">Email del vecino</label><input type="email" class="form-ctrl" id="m-uf-vec-email"></div>
             </div>
+            <div class="form-group"><label class="form-label">Saldo anterior al empezar con Niddo</label><input type="number" step="0.01" class="form-ctrl" id="m-uf-saldo" placeholder="0">
+                <div class="text-muted text-sm" style="margin-top:4px;">Lo que la unidad debía en tu sistema anterior. Entra en la primera liquidación. En negativo si tiene saldo a favor.</div></div>
         </div>
         <div class="modal-footer">
             <button class="btn-s" onclick="closeModal('modal-uf')">Cancelar</button>
@@ -1818,6 +1845,17 @@
                 </div>
                 <div class="text-muted text-sm" id="perfil-push-ayuda" style="display:none;margin-top:2px;"></div>
             </div>
+            <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:8px;">
+                <h4 style="font-size:.85rem;font-weight:700;margin:0 0 4px;">Datos de la administración</h4>
+                <p class="text-muted text-sm" style="margin:0 0 12px;">Salen en el encabezado de cada liquidación. La Ley 941 pide la matrícula del RPA.</p>
+                <div class="form-group"><label class="form-label" for="perfil-matricula">Matrícula RPA</label>
+                    <input class="form-ctrl" id="perfil-matricula" maxlength="40" placeholder="Ej: 12345"></div>
+                <div class="form-group"><label class="form-label" for="perfil-cuit">CUIT de la administración</label>
+                    <input class="form-ctrl" id="perfil-cuit" maxlength="13" inputmode="numeric" placeholder="20-12345678-9"></div>
+                <div class="form-group"><label class="form-label" for="perfil-direccion">Dirección de la administración</label>
+                    <input class="form-ctrl" id="perfil-direccion" maxlength="160" placeholder="Av. Corrientes 1234, piso 3, CABA"></div>
+                <button class="btn-p" style="width:100%;justify-content:center;" onclick="guardarDatosAdministracion()">Guardar</button>
+            </div>
         </div>
     </div>
 </div>
@@ -2010,7 +2048,8 @@ const FORMULARIOS_VIGILADOS = {
     liquidacion: {
         seccion: 'liquidaciones',
         campos: ['liq-vto1', 'liq-vto2', 'liq-interes2', 'liq-saldo-ini',
-                 'liq-ingresos', 'liq-estado-sel', 'liq-notas'],
+                 'liq-ingresos', 'liq-estado-sel', 'liq-notas',
+                 'liq-saldo-banco', 'liq-saldo-fondo', 'liq-saldo-admin'],
         visible: () => $('liq-detail') && $('liq-detail').style.display !== 'none',
         guardar: () => guardarConfigLiq(),
         detalle: 'Editaste la configuración de la liquidación y todavía no la guardaste. Si salís ahora se pierde.',
@@ -2812,7 +2851,7 @@ function openUFModal(id) {
     $('m-uf-id').value = id||'';
     $('m-uf-title').textContent = id ? 'Editar UF' : 'Nueva UF';
     if (!id) {
-        ['m-uf-numero','m-uf-piso','m-uf-sup','m-uf-amb','m-uf-pa','m-uf-vec-nombre','m-uf-vec-email'].forEach(f=>$(f).value='');
+        ['m-uf-numero','m-uf-piso','m-uf-sup','m-uf-amb','m-uf-pa','m-uf-vec-nombre','m-uf-vec-email','m-uf-saldo'].forEach(f=>$(f).value='');
         $('m-uf-tipo').value = 'departamento';
     } else {
         const u = currentUFs.find(x => x.id === id);
@@ -2825,6 +2864,7 @@ function openUFModal(id) {
             $('m-uf-amb').value = u.ambientes || '';
             $('m-uf-vec-nombre').value = u.vecino_nombre || '';
             $('m-uf-vec-email').value = u.vecino_email || '';
+            $('m-uf-saldo').value = u.saldo_inicial ? u.saldo_inicial : '';
         }
     }
     const metodo = metodoDelConsorcio(currentConsorioId);
@@ -2839,7 +2879,8 @@ async function saveUF() {
     if (!numero || !currentConsorioId) { toast('Número de UF requerido','warn'); return; }
     const payload = { numero, piso: $('m-uf-piso').value, tipo: $('m-uf-tipo').value,
         superficie_m2: +$('m-uf-sup').value||null, ambientes: +$('m-uf-amb').value||null,
-        vecino_nombre: $('m-uf-vec-nombre').value, vecino_email: $('m-uf-vec-email').value };
+        vecino_nombre: $('m-uf-vec-nombre').value, vecino_email: $('m-uf-vec-email').value,
+        saldo_inicial: +$('m-uf-saldo').value || 0 };
     // El % sólo viaja si es el método del consorcio: si no, un campo oculto
     // vacío pisaría con 0 un porcentaje cargado antes.
     if (metodoDelConsorcio(currentConsorioId) === 'porcentaje') payload.porcentaje_a = +$('m-uf-pa').value || 0;
@@ -3040,7 +3081,8 @@ function renderBulkResults(d) {
         <div class="kpi"><div class="kpi-val">${d.consorcios_creados}</div><div class="kpi-label">Consorcios creados</div></div>
         <div class="kpi"><div class="kpi-val">${d.consorcios_reutilizados}</div><div class="kpi-label">Consorcios ya existentes</div></div>
         <div class="kpi"><div class="kpi-val">${d.unidades_creadas}</div><div class="kpi-label">UF creadas</div></div>
-        <div class="kpi"><div class="kpi-val">${d.unidades_omitidas}</div><div class="kpi-label">UF omitidas (ya existían)</div></div>`;
+        <div class="kpi"><div class="kpi-val">${d.unidades_omitidas}</div><div class="kpi-label">UF omitidas (ya existían)</div></div>${d.saldos_actualizados ? `
+        <div class="kpi"><div class="kpi-val">${d.saldos_actualizados}</div><div class="kpi-label">Saldos anteriores cargados</div></div>` : ''}`;
 
     const errBox = $('bulk-results-errors');
     if (!d.errores || !d.errores.length) {
@@ -4884,6 +4926,9 @@ async function openLiqDetail(lid) {
         $('liq-interes2').value = l.interes_2_vto || 0;
         $('liq-saldo-ini').value = l.saldo_inicial || 0;
         $('liq-ingresos').value = l.total_ingresos || 0;
+        $('liq-saldo-banco').value = l.saldo_bancario || 0;
+        $('liq-saldo-fondo').value = l.saldo_superfondo || 0;
+        $('liq-saldo-admin').value = l.saldo_administrador || 0;
         $('liq-estado-sel').value = l.estado || 'borrador';
         $('liq-notas').value = l.notas || '';
         marcarLimpio('liquidacion');
@@ -5159,6 +5204,9 @@ async function guardarConfigLiq() {
                 interes_2_vto: +$('liq-interes2').value || 0,
                 saldo_inicial: +$('liq-saldo-ini').value || 0,
                 total_ingresos: +$('liq-ingresos').value || 0,
+                saldo_bancario: +$('liq-saldo-banco').value || 0,
+                saldo_superfondo: +$('liq-saldo-fondo').value || 0,
+                saldo_administrador: +$('liq-saldo-admin').value || 0,
                 estado: $('liq-estado-sel').value,
                 notas: $('liq-notas').value,
             })
@@ -5802,7 +5850,65 @@ async function loadConfigConsorcio() {
     $('cfg-alias').value = c.banco_alias || '';
     card.style.display = 'block';
     cfgConsorcioCargado = cid;
+    pintarReglamento(cid);
+    pintarMP(cid);
     marcarLimpio('config');
+}
+
+async function pintarReglamento(cid) {
+    const el = $('cfg-reglamento-actual');
+    el.textContent = '—';
+    try {
+        const r = await api(`/api/admin/consorcios/${cid}/reglamento`);
+        el.textContent = r ? 'Vigente: ' + r.nombre : 'Todavía no subiste el reglamento: el QR de la liquidación lo va a mostrar como pendiente.';
+    } catch(e) { el.textContent = ''; }
+}
+async function pintarMP(cid) {
+    $('cfg-mp-estado').textContent = '—';
+    try {
+        const r = await api(`/api/admin/consorcios/${cid}/mercadopago`);
+        $('cfg-mp-estado').textContent = r.conectado
+            ? '✅ Conectado a la cuenta ' + r.cuenta + '. Los vecinos ya ven el botón «Pagar con Mercado Pago».'
+            : 'Sin conectar: los vecinos informan el pago con comprobante, como hasta ahora.';
+        $('cfg-mp-form').style.display = r.conectado ? 'none' : 'flex';
+        $('cfg-mp-desconectar').style.display = r.conectado ? '' : 'none';
+    } catch(e) { $('cfg-mp-estado').textContent = ''; }
+}
+async function conectarMP() {
+    const cid = $('cfg-consorcio').value, token = $('cfg-mp-token').value.trim();
+    if (!cid || !token) { toast('Pegá el Access Token de Mercado Pago', 'warn'); return; }
+    try {
+        await api(`/api/admin/consorcios/${cid}/mercadopago`, {method: 'PUT', body: JSON.stringify({access_token: token})});
+        $('cfg-mp-token').value = '';
+        toast('Mercado Pago conectado');
+        pintarMP(cid);
+    } catch(e) { toast(e.message, 'err'); }
+}
+async function desconectarMP() {
+    const cid = $('cfg-consorcio').value;
+    if (!cid || !confirm('¿Desconectar Mercado Pago? Los vecinos dejan de ver el botón de pago.')) return;
+    try {
+        await api(`/api/admin/consorcios/${cid}/mercadopago`, {method: 'DELETE'});
+        toast('Mercado Pago desconectado');
+        pintarMP(cid);
+    } catch(e) { toast(e.message, 'err'); }
+}
+async function subirReglamento() {
+    const cid = $('cfg-consorcio').value, f = $('cfg-reglamento').files[0];
+    if (!cid || !f) { toast('Elegí el archivo del reglamento', 'warn'); return; }
+    const fd = new FormData();
+    fd.append('consorcio_id', cid);
+    fd.append('categoria', 'reglamento');
+    fd.append('nombre', f.name);
+    fd.append('archivo', f);
+    try {
+        const r = await fetch('/api/admin/archivos', {method: 'POST', body: fd});
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'No se pudo subir el reglamento');
+        $('cfg-reglamento').value = '';
+        toast('Reglamento subido. Ya sale en el QR de las liquidaciones.');
+        pintarReglamento(cid);
+    } catch(e) { toast(e.message, 'err'); }
 }
 
 /* Qué hace falta cargar en cada unidad para el método elegido. Se dice acá,
@@ -5903,6 +6009,26 @@ async function guardarAgendado() {
     const topBtn = $('topbar-perfil-btn');
     if (topBtn) topBtn.textContent = initials;
 })();
+
+/* Matrícula, CUIT y dirección: van al encabezado del PDF de la liquidación. */
+async function cargarDatosAdministracion() {
+    try {
+        const yo = await api('/api/me');
+        $('perfil-matricula').value = yo.matricula || '';
+        $('perfil-cuit').value = yo.cuit || '';
+        $('perfil-direccion').value = yo.direccion || '';
+    } catch(e) { /* el modal sigue sirviendo sin estos datos */ }
+}
+async function guardarDatosAdministracion() {
+    try {
+        await api('/api/me', {method: 'PUT', body: JSON.stringify({
+            matricula: $('perfil-matricula').value,
+            cuit: $('perfil-cuit').value,
+            direccion: $('perfil-direccion').value,
+        })});
+        toast('Listo, tus próximas liquidaciones salen con estos datos');
+    } catch(e) { toast(e.message, 'err'); }
+}
 /* El interruptor de notificaciones del perfil: activarlas acá cuando se
    cerró la tarjeta, o apagarlas en este dispositivo. */
 const PUSH_AYUDA = {

@@ -10,3 +10,5 @@ resend==2.7.0
 groq>=0.31.0
 PyMuPDF>=1.24.0
 pywebpush>=2.0.0
+cryptography>=42
+sentry-sdk[flask]>=2.0

@@ -1,0 +1,71 @@
+{% extends '_legal_base.html' %}
+{% block titulo %}Términos y condiciones{% endblock %}
+{% block contenido %}
+<h1>Términos y condiciones</h1>
+<p class="fecha">Última actualización: {{ legal.actualizado }}</p>
+
+<div class="resumen">
+    <b>En corto:</b> Niddo es una herramienta para administrar consorcios. La administración del edificio
+    decide qué se carga y responde por la liquidación; nosotros ponemos el software, lo cuidamos y no usamos
+    los datos de tu edificio para nada más que hacerlo andar.
+</div>
+
+<h2>1. Quiénes somos y qué es Niddo</h2>
+<p>Niddo ("Niddo", "nosotros") es un servicio de {{ legal.razon_social }}{% if legal.cuit %}, CUIT {{ legal.cuit }}{% endif %}{% if legal.domicilio %}, con domicilio en {{ legal.domicilio }}{% endif %}.
+Es una plataforma web para que las administraciones de consorcios liquiden expensas, registren gastos y cobros,
+y se comuniquen con los vecinos, y para que los vecinos consulten su cuenta, paguen, hagan reclamos y reserven
+espacios comunes.</p>
+
+<h2>2. Quién usa Niddo</h2>
+<ul>
+    <li><b>Administración:</b> la persona o empresa que administra uno o más consorcios. Su cuenta se habilita después de que la revisamos.</li>
+    <li><b>Vecino:</b> propietario o inquilino de una unidad. Entra a un edificio sólo si la administración aprueba su alta.</li>
+</ul>
+<p>Al crear una cuenta aceptás estos términos. Si los aceptás en nombre de una empresa, declarás que podés obligarla.</p>
+
+<h2>3. Lo que es responsabilidad de la administración</h2>
+<p>Niddo calcula con los datos que carga la administración. La administración es la única responsable de:</p>
+<ul>
+    <li>la exactitud de los gastos, comprobantes, coeficientes, saldos y datos de las unidades;</li>
+    <li>revisar cada liquidación antes de enviarla y cumplir la normativa que le aplique (en CABA, la Ley 941 y sus disposiciones);</li>
+    <li>tener la base legal para cargar los datos de los vecinos y de los proveedores;</li>
+    <li>las cuentas bancarias y de cobro que conecta, incluida su cuenta de Mercado Pago.</li>
+</ul>
+
+<h2>4. Pagos</h2>
+<p>Cuando un consorcio conecta Mercado Pago, el vecino le paga directamente a la cuenta del consorcio. Niddo no
+recibe, retiene ni administra ese dinero, y no es parte de la operación: rigen los términos de Mercado Pago. Niddo
+sólo registra el pago en la cuenta del vecino cuando Mercado Pago lo informa como aprobado.</p>
+
+<h2>5. Uso aceptable</h2>
+<p>No podés usar Niddo para cargar información falsa o de terceros sin autorización, intentar acceder a datos de otro
+edificio o de otra administración, afectar el funcionamiento del servicio ni revender el acceso. Podemos suspender una
+cuenta que lo haga, avisando cuando sea posible.</p>
+
+<h2>6. Disponibilidad y cambios</h2>
+<p>Trabajamos para que Niddo esté disponible siempre, pero puede haber interrupciones por mantenimiento o fallas de
+proveedores. Podemos mejorar o cambiar funciones. Si un cambio en estos términos te afecta, te avisamos por la app o
+por mail antes de que rija.</p>
+
+<h2>7. Precio</h2>
+<p>Durante el programa piloto Niddo es gratuito para las administraciones que participan. Antes de empezar a cobrar
+vamos a informar el precio con al menos 30 días de anticipación, y vas a poder darte de baja sin costo.</p>
+
+<h2>8. Tus datos son tuyos</h2>
+<p>La administración puede exportar sus datos (gastos, cobros, unidades) en Excel cuando quiera. Si deja de usar
+Niddo, le entregamos una copia completa y borramos sus datos en un plazo de 90 días, salvo lo que la ley nos obligue
+a guardar. El detalle está en la <a href="/privacidad">política de privacidad</a>.</p>
+
+<h2>9. Límite de responsabilidad</h2>
+<p>Niddo se brinda tal como está. En la medida en que la ley lo permita, no respondemos por daños indirectos ni por
+errores que provengan de datos cargados por los usuarios. Nada de esto limita los derechos que te da la Ley 24.240 de
+Defensa del Consumidor cuando sea aplicable.</p>
+
+<h2>10. Ley y jurisdicción</h2>
+<p>Estos términos se rigen por las leyes de la República Argentina. Ante un conflicto, intentamos primero resolverlo
+hablando; si no, son competentes los tribunales ordinarios de la Ciudad Autónoma de Buenos Aires, sin perjuicio de
+los derechos del consumidor a litigar en su domicilio.</p>
+
+<h2>11. Contacto</h2>
+<p>Cualquier consulta, a <a href="mailto:{{ legal.email }}">{{ legal.email }}</a>.</p>
+{% endblock %}

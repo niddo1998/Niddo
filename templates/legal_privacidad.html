@@ -1,0 +1,67 @@
+{% extends '_legal_base.html' %}
+{% block titulo %}Política de privacidad{% endblock %}
+{% block contenido %}
+<h1>Política de privacidad</h1>
+<p class="fecha">Última actualización: {{ legal.actualizado }}</p>
+
+<div class="resumen">
+    <b>En corto:</b> guardamos lo necesario para que tu edificio funcione, no vendemos ni compartimos datos para
+    publicidad, y podés pedirnos ver, corregir o borrar los tuyos cuando quieras.
+</div>
+
+<h2>1. Quién es responsable de tus datos</h2>
+<p>Seguimos la Ley 25.326 de Protección de los Datos Personales. Hay dos roles:</p>
+<ul>
+    <li><b>La administración del consorcio</b> es la responsable de los datos de su edificio (unidades, vecinos, deudas,
+        gastos). Decide qué se carga y para qué.</li>
+    <li><b>Niddo</b> trata esos datos por cuenta de la administración, sólo para prestarle el servicio
+        (art. 25 de la Ley 25.326). Es responsable directo únicamente de los datos de las cuentas de usuario y del uso de la plataforma.</li>
+</ul>
+
+<h2>2. Qué datos tratamos</h2>
+<ul>
+    <li><b>De tu cuenta:</b> nombre, email y teléfono; el ingreso se hace con Auth0.</li>
+    <li><b>Del edificio:</b> unidades, superficies, titulares, expensas, pagos, comprobantes de gastos, reclamos, mensajes, reservas.</li>
+    <li><b>De la administración:</b> razón social, CUIT, matrícula y domicilio, que salen impresos en cada liquidación.</li>
+    <li><b>Técnicos:</b> registros de errores sin datos personales y, si las activás, la suscripción a notificaciones de tu dispositivo.</li>
+</ul>
+<p>No guardamos datos de tarjetas: los pagos con Mercado Pago se hacen en su sitio.</p>
+
+<h2>3. Para qué los usamos</h2>
+<ul>
+    <li>Liquidar expensas, registrar cobros y mandarte tu resumen.</li>
+    <li>Avisarte por mail o notificación de vencimientos, respuestas a reclamos, pagos y reservas.</li>
+    <li>Mantener la plataforma segura y arreglar errores.</li>
+</ul>
+<p>No usamos los datos para publicidad, no los vendemos y no armamos perfiles.</p>
+
+<h2>4. Quién más los ve</h2>
+<p>Dentro de tu edificio, la administración ve todo lo del consorcio y cada vecino ve lo suyo. La liquidación de
+expensas, con el detalle de gastos y de todas las unidades, es pública para los consorcistas a través de un link no
+adivinable impreso en la liquidación, como exige en CABA la Disposición DGDyPC 1146/2024.</p>
+<p>Usamos proveedores que procesan datos por nuestra cuenta, con contratos que los obligan a cuidarlos: Vercel
+(servidores), Neon (base de datos, en São Paulo, Brasil), Auth0 (ingreso), Resend (mails), Groq (lectura automática
+de comprobantes que sube la administración), Sentry (registro de errores, sin datos personales) y, si el consorcio
+lo conecta, Mercado Pago. Algunos de esos servicios están fuera de Argentina; la transferencia se hace con las
+garantías que pide la ley.</p>
+
+<h2>5. Cuánto tiempo</h2>
+<p>Mientras la administración use Niddo. Si se da de baja, le entregamos una copia y borramos los datos en 90 días,
+salvo lo que una ley nos obligue a conservar.</p>
+
+<h2>6. Tus derechos</h2>
+<p>Podés pedir acceso, rectificación, actualización o supresión de tus datos escribiendo a
+<a href="mailto:{{ legal.email }}">{{ legal.email }}</a>. Si los datos son del edificio, también podés pedírselo a tu
+administración. Respondemos el acceso en 10 días corridos y la rectificación o supresión en 5 días hábiles, como
+indica la ley.</p>
+<p>La Agencia de Acceso a la Información Pública, en su carácter de órgano de control de la Ley 25.326, tiene la
+atribución de atender las denuncias y reclamos que se interpongan con relación al incumplimiento de las normas sobre
+protección de datos personales.</p>
+
+<h2>7. Seguridad</h2>
+<p>Todo viaja cifrado (HTTPS). Cada administración sólo puede ver sus propios consorcios, los secretos de cobro se
+guardan cifrados y el acceso de nuestro equipo a los datos queda registrado.</p>
+
+<h2>8. Cambios</h2>
+<p>Si cambiamos esta política de una forma que te afecte, te avisamos antes por la app o por mail.</p>
+{% endblock %}

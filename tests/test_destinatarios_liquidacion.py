@@ -89,14 +89,14 @@ def test_dos_vecinos_aprobados_en_la_misma_unidad_reciben_los_dos(admin, liquida
 def test_el_envio_le_escribe_al_mail_de_la_cuenta(admin, liquidada, monkeypatch):
     enviados = []
 
-    class _Emails:
+    class _Batch:
         @staticmethod
-        def send(mensaje):
-            enviados.append(mensaje)
-            return {'id': 'x'}
+        def send(mensajes):
+            enviados.extend(mensajes)
+            return {'data': [{'id': 'x'} for _ in mensajes]}
 
     import resend
-    monkeypatch.setattr(resend, 'Emails', _Emails)
+    monkeypatch.setattr(resend, 'Batch', _Batch)
     monkeypatch.setattr(resend, 'api_key', 'test-key', raising=False)
     monkeypatch.setenv('RESEND_API_KEY', 'test-key')
 

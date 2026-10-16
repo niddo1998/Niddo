@@ -70,3 +70,44 @@ def test_sin_sesion_no_hay_perfil(base, app_modulo):
     app_modulo.app.config['TESTING'] = True
     c = app_modulo.app.test_client()
     assert c.put('/api/me', json={'nombre': 'x'}).status_code == 401
+
+
+# ── Datos de la administración (salen en el PDF de la liquidación) ───────────
+
+@pytest.fixture
+def admin(base, app_modulo):
+    app_modulo.app.config['TESTING'] = True
+    c = app_modulo.app.test_client()
+    with c.session_transaction() as s:
+        s['user'] = {'sub': 'auth0|admin', 'email': 'admin@test',
+                     'name': 'Admin', 'role': 'admin'}
+    return c
+
+
+def _admin(base):
+    return base['administradores'][0]
+
+
+def test_el_admin_carga_matricula_cuit_y_direccion(admin, base):
+    r = admin.put('/api/me', json={'matricula': '12345', 'cuit': '20123456786',
+                                   'direccion': 'Corrientes 1234'})
+    assert r.status_code == 200
+    assert _admin(base)['matricula'] == '12345'
+    assert _admin(base)['cuit'] == '20-12345678-6'
+    assert _admin(base)['direccion'] == 'Corrientes 1234'
+
+
+def test_un_cuit_con_verificador_mal_no_entra(admin, base):
+    r = admin.put('/api/me', json={'cuit': '20-12345678-0'})
+    assert r.status_code == 400
+    assert 'cuit' not in _admin(base)
+
+
+def test_el_cuit_se_puede_borrar(admin, base):
+    admin.put('/api/me', json={'cuit': '20123456786'})
+    assert admin.put('/api/me', json={'cuit': ''}).status_code == 200
+    assert _admin(base)['cuit'] == ''
+
+
+def test_el_vecino_no_carga_matricula(client, base):
+    assert client.put('/api/me', json={'matricula': '1'}).status_code == 400

@@ -22,6 +22,26 @@ from recurrentes import periodos_pendientes, ultimo_dia_del_mes
 # ── Config ─────────────────────────────────────────────────────────────────────
 load_dotenv()
 
+# Monitoreo de errores. Sin SENTRY_DSN no hace nada. Nunca manda datos
+# personales: ni cookies, ni headers, ni el cuerpo de la request, ni el usuario.
+if os.environ.get('SENTRY_DSN'):
+    import sentry_sdk
+
+    def _sin_datos_personales(evento, _hint):
+        req = evento.get('request') or {}
+        for clave in ('cookies', 'headers', 'data', 'query_string', 'env'):
+            req.pop(clave, None)
+        evento.pop('user', None)
+        return evento
+
+    sentry_sdk.init(
+        dsn=os.environ['SENTRY_DSN'],
+        environment=os.environ.get('VERCEL_ENV', 'local'),
+        send_default_pii=False,
+        traces_sample_rate=0.0,
+        before_send=_sin_datos_personales,
+    )
+
 # Resolve paths relative to *this* file so the app works both locally
 # and when imported from api/index.py on Vercel.
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -84,6 +104,18 @@ def pesos(n) -> str:
     entero = entero.replace(',', '.')
     signo = '-' if v < 0 else ''
     return f'{signo}${NBSP_MONEDA}{entero},{dec}'
+
+
+app.jinja_env.filters['pesos'] = pesos
+
+
+def fecha_ar(valor):
+    """'2026-10-10' → '10/10/2026'. Devuelve lo que le den si no es fecha."""
+    t = str(valor or '')[:10]
+    return f'{t[8:10]}/{t[5:7]}/{t[:4]}' if re.fullmatch(r'\d{4}-\d{2}-\d{2}', t) else (valor or '')
+
+
+app.jinja_env.filters['fecha'] = fecha_ar
 
 
 def fmt_numero(n, decimales=2) -> str:
@@ -307,6 +339,7 @@ HOJA_CARGA = 'Carga'
 HEADERS_PLANTILLA_CONSORCIOS = [
     'consorcio*', 'direccion', 'cuit', 'encargado', 'tel_encargado',
     'unidad*', 'piso', 'tipo', 'superficie_m2', 'ambientes', 'vecino_nombre', 'vecino_email',
+    'saldo_anterior',
 ]
 ALIAS_COLUMNAS_CONSORCIO = {
     'consorcio': 'consorcio', 'edificio': 'consorcio', 'nombre': 'consorcio',
@@ -321,12 +354,14 @@ ALIAS_COLUMNAS_CONSORCIO = {
     'ambientes': 'ambientes',
     'vecino_nombre': 'vecino_nombre', 'vecino': 'vecino_nombre', 'propietario': 'vecino_nombre',
     'vecino_email': 'vecino_email', 'email': 'vecino_email', 'mail': 'vecino_email',
+    'saldo_anterior': 'saldo_anterior', 'saldo': 'saldo_anterior', 'deuda': 'saldo_anterior',
+    'deuda_anterior': 'saldo_anterior', 'saldo_inicial': 'saldo_anterior',
 }
 
 EJEMPLO_CONSORCIOS = [
     ['Torres del Parque', 'Av. Rivadavia 5200, CABA', '30-71234567-8', 'Carlos Gómez', '11 4567-8910',
-     '1A', '1', 'departamento', 62, 3, 'Laura Fernández', 'laura@mail.com'],
-    ['Torres del Parque', '', '', '', '', '1B', '1', 'departamento', 48, 2, 'Martín Ruiz', 'martin@mail.com'],
+     '1A', '1', 'departamento', 62, 3, 'Laura Fernández', 'laura@mail.com', 0],
+    ['Torres del Parque', '', '', '', '', '1B', '1', 'departamento', 48, 2, 'Martín Ruiz', 'martin@mail.com', 152300],
     ['Torres del Parque', '', '', '', '', 'PB', '0', 'local', 90, 1, 'Kiosco Don José', ''],
     ['Torres del Parque', '', '', '', '', 'C1', '-1', 'cochera', 12, None, '', ''],
     ['Edificio Belgrano', 'Juramento 2100, CABA', '', '', '', '3C', '3', 'departamento', 75, 4, 'Ana López', 'ana@mail.com'],
@@ -404,20 +439,24 @@ def build_carga_masiva_template(consorcios_existentes: list):
         ('campo', ('ambientes', 'Cantidad de ambientes. Sólo hace falta si el consorcio reparte por ambientes.')),
         ('campo', ('vecino_nombre / vecino_email', 'Quién vive o es dueño. Opcionales: el vecino también puede '
                                                    'pedir su alta desde la app.')),
+        ('campo', ('saldo_anterior', 'Lo que la unidad debe hoy, según tu sistema anterior. Entra en la primera '
+                                     'liquidación que hagas con Niddo como saldo anterior, con su interés. Si tiene '
+                                     'saldo a favor, ponelo en negativo. Vacío = 0.')),
         ('espacio', ''),
-        ('nota', 'Una unidad que ya existe en ese consorcio se saltea: subir dos veces el mismo archivo no duplica nada.'),
+        ('nota', 'Una unidad que ya existe en ese consorcio se saltea: subir dos veces el mismo archivo no duplica nada. '
+                 'Lo único que se actualiza de una unidad existente es el saldo_anterior, si viene cargado.'),
         ('nota', 'Los campos con * son obligatorios.'),
     ])
 
     ws_ej = wb.create_sheet('Ejemplo')
     encabezado_de_marca(ws_ej, 'Ejemplo', 'Así se ve una carga completa. Esta pestaña no se importa.')
     tabla(ws_ej, HEADERS_PLANTILLA_CONSORCIOS, EJEMPLO_CONSORCIOS,
-          formatos={8: 'numero', 9: 'numero'})
+          formatos={8: 'numero', 9: 'numero', 12: 'pesos'})
 
     ws = wb.create_sheet(HOJA_CARGA)
     encabezado_de_marca(ws, 'Carga', 'Completá desde la fila de abajo del encabezado. Esta es la pestaña que se importa.')
-    fila = tabla(ws, HEADERS_PLANTILLA_CONSORCIOS, [], formatos={8: 'numero', 9: 'numero'},
-                 anchos={0: 26, 1: 28, 2: 16, 3: 18, 4: 16, 5: 10, 6: 8, 7: 16, 8: 14, 9: 12, 10: 22, 11: 24})
+    fila = tabla(ws, HEADERS_PLANTILLA_CONSORCIOS, [], formatos={8: 'numero', 9: 'numero', 12: 'pesos'},
+                 anchos={0: 26, 1: 28, 2: 16, 3: 18, 4: 16, 5: 10, 6: 8, 7: 16, 8: 14, 9: 12, 10: 22, 11: 24, 12: 16})
     desde, hasta = fila + 1, fila + 1000
     _desplegable(ws, _lista_oculta(wb, 'tipo', list(TIPOS_UF_VALIDOS), 1), f'H{desde}:H{hasta}')
     if consorcios_existentes:
@@ -1191,7 +1230,8 @@ def _api_errors_como_json(e):
 # ── Páginas públicas ───────────────────────────────────────────────────────────
 @app.route('/')
 def index():
-    return render_template('index.html')
+    wa = re.sub(r'\D', '', os.environ.get('NIDDO_WHATSAPP', ''))
+    return render_template('index.html', whatsapp=wa, legal=datos_legales())
 
 
 # El service worker y el manifest tienen que servirse desde la raíz: el
@@ -1214,6 +1254,31 @@ def manifest():
 @app.route('/favicon.ico')
 def favicon():
     return send_file(os.path.join(app.static_folder, 'img', 'favicon.ico'), mimetype='image/x-icon')
+
+
+# ── Legales ────────────────────────────────────────────────────────────────────
+# Quién es Niddo ante la ley sale de variables de entorno: es lo único de estas
+# páginas que cambia cuando se constituye la sociedad, y no debería pedir un
+# deploy de código.
+
+def datos_legales():
+    return {
+        'razon_social': os.environ.get('NIDDO_RAZON_SOCIAL', 'Niddo'),
+        'cuit': os.environ.get('NIDDO_CUIT', ''),
+        'domicilio': os.environ.get('NIDDO_DOMICILIO', ''),
+        'email': os.environ.get('NIDDO_EMAIL_CONTACTO', 'soporte@niddo.app'),
+        'actualizado': '16 de octubre de 2026',
+    }
+
+
+@app.route('/terminos')
+def terminos():
+    return render_template('legal_terminos.html', legal=datos_legales())
+
+
+@app.route('/privacidad')
+def privacidad():
+    return render_template('legal_privacidad.html', legal=datos_legales())
 
 
 @app.route('/login')
@@ -2265,6 +2330,8 @@ def api_ufs_create(cid):
         'porcentaje_c': d.get('porcentaje_c') or 0,
         'porcentaje_e': d.get('porcentaje_e') or 0,
     }
+    if _numero_o_none(d.get('saldo_inicial')) is not None:
+        payload['saldo_inicial'] = _numero_o_none(d.get('saldo_inicial'))
     res = supabase.table('unidades_funcionales').insert(payload).execute()
     return jsonify(res.data[0] if res.data else {}), 201
 
@@ -2286,6 +2353,7 @@ def api_ufs_update(cid, uid):
         'porcentaje_b': d.get('porcentaje_b'),
         'porcentaje_c': d.get('porcentaje_c'),
         'porcentaje_e': d.get('porcentaje_e'),
+        'saldo_inicial': _numero_o_none(d.get('saldo_inicial')),
     }.items() if v is not None}
     res = supabase.table('unidades_funcionales').update(payload).eq('id', uid).eq('consorcio_id', cid).execute()
     return jsonify(res.data[0] if res.data else {})
@@ -2354,7 +2422,7 @@ def api_carga_masiva():
                 filas_unidades_nuevas.append((i, [nombre, _texto_celda(f.get('unidad')), _texto_celda(f.get('piso')),
                                                   _texto_celda(f.get('tipo')), f.get('superficie_m2'),
                                                   _texto_celda(f.get('vecino_nombre')), _texto_celda(f.get('vecino_email')),
-                                                  f.get('ambientes')]))
+                                                  f.get('ambientes'), f.get('saldo_anterior')]))
     elif 'Consorcios' in wb.sheetnames:
         # Rellenadas: una planilla vieja con columnas de menos no puede voltear el import.
         filas_consorcios = [(i, tuple(row or ()) + (None,) * 8)
@@ -2429,20 +2497,29 @@ def api_carga_masiva():
                 'vecino_nombre': row[5] or '',
                 'vecino_email': row[6] or '',
                 **({'ambientes': _entero_o_none(row[7])} if len(row) > 7 and row[7] not in (None, '') else {}),
+                **({'saldo_inicial': _numero_o_none(row[8])} if len(row) > 8 and _numero_o_none(row[8]) is not None else {}),
             })
 
     # Evitar duplicar UF ya existentes en el mismo consorcio
     numeros_existentes = set()
     if consorcio_ids_tocados:
-        existentes_uf = supabase.table('unidades_funcionales').select('consorcio_id,numero') \
+        existentes_uf = supabase.table('unidades_funcionales').select('id,consorcio_id,numero') \
             .in_('consorcio_id', list(consorcio_ids_tocados)).execute().data or []
-        numeros_existentes = {(u['consorcio_id'], u['numero'].strip().lower()) for u in existentes_uf}
+        numeros_existentes = {(u['consorcio_id'], u['numero'].strip().lower()): u['id'] for u in existentes_uf}
 
     ufs_a_insertar = []
     unidades_omitidas = 0
+    saldos_actualizados = 0
     vistas_en_archivo = set()
     for uf in nuevas_ufs:
         key = (uf['consorcio_id'], uf['numero'].strip().lower())
+        if key in numeros_existentes and 'saldo_inicial' in uf:
+            # Migrar es en dos tandas: primero las unidades, después la deuda
+            # que se exportó del sistema anterior. La segunda no duplica nada.
+            supabase.table('unidades_funcionales').update({'saldo_inicial': uf['saldo_inicial']}) \
+                .eq('id', numeros_existentes[key]).execute()
+            saldos_actualizados += 1
+            continue
         if key in numeros_existentes or key in vistas_en_archivo:
             unidades_omitidas += 1
             continue
@@ -2457,6 +2534,7 @@ def api_carga_masiva():
         'consorcios_reutilizados': len(ids_reutilizados),
         'unidades_creadas': len(ufs_a_insertar),
         'unidades_omitidas': unidades_omitidas,
+        'saldos_actualizados': saldos_actualizados,
         'errores': errores,
     })
 
@@ -4071,6 +4149,7 @@ def api_consorcio_vecino_aprobar(cid, vid):
         _mail_alta_vecino_resuelta(datos['vecino'], True, cid, datos['uf']['numero'])
     except Exception:
         app.logger.exception('Falló el aviso de aprobación del vecino %s', vid)
+    _avisar_novedad('vecino_alta', vecino_id=vid, unidad=datos['uf']['numero'])
     return jsonify({'ok': True, 'unidad': datos['uf']['numero']})
 
 
@@ -4350,10 +4429,9 @@ def api_dashboard_resumen():
                        and g.get('fecha_vencimiento')]
 
     # ── Cobros ────────────────────────────────────────────────────────────────
-    # La mora se calcula por fecha y no por `estado`: nada en la app pasa un
-    # cobro a 'vencido' el día del vencimiento, así que contar los que están en
-    # ese estado da cero para siempre. Mientras la mora no se materialice sola,
-    # el vencido es el pendiente cuya fecha ya pasó.
+    # La mora se calcula por fecha y no por `estado`: el cron diario pasa el
+    # cobro a 'vencido' recién después de los días de gracia, y si el cron no
+    # corrió, el estado se queda atrás. Por fecha, el número es el de hoy.
     impagos = supabase.table('cobros') \
         .select('id, total, estado, periodo, fecha_vencimiento, consorcio_id, unidad_id') \
         .in_('consorcio_id', cids).neq('estado', 'pagado').execute().data or []
@@ -4636,8 +4714,21 @@ def api_me():
 # editable y hay que acordarse de prohibirla. Acá nace prohibida.
 CAMPOS_PERFIL_EDITABLES = {
     'vecino': ('nombre', 'telefono'),
-    'admin': ('nombre', 'nombre_contacto', 'telefono'),
+    # cuit, matricula y direccion salen en el encabezado del PDF de la
+    # liquidación: la Ley 941 pide la matrícula del RPA en cada una.
+    'admin': ('nombre', 'nombre_contacto', 'telefono', 'cuit', 'matricula', 'direccion'),
 }
+
+
+def _cuit_valido(cuit):
+    """11 dígitos con el dígito verificador de ARCA. Acepta guiones."""
+    d = re.sub(r'\D', '', cuit or '')
+    if len(d) != 11:
+        return False
+    pesos = (5, 4, 3, 2, 7, 6, 5, 4, 3, 2)
+    resto = 11 - sum(int(a) * b for a, b in zip(d, pesos)) % 11
+    verificador = 0 if resto == 11 else 9 if resto == 10 else resto
+    return verificador == int(d[10])
 
 
 @app.route('/api/me', methods=['PUT'])
@@ -4661,6 +4752,11 @@ def api_me_update():
                                  f'{", ".join(permitidos)}'}), 400
     if 'nombre' in payload and not payload['nombre']:
         return jsonify({'error': 'El nombre no puede quedar vacío'}), 400
+    if payload.get('cuit'):
+        if not _cuit_valido(payload['cuit']):
+            return jsonify({'error': 'El CUIT no es válido. Revisá los 11 números.'}), 400
+        d = re.sub(r'\D', '', payload['cuit'])
+        payload['cuit'] = f'{d[:2]}-{d[2:10]}-{d[10]}'
 
     res = supabase.table(table).update(payload).eq('auth0_id', user['sub']).execute()
     if not res.data:
@@ -4731,7 +4827,12 @@ def api_vecinos_cobro_actual():
     if not unidad_id:
         return jsonify(None)
     res = supabase.table('cobros').select('*').eq('unidad_id', unidad_id).in_('estado', ['pendiente', 'vencido', 'en_mora']).order('periodo', desc=True).limit(1).execute()
-    return jsonify(res.data[0] if res.data else None)
+    if not res.data:
+        return jsonify(None)
+    cobro = res.data[0]
+    # Si el edificio conectó Mercado Pago, la pantalla ofrece pagar ahí mismo.
+    cobro['pago_online'] = bool(_token_mp(cobro.get('consorcio_id')))
+    return jsonify(cobro)
 
 
 @app.route('/api/vecinos/cobros/export')
@@ -4801,6 +4902,134 @@ def api_vecinos_resumen(rid):
     consorcio = liq.get('consorcios') or {}
     buf = io.BytesIO(_pdf_de_liquidacion(liq, consorcio, lid))
     return pdf_response(buf, _nombre_pdf_liquidacion(liq, consorcio))
+
+
+# ── Pagar la expensa con Mercado Pago ─────────────────────────────────────────
+# Cada consorcio conecta su propia cuenta: la plata entra directo al edificio.
+# El token vive cifrado en `consorcio_secretos`, una tabla aparte para que
+# ningún select('*') de consorcios lo mande al navegador.
+
+def _token_mp(cid):
+    from cifrado import descifrar
+    try:
+        fila = supabase.table('consorcio_secretos').select('mp_access_token_cifrado') \
+            .eq('consorcio_id', cid).execute().data
+    except Exception:
+        return None   # sin la migración v24, simplemente no hay pago online
+    return descifrar(fila[0].get('mp_access_token_cifrado')) if fila else None
+
+
+@app.route('/api/admin/consorcios/<cid>/mercadopago', methods=['GET'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_mp_estado(cid):
+    consorcio_propio(cid, 'id')
+    try:
+        fila = supabase.table('consorcio_secretos').select('mp_cuenta, updated_at') \
+            .eq('consorcio_id', cid).execute().data
+    except Exception:
+        fila = None
+    if not fila or not fila[0].get('mp_cuenta'):
+        return jsonify({'conectado': False})
+    return jsonify({'conectado': True, 'cuenta': fila[0]['mp_cuenta']})
+
+
+@app.route('/api/admin/consorcios/<cid>/mercadopago', methods=['PUT'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_mp_conectar(cid):
+    import mercadopago_niddo as mp
+    from cifrado import cifrar
+    consorcio_propio(cid, 'id')
+    token = ((request.json or {}).get('access_token') or '').strip()
+    if not token.startswith(('APP_USR-', 'TEST-')):
+        return jsonify({'error': 'Pegá el Access Token de Mercado Pago: empieza con APP_USR-'}), 400
+    try:
+        yo = mp.cuenta(token)
+    except mp.ErrorMercadoPago:
+        return jsonify({'error': 'Mercado Pago no reconoció ese token. Revisá que sea el de producción.'}), 400
+    nombre = yo.get('email') or yo.get('nickname') or str(yo.get('id') or '')
+    supabase.table('consorcio_secretos').upsert({
+        'consorcio_id': cid, 'mp_access_token_cifrado': cifrar(token),
+        'mp_cuenta': nombre, 'updated_at': now_iso(),
+    }, on_conflict='consorcio_id').execute()
+    return jsonify({'conectado': True, 'cuenta': nombre})
+
+
+@app.route('/api/admin/consorcios/<cid>/mercadopago', methods=['DELETE'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_mp_desconectar(cid):
+    consorcio_propio(cid, 'id')
+    supabase.table('consorcio_secretos').update({
+        'mp_access_token_cifrado': None, 'mp_cuenta': None, 'updated_at': now_iso(),
+    }).eq('consorcio_id', cid).execute()
+    return jsonify({'conectado': False})
+
+
+@app.route('/api/vecinos/cobros/<rid>/pagar', methods=['POST'])
+@require_auth(allowed_roles=['vecino'])
+def api_vecinos_pagar_mp(rid):
+    """Arma el link de Checkout Pro para este cobro y lo devuelve."""
+    import mercadopago_niddo as mp
+    cobro = supabase.table('cobros').select('*').eq('id', rid).execute().data
+    if not cobro:
+        _no_es_tuyo()
+    cobro = cobro[0]
+    unidad_propia(cobro.get('unidad_id'))
+    if cobro.get('estado') == 'pagado':
+        return jsonify({'error': 'Esta expensa ya está paga'}), 400
+    token = _token_mp(cobro.get('consorcio_id'))
+    if not token:
+        return jsonify({'error': 'Tu edificio todavía no tiene el pago con Mercado Pago'}), 400
+    con = supabase.table('consorcios').select('nombre').eq('id', cobro['consorcio_id']).execute().data
+    uf = supabase.table('unidades_funcionales').select('numero').eq('id', cobro['unidad_id']).execute().data
+    try:
+        pref = mp.crear_preferencia(
+            token, cobro, (con[0] if con else {}).get('nombre', ''), (uf[0] if uf else {}).get('numero', ''),
+            url_volver=url_publica('/dashboard/vecino?pago=mp#expensas'),
+            url_webhook=url_publica(f"/webhooks/mercadopago/{cobro['consorcio_id']}"))
+    except mp.ErrorMercadoPago as e:
+        app.logger.warning('No se pudo crear la preferencia de MP: %s', e)
+        return jsonify({'error': 'Mercado Pago no respondió. Probá de nuevo en un rato.'}), 502
+    return jsonify({'url': pref['init_point']})
+
+
+@app.route('/webhooks/mercadopago/<cid>', methods=['POST', 'GET'])
+def webhook_mercadopago(cid):
+    """Mercado Pago avisa que hubo un pago. Se verifica contra su API, siempre.
+
+    Responde 200 aunque no haga nada: si no, Mercado Pago reintenta durante días.
+    """
+    import mercadopago_niddo as mp
+    cuerpo = request.get_json(silent=True) or {}
+    tipo = request.args.get('type') or request.args.get('topic') or cuerpo.get('type')
+    pid = (request.args.get('data.id') or (cuerpo.get('data') or {}).get('id')
+           or (request.args.get('id') if tipo == 'payment' else None))
+    if tipo != 'payment' or not pid or not str(pid).isdigit():
+        return jsonify({'ok': True})
+    token = _token_mp(cid)
+    if not token:
+        return jsonify({'ok': True})
+    try:
+        p = mp.pago(token, pid)
+    except mp.ErrorMercadoPago:
+        app.logger.exception('No se pudo leer el pago %s de MP', pid)
+        return jsonify({'error': 'reintentar'}), 502   # que Mercado Pago reintente
+    if p['estado'] != 'approved' or not p['cobro_id']:
+        return jsonify({'ok': True})
+    cobro = supabase.table('cobros').select('*').eq('id', p['cobro_id']) \
+        .eq('consorcio_id', cid).execute().data
+    if not cobro or cobro[0].get('estado') == 'pagado':
+        return jsonify({'ok': True})
+    cobro = cobro[0]
+    if p['monto'] + 0.01 < float(cobro.get('total') or 0):
+        app.logger.warning('Pago MP %s por menos del total del cobro %s', pid, cobro['id'])
+        return jsonify({'ok': True})
+    notas = (cobro.get('notas') or '').strip()
+    supabase.table('cobros').update({
+        'estado': 'pagado', 'fecha_pago': p['fecha'] or date.today().isoformat(),
+        'notas': (notas + ' · ' if notas else '') + f"Pagado con Mercado Pago (operación {p['id']})",
+    }).eq('id', cobro['id']).execute()
+    _avisar_novedad('pago_online', cobro=cobro, monto=p['monto'])
+    return jsonify({'ok': True})
 
 
 @app.route('/api/vecinos/cobros/<rid>/cupon')
@@ -5691,6 +5920,14 @@ def api_admin_archivos_create():
     return jsonify(res.data[0] if res.data else {}), 201
 
 
+@app.route('/api/admin/consorcios/<cid>/reglamento')
+@require_auth(allowed_roles=['admin'])
+def api_admin_reglamento(cid):
+    """El reglamento vigente del consorcio, el que abre el QR de la liquidación."""
+    consorcio_propio(cid, 'id')
+    return jsonify(_reglamento_de(cid))
+
+
 @app.route('/api/admin/archivos/<aid>', methods=['DELETE'])
 @require_auth(allowed_roles=['admin'])
 def api_admin_archivos_delete(aid):
@@ -5788,6 +6025,10 @@ def api_admin_reclamos_update(rid):
     # El aviso va después de guardar y sin poder voltear la respuesta: el
     # reclamo ya se movió, y que Resend esté caído no es motivo para que el
     # administrador vea un error sobre algo que sí quedó hecho.
+    if actualizado and (respuesta or payload.get('estado') in ('en_proceso', 'resuelto', 'cerrado')):
+        _avisar_novedad('vecino_reclamo_estado', reclamo=actualizado,
+                        estado=payload.get('estado'), cuerpo=respuesta)
+
     if actualizado:
         try:
             _mail_respuesta_reclamo(actualizado, payload.get('estado'),
@@ -5933,7 +6174,7 @@ def api_admin_avisos_pago_update(aid):
     # `fila_de_consorcio_propio` sólo trae id y consorcio_id: para saldar el
     # cobro hacen falta el cobro al que apunta y la fecha que declaró el vecino.
     aviso = supabase.table('avisos_pago') \
-        .select('id, consorcio_id, cobro_id, fecha_pago, unidad_id, estado') \
+        .select('id, consorcio_id, cobro_id, fecha_pago, unidad_id, estado, vecino_id, monto') \
         .eq('id', aid).single().execute().data or {}
     d = request.json or {}
     estado = d.get('estado')
@@ -5978,6 +6219,9 @@ def api_admin_avisos_pago_update(aid):
             .update({'estado': 'pendiente', 'fecha_pago': None}) \
             .eq('id', aviso['cobro_id']).eq('estado', 'pagado').execute()
         cobro = hecho.data[0] if hecho.data else None
+
+    if estado != aviso.get('estado') and estado in ('aceptado', 'rechazado'):
+        _avisar_novedad('vecino_aviso_pago', aviso=aviso, estado=estado)
 
     return jsonify({**actualizado, 'cobro': cobro})
 
@@ -6589,6 +6833,14 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
         for c in cobros_ant:
             cobros_ant_por_uf.setdefault(c['unidad_id'], c)
 
+    # La deuda que la unidad traía del sistema anterior entra una sola vez: en
+    # la primera liquidación, cuando todavía no tiene ningún cobro en Niddo.
+    # Desde ahí la arrastra el cobro del mes, como cualquier otra deuda.
+    con_historia = set()
+    if uf_ids and numero_revision <= 1 and any(_numero_o_none(uf.get('saldo_inicial')) for uf in ufs):
+        con_historia = {c['unidad_id'] for c in supabase.table('cobros').select('unidad_id')
+                        .in_('unidad_id', uf_ids).lt('periodo', periodo).execute().data}
+
     amenities_por_uf = _cargos_de_amenities(consorcio_id, periodo, uf_ids)
 
     prorrateo_rows = []
@@ -6602,6 +6854,8 @@ def _generar_prorrateo(liq_id, consorcio_id, periodo, numero_revision=1):
             saldo_ant = float(c.get('total', 0))
             if c.get('estado') == 'pagado':
                 pago = float(c.get('total', 0))
+        elif numero_revision <= 1 and uf['id'] not in con_historia:
+            saldo_ant = float(_numero_o_none(uf.get('saldo_inicial')) or 0)
 
         # Puede quedar negativo: es un crédito y se arrastra a favor del vecino.
         saldo_pend = round(saldo_ant - pago, 2)
@@ -6759,7 +7013,7 @@ def api_liquidacion_prorrateo_update(lid, pid):
 
 # ── Resumen personalizado por UF ───────────────────────────────────────────────
 
-def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
+def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf, enlace=None):
     """Genera el HTML del resumen personalizado para una UF.
 
     Todo lo que viene de la base pasa por `escape()`. Este HTML sale por dos
@@ -6959,6 +7213,11 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf):
     </table>
 </div>
 
+{f'''<div style="text-align:center;margin-top:16px;">
+    <a href="{escape(enlace)}" style="display:inline-block;background:#F2B705;color:#3A2A08;font-weight:800;font-size:15px;text-decoration:none;padding:13px 26px;border-radius:999px;">Ver la liquidación completa y los comprobantes</a>
+    <p style="margin:8px 0 0;font-size:12px;color:#8A7F75;">El PDF con todas las unidades, cada comprobante, el reglamento y el manual de buenas prácticas.</p>
+</div>''' if enlace else ''}
+
 <!-- Datos de pago -->
 <div style="background:#fff;border-radius:16px;margin-top:16px;padding:20px;border:1px solid #EFE6DB;">
     <h3 style="margin:0 0 14px;font-size:15px;font-weight:700;color:#111;">💳 Datos de pago</h3>
@@ -7056,7 +7315,140 @@ def _pdf_de_liquidacion(liq, consorcio, lid):
         .eq('liquidacion_id', lid).execute().data or []
     prorrateos.sort(key=lambda p: str((p.get('unidades_funcionales') or {}).get('numero') or ''))
 
-    return construir_pdf(liq, consorcio, datos_admin, rubros, prorrateos)
+    return construir_pdf(liq, consorcio, datos_admin, rubros, prorrateos,
+                         enlace=enlace_publico_liquidacion(liq))
+
+
+# ── La liquidación pública (QR de las Disp. DGDyPC 1146/2024 y 521/2025) ─────
+# En CABA cada liquidación tiene que llevar un QR o link a los comprobantes del
+# período, y desde abril de 2025 también al reglamento de propiedad horizontal
+# y al Manual de Buenas Prácticas Consorciales. El link no puede pedir login:
+# lo escanea cualquier consorcista desde el papel. Por eso es un token largo y
+# al azar por liquidación, que no se deduce del id.
+
+MANUAL_BUENAS_PRACTICAS_URL = os.environ.get(
+    'MANUAL_BUENAS_PRACTICAS_URL',
+    'https://boletinoficial.buenosaires.gob.ar/normativaba/norma/776269')
+
+
+def url_publica(ruta):
+    """URL absoluta de Niddo. Fuera de una request (el cron) usa NIDDO_URL."""
+    base = os.environ.get('NIDDO_URL', '')
+    if not base:
+        try:
+            base = request.url_root
+        except RuntimeError:
+            base = 'https://niddo-eta.vercel.app'
+    return base.rstrip('/') + ruta
+
+
+def token_publico_de(liq):
+    """El token de la página pública de la liquidación; lo crea la primera vez.
+
+    Si la columna todavía no existe (migración v24 sin correr) devuelve None y
+    la liquidación sale sin QR, como antes, en vez de romper el PDF.
+    """
+    if liq.get('token_publico'):
+        return liq['token_publico']
+    import secrets
+    token = secrets.token_urlsafe(12)
+    try:
+        supabase.table('liquidaciones').update({'token_publico': token}) \
+            .eq('id', liq.get('id')).execute()
+    except Exception:
+        app.logger.warning('liquidaciones.token_publico no existe: falta la migración v24')
+        return None
+    liq['token_publico'] = token
+    return token
+
+
+def enlace_publico_liquidacion(liq):
+    token = token_publico_de(liq) if liq.get('id') else None
+    return url_publica(f'/l/{token}') if token else None
+
+
+def _liquidacion_por_token(token):
+    if not token or len(token) < 12:
+        abort(404)
+    try:
+        res = supabase.table('liquidaciones').select(LIQ_CONSORCIO_PDF) \
+            .eq('token_publico', token).execute().data
+    except Exception:
+        res = None
+    if not res:
+        abort(404)
+    return res[0]
+
+
+def _reglamento_de(consorcio_id):
+    """El último reglamento que subió el admin para el consorcio, sin el archivo."""
+    res = supabase.table('archivos_consorcio').select('id, nombre, created_at') \
+        .eq('consorcio_id', consorcio_id).eq('categoria', 'reglamento') \
+        .order('created_at', desc=True).limit(1).execute().data
+    return res[0] if res else None
+
+
+@app.route('/l/<token>')
+def liquidacion_publica(token):
+    liq = _liquidacion_por_token(token)
+    consorcio = liq.get('consorcios') or {}
+    rubros = _rubros_con_items(liq['id'])
+    gasto_ids = [it['gasto_id'] for r in rubros for it in r['items'] if it.get('gasto_id')]
+    con_comprobante = set()
+    if gasto_ids:
+        con_comprobante = {c['gasto_id'] for c in supabase.table('comprobantes_gastos')
+                           .select('gasto_id').in_('gasto_id', gasto_ids).execute().data}
+    for r in rubros:
+        for it in r['items']:
+            it['tiene_comprobante'] = it.get('gasto_id') in con_comprobante
+    admin = supabase.table('administradores') \
+        .select('nombre, nombre_contacto, matricula, cuit, direccion, telefono, email_contacto, email') \
+        .eq('id', liq.get('admin_id')).execute().data
+    resp = make_response(render_template(
+        'liquidacion_publica.html', liq=liq, consorcio=consorcio, rubros=rubros,
+        admin=admin[0] if admin else {}, token=token,
+        periodo=periodo_largo_es(liq.get('periodo')),
+        reglamento=_reglamento_de(liq.get('consorcio_id')),
+        manual_url=MANUAL_BUENAS_PRACTICAS_URL,
+        total=round(sum(float(r.get('subtotal') or 0) for r in rubros), 2)))
+    # La página no tiene que quedar en buscadores ni mandar el token a terceros.
+    resp.headers['X-Robots-Tag'] = 'noindex, nofollow'
+    resp.headers['Referrer-Policy'] = 'no-referrer'
+    return resp
+
+
+@app.route('/l/<token>/pdf')
+def liquidacion_publica_pdf(token):
+    liq = _liquidacion_por_token(token)
+    consorcio = liq.get('consorcios') or {}
+    buf = io.BytesIO(_pdf_de_liquidacion(liq, consorcio, liq['id']))
+    return pdf_response(buf, _nombre_pdf_liquidacion(liq, consorcio))
+
+
+@app.route('/l/<token>/comprobante/<gid>')
+def liquidacion_publica_comprobante(token, gid):
+    """Sólo comprobantes de gastos que están en ESTA liquidación."""
+    liq = _liquidacion_por_token(token)
+    rubros = _rubros_con_items(liq['id'])
+    if gid not in {it.get('gasto_id') for r in rubros for it in r['items']}:
+        abort(404)
+    res = supabase.table('comprobantes_gastos').select('*').eq('gasto_id', gid).execute().data
+    if not res:
+        abort(404)
+    comp = res[0]
+    return enviar_adjunto(comp['archivo_base64'], comp.get('archivo_nombre', 'comprobante.pdf'),
+                          comp.get('mime_type'))
+
+
+@app.route('/l/<token>/reglamento')
+def liquidacion_publica_reglamento(token):
+    liq = _liquidacion_por_token(token)
+    reg = _reglamento_de(liq.get('consorcio_id'))
+    if not reg:
+        abort(404)
+    fila = supabase.table('archivos_consorcio').select('*').eq('id', reg['id']).execute().data[0]
+    return enviar_adjunto(fila['archivo_base64'], fila.get('nombre') or 'reglamento.pdf',
+                          fila.get('mime_type'))
 
 
 def _generar_cobros_de_liquidacion(liq, prorrateos):
@@ -7166,78 +7558,55 @@ def api_liquidacion_enviar(lid):
         _avisar_novedad('vecino_expensa', periodo=periodo_largo_es(liq.get('periodo')),
                         unidades=[p.get('unidad_id') for p in prorrateos])
 
-    # El PDF se arma UNA vez para todo el consorcio, no uno por unidad: es la
-    # liquidación entera y es idéntica para todos, así que generarla 40 veces
-    # sería 40 veces el mismo trabajo dentro de una request que ya manda 40
-    # mails. Si falla, los mails salen igual sin adjunto: el resumen del cuerpo
-    # es el que el vecino lee, y quedarse sin avisar es peor que sin PDF.
-    pdf_bytes = None
-    try:
-        pdf_bytes = _pdf_de_liquidacion(liq, consorcio, lid)
-    except Exception:
-        app.logger.exception('No se pudo generar el PDF de la liquidación %s', lid)
-
-    enviados = 0
-    fallidos = 0
+    # Los mails salen por lote (hasta 100 por llamada a Resend) y no de a uno:
+    # de a uno eran dos viajes de red por unidad, en serie, y con 40 unidades
+    # la request pasaba los 10 s de Vercel y la liquidación quedaba a medio
+    # publicar. El lote de Resend no acepta adjuntos, así que el PDF ya no va
+    # pegado: el mail lleva el link a la página pública de la liquidación, que
+    # además tiene los comprobantes y el reglamento que pide la Disp. 1146/2024.
+    enlace = enlace_publico_liquidacion(liq)
     from_email = os.environ.get('RESEND_FROM_EMAIL', 'Niddo <noreply@niddo.app>')
+    asunto = (
+        # El asunto distingue la complementaria: es lo primero que ve el
+        # vecino y con el mismo texto los dos mails se confunden entre sí.
+        f'📋 Expensa complementaria — {consorcio.get("nombre", "")} — {liq.get("periodo", "")}'
+        if int(liq.get('numero_revision') or 1) > 1 else
+        f'📋 Resumen de expensas — {consorcio.get("nombre", "")} — {liq.get("periodo", "")}'
+    )
 
+    envios = []      # una fila de resumen_envios por unidad
+    mensajes = []    # (índice en envios, mensaje) de los que tienen a quién mandar
     for prorrateo in prorrateos:
         uf = prorrateo.get('unidades_funcionales', {})
         destinos = destinatarios_de_unidad(prorrateo.get('unidad_id'), uf, registrados)
-        email_destino = ', '.join(destinos)
-
-        html = _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf)
-
-        estado = 'enviado'
-        error_detalle = None
-        fecha_envio = now_iso()
-
-        if email_destino and resend.api_key:
-            try:
-                periodo_display = liq.get('periodo', '')
-                mensaje = {
-                    'from': from_email,
-                    'to': destinos,
-                    'subject': (
-                        # El asunto distingue la complementaria: es lo primero que ve el
-                        # vecino y con el mismo texto los dos mails se confunden entre sí.
-                        f'📋 Expensa complementaria — {consorcio.get("nombre", "")} — {periodo_display}'
-                        if int(liq.get('numero_revision') or 1) > 1 else
-                        f'📋 Resumen de expensas — {consorcio.get("nombre", "")} — {periodo_display}'
-                    ),
-                    'html': html,
-                }
-                if pdf_bytes:
-                    mensaje['attachments'] = [{
-                        'filename': _nombre_pdf_liquidacion(liq, consorcio),
-                        'content': list(pdf_bytes),
-                    }]
-                resend.Emails.send(mensaje)
-                enviados += 1
-            except Exception as e:
-                estado = 'fallido'
-                error_detalle = str(e)
-                fallidos += 1
-        elif not email_destino:
-            estado = 'fallido'
-            error_detalle = 'Sin email configurado'
-            fallidos += 1
+        html = _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf, enlace=enlace)
+        fila = {
+            'liquidacion_id': lid, 'unidad_id': uf.get('id'), 'canal': 'email',
+            'estado': 'enviado', 'email_destino': ', '.join(destinos),
+            'fecha_envio': now_iso(), 'error_detalle': None, 'resumen_html': html,
+        }
+        if not destinos:
+            fila.update(estado='fallido', fecha_envio=None, error_detalle='Sin email configurado')
         elif not resend.api_key:
-            estado = 'fallido'
-            error_detalle = 'RESEND_API_KEY no configurada'
-            fallidos += 1
+            fila.update(estado='fallido', fecha_envio=None, error_detalle='RESEND_API_KEY no configurada')
+        else:
+            mensajes.append((len(envios), {'from': from_email, 'to': destinos,
+                                           'subject': asunto, 'html': html}))
+        envios.append(fila)
 
-        # Registrar envío
-        supabase.table('resumen_envios').insert({
-            'liquidacion_id': lid,
-            'unidad_id': uf.get('id'),
-            'canal': 'email',
-            'estado': estado,
-            'email_destino': email_destino,
-            'fecha_envio': fecha_envio if estado == 'enviado' else None,
-            'error_detalle': error_detalle,
-            'resumen_html': html,
-        }).execute()
+    for i in range(0, len(mensajes), 100):
+        lote = mensajes[i:i + 100]
+        try:
+            resend.Batch.send([m for _, m in lote])
+        except Exception as e:
+            app.logger.exception('Falló un lote de mails de la liquidación %s', lid)
+            for j, _ in lote:
+                envios[j].update(estado='fallido', fecha_envio=None, error_detalle=str(e)[:500])
+
+    if envios:
+        supabase.table('resumen_envios').insert(envios).execute()
+    enviados = sum(1 for e in envios if e['estado'] == 'enviado')
+    fallidos = len(envios) - enviados
 
     # Actualizar estado de liquidación a publicada
     if enviados > 0:
@@ -7681,9 +8050,161 @@ def _push_por_novedad(tipo, **d):
         push_a('vecino', _vecinos_de_unidades(d.get('unidades') or []),
                f"Tu expensa de {d.get('periodo') or 'este mes'} ya está",
                'Entrá para ver el resumen y cómo pagarla.', vecino_url + '#expensas', 'expensas')
+    elif tipo == 'vecino_aviso_pago':
+        a = d['aviso']
+        if d['estado'] == 'aceptado':
+            titulo, cuerpo = 'Tu pago quedó registrado', f"La administración aceptó tu pago de {pesos(a.get('monto'))}."
+        else:
+            titulo, cuerpo = 'Revisá tu pago informado', 'La administración no pudo validarlo. Entrá para ver el detalle.'
+        push_a('vecino', [a.get('vecino_id')], titulo, cuerpo, vecino_url + '#expensas', 'expensas')
+    elif tipo == 'vecino_reclamo_estado':
+        r = d['reclamo']
+        if d.get('cuerpo'):
+            titulo, cuerpo = 'La administración respondió tu reclamo', d['cuerpo']
+        else:
+            titulo = {'en_proceso': 'Tu reclamo está en proceso', 'resuelto': 'Tu reclamo quedó resuelto',
+                      'cerrado': 'Tu reclamo se cerró'}.get(d.get('estado'), 'Tu reclamo se actualizó')
+            cuerpo = r.get('titulo') or ''
+        push_a('vecino', [r.get('vecino_id')], titulo, cuerpo, vecino_url + '#reclamos', 'reclamos')
+    elif tipo == 'vecino_alta':
+        push_a('vecino', [d['vecino_id']], '¡Bienvenido al edificio!',
+               f"La administración aprobó tu alta en la unidad {d.get('unidad') or ''}. Ya podés usar Niddo.",
+               vecino_url, 'alta')
+    elif tipo == 'pago_online':
+        c = d['cobro']
+        push_a('admin', _admin_del_consorcio(c.get('consorcio_id')), 'Entró un pago por Mercado Pago',
+               f"{pesos(d.get('monto'))} de la expensa {c.get('periodo') or ''}. Ya quedó marcada como paga.",
+               admin_url + '#cobros', 'cobros')
+        push_a('vecino', _vecinos_de_unidades([c.get('unidad_id')]), 'Listo, tu expensa quedó paga',
+               f"Recibimos {pesos(d.get('monto'))} por Mercado Pago.", vecino_url + '#expensas', 'expensas')
     elif tipo == 'admin_reserva':
         push_a('admin', _admin_del_consorcio(d['consorcio_id']), 'Reserva nueva',
                d.get('texto') or '', admin_url + '#amenities', 'reservas')
+
+
+# ── Avisos programados (cron) ─────────────────────────────────────────────────
+# Lo que nadie dispara con un click: que se acerca el vencimiento, que la
+# expensa venció, que mañana tenés el SUM. Vercel Hobby sólo permite un cron
+# por día, así que los dispara GitHub Actions (.github/workflows/avisos.yml)
+# con un POST autenticado con CRON_SECRET. Cada aviso se manda una sola vez
+# aunque el cron corra de nuevo: la clave queda en `avisos_enviados`.
+
+ZONA_AR = timezone(timedelta(hours=-3))   # Argentina no tiene horario de verano
+
+
+def ahora_ar():
+    return datetime.now(ZONA_AR)
+
+
+def _cron_autorizado():
+    import hmac
+    esperado = os.environ.get('CRON_SECRET', '')
+    recibido = request.headers.get('Authorization', '')
+    return bool(esperado) and hmac.compare_digest(recibido, f'Bearer {esperado}')
+
+
+def _una_vez(clave):
+    """True la primera vez que se pide esta clave; después, False."""
+    try:
+        if supabase.table('avisos_enviados').select('clave').eq('clave', clave).execute().data:
+            return False
+        supabase.table('avisos_enviados').insert({'clave': clave}).execute()
+        return True
+    except Exception:
+        # Sin la tabla (v24 sin correr) o con la clave ya insertada por otra
+        # corrida en paralelo: mejor no avisar que avisar dos veces.
+        return False
+
+
+def _fecha(valor):
+    try:
+        return date.fromisoformat(str(valor)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def avisos_diarios(hoy=None):
+    """Recordatorios de vencimiento, mora automática y votaciones por cerrar."""
+    hoy = hoy or ahora_ar().date()
+    hecho = {'recordatorios': 0, 'vencidos': 0}
+
+    pendientes = supabase.table('cobros') \
+        .select('id, unidad_id, consorcio_id, periodo, total, fecha_vencimiento, estado') \
+        .eq('estado', 'pendiente').execute().data or []
+    gracia = {}
+    if pendientes:
+        cids = list({c['consorcio_id'] for c in pendientes if c.get('consorcio_id')})
+        gracia = {c['id']: int(c.get('dias_gracia_mora') or 0) for c in supabase.table('consorcios')
+                  .select('id, nombre, dias_gracia_mora').in_('id', cids).execute().data or []}
+
+    vencidos_por_consorcio = {}
+    for c in pendientes:
+        vto = _fecha(c.get('fecha_vencimiento'))
+        if not vto:
+            continue
+        faltan = (vto - hoy).days
+        if faltan in (3, 0) and _una_vez(f"vto-{faltan}-{c['id']}"):
+            titulo = 'Hoy vence tu expensa' if faltan == 0 else f"Tu expensa vence el {vto.strftime('%d/%m')}"
+            push_a('vecino', _vecinos_de_unidades([c['unidad_id']]), titulo,
+                   f"{pesos(c.get('total'))} de {periodo_largo_es(c.get('periodo'))}. Pagala desde la app.",
+                   '/dashboard/vecino#expensas', 'expensas')
+            hecho['recordatorios'] += 1
+        # Mora automática: pasado el vencimiento más los días de gracia del
+        # consorcio, el cobro queda vencido. El interés no se suma acá: lo
+        # calcula la próxima liquidación sobre el saldo impago, una sola vez.
+        if faltan < -gracia.get(c.get('consorcio_id'), 0):
+            supabase.table('cobros').update({'estado': 'vencido'}) \
+                .eq('id', c['id']).eq('estado', 'pendiente').execute()
+            hecho['vencidos'] += 1
+            vencidos_por_consorcio.setdefault(c['consorcio_id'], []).append(c)
+            if _una_vez(f"vencido-{c['id']}"):
+                push_a('vecino', _vecinos_de_unidades([c['unidad_id']]), 'Tu expensa venció',
+                       f"Quedaron {pesos(c.get('total'))} sin pagar de {periodo_largo_es(c.get('periodo'))}. "
+                       'Si ya pagaste, informalo desde la app.', '/dashboard/vecino#expensas', 'expensas')
+
+    for cid, cobros in vencidos_por_consorcio.items():
+        push_a('admin', _admin_del_consorcio(cid),
+               '1 expensa pasó a vencida' if len(cobros) == 1 else f'{len(cobros)} expensas pasaron a vencidas',
+               f"Suman {pesos(sum(float(c.get('total') or 0) for c in cobros))}. Mirá la morosidad en Cobros.",
+               '/dashboard/admin#cobros', 'cobros')
+    return hecho
+
+
+def avisos_cada_hora(ahora=None):
+    """Recordatorio de las reservas de amenities que empiezan en 1 a 3 horas."""
+    ahora = ahora or ahora_ar()
+    hoy = ahora.date().isoformat()
+    reservas = supabase.table('reservas_amenities') \
+        .select('id, vecino_id, fecha, hora_inicio, estado, amenities(nombre)') \
+        .eq('fecha', hoy).eq('estado', 'confirmada').execute().data or []
+    enviados = 0
+    for r in reservas:
+        try:
+            h, m = str(r.get('hora_inicio'))[:5].split(':')
+        except ValueError:
+            continue
+        inicio = ahora.replace(hour=int(h), minute=int(m), second=0, microsecond=0)
+        faltan = (inicio - ahora).total_seconds() / 3600
+        if 1 <= faltan <= 3 and _una_vez(f"reserva-{r['id']}"):
+            nombre = (r.get('amenities') or {}).get('nombre') or 'el espacio común'
+            push_a('vecino', [r.get('vecino_id')], f"Hoy a las {h}:{m} tenés {nombre}",
+                   'Te lo recordamos para que llegues a tiempo.', '/dashboard/vecino#reservas', 'reservas')
+            enviados += 1
+    return {'reservas': enviados}
+
+
+@app.route('/api/cron/diario', methods=['POST', 'GET'])
+def cron_diario():
+    if not _cron_autorizado():
+        return jsonify({'error': 'No autorizado'}), 401
+    return jsonify(avisos_diarios())
+
+
+@app.route('/api/cron/cada-hora', methods=['POST', 'GET'])
+def cron_cada_hora():
+    if not _cron_autorizado():
+        return jsonify({'error': 'No autorizado'}), 401
+    return jsonify(avisos_cada_hora())
 
 
 # ── Run ────────────────────────────────────────────────────────────────────────
