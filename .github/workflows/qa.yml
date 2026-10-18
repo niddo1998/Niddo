@@ -18,11 +18,13 @@ jobs:
   pruebas:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    env:
-      PG_DATA: ${{ runner.temp }}/niddo-qa-pg
-      VENV: ${{ runner.temp }}/venv
     steps:
       - uses: actions/checkout@v4
+
+      - name: Rutas de trabajo
+        run: |
+          echo "PG_DATA=$RUNNER_TEMP/niddo-qa-pg" >> "$GITHUB_ENV"
+          echo "VENV=$RUNNER_TEMP/venv" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@v5
         with:
