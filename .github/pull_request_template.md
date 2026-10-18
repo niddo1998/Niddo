@@ -15,4 +15,4 @@ Cierra #
 <!-- ¿Toca base, auth, pagos, mails? ¿Hace falta migración? -->
 
 ---
-Para mergear hace falta el OK de Santiago o de su socio.
+Claude mergea y deploya cuando un founder da el OK explícito (chat o comentario en este PR). Ver `docs/qa/RUNBOOK.md` §6.1.
