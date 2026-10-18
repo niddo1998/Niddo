@@ -132,8 +132,8 @@ Después del merge:
 
 ### 6.2 Cuentas de GitHub de los founders
 
-- `niddo1998` (cuenta del proyecto, usada por Santiago)
-- Socio: _pendiente de confirmar_
+- `niddo1998` (cuenta de la empresa)
+- `novick43-stack` (cuenta personal del socio)
 
 ## 7. Reporte
 
