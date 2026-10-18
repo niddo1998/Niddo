@@ -73,7 +73,7 @@ Un issue por bug, con el template `🐞 Bug`, labels `tipo: bug` + severidad +
 bugs con fix acotado, tests nuevos, textos, estilos, responsive, refactors
 chicos sin cambio de comportamiento, mejoras al propio ambiente de QA.
 
-**Pregunta primero** (comenta en el issue, label `necesita-santiago`, y sigue con otra cosa):
+**Pregunta primero** (comenta en el issue, label `Necesita decisión de founder`, y sigue con otra cosa):
 - Regla de negocio ambigua (cómo se prorratea, cuándo corre la mora, qué ve cada rol).
 - Cambios de esquema o migraciones nuevas.
 - Auth, permisos, impersonación, cifrado.
@@ -111,12 +111,12 @@ Cada corrida termina con un reporte en el chat de Claude (y en el issue fijado
 - Estado de las tres capas (verde/rojo, cantidades).
 - Bugs nuevos (con link y severidad).
 - PRs abiertos esperando OK.
-- Preguntas pendientes (`necesita-santiago`), primero.
+- Preguntas pendientes (`Necesita decisión de founder`), primero.
 - Qué flujos se recorrieron en el exploratorio.
 
 ## 8. Vistas útiles
 
-- Esperan una decisión tuya: `is:open label:necesita-santiago`
+- Esperan una decisión de founder: `is:open label:"Necesita decisión de founder"`
 - PRs para aprobar: `is:pr is:open`
 - Bugs abiertos por severidad: `is:open label:"tipo: bug" sort:created-desc`
 - Backlog: `is:open label:"tipo: backlog"`
