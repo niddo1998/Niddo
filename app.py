@@ -1311,6 +1311,37 @@ def auth_logout():
     )
 
 
+# ── Login de QA (solo ambiente de pruebas local) ──────────────────────────────
+# Los tests E2E no pueden pasar por Auth0, así que en el ambiente de pruebas se
+# entra con los usuarios ficticios de qa/seed.sql. La ruta directamente no
+# existe salvo que se cumplan las tres condiciones: NIDDO_QA_LOGIN=1, modo
+# local, y no estar corriendo en Vercel. En producción da 404.
+QA_USUARIOS = {
+    'admin':      {'sub': 'qa|admin',      'email': 'admin.qa@niddo.test',      'name': 'Admin QA',      'role': 'admin'},
+    'superadmin': {'sub': 'qa|superadmin', 'email': 'superadmin.qa@niddo.test', 'name': 'Superadmin QA', 'role': 'admin'},
+    'pendiente':  {'sub': 'qa|pendiente',  'email': 'pendiente.qa@niddo.test',  'name': 'Admin Pendiente QA', 'role': 'admin'},
+    'vecino':     {'sub': 'qa|vecino1',    'email': 'vecino1.qa@niddo.test',    'name': 'Vecina Uno QA', 'role': 'vecino'},
+    'vecino2':    {'sub': 'qa|vecino2',    'email': 'vecino2.qa@niddo.test',    'name': 'Vecino Dos QA', 'role': 'vecino'},
+}
+
+
+def qa_login_habilitado() -> bool:
+    return (os.environ.get('NIDDO_QA_LOGIN') == '1'
+            and _ES_LOCAL
+            and not os.environ.get('VERCEL'))
+
+
+if qa_login_habilitado():
+    @app.route('/qa/login/<quien>')
+    def qa_login(quien):
+        user = QA_USUARIOS.get(quien)
+        if not user:
+            abort(404)
+        session.clear()
+        session['user'] = dict(user)
+        return redirect(url_for('dashboard', role=user['role']))
+
+
 # ── Dashboards ────────────────────────────────────────────────────────────────
 @app.route('/dashboard/<role>')
 @require_auth()

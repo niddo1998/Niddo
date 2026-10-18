@@ -7,3 +7,6 @@
 
 -r requirements.txt
 pytest==8.3.4
+pypdfium2>=4.30
+playwright>=1.48
+pytest-playwright>=0.5
