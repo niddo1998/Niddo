@@ -1,0 +1,53 @@
+# Corre las tres capas de pruebas (unitarios, Postgres real y E2E en navegador)
+# en cada PR y en cada push a main, con el mismo script que usa Claude.
+# Si algo falla, el PR queda en rojo y se ven las capturas en los artifacts.
+
+name: QA
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rutas de trabajo
+        run: |
+          echo "PG_DATA=$RUNNER_TEMP/niddo-qa-pg" >> "$GITHUB_ENV"
+          echo "VENV=$RUNNER_TEMP/venv" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Entorno de Python y navegador
+        run: |
+          python -m venv "$VENV"
+          "$VENV/bin/pip" install -q -U pip setuptools wheel
+          "$VENV/bin/pip" install -q -r requirements-dev.txt
+          "$VENV/bin/python" -m playwright install --with-deps chromium
+
+      - name: Pruebas
+        run: bash qa/correr.sh
+
+      - name: Resumen
+        if: always()
+        run: cat qa/.salida/resumen.txt >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Capturas y logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-salida
+          path: qa/.salida/
+          retention-days: 14

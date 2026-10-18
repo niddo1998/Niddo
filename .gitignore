@@ -57,3 +57,6 @@ htmlcov/
 .claude/
 .vercel
 .env*
+
+# Salida del ambiente de pruebas (capturas, logs, reportes de corrida)
+qa/.salida/

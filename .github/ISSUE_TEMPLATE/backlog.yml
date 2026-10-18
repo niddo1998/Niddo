@@ -1,0 +1,28 @@
+name: ✨ Backlog
+description: Algo nuevo para construir o cambiar
+title: "[Backlog] "
+labels: ["tipo: backlog"]
+body:
+  - type: textarea
+    id: que
+    attributes:
+      label: Qué queremos
+      description: Una línea alcanza. Si falta definición, Claude pregunta acá mismo antes de codear.
+    validations: { required: true }
+  - type: textarea
+    id: para_quien
+    attributes:
+      label: Para quién y por qué
+      placeholder: "Los administradores necesitan… porque…"
+  - type: textarea
+    id: criterios
+    attributes:
+      label: ¿Cómo sabemos que está listo? (opcional)
+      placeholder: |
+        - [ ] El vecino ve…
+        - [ ] Se puede exportar…
+  - type: dropdown
+    id: prioridad
+    attributes:
+      label: Prioridad
+      options: ["P1 alto", "P2 medio", "P3 bajo"]
