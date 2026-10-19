@@ -16,7 +16,12 @@ from playwright.sync_api import sync_playwright
 
 BASE = os.environ.get('NIDDO_QA_URL', 'http://localhost:5055')
 SALIDA = Path(__file__).resolve().parent.parent / '.salida' / 'capturas'
-CHROMIUM = os.environ.get('QA_CHROMIUM', '/home/claude/.qa-chromium/chromium')
+# Primer Chromium que exista: el que se pida por env, el del workspace viejo o
+# el que viene preinstalado en el contenedor (/opt/pw-browsers). Si no hay
+# ninguno, Playwright usa el suyo (CI, donde se instala con `playwright install`).
+_CANDIDATOS = [os.environ.get('QA_CHROMIUM', ''), '/home/claude/.qa-chromium/chromium',
+               '/opt/pw-browsers/chromium']
+CHROMIUM = next((c for c in _CANDIDATOS if c and Path(c).exists()), '')
 ARGS = ['--no-sandbox', '--disable-gpu', '--use-gl=swiftshader', '--disable-vulkan',
         '--disable-features=Vulkan', '--disable-dev-shm-usage']
 
@@ -33,7 +38,7 @@ DISPOSITIVOS = {
 def navegador():
     with sync_playwright() as p:
         opciones = {'args': ARGS}
-        if Path(CHROMIUM).exists():
+        if CHROMIUM:
             opciones['executable_path'] = CHROMIUM
         b = p.chromium.launch(**opciones)
         yield b

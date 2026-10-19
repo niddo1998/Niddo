@@ -15,8 +15,8 @@ Cobertura E2E: ✅ automatizado · ◐ solo que la pantalla abre sin errores · 
 | Carga de UF (individual y masiva desde Excel) | — | — |
 | Alta de vecino / asociación de vecino a UF | — | — |
 | Carga de gastos (individual, masiva, recurrentes) | — | — |
-| 🔒 Generación de liquidación (prorrateo m², ambientes, partes iguales, %) | — | — |
-| 🔒 PDF de liquidación: montos, totales, datos bancarios | — | — |
+| 🔒 Generación de liquidación (prorrateo m², ambientes, partes iguales, %) | — | 2026-10-19 |
+| 🔒 PDF de liquidación: montos, totales, datos bancarios | — | 2026-10-19 |
 | 🔒 Cobros: registrar pago, mora, segundo vencimiento | — | — |
 | Export de cobros a Excel | — | — |
 | Comunicados y mensajes | — | — |
@@ -35,7 +35,7 @@ Cobertura E2E: ✅ automatizado · ◐ solo que la pantalla abre sin errores · 
 | Reservas de amenities | — | — |
 | Mensajes con la administración | — | — |
 | Perfil | — | — |
-| 🔒 No ve datos de otro consorcio / otra UF | — | — |
+| 🔒 No ve datos de otro consorcio / otra UF | — | 2026-10-19 |
 | Mobile | ◐ | — |
 
 ## Superadmin

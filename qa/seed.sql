@@ -69,7 +69,7 @@ VALUES
   ('c0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001',
    'Limpieza de áreas comunes', 'limpieza', 120000, current_date - 8, current_date + 7, true, 'A'),
   ('c0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001',
-   'Luz espacios comunes', 'servicios', 45500.50, current_date - 5, current_date + 10, false, 'A');
+   'Luz espacios comunes', 'electricidad', 45500.50, current_date - 5, current_date + 10, false, 'A');
 
 -- ── Amenities ────────────────────────────────────────────────────────────────
 INSERT INTO amenities (consorcio_id, nombre, descripcion, capacidad_maxima, max_reservas_mes, precio_uso)
