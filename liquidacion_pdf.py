@@ -67,6 +67,21 @@ def periodo_largo(periodo):
 NBSP = '\u00a0'
 
 
+def fecha_corta(valor):
+    """'2026-11-10' (o un timestamp ISO) -> '10/11/2026'. Vacío -> '—'.
+
+    La base guarda ISO; el PDF lo lee un vecino argentino. Si llega algo que
+    no es una fecha se imprime tal cual antes que perderlo.
+    """
+    if not valor:
+        return '—'
+    s = str(valor)[:10]
+    partes = s.split('-')
+    if len(partes) == 3 and all(x.isdigit() for x in partes) and len(partes[0]) == 4:
+        return f"{partes[2]}/{partes[1]}/{partes[0]}"
+    return str(valor)
+
+
 def pesos(n):
     """Formato argentino: $ 1.234.567,89, siempre en una sola linea."""
     try:
@@ -133,9 +148,9 @@ def _encabezado(liq, consorcio, admin, E):
         izq.append(Paragraph(f"Clave SUTERH: {consorcio['clave_suterh']}", E['sub']))
     izq.append(Spacer(1, 3))
     if liq.get('fecha_vencimiento_1'):
-        izq.append(Paragraph(f"<b>1° Vto:</b> {liq['fecha_vencimiento_1']}", E['sub']))
+        izq.append(Paragraph(f"<b>1° Vto:</b> {fecha_corta(liq['fecha_vencimiento_1'])}", E['sub']))
     if liq.get('fecha_vencimiento_2'):
-        izq.append(Paragraph(f"<b>2° Vto:</b> {liq['fecha_vencimiento_2']}", E['sub']))
+        izq.append(Paragraph(f"<b>2° Vto:</b> {fecha_corta(liq['fecha_vencimiento_2'])}", E['sub']))
 
     der = [Paragraph('<b>Administración</b>', E['sub'])]
     for etiqueta, clave in (('', 'nombre'), ('CUIT: ', 'cuit'), ('Mat.: ', 'matricula'),
@@ -189,7 +204,7 @@ def _tabla_rubro(rubro, E, ancho):
             Paragraph(prov, E['celda']),
             Paragraph(comp, E['celda']),
             Paragraph(detalle, E['celda']),
-            Paragraph(str(it.get('fecha_pago') or '—'), E['celda']),
+            Paragraph(fecha_corta(it.get('fecha_pago')), E['celda']),
         ] + ([Paragraph(str(it.get('coeficiente') or 'A'), E['celda'])] if con_coef else []) + [
             Paragraph(pesos(it.get('monto')), E['celda_r']),
         ])

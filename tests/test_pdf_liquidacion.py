@@ -78,14 +78,14 @@ def test_cita_la_ley_941(pdf, cita):
 def test_el_encabezado_identifica_al_consorcio_y_al_administrador(pdf):
     t = _texto(pdf)
     for dato in ('Pacheco 2876', '30-71250333-1', '85693',
-                 'Diego Martin', 'RPA 10.455', '2026-09-10'):
+                 'Diego Martin', 'RPA 10.455', '10/09/2026'):
         assert dato in t, dato
 
 
 def test_el_gasto_lleva_proveedor_cuit_y_comprobante(pdf):
     """Es lo que la Ley 941 obliga a rendir y el resumen viejo no mostraba."""
     t = _texto(pdf)
-    for dato in ('Edenor SA', '30-65511620-2', 'LSP A', '0014-23144929', '2026-07-23'):
+    for dato in ('Edenor SA', '30-65511620-2', 'LSP A', '0014-23144929', '23/07/2026'):
         assert dato in t, dato
 
 
@@ -145,3 +145,23 @@ def test_el_importe_no_se_puede_partir():
 def test_periodo_en_castellano():
     assert periodo_largo('2026-08') == 'Agosto 2026'
     assert periodo_largo('cualquier cosa') == 'cualquier cosa'
+
+
+def test_las_fechas_salen_en_formato_argentino(pdf):
+    """Vencimientos y fecha de pago como dd/mm/aaaa, no el ISO de la base (#17)."""
+    t = _texto(pdf)
+    assert '10/09/2026' in t and '15/09/2026' in t
+    assert '23/07/2026' in t
+    assert '2026-09-10' not in t and '2026-07-23' not in t
+
+
+@pytest.mark.parametrize('entrada, salida', [
+    ('2026-11-10', '10/11/2026'),
+    ('2026-07-23T15:30:00+00:00', '23/07/2026'),
+    (None, '—'),
+    ('', '—'),
+    ('no es fecha', 'no es fecha'),
+])
+def test_fecha_corta(entrada, salida):
+    from liquidacion_pdf import fecha_corta
+    assert fecha_corta(entrada) == salida
