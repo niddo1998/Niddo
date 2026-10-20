@@ -26,6 +26,12 @@ CAMPOS_DE_TEXTO = (
     r'archivo_nombre|adjunto_nombre|metodo_pago|frecuencia|motivo\w*)'
 )
 
+# `vecino_nombre`, `vecino_email` y cualquier otro `<algo>_nombre`/`_email` son
+# texto de una persona igual que `nombre`. Sin este prefijo el patrón exige el
+# campo pegado al punto y esos se colaban sin escapar (#22). Se limita a
+# nombre/email para no confundir números como `total_unidad` o `numero_rubro`.
+PREFIJO = r'(?:[a-z]+_(?=(?:nombre|email)\b))?'
+
 ESCAPADORES = ('esc(', 'escHtml(', 'escapar(')
 
 # Cada excepción va con el motivo verificable de por qué no aplica:
@@ -63,7 +69,7 @@ def _sin_escapar(ruta):
     for expr in _interpolaciones(ruta.read_text()):
         if expr.strip() in EXCEPCIONES:
             continue
-        for campo in re.finditer(r'\.' + CAMPOS_DE_TEXTO + r'\b\s*(.?)', expr):
+        for campo in re.finditer(r'\.' + PREFIJO + CAMPOS_DE_TEXTO + r'\b\s*(.?)', expr):
             # Un campo seguido de `?` es la condición de un ternario: lo que se
             # pinta es alguna de las ramas, y cada rama se revisa por su lado.
             if campo.group(2) == '?':
