@@ -4345,7 +4345,7 @@ function pintarCobros(data) {
             <td>${c.interes_mora ? fmt(c.interes_mora) : '—'}</td>
             <td><strong>${fmt(c.total)}</strong></td>
             <td>${statusBadge(c.estado)}</td>
-            <td class="text-muted">${c.fecha_vencimiento||'—'}</td>
+            <td class="text-muted">${fmtFecha(c.fecha_vencimiento)}</td>
             <td><button class="btn-s btn-sm" onclick="openCobroModal('${c.id}','${c.estado}','${c.fecha_pago||''}','${c.interes_mora||0}','${escHtml(c.notas||'')}')" aria-label="Editar" title="Editar"><svg class="ic ic-sm"><use href="#ic-editar"></use></svg></button></td>
         </tr>`;}).join('');
 
@@ -4358,7 +4358,7 @@ function pintarCobros(data) {
             <span class="nd-row-ic ${pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-cobro"></use></svg></span>
             <span class="nd-row-main">
                 <span class="nd-row-t">${escHtml(uf.numero || '–')} · ${uf.vecino_nombre || 'Sin vecino'}</span>
-                <span class="nd-row-s"><span class="dot ${pagado ? 'ok' : 'danger'}"></span>${c.periodo || '–'} · ${pagado ? 'Pagada' : 'Vence ' + (c.fecha_vencimiento || '—')}</span>
+                <span class="nd-row-s"><span class="dot ${pagado ? 'ok' : 'danger'}"></span>${c.periodo || '–'} · ${pagado ? 'Pagada' : 'Vence ' + fmtFecha(c.fecha_vencimiento)}</span>
             </span>
             <span class="nd-row-amt">${fmt(c.total)}</span>
         </div>`;
