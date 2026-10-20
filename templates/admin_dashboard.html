@@ -2787,8 +2787,8 @@ async function loadUFs() {
                 nombresHtml = vecinosList.map(v => `<div><strong>${escHtml(v.nombre || '—')}</strong> <span style="font-size:0.75rem; padding: 2px 6px; border-radius: 4px; background: rgba(47,111,94,0.12); color: var(--purple); text-transform:capitalize;">${v.rol === 'propietario' ? 'Prop.' : 'Inq.'}</span></div>`).join('');
                 emailsHtml = vecinosList.map(v => `<div style="font-size:0.85rem;">${escHtml(v.email)}</div>`).join('');
             } else {
-                nombresHtml = u.vecino_nombre ? `<div>${u.vecino_nombre} <span style="font-size:0.75rem; color:var(--muted);">(Pre-cargado)</span></div>` : '<span class="text-muted">Sin asignar</span>';
-                emailsHtml = u.vecino_email ? `<div style="font-size:0.85rem;">${u.vecino_email}</div>` : '—';
+                nombresHtml = u.vecino_nombre ? `<div>${escHtml(u.vecino_nombre)} <span style="font-size:0.75rem; color:var(--muted);">(Pre-cargado)</span></div>` : '<span class="text-muted">Sin asignar</span>';
+                emailsHtml = u.vecino_email ? `<div style="font-size:0.85rem;">${escHtml(u.vecino_email)}</div>` : '—';
             }
             return `
             <tr>
@@ -4339,7 +4339,7 @@ function pintarCobros(data) {
         return `<tr>
             <td>${escHtml(con.nombre||'—')}</td>
             <td><strong>${escHtml(uf.numero||'—')}</strong></td>
-            <td>${uf.vecino_nombre||'<span class="text-muted">—</span>'}</td>
+            <td>${uf.vecino_nombre ? escHtml(uf.vecino_nombre) : '<span class="text-muted">—</span>'}</td>
             <td>${c.periodo||'—'}</td>
             <td>${fmt(c.monto_base)}</td>
             <td>${c.interes_mora ? fmt(c.interes_mora) : '—'}</td>
@@ -4357,7 +4357,7 @@ function pintarCobros(data) {
         return `<div class="nd-row" style="cursor:default">
             <span class="nd-row-ic ${pagado ? 'ok' : ''}"><svg class="ic"><use href="#ic-cobro"></use></svg></span>
             <span class="nd-row-main">
-                <span class="nd-row-t">${escHtml(uf.numero || '–')} · ${uf.vecino_nombre || 'Sin vecino'}</span>
+                <span class="nd-row-t">${escHtml(uf.numero || '–')} · ${escHtml(uf.vecino_nombre || 'Sin vecino')}</span>
                 <span class="nd-row-s"><span class="dot ${pagado ? 'ok' : 'danger'}"></span>${c.periodo || '–'} · ${pagado ? 'Pagada' : 'Vence ' + (c.fecha_vencimiento || '—')}</span>
             </span>
             <span class="nd-row-amt">${fmt(c.total)}</span>
@@ -4403,8 +4403,8 @@ function pintarMora(data) {
         return `<tr style="background:rgba(196,80,43,.04)">
             <td>${escHtml(con.nombre||'—')}</td>
             <td><strong>${escHtml(uf.numero||'—')}</strong></td>
-            <td>${uf.vecino_nombre||'—'}</td>
-            <td class="text-muted">${uf.vecino_email||'—'}</td>
+            <td>${escHtml(uf.vecino_nombre||'—')}</td>
+            <td class="text-muted">${escHtml(uf.vecino_email||'—')}</td>
             <td>${c.periodo||'—'}</td>
             <td>${fmt(c.monto_base)}</td>
             <td style="color:var(--nd-terracota-hondo)">+${fmt(interes)}</td>
@@ -5088,7 +5088,7 @@ async function loadProrrateo() {
             return `<tr>
                 <td><strong>${escHtml(uf.numero||'—')}</strong></td>
                 <td>${escHtml(uf.piso||'—')}</td>
-                <td>${uf.vecino_nombre||'<span class="text-muted">—</span>'}</td>
+                <td>${uf.vecino_nombre ? escHtml(uf.vecino_nombre) : '<span class="text-muted">—</span>'}</td>
                 <td class="text-muted">${fmt(p.saldo_anterior)}</td>
                 <td style="color:var(--nd-verde)">${fmt(p.pago_realizado)}</td>
                 <td style="color:${p.saldo_pendiente>0?'var(--nd-terracota-hondo)':'inherit'}">${fmt(p.saldo_pendiente)}</td>
@@ -5129,7 +5129,7 @@ async function loadProrrateo() {
                 <button class="nd-pcard-h" onclick="this.parentNode.classList.toggle('open')">
                     <span class="nd-pcard-uf">${escHtml(uf.numero || '–')}</span>
                     <span class="nd-pcard-n">
-                        <b>${uf.vecino_nombre || 'Sin copropietario'}</b>
+                        <b>${escHtml(uf.vecino_nombre || 'Sin copropietario')}</b>
                         <span>Piso ${escHtml(uf.piso || '–')} · ${pct(p.porcentaje_a || 0)} part.</span>
                     </span>
                     <span class="nd-pcard-tot"><b>${fmt(p.total_unidad)}</b><span>Total</span></span>
@@ -5172,7 +5172,7 @@ async function loadEnvios() {
             const fecha = e.fecha_envio ? new Date(e.fecha_envio).toLocaleString('es-AR') : '—';
             return `<tr>
                 <td><strong>${escHtml(uf.numero||'—')}</strong></td>
-                <td>${uf.vecino_nombre||'—'}</td>
+                <td>${escHtml(uf.vecino_nombre||'—')}</td>
                 <td><span class="b b-b">Email</span></td>
                 <td><span class="b ${estadoMap[e.estado]||'b-gr'}">${e.estado}</span></td>
                 <td class="text-muted">${e.email_destino||'—'}</td>
@@ -5214,7 +5214,7 @@ function openPreviewModal() {
         const sel = $('m-preview-uf');
         sel.innerHTML = data.map(p => {
             const uf = p.unidades_funcionales || {};
-            return `<option value="${p.unidad_id}">UF ${escHtml(uf.numero||'?')} — ${uf.vecino_nombre||'Sin nombre'}</option>`;
+            return `<option value="${p.unidad_id}">UF ${escHtml(uf.numero||'?')} — ${escHtml(uf.vecino_nombre||'Sin nombre')}</option>`;
         }).join('');
         if (data.length) loadPreview(data[0].unidad_id);
         openModal('modal-preview');
@@ -5226,7 +5226,7 @@ function openPreviewUF(uid) {
         const sel = $('m-preview-uf');
         sel.innerHTML = data.map(p => {
             const uf = p.unidades_funcionales || {};
-            return `<option value="${p.unidad_id}" ${p.unidad_id===uid?'selected':''}>UF ${escHtml(uf.numero||'?')} — ${uf.vecino_nombre||'Sin nombre'}</option>`;
+            return `<option value="${p.unidad_id}" ${p.unidad_id===uid?'selected':''}>UF ${escHtml(uf.numero||'?')} — ${escHtml(uf.vecino_nombre||'Sin nombre')}</option>`;
         }).join('');
         loadPreview(uid);
         openModal('modal-preview');
