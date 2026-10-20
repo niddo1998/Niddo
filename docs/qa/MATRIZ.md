@@ -17,8 +17,8 @@ Cobertura E2E: ✅ automatizado · ◐ solo que la pantalla abre sin errores · 
 | Carga de gastos (individual, masiva, recurrentes) | — | — |
 | 🔒 Generación de liquidación (prorrateo m², ambientes, partes iguales, %) | — | 2026-10-19 |
 | 🔒 PDF de liquidación: montos, totales, datos bancarios | — | 2026-10-19 |
-| 🔒 Cobros: registrar pago, mora, segundo vencimiento | — | — |
-| Export de cobros a Excel | — | — |
+| 🔒 Cobros: registrar pago, mora, segundo vencimiento | — | 2026-10-20 |
+| Export de cobros a Excel | — | 2026-10-20 |
 | Comunicados y mensajes | — | — |
 | Amenities y reservas | — | — |
 | Configuración (datos bancarios, Mercado Pago sandbox) | — | — |
@@ -51,7 +51,7 @@ Cobertura E2E: ✅ automatizado · ◐ solo que la pantalla abre sin errores · 
 
 | Flujo | E2E | Último recorrido |
 |---|---|---|
-| Landing, «Empezar demo», legales | — | — |
+| Landing, «Empezar demo», legales | — | 2026-10-20 |
 | 🔒 Liquidación pública por link | — | — |
 | Admin pendiente → formulario de solicitud | ✅ | — |
 
