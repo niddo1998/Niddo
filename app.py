@@ -7157,11 +7157,16 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf, enlace=None):
     <p style="margin:0;font-size:12px;color:#8A7F75;text-transform:uppercase;font-weight:700;">Saldo del fondo del consorcio</p>
     <p style="margin:6px 0 0;font-size:22px;font-weight:800;color:#2F6F5E;">{pesos(saldo_final)}</p>
 </div>'''
-    vto1 = liq.get('fecha_vencimiento_1', '—')
-    vto2 = liq.get('fecha_vencimiento_2', '—')
-    interes_2 = float(liq.get('interes_2_vto', 0))
-    banco_cbu = consorcio.get('banco_cbu', '—')
-    banco_nombre = consorcio.get('banco_nombre', '—')
+    # Las claves llegan con None cuando el dato no se cargó, así que el default
+    # de .get() no alcanza: sin esto el vecino leía «CBU None» en su mail (#26).
+    vto1 = escape(fecha_ar(liq.get('fecha_vencimiento_1')) or '—')
+    vto2 = liq.get('fecha_vencimiento_2')
+    interes_2 = fmt_numero(liq.get('interes_2_vto') or 0)
+    banco_cbu = escape(consorcio.get('banco_cbu') or '—')
+    banco_nombre = escape(consorcio.get('banco_nombre') or '—')
+    fila_vto2 = (f'''
+        <tr><td style="padding:5px 0;color:#666;">2do vencimiento</td><td style="text-align:right;font-weight:500;">{escape(fecha_ar(vto2))} (+{interes_2}%)</td></tr>'''
+                 if vto2 else '')
 
     return f'''<!DOCTYPE html>
 <html lang="es">
@@ -7239,7 +7244,7 @@ def _generar_resumen_html(liq, prorrateo, rubros, consorcio, uf, enlace=None):
         <tr><td style="padding:5px 0;color:#666;">Banco</td><td style="text-align:right;font-weight:500;">{banco_nombre}</td></tr>
         <tr><td style="padding:5px 0;color:#666;">CBU</td><td style="text-align:right;font-weight:600;font-family:monospace;font-size:13px;">{banco_cbu}</td></tr>
         <tr><td style="padding:5px 0;color:#666;">1er vencimiento</td><td style="text-align:right;font-weight:600;">{vto1}</td></tr>
-        <tr><td style="padding:5px 0;color:#666;">2do vencimiento</td><td style="text-align:right;font-weight:500;">{vto2} (+{interes_2}%)</td></tr>
+{fila_vto2}
     </table>
     <p style="margin:12px 0 0;font-size:12px;color:#888;text-align:center;">📧 Recordá enviar tu comprobante de pago por email o por la plataforma.</p>
 </div>
