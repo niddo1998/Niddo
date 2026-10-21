@@ -33,7 +33,7 @@ Cobertura E2E: ✅ automatizado · ◐ solo que la pantalla abre sin errores · 
 | Descargar liquidación | — | — |
 | Reclamos: crear y seguir | — | — |
 | Reservas de amenities | — | — |
-| Mensajes con la administración | — | — |
+| Mensajes con la administración | — | 2026-10-21 |
 | Perfil | — | — |
 | 🔒 No ve datos de otro consorcio / otra UF | — | 2026-10-19 |
 | Mobile | ◐ | — |
@@ -43,8 +43,8 @@ Cobertura E2E: ✅ automatizado · ◐ solo que la pantalla abre sin errores · 
 | Flujo | E2E | Último recorrido |
 |---|---|---|
 | 🔒 Acceso al panel (y 404 para admin común) | ✅ | — |
-| 🔒 Aprobar / rechazar administradores | — | — |
-| 🔒 Impersonación de solo lectura | — | — |
+| 🔒 Aprobar / rechazar administradores | — | 2026-10-21 |
+| 🔒 Impersonación de solo lectura | — | 2026-10-21 |
 | Mapas del producto | — | — |
 
 ## Visitante
