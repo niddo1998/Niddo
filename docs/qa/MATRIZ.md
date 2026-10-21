@@ -52,7 +52,7 @@ Cobertura E2E: ✅ automatizado · ◐ solo que la pantalla abre sin errores · 
 | Flujo | E2E | Último recorrido |
 |---|---|---|
 | Landing, «Empezar demo», legales | — | 2026-10-20 |
-| 🔒 Liquidación pública por link | — | — |
+| 🔒 Liquidación pública por link | — | 2026-10-21 |
 | Admin pendiente → formulario de solicitud | ✅ | — |
 
 ## Procesos automáticos
