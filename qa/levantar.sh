@@ -80,7 +80,7 @@ cd "$RAIZ"
 env -i PATH="$VENV/bin:$PATH" HOME="$HOME" \
   NIDDO_LOCAL=1 NIDDO_QA_LOGIN=1 \
   DATABASE_URL="$DB_URL" \
-  SECRET_KEY=qa-local-no-secreto \
+  SECRET_KEY=qa-local-no-secreto CRON_SECRET=qa-cron-local \
   AUTH0_DOMAIN=qa.invalid AUTH0_CLIENT_ID=qa AUTH0_CLIENT_SECRET=qa \
   NIDDO_URL="http://localhost:$APP_PORT" \
   NIDDO_CIFRADO_KEY="$("$VENV/bin/python" -c 'import base64;print(base64.urlsafe_b64encode(b"q"*32).decode())')" \
