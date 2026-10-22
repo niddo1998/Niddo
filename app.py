@@ -2322,14 +2322,41 @@ def _entero_o_none(v):
     return n if n > 0 else None
 
 
+def _numero_uf(d):
+    """El número de UF del formulario, como texto y sin espacios ('' si no vino)."""
+    v = d.get('numero')
+    return '' if v is None else str(v).strip()
+
+
+def _numero_uf_ocupado(cid, numero, excluir_uid=None):
+    """True si otra UF del consorcio ya usa ese número.
+
+    Misma regla que la carga masiva: sin distinguir mayúsculas ni espacios.
+    """
+    clave = numero.strip().lower()
+    filas = supabase.table('unidades_funcionales').select('id, numero') \
+        .eq('consorcio_id', cid).execute().data or []
+    return any((u.get('numero') or '').strip().lower() == clave and u.get('id') != excluir_uid
+               for u in filas)
+
+
+def _error_numero_repetido(numero):
+    return jsonify({'error': f'Ya existe la UF {numero} en este consorcio. Usá otro número o editá la existente.'}), 409
+
+
 @app.route('/api/consorcios/<cid>/unidades', methods=['POST'])
 @require_auth(allowed_roles=['admin'])
 def api_ufs_create(cid):
     consorcio_propio(cid, 'id')
-    d = request.json
+    d = request.json or {}
+    numero = _numero_uf(d)
+    if not numero:
+        return jsonify({'error': 'Falta el número de la unidad'}), 400
+    if _numero_uf_ocupado(cid, numero):
+        return _error_numero_repetido(numero)
     payload = {
         'consorcio_id': cid,
-        'numero': d.get('numero', '').strip(),
+        'numero': numero,
         'piso': d.get('piso', ''),
         'tipo': d.get('tipo', 'departamento'),
         'superficie_m2': d.get('superficie_m2'),
@@ -2354,9 +2381,21 @@ def api_ufs_create(cid):
 @require_auth(allowed_roles=['admin'])
 def api_ufs_update(cid, uid):
     consorcio_propio(cid, 'id')
-    d = request.json
+    d = request.json or {}
+    numero = None
+    if 'numero' in d and d['numero'] is not None:
+        numero = _numero_uf(d)
+        if not numero:
+            return jsonify({'error': 'Falta el número de la unidad'}), 400
+        actual = supabase.table('unidades_funcionales').select('numero') \
+            .eq('id', uid).eq('consorcio_id', cid).execute().data or []
+        # Sólo se controla si cambia: una UF que ya estaba repetida se tiene
+        # que poder seguir editando (por ejemplo, para renombrarla).
+        cambia = not actual or (actual[0].get('numero') or '').strip().lower() != numero.lower()
+        if cambia and _numero_uf_ocupado(cid, numero, excluir_uid=uid):
+            return _error_numero_repetido(numero)
     payload = {k: v for k, v in {
-        'numero': d.get('numero'),
+        'numero': numero,
         'piso': d.get('piso'),
         'tipo': d.get('tipo'),
         'superficie_m2': d.get('superficie_m2'),
