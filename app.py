@@ -2774,6 +2774,41 @@ def _dia_carga(d):
     return dia if 1 <= dia <= 31 else None
 
 
+MONTO_GASTO_MAXIMO = 9_999_999_999.99   # gastos.monto es numeric(12,2)
+
+
+def _validar_campos_gasto(d, parcial=False):
+    """Monto, descripción y fecha de un gasto manual, con la regla de la carga masiva.
+
+    Devuelve (campos_normalizados, error). En una edición (`parcial`) solo se
+    miran las claves que vinieron: un PUT que marca «pagado» no tiene por qué
+    mandar el monto de nuevo. Sin esto el formulario dejaba entrar un gasto de
+    $ 0 o negativo —que el prorrateo le restaba a todas las UF— o sin
+    descripción, y lo que no se podía convertir terminaba en un 500 (#36).
+    """
+    campos = {}
+    if not parcial or 'monto' in d:
+        try:
+            monto = _monto_excel(d.get('monto'))
+        except ValueError as e:
+            return None, str(e)
+        if monto > MONTO_GASTO_MAXIMO:
+            return None, f'El monto es demasiado grande (vino "{d.get("monto")}")'
+        campos['monto'] = monto
+    if not parcial or 'descripcion' in d:
+        descripcion = (d.get('descripcion') or '').strip()
+        if not descripcion:
+            return None, 'Falta la descripción del gasto'
+        campos['descripcion'] = descripcion
+    if not parcial or 'fecha_gasto' in d:
+        fecha = d.get('fecha_gasto') or (None if parcial else str(date.today()))
+        try:
+            campos['fecha_gasto'] = date.fromisoformat(str(fecha)[:10]).isoformat()
+        except ValueError:
+            return None, f'Fecha del gasto inválida (vino "{fecha}")'
+    return campos, None
+
+
 def _unidad_es_del_consorcio(unidad_id, consorcio_id):
     """La UF a la que se imputa un gasto tiene que ser de ese mismo consorcio.
 
@@ -2800,10 +2835,7 @@ def api_gastos_create():
         # NULL = gasto general del consorcio (el caso normal). Con unidad_id el
         # gasto no se prorratea: se le carga entero a esa UF.
         'unidad_id': d.get('unidad_id') or None,
-        'descripcion': (d.get('descripcion') or '').strip(),
         'categoria': d.get('categoria', ''),
-        'monto': float(d.get('monto', 0)),
-        'fecha_gasto': d.get('fecha_gasto', str(date.today())),
         'pagado': d.get('pagado') in (True, 'true', 'on', '1'),
         'recurrente': d.get('recurrente') in (True, 'true', 'on', '1'),
         'frecuencia': d.get('frecuencia', ''),
@@ -2829,6 +2861,11 @@ def api_gastos_create():
     if not payload['consorcio_id']:
         return jsonify({'error': 'Elegí a qué consorcio corresponde el gasto'}), 400
     consorcio_propio(payload['consorcio_id'], 'id')
+
+    campos, error = _validar_campos_gasto(d)
+    if error:
+        return jsonify({'error': error}), 400
+    payload.update(campos)
 
     if not _unidad_es_del_consorcio(payload['unidad_id'], payload['consorcio_id']):
         return jsonify({'error': 'La unidad funcional elegida no pertenece a ese consorcio'}), 400
@@ -2875,13 +2912,16 @@ def api_gastos_update(gid):
     allowed = ('consorcio_id','unidad_id','descripcion','categoria','monto','fecha_gasto',
                 'pagado','recurrente','frecuencia','dia_carga','notas','coeficiente',
                 'comprobante_numero','comprobante_tipo')
+    campos, error = _validar_campos_gasto(d, parcial=True)
+    if error:
+        return jsonify({'error': error}), 400
     payload = {}
     for k in allowed:
-        if k in d:
+        if k in campos:
+            payload[k] = campos[k]
+        elif k in d:
             v = d[k]
-            if k == 'monto':
-                v = float(v)
-            elif k in ('pagado', 'recurrente'):
+            if k in ('pagado', 'recurrente'):
                 v = v in (True, 'true', 'on', '1')
             elif k == 'dia_carga':
                 v = int(v) if str(v).strip().isdigit() and 1 <= int(v) <= 31 else None
