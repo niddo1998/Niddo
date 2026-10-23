@@ -4,7 +4,7 @@ La validación original miraba una sola cosa: que el horario no pisara otra
 reserva del mismo amenity. Todo lo demás pasaba.
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -24,6 +24,13 @@ def _reserva(**extra):
             'hora_inicio': '18:00', 'hora_fin': '20:00', **extra}
 
 
+def _son_las(monkeypatch, app_modulo, hora, minuto, dia=None):
+    """Congela la hora argentina en `dia` (hoy por defecto) a las hora:minuto."""
+    d = dia or date.today()
+    momento = datetime(d.year, d.month, d.day, hora, minuto, tzinfo=app_modulo.ZONA_AR)
+    monkeypatch.setattr(app_modulo, 'ahora_ar', lambda: momento)
+
+
 # ── Fechas ────────────────────────────────────────────────────────────────────
 
 def test_no_reserva_para_ayer(client, base):
@@ -33,7 +40,8 @@ def test_no_reserva_para_ayer(client, base):
     assert base['reservas_amenities'] == []
 
 
-def test_hoy_todavia_se_puede(client, base):
+def test_hoy_todavia_se_puede(client, base, monkeypatch, app_modulo):
+    _son_las(monkeypatch, app_modulo, 10, 0)
     r = client.post('/api/reservas_amenities', json=_reserva(fecha=_dia(0)))
     assert r.status_code == 201
     assert len(base['reservas_amenities']) == 1
@@ -148,3 +156,64 @@ def test_una_reserva_cancelada_no_gasta_cupo(client, base):
     base['reservas_amenities'][0]['estado'] = 'cancelada'
     r = client.post('/api/reservas_amenities', json=_reserva(hora_inicio='15:00', hora_fin='17:00'))
     assert r.status_code == 201
+
+
+# ── Hora argentina y horarios que ya pasaron (#37) ────────────────────────────
+
+def test_un_turno_de_hoy_que_ya_termino_no_se_reserva(client, base, monkeypatch, app_modulo):
+    _son_las(monkeypatch, app_modulo, 7, 4)
+    r = client.post('/api/reservas_amenities',
+                    json=_reserva(fecha=_dia(0), hora_inicio='06:00', hora_fin='07:00'))
+    assert r.status_code == 400
+    assert 'pasó' in r.get_json()['error']
+    assert base['reservas_amenities'] == []
+
+
+def test_un_turno_de_hoy_que_todavia_no_termino_si(client, base, monkeypatch, app_modulo):
+    _son_las(monkeypatch, app_modulo, 7, 4)
+    r = client.post('/api/reservas_amenities',
+                    json=_reserva(fecha=_dia(0), hora_inicio='07:00', hora_fin='08:00'))
+    assert r.status_code == 201
+
+
+def test_a_las_22_de_argentina_hoy_se_puede_reservar(client, base, monkeypatch, app_modulo):
+    """A las 22 h de Argentina ya es mañana en UTC (lo que usa Vercel)."""
+    dia = date(2026, 10, 23)
+    _son_las(monkeypatch, app_modulo, 22, 0, dia)
+    monkeypatch.setattr(app_modulo, 'date', _FechaFija(date(2026, 10, 24)))
+    r = client.post('/api/reservas_amenities',
+                    json=_reserva(fecha=dia.isoformat(), hora_inicio='22:30', hora_fin='23:30'))
+    assert r.status_code == 201, r.get_json()
+
+
+def test_hasta_las_24_es_el_borde_del_calendario(client, base, monkeypatch, app_modulo):
+    _son_las(monkeypatch, app_modulo, 10, 0)
+    r = client.post('/api/reservas_amenities',
+                    json=_reserva(hora_inicio='23:00', hora_fin='24:00'))
+    assert r.status_code == 201
+
+
+@pytest.mark.parametrize('ini,fin', [('25:00', '26:00'), ('10:75', '11:00'),
+                                     ('24:00', '24:30'), ('-1:00', '02:00')])
+def test_una_hora_fuera_de_rango_es_400_y_no_500(client, base, ini, fin):
+    r = client.post('/api/reservas_amenities', json=_reserva(hora_inicio=ini, hora_fin=fin))
+    assert r.status_code == 400
+    assert base['reservas_amenities'] == []
+
+
+def test_sin_amenity_es_400_y_no_500(client, base):
+    r = client.post('/api/reservas_amenities', json={'fecha': _dia(3)})
+    assert r.status_code == 400
+
+
+class _FechaFija:
+    """`date` del módulo con un `today()` fijo: simula el reloj UTC del servidor."""
+
+    def __init__(self, hoy):
+        self._hoy = hoy
+
+    def today(self):
+        return self._hoy
+
+    def __getattr__(self, nombre):
+        return getattr(date, nombre)

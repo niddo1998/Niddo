@@ -3748,11 +3748,11 @@ def api_reservas_list():
 @require_auth()
 def api_reservas_create():
     user = session['user']
-    d = request.json
-    amenity_id = d['amenity_id']
-    fecha = d['fecha']
-    hora_inicio = d['hora_inicio']
-    hora_fin = d['hora_fin']
+    d = request.json or {}
+    amenity_id = d.get('amenity_id')
+    fecha = d.get('fecha')
+    hora_inicio = d.get('hora_inicio')
+    hora_fin = d.get('hora_fin')
 
     if user['role'] == 'admin':
         vecino_id = d.get('vecino_id') or None
@@ -3783,6 +3783,11 @@ def api_reservas_create():
         new_end = to_minutes(hora_fin)
     except Exception:
         return jsonify({'error': 'Formato de hora inválido'}), 400
+    # 24:00 vale solo como fin: es el borde del calendario del vecino. Fuera de
+    # rango Postgres respondía con un 500 (#37).
+    if not (0 <= new_start < 24 * 60 and 0 < new_end <= 24 * 60) \
+            or int(str(hora_inicio).split(':')[1]) > 59 or int(str(hora_fin).split(':')[1]) > 59:
+        return jsonify({'error': 'Formato de hora inválido'}), 400
 
     if new_start >= new_end:
         return jsonify({'error': 'La hora de inicio debe ser anterior a la hora de fin'}), 400
@@ -3790,12 +3795,19 @@ def api_reservas_create():
     # Reservar para ayer no es una reserva. Se comparaba solamente contra las
     # otras reservas, así que una fecha pasada entraba sin chistar y quedaba
     # ocupando el calendario hacia atrás.
+    #
+    # Se mira en hora argentina y con la hora de fin: con `date.today()` (UTC en
+    # Vercel) de 21 a 24 h no se podía reservar para hoy, y a la mañana entraba
+    # un turno de hoy que ya había terminado (#37).
     try:
         dia = date.fromisoformat(str(fecha)[:10])
     except ValueError:
         return jsonify({'error': 'Fecha inválida'}), 400
-    if dia < date.today():
+    ahora = ahora_ar()
+    if dia < ahora.date():
         return jsonify({'error': 'No se puede reservar una fecha que ya pasó'}), 400
+    if dia == ahora.date() and new_end <= ahora.hour * 60 + ahora.minute:
+        return jsonify({'error': 'Ese horario de hoy ya pasó'}), 400
 
     for r in conflicts_res.data:
         est_start = to_minutes(r['hora_inicio'])
