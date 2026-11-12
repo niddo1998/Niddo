@@ -3,6 +3,8 @@ import os
 import json
 import base64
 import re
+import hmac
+import time
 from datetime import datetime, timezone, date, timedelta
 from typing import Optional
 from functools import wraps
@@ -1984,6 +1986,430 @@ def _lista_atencion(u: dict, ix: dict, aprobados: list) -> dict:
         'consorcios_sin_cbu': sin_cbu,
         'unidades_sin_email': ufs_sin_email,
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SUPERADMIN — EL NEGOCIO: FINANZAS Y PLAN COMERCIAL
+# ══════════════════════════════════════════════════════════════════════════════
+# Lo que los dueños usan para manejar Niddo como empresa. Nada de esto toca
+# datos de los consorcios: son tres tablas propias (v25) que sólo se leen y se
+# escriben desde acá.
+
+# Segunda llave para Finanzas, encima de ser superadmin. Va en el código a
+# pedido de Pedro, sabiendo que el repo es público: el que la lea igual
+# necesita una sesión de superadmin para que le sirva de algo.
+CLAVE_FINANZAS = '1165'
+FINANZAS_ABIERTA_SEG = 30 * 60   # cuánto dura el desbloqueo
+FINANZAS_MAX_INTENTOS = 5        # errados seguidos antes de esperar
+FINANZAS_ESPERA_SEG = 5 * 60
+
+ETAPAS_PIPELINE = [
+    ('contactado', 'Contactado'),
+    ('demo', 'Demo'),
+    ('piloto', 'Piloto'),
+    ('cliente', 'Cliente'),
+    ('perdido', 'Perdido'),
+]
+_ETAPAS = {k for k, _ in ETAPAS_PIPELINE}
+
+# Lo que una meta puede medir. Sale todo de la base, para que el avance no
+# dependa de que alguien lo actualice a mano. Ninguna mira plata: Comercial se
+# ve sin la clave de Finanzas.
+METRICAS_METAS = {
+    'administradores_activos': 'Administradores activos',
+    'administradores':         'Administradores aprobados',
+    'consorcios':              'Consorcios',
+    'unidades':                'Unidades funcionales',
+    'vecinos':                 'Vecinos registrados',
+    'liquidaciones_mes':       'Liquidaciones este mes',
+    'pilotos':                 'Prospectos en piloto',
+    'clientes':                'Clientes en el pipeline',
+}
+
+UNIDADES_PLAN = {'uf': 'por unidad funcional / mes',
+                 'consorcio': 'por consorcio / mes',
+                 'fijo': 'fijo por mes'}
+
+
+def _neg_texto(cuerpo: dict, campo: str, largo: int = 200) -> str:
+    return str(cuerpo.get(campo) or '').strip()[:largo]
+
+
+def _neg_numero(valor, minimo: float = 0) -> Optional[float]:
+    """Un número de un formulario: acepta '1.500,50' y '1500.50'."""
+    if isinstance(valor, bool):
+        return None
+    if isinstance(valor, (int, float)):
+        n = float(valor)
+    else:
+        txt = str(valor or '').strip().replace('$', '').replace(' ', '')
+        if not txt:
+            return None
+        # Como se escribe en Argentina: la coma es el decimal y el punto separa
+        # miles. '90.000' son noventa mil, no noventa.
+        if ',' in txt:
+            txt = txt.replace('.', '').replace(',', '.')
+        elif re.fullmatch(r'\d{1,3}(\.\d{3})+', txt):
+            txt = txt.replace('.', '')
+        try:
+            n = float(txt)
+        except ValueError:
+            return None
+    return n if n >= minimo else None
+
+
+def _neg_fecha(valor) -> Optional[str]:
+    try:
+        return date.fromisoformat(str(valor or '')[:10]).isoformat()
+    except ValueError:
+        return None
+
+
+def _config_negocio(clave: str, defecto):
+    filas = supabase.table('negocio_config').select('clave, valor').eq('clave', clave).execute().data or []
+    valor = filas[0].get('valor') if filas else None
+    if isinstance(valor, str):  # por si la base lo devuelve como texto
+        try:
+            valor = json.loads(valor)
+        except ValueError:
+            valor = None
+    return defecto if valor is None else valor
+
+
+def _guardar_config_negocio(clave: str, valor) -> None:
+    supabase.table('negocio_config').upsert(
+        {'clave': clave, 'valor': valor, 'updated_at': now_iso()}, on_conflict='clave'
+    ).execute()
+
+
+def _clientes_aprobados(u: dict) -> list:
+    return [a for a in u['admins']
+            if not a.get('es_superadmin') and a.get('estado') == 'aprobado']
+
+
+def _prospectos() -> list:
+    filas = supabase.table('negocio_prospectos').select('*').execute().data or []
+    return sorted(filas, key=lambda p: (p.get('proxima_fecha') or '9999', p.get('nombre') or ''))
+
+
+# ── Finanzas: la llave ────────────────────────────────────────────────────────
+def _finanzas_abierta() -> bool:
+    return float(session.get('finanzas_hasta') or 0) > time.time()
+
+
+def require_finanzas(f):
+    """Va debajo de @require_superadmin: la clave no reemplaza ser superadmin."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not _finanzas_abierta():
+            return jsonify({'error': 'Finanzas está bloqueada', 'bloqueado': True}), 423
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route('/api/superadmin/finanzas/desbloquear', methods=['POST'])
+@require_superadmin
+def api_finanzas_desbloquear():
+    ahora = time.time()
+    espera = float(session.get('finanzas_espera') or 0)
+    if espera > ahora:
+        minutos = max(1, round((espera - ahora) / 60))
+        return jsonify({'error': f'Demasiados intentos. Probá de nuevo en {minutos} min.'}), 429
+
+    clave = str((request.get_json(silent=True) or {}).get('clave') or '')
+    if not hmac.compare_digest(clave.encode(), CLAVE_FINANZAS.encode()):
+        intentos = int(session.get('finanzas_intentos') or 0) + 1
+        session['finanzas_intentos'] = intentos
+        if intentos >= FINANZAS_MAX_INTENTOS:
+            session['finanzas_intentos'] = 0
+            session['finanzas_espera'] = ahora + FINANZAS_ESPERA_SEG
+        return jsonify({'error': 'Contraseña incorrecta'}), 403
+
+    session.pop('finanzas_intentos', None)
+    session.pop('finanzas_espera', None)
+    session['finanzas_hasta'] = ahora + FINANZAS_ABIERTA_SEG
+    return jsonify({'ok': True, 'minutos': FINANZAS_ABIERTA_SEG // 60})
+
+
+@app.route('/api/superadmin/finanzas/bloquear', methods=['POST'])
+@require_superadmin
+def api_finanzas_bloquear():
+    session.pop('finanzas_hasta', None)
+    return jsonify({'ok': True})
+
+
+# ── Finanzas: los números ─────────────────────────────────────────────────────
+def _resumen_finanzas(movs: list, meses: list) -> dict:
+    por_mes = {m: {'mes': m, 'ingresos': 0.0, 'gastos': 0.0} for m in meses}
+    caja = 0.0
+    gastos_cat, ingresos_cat = {}, {}
+    for mv in movs:
+        monto = float(mv.get('monto') or 0)
+        es_ingreso = mv.get('tipo') == 'ingreso'
+        caja += monto if es_ingreso else -monto
+        mes = (mv.get('fecha') or '')[:7]
+        if mes in por_mes:
+            por_mes[mes]['ingresos' if es_ingreso else 'gastos'] += monto
+            destino = ingresos_cat if es_ingreso else gastos_cat
+            cat = mv.get('categoria') or 'Otros'
+            destino[cat] = destino.get(cat, 0.0) + monto
+
+    serie = [dict(m, resultado=m['ingresos'] - m['gastos']) for m in por_mes.values()]
+    actual = serie[-1]
+    # El burn es lo que se gasta por mes, promedio de los tres meses cerrados
+    # (el actual está a medio cargar). Se toma el gasto bruto y no el neto a
+    # propósito: un aporte de capital cuenta como ingreso y dejaría el burn en
+    # cero. El runway sale conservador: cuántos meses aguanta la caja si no
+    # entra un peso más.
+    cerrados = serie[-4:-1]
+    burn = round(sum(m['gastos'] for m in cerrados) / max(1, len(cerrados)), 2)
+    runway = round(caja / burn, 1) if burn > 0 and caja > 0 else None
+
+    def ranking(d):
+        return [{'categoria': k, 'monto': round(v, 2)}
+                for k, v in sorted(d.items(), key=lambda kv: -kv[1])]
+
+    return {
+        'kpis': {
+            'ingresos_mes': round(actual['ingresos'], 2),
+            'gastos_mes': round(actual['gastos'], 2),
+            'resultado_mes': round(actual['resultado'], 2),
+            'caja': round(caja, 2),
+            'burn': burn,
+            'runway_meses': runway,
+            'ingresos_12m': round(sum(m['ingresos'] for m in serie), 2),
+            'gastos_12m': round(sum(m['gastos'] for m in serie), 2),
+        },
+        'serie': serie,
+        'gastos_por_categoria': ranking(gastos_cat),
+        'ingresos_por_categoria': ranking(ingresos_cat),
+    }
+
+
+def _proyeccion(u: dict, ix: dict, precios: dict, prospectos: list) -> dict:
+    """Cuánto entraría por mes si se les cobrara hoy a los clientes que hay."""
+    precio_uf = float(precios.get('precio_uf') or 0)
+    precio_cons = float(precios.get('precio_consorcio') or 0)
+    clientes = _clientes_aprobados(u)
+    consorcios = sum(len(ix['consorcios_por_admin'].get(a['id'], [])) for a in clientes)
+    ufs = sum(_ufs_de_admin(a['id'], ix) for a in clientes)
+    mensual = ufs * precio_uf + consorcios * precio_cons
+
+    abiertos = [p for p in prospectos if p.get('etapa') in ('contactado', 'demo', 'piloto')]
+    p_ufs = sum(int(p.get('unidades') or 0) for p in abiertos)
+    p_cons = sum(int(p.get('consorcios') or 0) for p in abiertos)
+    pipeline = p_ufs * precio_uf + p_cons * precio_cons
+
+    return {
+        'precio_uf': precio_uf,
+        'precio_consorcio': precio_cons,
+        'clientes': len(clientes),
+        'consorcios': consorcios,
+        'unidades': ufs,
+        'mensual': round(mensual, 2),
+        'anual': round(mensual * 12, 2),
+        'pipeline': {'prospectos': len(abiertos), 'unidades': p_ufs,
+                     'consorcios': p_cons, 'mensual': round(pipeline, 2)},
+    }
+
+
+@app.route('/api/superadmin/finanzas', methods=['GET'])
+@require_superadmin
+@require_finanzas
+def api_finanzas():
+    movs = supabase.table('negocio_movimientos').select('*').execute().data or []
+    movs.sort(key=lambda m: (m.get('fecha') or '', m.get('created_at') or ''), reverse=True)
+    u = _cargar_universo()
+    precios = _config_negocio('proyeccion', {})
+    datos = _resumen_finanzas(movs, _ultimos_meses(12))
+    datos.update({
+        'movimientos': movs[:300],
+        'categorias': sorted({m.get('categoria') for m in movs if m.get('categoria')}),
+        'proyeccion': _proyeccion(u, _indices(u), precios, _prospectos()),
+        'abierta_hasta': session.get('finanzas_hasta'),
+    })
+    return jsonify(datos)
+
+
+@app.route('/api/superadmin/finanzas/movimientos', methods=['POST'])
+@require_superadmin
+@require_finanzas
+def api_finanzas_crear_movimiento():
+    c = request.get_json(silent=True) or {}
+    tipo = c.get('tipo')
+    fecha = _neg_fecha(c.get('fecha'))
+    monto = _neg_numero(c.get('monto'))
+    if tipo not in ('ingreso', 'gasto'):
+        return jsonify({'error': 'Elegí si es un ingreso o un gasto'}), 400
+    if not fecha:
+        return jsonify({'error': 'La fecha no es válida'}), 400
+    if not monto or monto <= 0:
+        return jsonify({'error': 'El monto tiene que ser mayor a cero'}), 400
+    fila = supabase.table('negocio_movimientos').insert({
+        'tipo': tipo, 'fecha': fecha, 'monto': round(monto, 2),
+        'categoria': _neg_texto(c, 'categoria', 60) or 'Otros',
+        'nota': _neg_texto(c, 'nota', 300) or None,
+    }).execute().data
+    return jsonify(fila[0] if fila else {}), 201
+
+
+@app.route('/api/superadmin/finanzas/movimientos/<mid>', methods=['DELETE'])
+@require_superadmin
+@require_finanzas
+def api_finanzas_borrar_movimiento(mid):
+    borradas = supabase.table('negocio_movimientos').delete().eq('id', mid).execute().data
+    if not borradas:
+        return jsonify({'error': 'Ese movimiento ya no existe'}), 404
+    return jsonify({'ok': True})
+
+
+@app.route('/api/superadmin/finanzas/proyeccion', methods=['PUT'])
+@require_superadmin
+@require_finanzas
+def api_finanzas_proyeccion():
+    c = request.get_json(silent=True) or {}
+    precios = {'precio_uf': _neg_numero(c.get('precio_uf')) or 0,
+               'precio_consorcio': _neg_numero(c.get('precio_consorcio')) or 0}
+    _guardar_config_negocio('proyeccion', precios)
+    return jsonify(precios)
+
+
+# ── Plan comercial ────────────────────────────────────────────────────────────
+def _valores_metricas(u: dict, ix: dict, prospectos: list) -> dict:
+    aprobados = _clientes_aprobados(u)
+    ids = {a['id'] for a in aprobados}
+    mes = _ultimos_meses(1)[0]
+    return {
+        'administradores_activos': sum(
+            1 for a in aprobados
+            if (_dias_desde(a.get('ultima_actividad')) or 9999) <= INACTIVO_DIAS),
+        'administradores': len(aprobados),
+        'consorcios': sum(len(ix['consorcios_por_admin'].get(i, [])) for i in ids),
+        'unidades': sum(_ufs_de_admin(i, ix) for i in ids),
+        'vecinos': len(u['vecinos']),
+        'liquidaciones_mes': sum(1 for l in u['liqs']
+                                 if l.get('periodo') == mes and l.get('admin_id') in ids),
+        'pilotos': sum(1 for p in prospectos if p.get('etapa') == 'piloto'),
+        'clientes': sum(1 for p in prospectos if p.get('etapa') == 'cliente'),
+    }
+
+
+@app.route('/api/superadmin/comercial', methods=['GET'])
+@require_superadmin
+def api_comercial():
+    u = _cargar_universo()
+    prospectos = _prospectos()
+    valores = _valores_metricas(u, _indices(u), prospectos)
+    metas = []
+    for m in _config_negocio('metas', []):
+        actual = valores.get(m.get('metrica'), 0)
+        objetivo = m.get('objetivo') or 0
+        metas.append(dict(m, actual=actual,
+                          avance=min(100, round(actual / objetivo * 100)) if objetivo else 0))
+    return jsonify({
+        'prospectos': prospectos,
+        'etapas': [{'id': k, 'nombre': v} for k, v in ETAPAS_PIPELINE],
+        'planes': _config_negocio('planes', []),
+        'unidades_plan': UNIDADES_PLAN,
+        'metas': metas,
+        'metricas': METRICAS_METAS,
+        'valores': valores,
+        'notas': _config_negocio('notas', {}).get('texto', ''),
+    })
+
+
+def _payload_prospecto(c: dict, parcial: bool) -> tuple:
+    p = {}
+    for campo, largo in (('nombre', 120), ('contacto', 120), ('email', 160),
+                         ('telefono', 40), ('proxima_accion', 200), ('notas', 2000)):
+        if campo in c or not parcial:
+            p[campo] = _neg_texto(c, campo, largo) or None
+    if 'etapa' in c or not parcial:
+        etapa = c.get('etapa') or 'contactado'
+        if etapa not in _ETAPAS:
+            return None, 'Etapa desconocida'
+        p['etapa'] = etapa
+    for campo in ('consorcios', 'unidades'):
+        if campo in c or not parcial:
+            p[campo] = int(_neg_numero(c.get(campo)) or 0)
+    if 'proxima_fecha' in c or not parcial:
+        p['proxima_fecha'] = _neg_fecha(c.get('proxima_fecha'))
+    if 'nombre' in p and not p['nombre']:
+        return None, 'Poné el nombre de la administración'
+    p['updated_at'] = now_iso()
+    return p, None
+
+
+@app.route('/api/superadmin/comercial/prospectos', methods=['POST'])
+@require_superadmin
+def api_comercial_crear_prospecto():
+    p, error = _payload_prospecto(request.get_json(silent=True) or {}, parcial=False)
+    if error:
+        return jsonify({'error': error}), 400
+    fila = supabase.table('negocio_prospectos').insert(p).execute().data
+    return jsonify(fila[0] if fila else {}), 201
+
+
+@app.route('/api/superadmin/comercial/prospectos/<pid>', methods=['PATCH'])
+@require_superadmin
+def api_comercial_editar_prospecto(pid):
+    p, error = _payload_prospecto(request.get_json(silent=True) or {}, parcial=True)
+    if error:
+        return jsonify({'error': error}), 400
+    filas = supabase.table('negocio_prospectos').update(p).eq('id', pid).execute().data
+    if not filas:
+        return jsonify({'error': 'Ese prospecto ya no existe'}), 404
+    return jsonify(filas[0])
+
+
+@app.route('/api/superadmin/comercial/prospectos/<pid>', methods=['DELETE'])
+@require_superadmin
+def api_comercial_borrar_prospecto(pid):
+    if not supabase.table('negocio_prospectos').delete().eq('id', pid).execute().data:
+        return jsonify({'error': 'Ese prospecto ya no existe'}), 404
+    return jsonify({'ok': True})
+
+
+@app.route('/api/superadmin/comercial/planes', methods=['PUT'])
+@require_superadmin
+def api_comercial_planes():
+    planes = []
+    for pl in ((request.get_json(silent=True) or {}).get('planes') or [])[:12]:
+        if not isinstance(pl, dict):
+            continue
+        nombre = _neg_texto(pl, 'nombre', 60)
+        if not nombre:
+            continue
+        unidad = pl.get('unidad') if pl.get('unidad') in UNIDADES_PLAN else 'uf'
+        planes.append({'nombre': nombre, 'precio': _neg_numero(pl.get('precio')) or 0,
+                       'unidad': unidad, 'descripcion': _neg_texto(pl, 'descripcion', 400)})
+    _guardar_config_negocio('planes', planes)
+    return jsonify({'planes': planes})
+
+
+@app.route('/api/superadmin/comercial/metas', methods=['PUT'])
+@require_superadmin
+def api_comercial_metas():
+    metas = []
+    for m in ((request.get_json(silent=True) or {}).get('metas') or [])[:20]:
+        if not isinstance(m, dict) or m.get('metrica') not in METRICAS_METAS:
+            continue
+        objetivo = _neg_numero(m.get('objetivo'))
+        if not objetivo:
+            continue
+        metas.append({'metrica': m['metrica'], 'objetivo': int(objetivo),
+                      'fecha_limite': _neg_fecha(m.get('fecha_limite')),
+                      'titulo': _neg_texto(m, 'titulo', 120) or METRICAS_METAS[m['metrica']]})
+    _guardar_config_negocio('metas', metas)
+    return jsonify({'metas': metas})
+
+
+@app.route('/api/superadmin/comercial/notas', methods=['PUT'])
+@require_superadmin
+def api_comercial_notas():
+    texto = str((request.get_json(silent=True) or {}).get('texto') or '')[:20000]
+    _guardar_config_negocio('notas', {'texto': texto})
+    return jsonify({'ok': True})
 
 
 # ══════════════════════════════════════════════════════════════════════════════

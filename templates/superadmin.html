@@ -212,6 +212,80 @@
             .acciones { width: 100%; }
             .acciones .btn { flex: 1; justify-content: center; }
         }
+
+        /* ── Negocio: Comercial y Finanzas ── */
+        .barra-acciones { display: flex; align-items: center; justify-content: space-between;
+                          gap: .6rem; flex-wrap: wrap; margin: 1.8rem 0 .85rem; }
+        .barra-acciones h2.titulo { margin: 0; }
+        .btn-primario { background: var(--nd-terracota); color: #fff; }
+        .btn-primario:hover:not(:disabled) { background: var(--nd-terracota-hondo); }
+        .ayuda { font-size: .8rem; color: var(--muted); line-height: 1.55; }
+        .campo { display: flex; flex-direction: column; gap: .25rem; font-size: .76rem;
+                 color: var(--muted); font-weight: 700; min-width: 0; }
+        .campo input, .campo select, .campo textarea, textarea.notas {
+            width: 100%; padding: .55rem .7rem; border: 1px solid var(--border);
+            border-radius: var(--r-md); background: var(--surface); font-family: var(--font);
+            font-size: .9rem; color: var(--text); font-weight: 400;
+        }
+        .campo input:focus, .campo select:focus, .campo textarea:focus, textarea.notas:focus {
+            outline: none; border-color: var(--nd-terracota); }
+        .grilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .6rem; }
+        .grilla .ancho { grid-column: 1 / -1; }
+        .segmentado { display: inline-flex; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+        .segmentado button { background: var(--surface); border: none; padding: .55rem .9rem;
+            font-family: var(--font); font-weight: 700; font-size: .85rem; color: var(--muted); cursor: pointer; }
+        .segmentado button.activo.ingreso { background: var(--nd-verde-dim); color: var(--nd-verde-bosque); }
+        .segmentado button.activo.gasto { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
+
+        .meta { margin-bottom: .9rem; }
+        .meta:last-child { margin-bottom: 0; }
+        .meta .barra { height: 12px; }
+        .meta .barra > i.lista { background: var(--nd-verde); }
+
+        .etapas { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .8rem; }
+        .etapa-chip { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-pill);
+            padding: .35rem .75rem; font-size: .8rem; font-weight: 700; color: var(--muted); cursor: pointer;
+            font-family: var(--font); }
+        .etapa-chip b { color: var(--text); margin-left: .25rem; }
+        .etapa-chip.activa { border-color: var(--nd-terracota); color: var(--nd-terracota-hondo); background: var(--nd-terracota-dim); }
+        .pill.contactado { background: var(--nd-crema-claro); color: var(--muted); }
+        .pill.demo { background: var(--nd-amarillo-dim); color: var(--nd-tinta-calida); }
+        .pill.piloto { background: var(--nd-terracota-dim); color: var(--nd-terracota-hondo); }
+        .pill.cliente { background: var(--nd-verde-dim); color: var(--nd-verde-bosque); }
+        .pill.perdido { background: var(--nd-crema-claro); color: var(--muted); text-decoration: line-through; }
+        select.etapa-sel { padding: .35rem .5rem; border: 1px solid var(--border); border-radius: var(--r-md);
+            background: var(--surface); font-family: var(--font); font-size: .8rem; font-weight: 700; color: var(--text); }
+        .proxima { font-size: .78rem; margin-top: .3rem; }
+        .proxima.vencida { color: var(--nd-terracota-hondo); font-weight: 700; }
+
+        .planes { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .7rem; }
+        .plan .precio { font-family: var(--font-display); font-size: 1.5rem; margin: .3rem 0 .1rem; }
+        .plan-editor { display: grid; grid-template-columns: 1.2fr .8fr 1.2fr 2fr auto; gap: .5rem; align-items: end; margin-bottom: .5rem; }
+
+        textarea.notas { min-height: 180px; resize: vertical; line-height: 1.6; }
+        .guardado { font-size: .78rem; color: var(--muted); }
+
+        .candado { max-width: 360px; margin: 2.5rem auto; text-align: center; }
+        .candado .icono { font-size: 2rem; margin-bottom: .6rem; }
+        .candado h3 { font-size: 1.05rem; margin-bottom: .35rem; }
+        .candado input { text-align: center; letter-spacing: .5em; font-size: 1.3rem; margin: 1rem 0 .7rem; }
+        .aviso-abierto { display: flex; justify-content: space-between; align-items: center; gap: .6rem;
+            font-size: .8rem; color: var(--muted); margin-bottom: 1rem; }
+        .kpi.positivo .valor { color: var(--nd-verde-bosque); }
+        .kpi.negativo .valor { color: var(--nd-terracota-hondo); }
+        .grande { font-family: var(--font-display); font-size: 2rem; line-height: 1.1; }
+        .proy { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; align-items: start; }
+        .mov-monto { font-weight: 700; white-space: nowrap; }
+        .mov-monto.ingreso { color: var(--nd-verde-bosque); }
+        .mov-monto.gasto { color: var(--nd-terracota-hondo); }
+        .btn-icono { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; padding: .2rem .4rem; }
+        .btn-icono:hover { color: var(--nd-terracota-hondo); }
+
+        @media (max-width: 560px) {
+            .proy { grid-template-columns: 1fr; }
+            .plan-editor { grid-template-columns: 1fr 1fr; }
+            .plan-editor .ancho-movil { grid-column: 1 / -1; }
+        }
     </style>
 </head>
 <body>
@@ -230,6 +304,8 @@
         <button class="tab" data-sec="aprobaciones">Aprobaciones <span class="badge cero" id="badge-aprob">0</span></button>
         <button class="tab" data-sec="administradores">Administradores</button>
         <button class="tab" data-sec="vecinos">Vecinos</button>
+        <button class="tab" data-sec="comercial">Comercial</button>
+        <button class="tab" data-sec="finanzas">Finanzas 🔒</button>
         <button class="tab" data-sec="auditoria">Auditoría</button>
         <!-- Sin data-sec: no es una sección de esta página sino otra pantalla,
              y el handler de abajo solo engancha los tabs que sí lo tienen. -->
@@ -284,6 +360,101 @@
             <div id="lista-vecinos"><div class="cargando">Cargando…</div></div>
         </section>
 
+        <!-- ══ COMERCIAL ══ -->
+        <section class="seccion" id="sec-comercial" hidden>
+            <div class="barra-acciones" style="margin-top:0">
+                <h2 class="titulo">Metas</h2>
+                <button class="btn btn-fantasma" id="n-editar-metas">Editar metas</button>
+            </div>
+            <div class="panel" id="n-metas"><div class="cargando">Cargando…</div></div>
+
+            <div class="barra-acciones">
+                <h2 class="titulo">Pipeline</h2>
+                <button class="btn btn-primario" id="n-nuevo-prospecto">+ Prospecto</button>
+            </div>
+            <div class="etapas" id="n-etapas"></div>
+            <div id="n-pipeline"></div>
+
+            <div class="barra-acciones">
+                <h2 class="titulo">Planes y precios</h2>
+                <button class="btn btn-fantasma" id="n-editar-planes">Editar planes</button>
+            </div>
+            <div id="n-planes"></div>
+
+            <div class="barra-acciones">
+                <h2 class="titulo">Notas del plan</h2>
+                <span class="guardado" id="n-notas-estado"></span>
+            </div>
+            <textarea class="notas" id="n-notas" placeholder="Estrategia, a quién apuntar, ideas, próximos pasos… Se guarda solo."></textarea>
+        </section>
+
+        <!-- ══ FINANZAS ══ -->
+        <section class="seccion" id="sec-finanzas" hidden>
+            <div id="f-candado" class="panel candado">
+                <div class="icono">🔒</div>
+                <h3>Finanzas está bloqueada</h3>
+                <p class="ayuda">Ingresá la contraseña para ver los números. Se vuelve a bloquear sola en 30 minutos.</p>
+                <form id="f-form-clave">
+                    <div class="campo"><input id="f-clave" type="password" inputmode="numeric" autocomplete="off" maxlength="12" aria-label="Contraseña"></div>
+                    <button class="btn btn-primario" style="width:100%;justify-content:center" type="submit">Desbloquear</button>
+                </form>
+            </div>
+
+            <div id="f-contenido" hidden>
+                <div class="aviso-abierto">
+                    <span id="f-abierta"></span>
+                    <button class="btn btn-fantasma" id="f-bloquear">🔒 Bloquear</button>
+                </div>
+                <div class="kpis" id="f-kpis"></div>
+
+                <h2 class="titulo">Últimos 12 meses</h2>
+                <div class="panel">
+                    <div class="leyenda">
+                        <span><i class="punto" style="background:var(--nd-verde)"></i>Ingresos</span>
+                        <span><i class="punto" style="background:var(--nd-terracota)"></i>Gastos</span>
+                    </div>
+                    <svg class="grafico" id="f-grafico" viewBox="0 0 720 170" preserveAspectRatio="none"></svg>
+                </div>
+
+                <h2 class="titulo">Proyección: si cobráramos hoy</h2>
+                <div class="panel proy">
+                    <div id="f-proy"></div>
+                    <form id="f-form-precios">
+                        <div class="grilla">
+                            <label class="campo">Precio por unidad / mes<input id="f-precio-uf" inputmode="decimal" placeholder="0"></label>
+                            <label class="campo">Precio por consorcio / mes<input id="f-precio-cons" inputmode="decimal" placeholder="0"></label>
+                        </div>
+                        <p class="ayuda" style="margin:.6rem 0">Se multiplica por los consorcios y unidades de los administradores aprobados (sin contar al equipo).</p>
+                        <button class="btn btn-fantasma" type="submit">Guardar precios</button>
+                    </form>
+                </div>
+
+                <h2 class="titulo">Cargar un movimiento</h2>
+                <form class="panel" id="f-form-mov">
+                    <div class="grilla">
+                        <div class="campo">Tipo
+                            <div class="segmentado" id="f-tipo">
+                                <button type="button" data-tipo="ingreso" class="ingreso">Ingreso</button>
+                                <button type="button" data-tipo="gasto" class="gasto activo">Gasto</button>
+                            </div>
+                        </div>
+                        <label class="campo">Fecha<input id="f-fecha" type="date" required></label>
+                        <label class="campo">Monto ($)<input id="f-monto" inputmode="decimal" placeholder="0" required></label>
+                        <label class="campo">Categoría<input id="f-categoria" list="f-categorias" placeholder="Servidores, Sueldos…"></label>
+                        <label class="campo ancho">Nota<input id="f-nota" maxlength="300" placeholder="Opcional"></label>
+                    </div>
+                    <datalist id="f-categorias"></datalist>
+                    <div style="margin-top:.8rem"><button class="btn btn-primario" type="submit">Agregar</button></div>
+                </form>
+
+                <h2 class="titulo">Gastos por categoría (12 meses)</h2>
+                <div class="panel" id="f-categorias-gasto"></div>
+
+                <h2 class="titulo">Movimientos</h2>
+                <div id="f-movimientos"></div>
+            </div>
+        </section>
+
         <!-- ══ AUDITORÍA ══ -->
         <section class="seccion" id="sec-auditoria" hidden>
             <p style="font-size:.83rem;color:var(--muted);line-height:1.6;margin-bottom:1rem">
@@ -305,6 +476,17 @@
                 <button class="btn btn-confirmar" id="btn-confirmar"></button>
             </div>
         </div>
+    </div>
+
+    <div class="overlay" id="n-overlay">
+        <form class="modal" id="n-form" style="max-width:560px">
+            <h3 id="n-form-titulo"></h3>
+            <div id="n-form-cuerpo" style="margin-top:.9rem"></div>
+            <div class="acciones">
+                <button class="btn btn-cancelar" type="button" id="n-cancelar">Cancelar</button>
+                <button class="btn btn-confirmar" type="submit">Guardar</button>
+            </div>
+        </form>
     </div>
 
     <div class="toast" id="toast"></div>
@@ -663,5 +845,6 @@
     cargado.hoy = true; CARGAR.hoy();
     cargado.aprobaciones = true; cargarAprobaciones();
 </script>
+<script src="{{ url_for('static', filename='js/superadmin_negocio.js') }}"></script>
 </body>
 </html>
