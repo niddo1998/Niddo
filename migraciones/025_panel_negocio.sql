@@ -1,7 +1,7 @@
 -- ============================================================
 --  Niddo — Schema v25 (Panel del negocio)
 --  Ejecutar en: Neon → SQL Editor (proyecto Niddo-SP)
---  Requiere haber ejecutado v1 → v24 antes
+--  Requiere schema.sql
 --  Es idempotente y sólo agrega: se puede correr más de una vez.
 -- ============================================================
 

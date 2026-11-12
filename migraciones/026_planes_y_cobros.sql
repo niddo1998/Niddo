@@ -1,7 +1,7 @@
 -- ============================================================
 --  Niddo — Schema v26 (Planes y cobro a administradores)
 --  Ejecutar en: Neon → SQL Editor (proyecto Niddo-SP)
---  Requiere haber ejecutado v1 → v25 antes
+--  Requiere schema.sql y 025_panel_negocio.sql
 --  Es idempotente y sólo agrega: se puede correr más de una vez.
 -- ============================================================
 
