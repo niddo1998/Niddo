@@ -60,3 +60,6 @@ htmlcov/
 
 # Salida del ambiente de pruebas (capturas, logs, reportes de corrida)
 qa/.salida/
+
+# Auditorías de seguridad: sólo locales, describen cómo explotar fallas
+docs/auditorias/
