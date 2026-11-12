@@ -196,3 +196,37 @@ def test_mi_plan_respeta_el_pase_gratis(admin, mundo):
     assert admin.get('/api/admin/mi-plan').get_json()['sin_cargo'] == 'fundador'
     mundo['administradores'][0].update(gratis_hasta=None, es_fundador=False, siempre_gratis=True)
     assert admin.get('/api/admin/mi-plan').get_json()['sin_cargo'] == 'equipo'
+
+
+# ── Simulador de Finanzas ────────────────────────────────────────────────────
+
+def test_simulador_arranca_con_los_datos_reales(sa, mundo, monkeypatch):
+    monkeypatch.setattr(app_mod, '_ultimos_meses', lambda n: ['2026-08', '2026-09', '2026-10', '2026-11'][-n:])
+    mundo['negocio_movimientos'] += [
+        {'id': 'g1', 'tipo': 'gasto', 'fecha': '2026-08-05', 'monto': 30000, 'categoria': 'Servidores'},
+        {'id': 'g2', 'tipo': 'gasto', 'fecha': '2026-09-05', 'monto': 30000, 'categoria': 'Servidores'},
+        {'id': 'g3', 'tipo': 'gasto', 'fecha': '2026-10-05', 'monto': 30000, 'categoria': 'Servidores'},
+        {'id': 'g4', 'tipo': 'gasto', 'fecha': '2026-11-05', 'monto': 999999, 'categoria': 'Servidores'},  # mes abierto
+    ]
+    sim = sa.get('/api/superadmin/finanzas').get_json()['simulador']
+    assert sim['guardado'] is None
+    assert sim['base']['planes'][0] == {'nombre': 'Hasta 10 unidades', 'precio': 20000, 'edificios': 1}
+    assert sim['base']['costos'] == [{'concepto': 'Servidores', 'monto': 30000}]
+
+
+def test_guardar_y_borrar_escenario(sa, mundo):
+    esc = {'planes': [{'nombre': 'Chico', 'precio': '20.000', 'edificios': '12'}],
+           'costos': [{'concepto': 'Sueldos', 'monto': '500.000'}], 'comision': '6,5'}
+    r = sa.put('/api/superadmin/finanzas/escenario', json={'escenario': esc})
+    assert r.status_code == 200
+    g = sa.get('/api/superadmin/finanzas').get_json()['simulador']['guardado']
+    assert g['planes'] == [{'nombre': 'Chico', 'precio': 20000, 'edificios': 12}]
+    assert g['costos'] == [{'concepto': 'Sueldos', 'monto': 500000}]
+    assert g['comision'] == 6.5
+    sa.put('/api/superadmin/finanzas/escenario', json={'escenario': None})
+    assert sa.get('/api/superadmin/finanzas').get_json()['simulador']['guardado'] is None
+
+
+def test_escenario_bajo_la_llave(mundo):
+    c = _cliente('auth0|sa')
+    assert c.put('/api/superadmin/finanzas/escenario', json={'escenario': {}}).status_code == 423

@@ -2221,9 +2221,63 @@ def api_finanzas():
         'movimientos': movs[:300],
         'categorias': sorted({m.get('categoria') for m in movs if m.get('categoria')}),
         'suscripciones': _suscripciones(u, _indices(u), _planes(), _prospectos()),
+        'simulador': {'base': _base_simulador(u, _indices(u), _planes(), movs),
+                      'guardado': _config_negocio('escenario', None)},
         'abierta_hasta': session.get('finanzas_hasta'),
     })
     return jsonify(datos)
+
+
+def _base_simulador(u: dict, ix: dict, planes: list, movs: list) -> dict:
+    """El punto de partida del simulador: lo que hay hoy.
+
+    Edificios por plan de todos los clientes (paguen o tengan pase gratis: el
+    simulador mira el potencial) y el gasto promedio por categoría de los
+    tres últimos meses cerrados.
+    """
+    por_plan = {p['id']: 0 for p in planes}
+    for a in _clientes_aprobados(u):
+        for c in ix['consorcios_por_admin'].get(a['id'], []):
+            plan = plan_para(len(ix['ufs_por_consorcio'].get(c['id'], [])), planes)
+            if plan:
+                por_plan[plan['id']] += 1
+    cerrados = set(_ultimos_meses(4)[:3])
+    gastos = {}
+    for m in movs:
+        if m.get('tipo') == 'gasto' and (m.get('fecha') or '')[:7] in cerrados:
+            cat = m.get('categoria') or 'Otros'
+            gastos[cat] = gastos.get(cat, 0.0) + float(m.get('monto') or 0)
+    return {
+        'planes': [{'nombre': p['nombre'], 'precio': _precio(p), 'edificios': por_plan[p['id']]} for p in planes],
+        'costos': [{'concepto': k, 'monto': round(v / 3, 2)}
+                   for k, v in sorted(gastos.items(), key=lambda kv: -kv[1])],
+        'comision': 0,
+    }
+
+
+@app.route('/api/superadmin/finanzas/escenario', methods=['PUT'])
+@require_superadmin
+@require_finanzas
+def api_finanzas_escenario():
+    """Guarda (o borra, con {"escenario": null}) el escenario del simulador."""
+    e = (request.get_json(silent=True) or {}).get('escenario')
+    if e is None:  # volver a los datos reales
+        supabase.table('negocio_config').delete().eq('clave', 'escenario').execute()
+        return jsonify({'escenario': None})
+    if not isinstance(e, dict):
+        return jsonify({'error': 'Escenario inválido'}), 400
+    planes = [{'nombre': _neg_texto(p, 'nombre', 60) or 'Plan',
+               'precio': round(_neg_numero(p.get('precio')) or 0, 2),
+               'edificios': int(_neg_numero(p.get('edificios')) or 0)}
+              for p in (e.get('planes') or [])[:12] if isinstance(p, dict)]
+    costos = [{'concepto': _neg_texto(c, 'concepto', 80) or 'Costo',
+               'monto': round(_neg_numero(c.get('monto')) or 0, 2)}
+              for c in (e.get('costos') or [])[:40] if isinstance(c, dict)]
+    comision = min(100.0, _neg_numero(e.get('comision')) or 0)
+    escenario = {'planes': planes, 'costos': costos, 'comision': comision,
+                 'nombre': _neg_texto(e, 'nombre', 80), 'guardado_at': now_iso()}
+    _guardar_config_negocio('escenario', escenario)
+    return jsonify({'escenario': escenario})
 
 
 @app.route('/api/superadmin/finanzas/movimientos', methods=['POST'])
@@ -3174,88 +3228,6 @@ def api_superadmin_rechazar(sid):
 
     _auditar('rechazar', sid, motivo)
     _mail_resultado(fila, aprobado=False, motivo=motivo)
-    return jsonify({'ok': True})
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# SUPERADMIN — MAPA CONCEPTUAL
-# ══════════════════════════════════════════════════════════════════════════════
-# El shell abre las otras tres vistas en <iframe src="...">, no con srcdoc: al
-# ser same-origin el navegador manda la cookie de sesión solo, así que las tres
-# pasan por @require_superadmin igual que el shell.
-@app.route('/superadmin/mapa')
-@require_superadmin
-def superadmin_mapa():
-    """Shell con las 3 pestañas del mapa conceptual."""
-    return render_template('superadmin_mapa.html')
-
-
-@app.route('/superadmin/mapa/categorias')
-@require_superadmin
-def superadmin_mapa_categorias():
-    """Categorías → funcionalidades → componentes, con el checklist persistido."""
-    return render_template('superadmin_mapa_categorias.html')
-
-
-@app.route('/superadmin/mapa/admin-vecino')
-@require_superadmin
-def superadmin_mapa_admin_vecino():
-    """Qué funcionalidades conectan entre Admin, Vecino y Superadmin."""
-    return render_template('superadmin_mapa_admin_vecino.html')
-
-
-@app.route('/superadmin/mapa/arquitectura')
-@require_superadmin
-def superadmin_mapa_arquitectura():
-    """Flujo Landing → Auth0 → Admin/Vecino y stack técnico por categoría."""
-    return render_template('superadmin_mapa_arquitectura.html')
-
-
-@app.route('/superadmin/mapa/lanzamiento')
-@require_superadmin
-def superadmin_mapa_lanzamiento():
-    """Qué falta para el primer administrador real, y qué viene después.
-
-    Las otras tres pestañas responden "¿qué hay construido?". Ésta responde
-    otra cosa y por eso mezcla código con lo que no lo es —textos legales, un
-    dominio verificado, una cuenta de monitoreo—, que es donde suelen morir
-    los lanzamientos.
-    """
-    return render_template('superadmin_mapa_lanzamiento.html')
-
-
-@app.route('/api/superadmin/roadmap', methods=['GET'])
-@require_superadmin
-def api_superadmin_roadmap():
-    """Devuelve {"exp::0::0": "planeada", ...}.
-
-    Solo vienen los items tocados a mano: 'sin_definir' es la ausencia de fila,
-    así que el mapa arranca de su propio seed y pisa con lo que haya acá.
-    """
-    filas = supabase.table('roadmap_estado').select('id, estado').execute().data or []
-    return jsonify({f['id']: f['estado'] for f in filas})
-
-
-@app.route('/api/superadmin/roadmap/<path:item_id>', methods=['PUT'])
-@require_superadmin
-def api_superadmin_roadmap_update(item_id):
-    """Guarda el estado de un item: {"estado": "planeada" | "construida" | null}.
-
-    `null` es volver a 'sin_definir', que se representa borrando la fila.
-    """
-    estado = (request.json or {}).get('estado')
-    if estado not in ('planeada', 'construida', None):
-        return jsonify({'error': 'Estado inválido: "planeada", "construida" o null'}), 400
-
-    if estado is None:
-        supabase.table('roadmap_estado').delete().eq('id', item_id).execute()
-    else:
-        supabase.table('roadmap_estado').upsert({
-            'id': item_id,
-            'estado': estado,
-            'actualizado_por': (cargar_superadmin_real() or {}).get('id'),
-            'actualizado_at': now_iso(),
-        }).execute()
     return jsonify({'ok': True})
 
 

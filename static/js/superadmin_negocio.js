@@ -388,6 +388,7 @@
 
         pintarGraficoFinanzas(fin.serie);
         pintarSuscripciones(fin.suscripciones);
+        iniciarSimulador(fin.simulador);
 
         $('f-categorias').innerHTML = fin.categorias.map((c) => `<option value="${escapar(c)}">`).join('');
         const cats = fin.gastos_por_categoria;
@@ -429,6 +430,155 @@
         });
         $('f-grafico').innerHTML = svg;
     }
+
+    /* ── Simulador ──
+       Todo se calcula acá mientras se escribe; al servidor sólo va el escenario
+       cuando se guarda. Lo que se está editando no se pisa al recargar Finanzas. */
+    let sim = null, simSucio = false;
+    const numAR = (v) => {
+        let t = String(v ?? '').trim().replace(/\$|\s/g, '');
+        if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+        else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+        const n = parseFloat(t);
+        return isFinite(n) && n > 0 ? n : 0;
+    };
+    const copia = (o) => JSON.parse(JSON.stringify(o));
+
+    function iniciarSimulador(d) {
+        if (sim && simSucio) return;
+        const e = d.guardado || d.base;
+        sim = copia({ planes: e.planes || [], costos: e.costos || [], comision: e.comision || 0 });
+        simSucio = false;
+        $('sim-estado').textContent = d.guardado ? `Escenario guardado${d.guardado.guardado_at ? ' el ' + new Date(d.guardado.guardado_at).toLocaleDateString('es-AR') : ''}` : 'Con los datos reales de hoy';
+        pintarSimFilas();
+    }
+
+    function pintarSimFilas() {
+        $('sim-planes').innerHTML = sim.planes.map((p, i) => `
+            <div class="sim-fila plan" data-i="${i}">
+                <input data-plan="nombre" value="${escapar(p.nombre)}" aria-label="Plan">
+                <input data-plan="precio" class="num" inputmode="decimal" value="${p.precio || ''}" aria-label="Precio por edificio" placeholder="Precio">
+                <span class="stepper"><button type="button" data-paso="-1" aria-label="Uno menos">−</button><input data-plan="edificios" class="num" inputmode="numeric" value="${p.edificios || 0}" aria-label="Edificios"><button type="button" data-paso="1" aria-label="Uno más">+</button></span>
+                <span class="sim-sub" data-sub="${i}"></span>
+                <button type="button" class="btn-icono" data-quitar-plan="${i}" title="Quitar">✕</button>
+            </div>`).join('') || '<p class="ayuda">Sin planes.</p>';
+        $('sim-costos').innerHTML = sim.costos.map((c, i) => `
+            <div class="sim-fila costo" data-i="${i}">
+                <input data-costo="concepto" value="${escapar(c.concepto)}" aria-label="Concepto" placeholder="Concepto">
+                <input data-costo="monto" class="num" inputmode="decimal" value="${c.monto || ''}" aria-label="Monto por mes" placeholder="$ por mes">
+                <button type="button" class="btn-icono" data-quitar-costo="${i}" title="Quitar">✕</button>
+            </div>`).join('') || '<p class="ayuda">Sin costos cargados. Sumá servidores, sueldos, herramientas…</p>';
+        if (document.activeElement !== $('sim-comision')) $('sim-comision').value = sim.comision || '';
+        calcularSim();
+    }
+
+    let resultadoPrevio = null;
+    function calcularSim() {
+        const planes = sim.planes.map((p) => ({ ...p, precio: numAR(p.precio), edificios: Math.round(numAR(p.edificios)) }));
+        planes.forEach((p, i) => { const el = document.querySelector(`[data-sub="${i}"]`); if (el) el.textContent = plata(p.precio * p.edificios); });
+        const edificios = planes.reduce((s, p) => s + p.edificios, 0);
+        const bruto = planes.reduce((s, p) => s + p.precio * p.edificios, 0);
+        const com = Math.min(100, numAR(sim.comision)) / 100;
+        const comision = bruto * com;
+        const neto = bruto - comision;
+        const costos = sim.costos.reduce((s, c) => s + numAR(c.monto), 0);
+        const resultado = neto - costos;
+        const margen = bruto ? Math.round((resultado / bruto) * 100) : 0;
+        const conPrecio = planes.filter((p) => p.precio > 0);
+        const promedio = edificios ? bruto / edificios : (conPrecio.length ? conPrecio.reduce((s, p) => s + p.precio, 0) / conPrecio.length : 0);
+        const aporte = promedio * (1 - com);
+        const necesarios = aporte > 0 ? Math.ceil(costos / aporte) : null;
+        const tope = Math.max(bruto, costos, 1);
+
+        let eq;
+        if (!costos) eq = 'Cargá los costos para ver cuántos edificios necesitás para cubrirlos.';
+        else if (necesarios === null) eq = 'Poné precios para calcular el punto de equilibrio.';
+        else if (edificios >= necesarios) eq = `Con <b>${necesarios} edificios</b> se cubren los costos. Hoy tenés <b>${edificios}</b>: ${edificios - necesarios ? `te sobran ${edificios - necesarios}` : 'justo en el límite'}.`;
+        else eq = `Para cubrir los costos necesitás <b>${necesarios} edificios</b> a un promedio de ${plata(promedio)}. Te faltan <b>${necesarios - edificios}</b>.`;
+
+        $('sim-resultado').innerHTML = `
+            <div class="sim-cab"><b>Resultado</b><span class="ayuda">por mes</span></div>
+            <div class="sim-linea"><span>Ingresos (${edificios} edificios)</span><b>${plata(bruto)}</b></div>
+            ${com ? `<div class="sim-linea menos"><span>Comisión Mercado Pago</span><span>−${plata(comision)}</span></div>` : ''}
+            <div class="sim-linea menos"><span>Costos</span><span>−${plata(costos)}</span></div>
+            <div class="sim-total">
+                <div class="ayuda">${resultado >= 0 ? 'Ganancia' : 'Pérdida'} mensual</div>
+                <div class="grande ${resultado > 0 ? 'pos' : resultado < 0 ? 'neg' : ''}" id="sim-grande">${plata(resultado)}</div>
+                <div class="ayuda">${plata(resultado * 12)} al año · margen ${margen}%</div>
+            </div>
+            <div class="sim-barras">
+                <div class="ayuda" style="font-size:.74rem">Ingresos</div>
+                <div class="sim-barra"><i style="width:${(neto / tope) * 100}%;background:linear-gradient(90deg,#3E8B75,#8FD3B6)"></i></div>
+                <div class="ayuda" style="font-size:.74rem">Costos</div>
+                <div class="sim-barra"><i style="width:${(costos / tope) * 100}%;background:linear-gradient(90deg,#E8734A,#FFA585)"></i></div>
+            </div>
+            <div class="sim-eq">${eq}</div>`;
+        if (resultadoPrevio !== null && resultadoPrevio !== resultado) $('sim-grande').classList.add('pulso-num');
+        resultadoPrevio = resultado;
+    }
+
+    function marcarSucio() {
+        simSucio = true;
+        $('sim-estado').textContent = 'Cambios sin guardar';
+        calcularSim();
+    }
+
+    $('sec-finanzas').addEventListener('input', (e) => {
+        const fila = e.target.closest('.sim-fila');
+        if (e.target.id === 'sim-comision') { sim.comision = e.target.value; return marcarSucio(); }
+        if (!fila) return;
+        const i = +fila.dataset.i;
+        if (e.target.dataset.plan) sim.planes[i][e.target.dataset.plan] = e.target.value;
+        if (e.target.dataset.costo) sim.costos[i][e.target.dataset.costo] = e.target.value;
+        marcarSucio();
+    });
+
+    $('sec-finanzas').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-paso], [data-quitar-plan], [data-quitar-costo]');
+        if (!b) return;
+        if (b.dataset.paso) {
+            const fila = b.closest('.sim-fila'), inp = fila.querySelector('[data-plan="edificios"]');
+            const v = Math.max(0, Math.round(numAR(inp.value)) + +b.dataset.paso);
+            inp.value = v; sim.planes[+fila.dataset.i].edificios = v;
+            return marcarSucio();
+        }
+        if (b.dataset.quitarPlan) sim.planes.splice(+b.dataset.quitarPlan, 1);
+        if (b.dataset.quitarCosto) sim.costos.splice(+b.dataset.quitarCosto, 1);
+        simSucio = true; $('sim-estado').textContent = 'Cambios sin guardar';
+        pintarSimFilas();
+    });
+
+    $('sim-agregar-plan').addEventListener('click', () => {
+        sim.planes.push({ nombre: 'Plan nuevo', precio: '', edificios: 1 });
+        simSucio = true; pintarSimFilas();
+        document.querySelector('#sim-planes .sim-fila:last-child [data-plan="nombre"]')?.select();
+    });
+    $('sim-agregar-costo').addEventListener('click', () => {
+        sim.costos.push({ concepto: '', monto: '' });
+        simSucio = true; pintarSimFilas();
+        document.querySelector('#sim-costos .sim-fila:last-child [data-costo="concepto"]')?.focus();
+    });
+
+    $('sim-guardar').addEventListener('click', async () => {
+        const r = await pedir('/api/superadmin/finanzas/escenario', 'PUT', { escenario: sim });
+        if (r.status === 423) return mostrarCandado();
+        if (!r.ok) return toast(r.json.error || 'No se pudo guardar', true);
+        simSucio = false;
+        fin.simulador.guardado = r.json.escenario;
+        iniciarSimulador(fin.simulador);
+        toast('Escenario guardado');
+    });
+
+    $('sim-real').addEventListener('click', async () => {
+        if (simSucio && !confirm('¿Descartar los cambios y volver a los datos reales de hoy?')) return;
+        const r = await pedir('/api/superadmin/finanzas/escenario', 'PUT', { escenario: null });
+        if (r.status === 423) return mostrarCandado();
+        if (!r.ok) return toast(r.json.error || 'No se pudo', true);
+        simSucio = false;
+        fin.simulador.guardado = null;
+        iniciarSimulador(fin.simulador);
+        toast('Volviste a los datos reales');
+    });
 
     /* ── Suscripciones ── */
     function pintarSuscripciones(su) {

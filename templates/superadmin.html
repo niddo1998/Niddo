@@ -286,9 +286,6 @@
             <button class="tab" data-sec="vecinos"><svg class="ic"><use href="#ic-vecino"></use></svg><span>Vecinos</span></button>
             <div class="grupo">Sistema</div>
             <button class="tab" data-sec="auditoria"><svg class="ic"><use href="#ic-ojo"></use></svg><span>Auditoría</span></button>
-            <!-- Sin data-sec: no es una sección de esta página sino otra pantalla,
-                 y el handler de abajo solo engancha los tabs que sí lo tienen. -->
-            <a class="tab" href="{{ url_for('superadmin_mapa') }}"><svg class="ic"><use href="#ic-carpeta"></use></svg><span>Mapa</span></a>
         </nav>
         <a href="/dashboard/admin" class="volver"><svg class="ic"><use href="#ic-volver"></use></svg><span>Mi panel de administrador</span></a>
     </aside>
@@ -429,6 +426,30 @@
                     <svg class="grafico" id="f-grafico" viewBox="0 0 720 170" preserveAspectRatio="none"></svg>
                 </div>
 
+                <div class="barra-acciones">
+                    <h2 class="titulo">Simulador</h2>
+                    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                        <span class="guardado" id="sim-estado"></span>
+                        <button class="btn btn-fantasma" id="sim-real">Volver a los datos reales</button>
+                        <button class="btn btn-primario" id="sim-guardar">Guardar escenario</button>
+                    </div>
+                </div>
+                <p class="ayuda" style="margin-bottom:.8rem">Cambiá precios, cantidades y costos y mirá el resultado al instante. Es sólo para hacer cuentas: no toca los planes reales ni los cobros.</p>
+                <div class="simulador">
+                    <div class="panel sim-col">
+                        <div class="sim-cab"><b>Ingresos</b><span class="ayuda">por mes</span></div>
+                        <div id="sim-planes"></div>
+                        <button class="btn btn-fantasma sim-agregar" type="button" id="sim-agregar-plan">+ Agregar plan</button>
+                        <label class="campo sim-comision">Comisión de Mercado Pago (%)<input id="sim-comision" inputmode="decimal" placeholder="0"></label>
+                    </div>
+                    <div class="panel sim-col">
+                        <div class="sim-cab"><b>Costos</b><span class="ayuda">por mes</span></div>
+                        <div id="sim-costos"></div>
+                        <button class="btn btn-fantasma sim-agregar" type="button" id="sim-agregar-costo">+ Agregar costo</button>
+                    </div>
+                    <div class="panel sim-resultado" id="sim-resultado"></div>
+                </div>
+
                 <h2 class="titulo">Suscripciones</h2>
                 <div class="kpis" id="f-subs-kpis"></div>
                 <div class="panel" style="margin-top:.7rem;overflow-x:auto">
@@ -542,8 +563,7 @@
     }
 
     /* ══ Navegación ══ */
-    // Solo los tabs con data-sec cambian de sección; el de "Mapa" es un link
-    // a otra pantalla y engancharlo acá escondería todo justo antes de navegar.
+    // Solo los tabs con data-sec cambian de sección.
     document.querySelectorAll('.tab[data-sec]').forEach((t) => t.addEventListener('click', () => {
         document.querySelectorAll('.tab[data-sec]').forEach((x) => x.classList.toggle('activa', x === t));
         document.querySelectorAll('.seccion').forEach((s) => { s.hidden = s.id !== 'sec-' + t.dataset.sec; });
