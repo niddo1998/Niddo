@@ -1058,7 +1058,7 @@
         </div>
         <div class="card card-p">
             <div class="card-t" style="margin-bottom:10px">Cómo pagar</div>
-            <div id="plan-transferencia"></div>
+            <div id="plan-pago"></div>
         </div>
     </div>
     <div class="card">
@@ -2212,6 +2212,60 @@ function navegar(id, el) {
 }
 
 // ── Mi plan ───────────────────────────────────────────────────────────────────
+/* El pago es por débito automático de Mercado Pago: el administrador lo activa
+   una vez, elige la tarjeta en Mercado Pago y después se cobra solo cada mes,
+   por el total de sus edificios (si pasa de plan, el débito se ajusta solo). */
+function pintarPagoMP(d) {
+    const mp = d.mercadopago || {}, s = mp.suscripcion, caja = $('plan-pago');
+    const p = (txt) => `<p style="font-size:.84rem;color:var(--muted);line-height:1.6;margin-bottom:12px">${txt}</p>`;
+    if (d.sin_cargo === 'equipo') { caja.innerHTML = p('No hace falta: es una cuenta del equipo.'); return; }
+    if (!mp.habilitado) { caja.innerHTML = p('Muy pronto vas a poder pagar con débito automático de Mercado Pago. Te avisamos cuando esté.'); return; }
+    const activar = (txt) => `<button class="btn-p" onclick="activarDebitoMP(this)">${txt}</button>`;
+    if (s && s.estado === 'authorized') {
+        caja.innerHTML = `<div style="font-size:.9rem;font-weight:700;color:var(--nd-verde-bosque);margin-bottom:6px">✓ Débito automático activo</div>`
+            + p(`Se cobran ${fmt(s.monto)} por mes con Mercado Pago${s.proximo_cobro ? `. Próximo cobro: <b>${escHtml(fmtFecha(s.proximo_cobro))}</b>` : ''}. Si cambian tus edificios o tu plan, el monto se ajusta solo.`)
+            + `<button class="btn-s btn-sm" onclick="cancelarDebitoMP(this)">Cancelar débito</button>`;
+    } else if (s && s.estado === 'paused') {
+        caja.innerHTML = `<div style="font-size:.9rem;font-weight:700;margin-bottom:6px">Débito en pausa</div>`
+            + p(d.sin_cargo ? `No se te cobra mientras dure tu pase gratis (hasta el ${escHtml(fmtFecha(d.gratis_hasta))}). Después se reactiva solo.` : 'Está en pausa. Escribinos si no sabés por qué.')
+            + `<button class="btn-s btn-sm" onclick="cancelarDebitoMP(this)">Cancelar débito</button>`;
+    } else if (s && s.estado === 'pending') {
+        caja.innerHTML = p('Empezaste a activar el débito pero falta confirmarlo en Mercado Pago.')
+            + (s.init_point ? `<a class="btn-p" href="${escHtml(s.init_point)}">Terminar en Mercado Pago</a>` : activar('Activar débito automático'));
+    } else if (!d.edificios.length) {
+        caja.innerHTML = p('Cuando cargues tu primer edificio vas a poder activar el débito automático.');
+    } else {
+        caja.innerHTML = p(d.sin_cargo
+                ? `Dejalo activado y no te preocupes más: el primer cobro es recién cuando termine tu pase gratis, el ${escHtml(fmtFecha(d.gratis_hasta))}.`
+                : `Activá el débito automático: elegís la tarjeta una vez en Mercado Pago y se cobra solo cada mes.`)
+            + activar('Activar débito automático');
+    }
+}
+
+async function activarDebitoMP(btn) {
+    btn.disabled = true; btn.textContent = 'Abriendo Mercado Pago…';
+    try {
+        const r = await api('/api/admin/suscripcion', {method: 'POST'});
+        if (r.init_point) window.location.href = r.init_point;
+    } catch (e) { toast(e.message, 'err'); btn.disabled = false; btn.textContent = 'Activar débito automático'; }
+}
+
+async function cancelarDebitoMP(btn) {
+    if (!confirm('¿Cancelar el débito automático? Vas a tener que volver a activarlo para seguir pagando.')) return;
+    btn.disabled = true;
+    try { await api('/api/admin/suscripcion/cancelar', {method: 'POST'}); toast('Débito cancelado', 'warn'); await loadMiPlan(); }
+    catch (e) { toast(e.message, 'err'); btn.disabled = false; }
+}
+
+// Al volver de Mercado Pago (back_url): directo a Mi plan con el estado al día.
+if (new URLSearchParams(location.search).get('mp') === 'volvio') {
+    history.replaceState(null, '', location.pathname + '#plan');
+    window.addEventListener('load', () => {
+        show('plan');
+        toast('Listo. Si autorizaste el débito, en unos segundos lo ves activo acá.', 'info');
+    });
+}
+
 /* Pasar de plan es automático: el aviso tiene que quedar a la vista más que un
    toast común, que se va antes de terminar de leerlo. */
 function avisoPlan(msg) {
@@ -2251,13 +2305,7 @@ async function loadMiPlan() {
         <div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid var(--border);font-size:.86rem">
             <span>${escHtml(p.nombre)}</span><b>${fmt(p.precio)} <span style="font-weight:400;color:var(--muted)">/ edificio</span></b>
         </div>`).join('');
-    const t = d.transferencia || {};
-    $('plan-transferencia').innerHTML = d.sin_cargo === 'equipo' ? '<p style="font-size:.84rem;color:var(--muted)">No hace falta.</p>'
-        : (t.cbu || t.alias) ? `<p style="font-size:.84rem;color:var(--muted);line-height:1.6;margin-bottom:10px">Transferí el total del mes a esta cuenta. Nosotros marcamos el pago y te queda en el historial.</p>
-            ${t.titular ? `<div style="font-size:.86rem;margin-bottom:4px">Titular: <b>${escHtml(t.titular)}</b></div>` : ''}
-            ${t.cbu ? `<div style="font-size:.86rem;margin-bottom:4px">CBU/CVU: <b style="font-family:monospace">${escHtml(t.cbu)}</b></div>` : ''}
-            ${t.alias ? `<div style="font-size:.86rem">Alias: <b>${escHtml(t.alias)}</b></div>` : ''}`
-        : '<p style="font-size:.84rem;color:var(--muted);line-height:1.6">Te vamos a escribir con los datos para transferir cuando corresponda pagar.</p>';
+    pintarPagoMP(d);
     const est = {pagado: ['Pagado', 'var(--nd-verde-bosque)'], pendiente: ['A pagar', 'var(--nd-terracota-hondo)'], bonificado: ['Sin cargo', 'var(--muted)']};
     $('tbody-plan-cobros').innerHTML = d.cobros.length ? d.cobros.map(c => `<tr>
             <td style="text-transform:capitalize">${escHtml(MES_LARGO(c.periodo))}</td>

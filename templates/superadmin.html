@@ -394,14 +394,12 @@
             <div id="n-planes"></div>
 
             <h2 class="titulo">Cómo cobramos</h2>
-            <form class="panel" id="n-form-cobro">
+            <div class="panel" id="n-mp"><div class="cargando">Cargando…</div></div>
+            <form class="panel" id="n-form-cobro" style="margin-top:.7rem">
                 <div class="grilla">
-                    <label class="campo">Días de prueba para nuevos<input id="c-prueba" inputmode="numeric"></label>
-                    <label class="campo">Titular de la cuenta<input id="c-titular" maxlength="120"></label>
-                    <label class="campo">CBU / CVU<input id="c-cbu" maxlength="40" inputmode="numeric"></label>
-                    <label class="campo">Alias<input id="c-alias" maxlength="60"></label>
+                    <label class="campo">Días de prueba para administradores nuevos<input id="c-prueba" inputmode="numeric"></label>
                 </div>
-                <p class="ayuda" style="margin:.6rem 0">Los administradores ven estos datos en «Mi plan» para transferir. La prueba se aplica al aprobar a alguien nuevo.</p>
+                <p class="ayuda" style="margin:.6rem 0">Se aplica al aprobar a alguien nuevo. El débito de Mercado Pago arranca recién cuando termina.</p>
                 <button class="btn btn-fantasma" type="submit">Guardar</button>
             </form>
 

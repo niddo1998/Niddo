@@ -159,7 +159,9 @@ def upsert_user(role: str, auth0_id: str, email: str, nombre: str) -> Optional[d
 # `get_admin_id()` ya hacía este mismo SELECT en cada ruta.
 _CAMPOS_ADMIN = (
     'id, estado, es_superadmin, nombre, email, nombre_contacto, telefono, '
-    'email_contacto, motivo_rechazo, solicitud_completada_at, ultima_actividad'
+    'email_contacto, motivo_rechazo, solicitud_completada_at, ultima_actividad, '
+    # Lo que decide si paga: sin esto «Mi plan» le cobraba al que tiene pase gratis.
+    'gratis_hasta, es_fundador, siempre_gratis'
 )
 
 INACTIVO_DIAS = 30          # sin usar la plataforma en este plazo = inactivo
@@ -2389,10 +2391,11 @@ def api_comercial_notas():
 #
 # No paga: el equipo (superadmins y cuentas `siempre_gratis`) y quien tiene
 # pase gratis vigente (`gratis_hasta`): los fundadores y los nuevos en prueba.
-# La plata entra por transferencia y se marca a mano en /superadmin; al
-# marcarla, entra sola como ingreso en Finanzas.
+# La plata entra por débito automático de Mercado Pago (ver más abajo): cada
+# cobro aprobado salda el mes y entra solo como ingreso en Finanzas. También
+# se puede marcar un pago a mano desde /superadmin.
 
-COBRO_DEFECTO = {'prueba_dias': 30, 'cbu': '', 'alias': '', 'titular': ''}
+COBRO_DEFECTO = {'prueba_dias': 30}
 
 
 def _planes() -> list:
@@ -2504,7 +2507,6 @@ def api_admin_mi_plan():
     cobros = supabase.table('cobros_niddo').select('id, periodo, total, estado, detalle, pagado_at') \
         .eq('admin_id', admin['id']).execute().data or []
     cobros.sort(key=lambda c: c.get('periodo') or '', reverse=True)
-    cfg = _config_cobro()
     return jsonify({
         'edificios': edificios,
         'total': round(sum(e['precio'] for e in edificios), 2),
@@ -2513,7 +2515,7 @@ def api_admin_mi_plan():
         'planes': [{'nombre': p['nombre'], 'max_unidades': p.get('max_unidades'),
                     'precio': _precio(p), 'descripcion': p.get('descripcion')} for p in planes],
         'cobros': cobros[:12],
-        'transferencia': {k: cfg.get(k) for k in ('cbu', 'alias', 'titular')},
+        'mercadopago': _estado_mp_para_admin(admin),
     })
 
 
@@ -2555,6 +2557,7 @@ def api_superadmin_planes():
             supabase.table('planes').insert(fila).execute()
     for pid in existentes - seguir:
         supabase.table('planes').delete().eq('id', pid).execute()
+    sincronizar_todas_las_suscripciones()
     return jsonify({'planes': _planes()})
 
 
@@ -2562,12 +2565,7 @@ def api_superadmin_planes():
 @require_superadmin
 def api_superadmin_cobro_config():
     c = request.get_json(silent=True) or {}
-    cfg = {
-        'prueba_dias': int(_neg_numero(c.get('prueba_dias')) or 0),
-        'cbu': _neg_texto(c, 'cbu', 40),
-        'alias': _neg_texto(c, 'alias', 60),
-        'titular': _neg_texto(c, 'titular', 120),
-    }
+    cfg = {'prueba_dias': int(_neg_numero(c.get('prueba_dias')) or 0)}
     _guardar_config_negocio('cobro', cfg)
     return jsonify(cfg)
 
@@ -2643,13 +2641,16 @@ def api_superadmin_cobros():
                 'gratis_hasta, es_fundador').eq('estado', 'aprobado').execute().data or []
     cobros = {c['admin_id']: c for c in supabase.table('cobros_niddo').select('*')
               .eq('periodo', periodo).execute().data or []}
+    debitos = {d['admin_id']: d.get('estado') for d in
+               supabase.table('suscripciones_mp').select('admin_id, estado').execute().data or []}
     filas = []
     for a in admins:
         if es_del_equipo(a):
             continue
         filas.append({'admin_id': a['id'], 'nombre': _nombre_admin(a), 'email': a.get('email'),
                       'gratis_hasta': a.get('gratis_hasta'), 'es_fundador': bool(a.get('es_fundador')),
-                      'sin_cargo': motivo_sin_cargo(a), 'cobro': cobros.get(a['id'])})
+                      'sin_cargo': motivo_sin_cargo(a), 'cobro': cobros.get(a['id']),
+                      'debito': debitos.get(a['id'])})
     orden = {'pendiente': 0, 'pagado': 1, 'bonificado': 2, None: 3}
     filas.sort(key=lambda f: (orden[(f['cobro'] or {}).get('estado')], f['nombre'].lower()))
     hechos = [f['cobro'] for f in filas if f['cobro']]
@@ -2754,7 +2755,275 @@ def api_superadmin_admin_gratis(aid):
     filas = supabase.table('administradores').update({'gratis_hasta': hasta}).eq('id', aid).execute().data
     if not filas:
         return jsonify({'error': 'Administrador no encontrado'}), 404
+    sincronizar_suscripcion_de(aid)
     return jsonify({'gratis_hasta': hasta})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DÉBITO AUTOMÁTICO CON MERCADO PAGO (lo que Niddo le cobra a cada admin)
+# ══════════════════════════════════════════════════════════════════════════════
+# Ver suscripciones_mp.py. Mientras MP_NIDDO_ACCESS_TOKEN no esté cargado todo
+# esto queda apagado: el administrador ve «pronto vas a poder pagar con Mercado
+# Pago» y el resto de la app funciona igual.
+import suscripciones_mp as smp
+
+MP_ESTADOS_VIVOS = ('authorized', 'paused')
+
+
+def _suscripcion_de(admin_id: str) -> Optional[dict]:
+    filas = supabase.table('suscripciones_mp').select('*').eq('admin_id', admin_id).execute().data
+    return filas[0] if filas else None
+
+
+def _guardar_suscripcion(admin_id: str, s: dict, payer_email: Optional[str] = None) -> None:
+    fila = {'admin_id': admin_id, 'preapproval_id': s['id'], 'estado': s.get('estado') or 'pending',
+            'monto': s.get('monto') or 0, 'proximo_cobro': s.get('proximo_cobro'),
+            'updated_at': now_iso()}
+    if s.get('init_point'):
+        fila['init_point'] = s['init_point']
+    if payer_email:
+        fila['payer_email'] = payer_email
+    supabase.table('suscripciones_mp').upsert(fila, on_conflict='admin_id').execute()
+
+
+def _total_mensual(admin_id: str) -> float:
+    return round(sum(e['precio'] for e in _edificios_de(admin_id, _planes())), 2)
+
+
+def _primer_cobro(admin: dict) -> Optional[str]:
+    """Con pase gratis, el débito arranca el día después de que vence."""
+    hasta = _neg_fecha(admin.get('gratis_hasta'))
+    if hasta and hasta >= date.today().isoformat() and not es_del_equipo(admin):
+        dia = date.fromisoformat(hasta) + timedelta(days=1)
+        return f'{dia.isoformat()}T10:00:00.000-03:00'
+    return None
+
+
+_CAMPOS_COBRO_ADMIN = 'id, email, email_contacto, nombre, nombre_contacto, estado, es_superadmin, ' \
+                      'siempre_gratis, gratis_hasta, es_fundador'
+
+
+def sincronizar_suscripcion(admin: dict) -> Optional[str]:
+    """Deja el débito de Mercado Pago en el monto y el estado que corresponden hoy.
+
+    El monto es el total de sus edificios. Mientras tenga pase gratis se pausa
+    (salvo que el primer cobro ya esté agendado para después del pase), y
+    cuando vence vuelve a quedar activa. Devuelve qué hizo, o None si nada.
+    """
+    if not smp.configurado():
+        return None
+    sus = _suscripcion_de(admin['id'])
+    if not sus or sus.get('estado') not in MP_ESTADOS_VIVOS:
+        return None
+    total = _total_mensual(admin['id'])
+    hasta = _neg_fecha(admin.get('gratis_hasta'))
+    proximo = sus.get('proximo_cobro')
+    sin_cargo = motivo_sin_cargo(admin)
+    agendado_despues = bool(sin_cargo and hasta and proximo and proximo > hasta)
+    quiere = 'paused' if ((sin_cargo and not agendado_despues) or total <= 0) else 'authorized'
+
+    cambios = {}
+    if total > 0 and abs(float(sus.get('monto') or 0) - total) > 0.005:
+        cambios['monto'] = total
+    if quiere != sus['estado']:
+        cambios['estado'] = quiere
+    if not cambios:
+        return None
+    try:
+        s = smp.actualizar(sus['preapproval_id'], **cambios)
+    except smp.ErrorMercadoPago:
+        app.logger.exception('No se pudo actualizar la suscripción MP de %s', admin['id'])
+        return 'error'
+    _guardar_suscripcion(admin['id'], s)
+    return 'actualizada'
+
+
+def sincronizar_suscripcion_de(admin_id: Optional[str]) -> Optional[str]:
+    if not admin_id or not smp.configurado():
+        return None
+    filas = supabase.table('administradores').select(_CAMPOS_COBRO_ADMIN).eq('id', admin_id).execute().data
+    return sincronizar_suscripcion(filas[0]) if filas else None
+
+
+def sincronizar_todas_las_suscripciones() -> dict:
+    """La pasada diaria: atrapa lo que ningún evento avisó (vencen pases, se borran unidades)."""
+    if not smp.configurado():
+        return {}
+    subs = supabase.table('suscripciones_mp').select('admin_id, estado').execute().data or []
+    hechas = 0
+    for s in subs:
+        if s.get('estado') in MP_ESTADOS_VIVOS and sincronizar_suscripcion_de(s['admin_id']) == 'actualizada':
+            hechas += 1
+    return {'suscripciones_actualizadas': hechas}
+
+
+# ── El administrador ──────────────────────────────────────────────────────────
+def _estado_mp_para_admin(admin: dict) -> dict:
+    sus = _suscripcion_de(admin['id']) if admin.get('id') else None
+    # Al volver de Mercado Pago la suscripción puede haber pasado a autorizada
+    # antes de que llegue el webhook: se pregunta una vez, acá.
+    if sus and sus.get('estado') == 'pending' and smp.configurado():
+        try:
+            s = smp.leer(sus['preapproval_id'])
+            _guardar_suscripcion(admin['id'], s)
+            sus = _suscripcion_de(admin['id'])
+        except smp.ErrorMercadoPago:
+            app.logger.warning('No se pudo leer la suscripción %s', sus['preapproval_id'])
+    return {
+        'habilitado': smp.configurado(),
+        'suscripcion': {k: sus.get(k) for k in ('estado', 'monto', 'proximo_cobro', 'init_point')} if sus else None,
+    }
+
+
+@app.route('/api/admin/suscripcion', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_suscribirse():
+    if not smp.configurado():
+        return jsonify({'error': 'Todavía no se puede pagar con Mercado Pago. Te avisamos cuando esté.'}), 503
+    if session.get('impersonar'):
+        return jsonify({'error': 'Mirando la cuenta de otro no se puede activar su débito'}), 403
+    admin = cargar_admin_actual() or {}
+    if es_del_equipo(admin):
+        return jsonify({'error': 'Las cuentas del equipo no pagan'}), 400
+    total = _total_mensual(admin['id'])
+    if total <= 0:
+        return jsonify({'error': 'Cargá al menos un edificio para activar el débito'}), 400
+    previa = _suscripcion_de(admin['id'])
+    if previa and previa.get('estado') in MP_ESTADOS_VIVOS:
+        return jsonify({'error': 'Ya tenés el débito automático activo'}), 409
+    if previa and previa.get('estado') == 'pending':
+        try:  # la que quedó a medio autorizar se cancela, para no dejar dos vivas
+            smp.actualizar(previa['preapproval_id'], estado='cancelled')
+        except smp.ErrorMercadoPago:
+            pass
+
+    email = admin.get('email_contacto') or admin.get('email')
+    try:
+        s = smp.crear(
+            admin_id=admin['id'], payer_email=email, monto=total,
+            motivo=f'Niddo · {len(_edificios_de(admin["id"], _planes()))} edificio(s)',
+            url_volver=url_publica('/dashboard/admin?mp=volvio#plan'),
+            url_webhook=url_publica('/webhooks/mercadopago-niddo'),
+            empieza=_primer_cobro(admin))
+    except smp.ErrorMercadoPago as e:
+        app.logger.exception('No se pudo crear la suscripción MP de %s', admin['id'])
+        return jsonify({'error': str(e)}), 502
+    _guardar_suscripcion(admin['id'], s, payer_email=email)
+    return jsonify({'init_point': s.get('init_point')})
+
+
+@app.route('/api/admin/suscripcion/cancelar', methods=['POST'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_cancelar_suscripcion():
+    if session.get('impersonar'):
+        return jsonify({'error': 'Mirando la cuenta de otro no se puede cancelar su débito'}), 403
+    admin = cargar_admin_actual() or {}
+    sus = _suscripcion_de(admin['id'])
+    if not sus or sus.get('estado') == 'cancelled':
+        return jsonify({'error': 'No tenés un débito activo'}), 404
+    try:
+        s = smp.actualizar(sus['preapproval_id'], estado='cancelled')
+    except smp.ErrorMercadoPago as e:
+        return jsonify({'error': str(e)}), 502
+    _guardar_suscripcion(admin['id'], s)
+    return jsonify({'ok': True})
+
+
+# ── Webhook ───────────────────────────────────────────────────────────────────
+def _registrar_pago_mp(admin_id: str, c: dict) -> str:
+    """Un cobro mensual aprobado: salda el cobro del mes y entra en Finanzas."""
+    if supabase.table('cobros_niddo').select('id').eq('mp_pago_id', c['pago_id']).execute().data:
+        return 'repetido'
+    periodo = (c.get('fecha') or date.today().isoformat())[:7]
+    admin = (supabase.table('administradores').select(_CAMPOS_COBRO_ADMIN)
+             .eq('id', admin_id).execute().data or [{}])[0]
+    mov = supabase.table('negocio_movimientos').insert({
+        'tipo': 'ingreso', 'fecha': c.get('fecha') or date.today().isoformat(),
+        'monto': c['monto'], 'categoria': 'Suscripciones',
+        'nota': f'{_nombre_admin(admin)} · {periodo} · Mercado Pago op. {c["pago_id"]}',
+    }).execute().data
+    pagado = {'estado': 'pagado', 'pagado_at': now_iso(), 'total': c['monto'],
+              'mp_pago_id': c['pago_id'], 'movimiento_id': mov[0]['id'] if mov else None}
+    existente = supabase.table('cobros_niddo').select('id, estado') \
+        .eq('admin_id', admin_id).eq('periodo', periodo).execute().data
+    if existente and existente[0]['estado'] != 'pagado':
+        supabase.table('cobros_niddo').update(pagado).eq('id', existente[0]['id']).execute()
+    elif existente:
+        # Ya estaba marcado a mano: el período siguiente se lleva este pago.
+        app.logger.warning('Pago MP %s para %s %s, que ya estaba pagado', c['pago_id'], admin_id, periodo)
+        supabase.table('cobros_niddo').insert(dict(
+            pagado, admin_id=admin_id, periodo=_mes_siguiente(periodo), detalle=[])).execute()
+    else:
+        armado = _armar_cobro(admin, periodo, _planes()) or {'admin_id': admin_id, 'periodo': periodo, 'detalle': []}
+        supabase.table('cobros_niddo').insert({**armado, **pagado}).execute()
+    return 'registrado'
+
+
+def _mes_siguiente(periodo: str) -> str:
+    a, m = int(periodo[:4]), int(periodo[5:7])
+    return f'{a + (m == 12):04d}-{1 if m == 12 else m + 1:02d}'
+
+
+@app.route('/webhooks/mercadopago-niddo', methods=['POST', 'GET'])
+def webhook_mercadopago_niddo():
+    """Mercado Pago avisa novedades de una suscripción o de un cobro mensual.
+
+    Se lee todo de su API con el token de Niddo: el aviso sólo trae un id.
+    Responde 200 aunque no haga nada (si no, reintenta durante días) y 502
+    cuando la API falla, justamente para que reintente.
+    """
+    cuerpo = request.get_json(silent=True) or {}
+    tipo = request.args.get('type') or request.args.get('topic') or cuerpo.get('type') or ''
+    data_id = str(request.args.get('data.id') or (cuerpo.get('data') or {}).get('id')
+                  or request.args.get('id') or '')
+    if not smp.configurado() or not data_id:
+        return jsonify({'ok': True})
+    if not smp.firma_valida(request.headers.get('x-signature', ''),
+                            request.headers.get('x-request-id', ''), data_id):
+        return jsonify({'error': 'firma inválida'}), 401
+    try:
+        if tipo in ('subscription_preapproval', 'preapproval'):
+            s = smp.leer(data_id)
+            sus = supabase.table('suscripciones_mp').select('admin_id') \
+                .eq('preapproval_id', s['id']).execute().data
+            if sus:
+                _guardar_suscripcion(sus[0]['admin_id'], s)
+            return jsonify({'ok': True})
+        if tipo in ('subscription_authorized_payment', 'authorized_payment'):
+            c = smp.leer_cobro(data_id)
+            if not c['aprobado'] or not c['pago_id']:
+                return jsonify({'ok': True})
+            sus = supabase.table('suscripciones_mp').select('admin_id') \
+                .eq('preapproval_id', c['preapproval_id']).execute().data
+            if not sus:
+                app.logger.warning('Cobro MP %s de una suscripción desconocida', data_id)
+                return jsonify({'ok': True})
+            return jsonify({'ok': True, 'resultado': _registrar_pago_mp(sus[0]['admin_id'], c)})
+    except smp.ErrorMercadoPago:
+        app.logger.exception('Webhook MP Niddo: no se pudo leer %s %s', tipo, data_id)
+        return jsonify({'error': 'reintentar'}), 502
+    return jsonify({'ok': True})
+
+
+# ── Superadmin ────────────────────────────────────────────────────────────────
+@app.route('/api/superadmin/mercadopago', methods=['GET'])
+@require_superadmin
+def api_superadmin_mercadopago():
+    datos = {
+        'configurado': smp.configurado(),
+        'firma': bool(os.environ.get('MP_NIDDO_WEBHOOK_SECRET', '').strip()),
+        'webhook_url': url_publica('/webhooks/mercadopago-niddo'),
+        'cuenta': None,
+    }
+    if datos['configurado']:
+        try:
+            datos['cuenta'] = smp.cuenta()
+        except smp.ErrorMercadoPago as e:
+            datos['error'] = str(e)
+    subs = supabase.table('suscripciones_mp').select('estado').execute().data or []
+    datos['suscripciones'] = {e: sum(1 for s in subs if s.get('estado') == e)
+                              for e in ('authorized', 'paused', 'pending', 'cancelled')}
+    return jsonify(datos)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -3056,6 +3325,7 @@ def api_consorcios_update(cid):
 def api_consorcios_delete(cid):
     admin_id = get_admin_id()
     supabase.table('consorcios').delete().eq('id', cid).eq('admin_id', admin_id).execute()
+    sincronizar_suscripcion_de(admin_id)
     return jsonify({'ok': True})
 
 
@@ -3132,6 +3402,7 @@ def api_ufs_create(cid):
     aviso = aviso_cambio_de_plan(cid, antes, antes + 1)
     if aviso:
         fila['aviso_plan'] = aviso
+        sincronizar_suscripcion_de(get_admin_id())
     return jsonify(fila), 201
 
 
@@ -3163,6 +3434,7 @@ def api_ufs_update(cid, uid):
 def api_ufs_delete(cid, uid):
     consorcio_propio(cid, 'id')
     supabase.table('unidades_funcionales').delete().eq('id', uid).eq('consorcio_id', cid).execute()
+    sincronizar_suscripcion_de(get_admin_id())
     return jsonify({'ok': True})
 
 
@@ -3336,6 +3608,8 @@ def api_carga_masiva():
             aviso = aviso_cambio_de_plan(c, antes[c], antes[c] + n)
             if aviso:
                 avisos_plan.append(aviso)
+        if avisos_plan:
+            sincronizar_suscripcion_de(get_admin_id())
 
     return jsonify({
         'avisos_plan': avisos_plan,
@@ -9006,7 +9280,12 @@ def avisos_cada_hora(ahora=None):
 def cron_diario():
     if not _cron_autorizado():
         return jsonify({'error': 'No autorizado'}), 401
-    return jsonify(avisos_diarios())
+    resultado = avisos_diarios()
+    try:
+        resultado.update(sincronizar_todas_las_suscripciones())
+    except Exception:  # que un problema con MP no tape los avisos del día
+        app.logger.exception('Falló la sincronización diaria de suscripciones')
+    return jsonify(resultado)
 
 
 @app.route('/api/cron/cada-hora', methods=['POST', 'GET'])

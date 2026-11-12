@@ -189,3 +189,10 @@ def test_planes_invalidos(sa, planes):
 def test_admin_comun_no_toca_planes_ni_cobros(admin):
     assert admin.put('/api/superadmin/planes', json={'planes': PLANES}).status_code == 404
     assert admin.get('/api/superadmin/cobros').status_code == 404
+
+
+def test_mi_plan_respeta_el_pase_gratis(admin, mundo):
+    mundo['administradores'][0].update(gratis_hasta='2999-01-01', es_fundador=True)
+    assert admin.get('/api/admin/mi-plan').get_json()['sin_cargo'] == 'fundador'
+    mundo['administradores'][0].update(gratis_hasta=None, es_fundador=False, siempre_gratis=True)
+    assert admin.get('/api/admin/mi-plan').get_json()['sin_cargo'] == 'equipo'

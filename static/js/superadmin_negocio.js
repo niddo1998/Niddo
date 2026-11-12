@@ -267,16 +267,32 @@
     /* ── Cómo cobramos ── */
     function pintarConfigCobro() {
         const c = com.cobro || {};
-        [['c-prueba', c.prueba_dias], ['c-titular', c.titular], ['c-cbu', c.cbu], ['c-alias', c.alias]]
-            .forEach(([id, v]) => { if (document.activeElement !== $(id)) $(id).value = v ?? ''; });
+        if (document.activeElement !== $('c-prueba')) $('c-prueba').value = c.prueba_dias ?? '';
+        pintarMP();
+    }
+
+    async function pintarMP() {
+        const r = await pedir('/api/superadmin/mercadopago');
+        if (!r.ok) { $('n-mp').innerHTML = '<p class="ayuda">No pudimos ver el estado de Mercado Pago.</p>'; return; }
+        const m = r.json, s = m.suscripciones || {};
+        const paso = (ok, txt) => `<li style="margin-bottom:.35rem">${ok ? '✅' : '⬜️'} ${txt}</li>`;
+        $('n-mp').innerHTML = `
+            <div style="font-weight:700;margin-bottom:.5rem">Débito automático con Mercado Pago</div>
+            ${m.configurado && m.cuenta ? `<p class="ayuda" style="margin-bottom:.6rem">La plata entra a la cuenta <b>${escapar(m.cuenta.nickname || '')}</b> ${m.cuenta.email ? `(${escapar(m.cuenta.email)})` : ''}.</p>` : ''}
+            ${m.error ? `<p class="ayuda" style="color:var(--nd-terracota-hondo);margin-bottom:.6rem">${escapar(m.error)}</p>` : ''}
+            <ul style="list-style:none;font-size:.85rem;margin-bottom:.7rem">
+                ${paso(m.configurado, 'Access token de producción cargado en Vercel (<code>MP_NIDDO_ACCESS_TOKEN</code>)')}
+                ${paso(m.firma, 'Clave secreta del webhook cargada (<code>MP_NIDDO_WEBHOOK_SECRET</code>)')}
+            </ul>
+            <div class="campo" style="margin-bottom:.6rem">URL del webhook (pegala en Mercado Pago → Webhooks, eventos «Planes y suscripciones»)
+                <input readonly value="${escapar(m.webhook_url)}" onclick="this.select()">
+            </div>
+            <p class="ayuda">Débitos: <b>${s.authorized || 0}</b> activos · ${s.paused || 0} en pausa (pase gratis) · ${s.pending || 0} sin terminar · ${s.cancelled || 0} cancelados.</p>`;
     }
 
     $('n-form-cobro').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const r = await pedir('/api/superadmin/cobro/config', 'PUT', {
-            prueba_dias: $('c-prueba').value, titular: $('c-titular').value,
-            cbu: $('c-cbu').value, alias: $('c-alias').value,
-        });
+        const r = await pedir('/api/superadmin/cobro/config', 'PUT', { prueba_dias: $('c-prueba').value });
         if (!r.ok) return toast(r.json.error || 'No se pudo guardar', true);
         toast('Guardado');
     });
@@ -426,6 +442,8 @@
     /* ── Cobros del mes ── */
     const ESTADOS = { pendiente: 'A cobrar', pagado: 'Pagado', bonificado: 'Sin cargo' };
     const MOTIVOS = { fundador: 'fundador', prueba: 'en prueba' };
+    const DEBITO = { authorized: ['Débito MP activo', 'pagado'], paused: ['Débito MP en pausa', 'bonificado'],
+                     pending: ['Débito MP sin terminar', 'pendiente'] };
     let periodo = hoyISO().slice(0, 7);
     let cobrosFilas = [];
 
@@ -451,7 +469,9 @@
             const detalle = c ? c.detalle.map((e) => `${escapar(e.consorcio)} (${e.unidades} u., ${escapar(e.plan || '—')})`).join(' · ') : 'Todavía no se generó';
             return `<div class="ficha" data-admin="${f.admin_id}">
                 <div class="quien">
-                    <div class="nombre">${escapar(f.nombre)} <span class="pill ${estado}">${c ? ESTADOS[c.estado] : 'Sin generar'}</span></div>
+                    <div class="nombre">${escapar(f.nombre)} <span class="pill ${estado}">${c ? ESTADOS[c.estado] : 'Sin generar'}</span>
+                        ${DEBITO[f.debito] ? `<span class="pill ${DEBITO[f.debito][1]}">${DEBITO[f.debito][0]}</span>` : ''}
+                        ${c && c.mp_pago_id ? '<span class="pill pagado">vía Mercado Pago</span>' : ''}</div>
                     <div class="detalle">${detalle}</div>
                     <div class="detalle" style="margin-top:.3rem">Gratis hasta
                         <input type="date" class="gratis-input" data-gratis="${f.admin_id}" value="${f.gratis_hasta || ''}">
