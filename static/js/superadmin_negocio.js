@@ -60,6 +60,7 @@
         pintarMetas();
         pintarPipeline();
         pintarPlanes();
+        pintarConfigCobro();
         if (document.activeElement !== $('n-notas')) $('n-notas').value = com.notas || '';
     }
 
@@ -218,28 +219,28 @@
         });
     });
 
-    /* ── Planes ── */
+    /* ── Planes (los de verdad: con esto se cobra) ── */
+    const topeTxt = (p) => p.max_unidades ? `hasta ${p.max_unidades} unidades` : 'sin tope de unidades';
+
     function pintarPlanes() {
         if (!com.planes.length) {
-            $('n-planes').innerHTML = '<div class="vacio">Todavía no definiste planes. Cargalos para tener a mano qué ofrecés y a cuánto.</div>';
+            $('n-planes').innerHTML = '<div class="vacio">No hay planes. Sin planes, nadie paga nada.</div>';
             return;
         }
         $('n-planes').innerHTML = `<div class="planes">${com.planes.map((p) => `
             <div class="panel plan">
                 <div class="nombre" style="font-weight:700">${escapar(p.nombre)}</div>
-                <div class="precio">${plata(p.precio)}</div>
-                <div class="ayuda">${escapar(com.unidades_plan[p.unidad] || '')}</div>
+                <div class="precio">${plata(p.precio_mensual)}</div>
+                <div class="ayuda">por edificio / mes · ${topeTxt(p)}</div>
                 ${p.descripcion ? `<p class="ayuda" style="margin-top:.6rem;color:var(--text)">${escapar(p.descripcion)}</p>` : ''}
             </div>`).join('')}</div>`;
     }
 
     function filaPlan(p = {}) {
-        const unidades = Object.entries(com.unidades_plan).map(([k, v]) =>
-            `<option value="${k}" ${(p.unidad || 'uf') === k ? 'selected' : ''}>${escapar(v)}</option>`).join('');
-        return `<div class="plan-editor" data-plan>
+        return `<div class="plan-editor" data-plan data-id="${escapar(p.id || '')}">
             <label class="campo">Nombre<input data-c="nombre" maxlength="60" value="${escapar(p.nombre || '')}"></label>
-            <label class="campo">Precio<input data-c="precio" inputmode="decimal" value="${p.precio ?? ''}"></label>
-            <label class="campo">Se cobra<select data-c="unidad">${unidades}</select></label>
+            <label class="campo">Precio / mes<input data-c="precio_mensual" inputmode="decimal" value="${p.precio_mensual ?? ''}"></label>
+            <label class="campo">Hasta (unidades)<input data-c="max_unidades" inputmode="numeric" placeholder="sin tope" value="${p.max_unidades ?? ''}"></label>
             <label class="campo ancho-movil">Qué incluye<input data-c="descripcion" maxlength="400" value="${escapar(p.descripcion || '')}"></label>
             <button type="button" class="btn-icono" data-quitar title="Quitar">✕</button>
         </div>`;
@@ -247,17 +248,37 @@
 
     $('n-editar-planes').addEventListener('click', () => {
         abrirForm('Planes y precios', `
+            <p class="ayuda" style="margin-bottom:.8rem">El precio es por edificio y por mes. Dejá vacío «Hasta» en el plan más grande. Los cobros ya generados no cambian.</p>
             <div id="n-lista-planes">${(com.planes.length ? com.planes : [{}]).map(filaPlan).join('')}</div>
             <button type="button" class="btn btn-fantasma" id="n-agregar-plan">+ Agregar plan</button>`,
         async () => {
-            const planes = [...document.querySelectorAll('[data-plan]')].map((f) => Object.fromEntries(
-                [...f.querySelectorAll('[data-c]')].map((i) => [i.dataset.c, i.value])));
-            const r = await pedir('/api/superadmin/comercial/planes', 'PUT', { planes });
+            const planes = [...document.querySelectorAll('[data-plan]')].map((f) => ({
+                id: f.dataset.id || null,
+                ...Object.fromEntries([...f.querySelectorAll('[data-c]')].map((i) => [i.dataset.c, i.value])),
+            }));
+            const r = await pedir('/api/superadmin/planes', 'PUT', { planes });
             if (!r.ok) { toast(r.json.error || 'No se pudo guardar', true); return false; }
             toast('Planes guardados');
             await cargarComercial();
             return true;
         });
+    });
+
+    /* ── Cómo cobramos ── */
+    function pintarConfigCobro() {
+        const c = com.cobro || {};
+        [['c-prueba', c.prueba_dias], ['c-titular', c.titular], ['c-cbu', c.cbu], ['c-alias', c.alias]]
+            .forEach(([id, v]) => { if (document.activeElement !== $(id)) $(id).value = v ?? ''; });
+    }
+
+    $('n-form-cobro').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const r = await pedir('/api/superadmin/cobro/config', 'PUT', {
+            prueba_dias: $('c-prueba').value, titular: $('c-titular').value,
+            cbu: $('c-cbu').value, alias: $('c-alias').value,
+        });
+        if (!r.ok) return toast(r.json.error || 'No se pudo guardar', true);
+        toast('Guardado');
     });
 
     // Agregar y quitar filas en los editores de metas y planes.
@@ -300,6 +321,7 @@
         $('f-candado').hidden = true;
         $('f-contenido').hidden = false;
         pintarFinanzas();
+        cargarCobros();
         // La pantalla se cierra sola cuando vence el desbloqueo del servidor.
         clearTimeout(timerBloqueo);
         const resta = fin.abierta_hasta * 1000 - Date.now();
@@ -338,7 +360,7 @@
                 k.runway_meses === null ? (k.burn ? 'sin caja positiva' : 'sin gastos cargados') : 'si no entrara un peso más');
 
         pintarGraficoFinanzas(fin.serie);
-        pintarProyeccion(fin.proyeccion);
+        pintarSuscripciones(fin.suscripciones);
 
         $('f-categorias').innerHTML = fin.categorias.map((c) => `<option value="${escapar(c)}">`).join('');
         const cats = fin.gastos_por_categoria;
@@ -381,25 +403,105 @@
         $('f-grafico').innerHTML = svg;
     }
 
-    function pintarProyeccion(p) {
-        if (document.activeElement !== $('f-precio-uf')) $('f-precio-uf').value = p.precio_uf || '';
-        if (document.activeElement !== $('f-precio-cons')) $('f-precio-cons').value = p.precio_consorcio || '';
-        const sinPrecio = !p.precio_uf && !p.precio_consorcio;
-        $('f-proy').innerHTML = sinPrecio
-            ? '<p class="ayuda">Poné un precio a la derecha y te mostramos cuánto entraría por mes con los clientes que ya usan Niddo.</p>'
-            : `<div class="grande">${plata(p.mensual)}<span class="ayuda"> / mes</span></div>
-               <div class="ayuda" style="margin-top:.2rem">${plata(p.anual)} al año</div>
-               <p class="ayuda" style="margin-top:.7rem">${p.clientes} administradores · ${p.consorcios} consorcios · ${p.unidades} unidades</p>
-               ${p.pipeline.prospectos ? `<p style="margin-top:.8rem;font-size:.87rem">Si cerrás el pipeline en curso (${p.pipeline.prospectos} prospectos): <b>+${plata(p.pipeline.mensual)}/mes</b></p>` : ''}`;
+    /* ── Suscripciones ── */
+    function pintarSuscripciones(su) {
+        $('f-subs-kpis').innerHTML =
+            kpi('Facturación mensual', plata(su.mrr), 'lo que pagan hoy los que pagan', su.mrr > 0 ? 'positivo' : '') +
+            kpi('Al año', plata(su.anual)) +
+            kpi('Si nadie tuviera pase gratis', plata(su.potencial), 'fundadores y prueba incluidos') +
+            kpi('Pipeline en curso', `+${plata(su.pipeline.mensual)}`, `${su.pipeline.prospectos} prospectos, por mes`);
+        $('f-subs-planes').innerHTML = `
+            <thead><tr><th>Plan</th><th class="num">Precio</th><th class="num">Edificios</th><th class="num">Pagando</th><th class="num">Sin cargo</th><th class="num">Por mes</th></tr></thead>
+            <tbody>${su.por_plan.map((p) => `<tr>
+                <td>${escapar(p.plan)}</td><td class="num">${plata(p.precio)}</td>
+                <td class="num">${p.edificios}</td><td class="num">${p.pagando}</td>
+                <td class="num">${p.sin_cargo}</td><td class="num"><b>${plata(p.mrr)}</b></td>
+            </tr>`).join('')}</tbody>`;
+        const c = su.cuentas;
+        $('f-subs-cuentas').textContent =
+            `Administradores: ${c.pagando} pagando · ${c.fundador} fundadores con pase gratis · ${c.prueba} en prueba · ` +
+            `${c.sin_edificios} sin edificios todavía · ${c.equipo} del equipo (no pagan nunca).`;
     }
 
-    $('f-form-precios').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const r = await pedir('/api/superadmin/finanzas/proyeccion', 'PUT',
-            { precio_uf: $('f-precio-uf').value, precio_consorcio: $('f-precio-cons').value });
+    /* ── Cobros del mes ── */
+    const ESTADOS = { pendiente: 'A cobrar', pagado: 'Pagado', bonificado: 'Sin cargo' };
+    const MOTIVOS = { fundador: 'fundador', prueba: 'en prueba' };
+    let periodo = hoyISO().slice(0, 7);
+    let cobrosFilas = [];
+
+    async function cargarCobros() {
+        $('f-periodo').value = periodo;
+        const r = await pedir(`/api/superadmin/cobros?periodo=${periodo}`);
+        if (r.status === 423) return mostrarCandado();
+        if (!r.ok) return toast(r.json.error || 'No pudimos cargar los cobros', true);
+        const d = r.json;
+        cobrosFilas = d.filas;
+        const res = d.resumen;
+        $('f-cobros-kpis').innerHTML =
+            kpi('A cobrar este mes', plata(res.facturado)) +
+            kpi('Cobrado', plata(res.cobrado), '', res.cobrado > 0 ? 'positivo' : '') +
+            kpi('Falta cobrar', plata(res.pendiente), '', res.pendiente > 0 ? 'negativo' : '') +
+            kpi('Bonificado', plata(res.bonificado), 'pase gratis');
+        $('f-generar').textContent = res.sin_generar ? `Generar cobros (${res.sin_generar})` : 'Todo generado';
+        $('f-generar').disabled = !res.sin_generar;
+
+        $('f-cobros').innerHTML = d.filas.length ? d.filas.map((f) => {
+            const c = f.cobro;
+            const estado = c ? c.estado : 'sin-generar';
+            const detalle = c ? c.detalle.map((e) => `${escapar(e.consorcio)} (${e.unidades} u., ${escapar(e.plan || '—')})`).join(' · ') : 'Todavía no se generó';
+            return `<div class="ficha" data-admin="${f.admin_id}">
+                <div class="quien">
+                    <div class="nombre">${escapar(f.nombre)} <span class="pill ${estado}">${c ? ESTADOS[c.estado] : 'Sin generar'}</span></div>
+                    <div class="detalle">${detalle}</div>
+                    <div class="detalle" style="margin-top:.3rem">Gratis hasta
+                        <input type="date" class="gratis-input" data-gratis="${f.admin_id}" value="${f.gratis_hasta || ''}">
+                        ${f.sin_cargo ? `<b>(${MOTIVOS[f.sin_cargo] || f.sin_cargo})</b>` : ''}</div>
+                </div>
+                <span class="mov-monto ${c && c.estado === 'pagado' ? 'ingreso' : ''}">${c ? (c.estado === 'bonificado' ? `<s>${plata(c.total)}</s>` : plata(c.total)) : '—'}</span>
+                <div class="acciones">
+                    ${c && c.estado === 'pendiente' ? `<button class="btn btn-aprobar" data-pagado="${c.id}">Marcar pagado</button>` : ''}
+                    ${c && c.estado === 'pagado' ? `<button class="btn btn-fantasma" data-deshacer="${c.id}">Deshacer</button>` : ''}
+                    ${c && c.estado !== 'pagado' ? `<button class="btn-icono" data-borrar-cobro="${c.id}" title="Borrar para rehacerlo">✕</button>` : ''}
+                </div>
+            </div>`;
+        }).join('') : '<div class="vacio">No hay administradores que paguen todavía.</div>';
+    }
+
+    $('f-periodo').addEventListener('change', () => { periodo = $('f-periodo').value || periodo; cargarCobros(); });
+
+    $('f-generar').addEventListener('click', async () => {
+        const r = await pedir('/api/superadmin/cobros/generar', 'POST', { periodo });
+        if (r.status === 423) return mostrarCandado();
+        if (!r.ok) return toast(r.json.error || 'No se pudieron generar', true);
+        toast(r.json.generados ? `Listo: ${r.json.generados} cobros generados` : 'No había nada para generar');
+        await cargarCobros();
+    });
+
+    $('f-cobros').addEventListener('click', async (e) => {
+        const b = e.target.closest('[data-pagado], [data-deshacer], [data-borrar-cobro]');
+        if (!b) return;
+        let url, metodo = 'POST', ok;
+        if (b.dataset.pagado) { url = `/api/superadmin/cobros/${b.dataset.pagado}/pagado`; ok = 'Pagado. Entró como ingreso en Finanzas.'; }
+        if (b.dataset.deshacer) { url = `/api/superadmin/cobros/${b.dataset.deshacer}/deshacer`; ok = 'Pago deshecho'; }
+        if (b.dataset.borrarCobro) {
+            if (!confirm('¿Borrar este cobro? Lo podés volver a generar con los planes de hoy.')) return;
+            url = `/api/superadmin/cobros/${b.dataset.borrarCobro}`; metodo = 'DELETE'; ok = 'Cobro borrado';
+        }
+        b.disabled = true;
+        const r = await pedir(url, metodo);
+        if (r.status === 423) return mostrarCandado();
+        if (!r.ok) { b.disabled = false; return toast(r.json.error || 'No se pudo', true); }
+        toast(ok);
+        await cargarFinanzas();
+    });
+
+    $('f-cobros').addEventListener('change', async (e) => {
+        const inp = e.target.closest('[data-gratis]');
+        if (!inp) return;
+        const r = await pedir(`/api/superadmin/administradores/${inp.dataset.gratis}/gratis`, 'PUT', { gratis_hasta: inp.value || null });
         if (r.status === 423) return mostrarCandado();
         if (!r.ok) return toast(r.json.error || 'No se pudo guardar', true);
-        toast('Precios guardados');
+        toast(inp.value ? 'Pase gratis actualizado' : 'Pase gratis quitado');
         await cargarFinanzas();
     });
 

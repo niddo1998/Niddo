@@ -275,6 +275,17 @@
         .kpi.negativo .valor { color: var(--nd-terracota-hondo); }
         .grande { font-family: var(--font-display); font-size: 2rem; line-height: 1.1; }
         .proy { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; align-items: start; }
+        .tabla { width: 100%; border-collapse: collapse; font-size: .85rem; }
+        .tabla th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;
+                    color: var(--muted); padding: 0 .5rem .5rem; font-weight: 700; }
+        .tabla td { padding: .55rem .5rem; border-top: 1px solid var(--border); }
+        .tabla .num { text-align: right; white-space: nowrap; }
+        .selector-mes { padding: .45rem .6rem; border: 1px solid var(--border); border-radius: var(--r-md);
+                        background: var(--surface); font-family: var(--font); font-size: .85rem; color: var(--text); }
+        .pill.pagado { background: var(--nd-verde-dim); color: var(--nd-verde-bosque); }
+        .pill.bonificado, .pill.sin-generar { background: var(--nd-crema-claro); color: var(--muted); }
+        .gratis-input { padding: .3rem .45rem; border: 1px solid var(--border); border-radius: var(--r-sm);
+                        font-family: var(--font); font-size: .78rem; background: var(--surface); color: var(--text); }
         .mov-monto { font-weight: 700; white-space: nowrap; }
         .mov-monto.ingreso { color: var(--nd-verde-bosque); }
         .mov-monto.gasto { color: var(--nd-terracota-hondo); }
@@ -379,7 +390,20 @@
                 <h2 class="titulo">Planes y precios</h2>
                 <button class="btn btn-fantasma" id="n-editar-planes">Editar planes</button>
             </div>
+            <p class="ayuda" style="margin-bottom:.7rem">Cada edificio paga el plan más chico que alcanza para sus unidades. Si pasa el tope, sube solo y al administrador le llega el aviso.</p>
             <div id="n-planes"></div>
+
+            <h2 class="titulo">Cómo cobramos</h2>
+            <form class="panel" id="n-form-cobro">
+                <div class="grilla">
+                    <label class="campo">Días de prueba para nuevos<input id="c-prueba" inputmode="numeric"></label>
+                    <label class="campo">Titular de la cuenta<input id="c-titular" maxlength="120"></label>
+                    <label class="campo">CBU / CVU<input id="c-cbu" maxlength="40" inputmode="numeric"></label>
+                    <label class="campo">Alias<input id="c-alias" maxlength="60"></label>
+                </div>
+                <p class="ayuda" style="margin:.6rem 0">Los administradores ven estos datos en «Mi plan» para transferir. La prueba se aplica al aprobar a alguien nuevo.</p>
+                <button class="btn btn-fantasma" type="submit">Guardar</button>
+            </form>
 
             <div class="barra-acciones">
                 <h2 class="titulo">Notas del plan</h2>
@@ -416,18 +440,22 @@
                     <svg class="grafico" id="f-grafico" viewBox="0 0 720 170" preserveAspectRatio="none"></svg>
                 </div>
 
-                <h2 class="titulo">Proyección: si cobráramos hoy</h2>
-                <div class="panel proy">
-                    <div id="f-proy"></div>
-                    <form id="f-form-precios">
-                        <div class="grilla">
-                            <label class="campo">Precio por unidad / mes<input id="f-precio-uf" inputmode="decimal" placeholder="0"></label>
-                            <label class="campo">Precio por consorcio / mes<input id="f-precio-cons" inputmode="decimal" placeholder="0"></label>
-                        </div>
-                        <p class="ayuda" style="margin:.6rem 0">Se multiplica por los consorcios y unidades de los administradores aprobados (sin contar al equipo).</p>
-                        <button class="btn btn-fantasma" type="submit">Guardar precios</button>
-                    </form>
+                <h2 class="titulo">Suscripciones</h2>
+                <div class="kpis" id="f-subs-kpis"></div>
+                <div class="panel" style="margin-top:.7rem;overflow-x:auto">
+                    <table class="tabla" id="f-subs-planes"></table>
+                    <p class="ayuda" id="f-subs-cuentas" style="margin-top:.8rem"></p>
                 </div>
+
+                <div class="barra-acciones">
+                    <h2 class="titulo">Cobros del mes</h2>
+                    <div style="display:flex;gap:.5rem;align-items:center">
+                        <input type="month" id="f-periodo" class="selector-mes">
+                        <button class="btn btn-primario" id="f-generar">Generar cobros</button>
+                    </div>
+                </div>
+                <div class="kpis" id="f-cobros-kpis"></div>
+                <div id="f-cobros" style="margin-top:.7rem"></div>
 
                 <h2 class="titulo">Cargar un movimiento</h2>
                 <form class="panel" id="f-form-mov">

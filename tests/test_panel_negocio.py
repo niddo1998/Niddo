@@ -14,7 +14,7 @@ def sa(base):
          'es_superadmin': True, 'email': 'sa@test', 'nombre': 'SA',
          'ultima_actividad': '2999-01-01T00:00:00+00:00'})
     base.setdefault('liquidaciones', [])
-    for t in ('negocio_movimientos', 'negocio_prospectos', 'negocio_config'):
+    for t in ('negocio_movimientos', 'negocio_prospectos', 'negocio_config', 'planes', 'cobros_niddo'):
         base.setdefault(t, [])
     app_mod.app.config['TESTING'] = True
     c = app_mod.app.test_client()
@@ -123,17 +123,6 @@ def test_montos_como_se_escriben_en_argentina(txt, esperado):
     assert app_mod._neg_numero(txt) == esperado
 
 
-def test_proyeccion_cuenta_solo_clientes_aprobados(sa, base):
-    base['consorcios'][0]['admin_id'] = 'admin-1'     # cliente aprobado
-    base['consorcios'][1]['admin_id'] = 'admin-sa'    # del equipo: no cuenta
-    _abrir(sa)
-    sa.put('/api/superadmin/finanzas/proyeccion', json={'precio_uf': 100, 'precio_consorcio': 1000})
-    p = sa.get('/api/superadmin/finanzas').get_json()['proyeccion']
-    assert (p['consorcios'], p['unidades']) == (1, 1)
-    assert p['mensual'] == 1100
-    assert p['anual'] == 13200
-
-
 # ── Plan comercial ───────────────────────────────────────────────────────────
 
 def test_pipeline_alta_cambio_de_etapa_y_baja(sa, base):
@@ -168,10 +157,6 @@ def test_metas_muestran_el_avance_real(sa):
     assert metas[0]['avance'] == 25
 
 
-def test_planes_y_notas_se_guardan(sa):
-    sa.put('/api/superadmin/comercial/planes', json={'planes': [
-        {'nombre': 'Básico', 'precio': '350', 'unidad': 'uf'}, {'nombre': ''}]})
+def test_notas_se_guardan(sa):
     sa.put('/api/superadmin/comercial/notas', json={'texto': 'Arrancar por Palermo'})
-    d = sa.get('/api/superadmin/comercial').get_json()
-    assert d['planes'] == [{'nombre': 'Básico', 'precio': 350.0, 'unidad': 'uf', 'descripcion': ''}]
-    assert d['notas'] == 'Arrancar por Palermo'
+    assert sa.get('/api/superadmin/comercial').get_json()['notas'] == 'Arrancar por Palermo'

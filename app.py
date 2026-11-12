@@ -1874,7 +1874,8 @@ def _cargar_universo() -> dict:
         'admins': supabase.table('administradores')
             .select('id, estado, es_superadmin, created_at, ultima_actividad, last_login, '
                     'nombre, email, nombre_contacto, telefono, resuelto_at, '
-                    'solicitud_completada_at').execute().data or [],
+                    'solicitud_completada_at, gratis_hasta, es_fundador, siempre_gratis') \
+            .execute().data or [],
         'consorcios': supabase.table('consorcios')
             .select('id, admin_id, nombre, created_at, banco_cbu').execute().data or [],
         'ufs': supabase.table('unidades_funcionales')
@@ -2047,11 +2048,8 @@ METRICAS_METAS = {
     'liquidaciones_mes':       'Liquidaciones este mes',
     'pilotos':                 'Prospectos en piloto',
     'clientes':                'Clientes en el pipeline',
+    'pagando':                 'Administradores pagando',
 }
-
-UNIDADES_PLAN = {'uf': 'por unidad funcional / mes',
-                 'consorcio': 'por consorcio / mes',
-                 'fijo': 'fijo por mes'}
 
 
 def _neg_texto(cuerpo: dict, campo: str, largo: int = 200) -> str:
@@ -2107,7 +2105,7 @@ def _guardar_config_negocio(clave: str, valor) -> None:
 
 def _clientes_aprobados(u: dict) -> list:
     return [a for a in u['admins']
-            if not a.get('es_superadmin') and a.get('estado') == 'aprobado']
+            if not es_del_equipo(a) and a.get('estado') == 'aprobado']
 
 
 def _prospectos() -> list:
@@ -2209,33 +2207,6 @@ def _resumen_finanzas(movs: list, meses: list) -> dict:
     }
 
 
-def _proyeccion(u: dict, ix: dict, precios: dict, prospectos: list) -> dict:
-    """Cuánto entraría por mes si se les cobrara hoy a los clientes que hay."""
-    precio_uf = float(precios.get('precio_uf') or 0)
-    precio_cons = float(precios.get('precio_consorcio') or 0)
-    clientes = _clientes_aprobados(u)
-    consorcios = sum(len(ix['consorcios_por_admin'].get(a['id'], [])) for a in clientes)
-    ufs = sum(_ufs_de_admin(a['id'], ix) for a in clientes)
-    mensual = ufs * precio_uf + consorcios * precio_cons
-
-    abiertos = [p for p in prospectos if p.get('etapa') in ('contactado', 'demo', 'piloto')]
-    p_ufs = sum(int(p.get('unidades') or 0) for p in abiertos)
-    p_cons = sum(int(p.get('consorcios') or 0) for p in abiertos)
-    pipeline = p_ufs * precio_uf + p_cons * precio_cons
-
-    return {
-        'precio_uf': precio_uf,
-        'precio_consorcio': precio_cons,
-        'clientes': len(clientes),
-        'consorcios': consorcios,
-        'unidades': ufs,
-        'mensual': round(mensual, 2),
-        'anual': round(mensual * 12, 2),
-        'pipeline': {'prospectos': len(abiertos), 'unidades': p_ufs,
-                     'consorcios': p_cons, 'mensual': round(pipeline, 2)},
-    }
-
-
 @app.route('/api/superadmin/finanzas', methods=['GET'])
 @require_superadmin
 @require_finanzas
@@ -2243,12 +2214,11 @@ def api_finanzas():
     movs = supabase.table('negocio_movimientos').select('*').execute().data or []
     movs.sort(key=lambda m: (m.get('fecha') or '', m.get('created_at') or ''), reverse=True)
     u = _cargar_universo()
-    precios = _config_negocio('proyeccion', {})
     datos = _resumen_finanzas(movs, _ultimos_meses(12))
     datos.update({
         'movimientos': movs[:300],
         'categorias': sorted({m.get('categoria') for m in movs if m.get('categoria')}),
-        'proyeccion': _proyeccion(u, _indices(u), precios, _prospectos()),
+        'suscripciones': _suscripciones(u, _indices(u), _planes(), _prospectos()),
         'abierta_hasta': session.get('finanzas_hasta'),
     })
     return jsonify(datos)
@@ -2286,17 +2256,6 @@ def api_finanzas_borrar_movimiento(mid):
     return jsonify({'ok': True})
 
 
-@app.route('/api/superadmin/finanzas/proyeccion', methods=['PUT'])
-@require_superadmin
-@require_finanzas
-def api_finanzas_proyeccion():
-    c = request.get_json(silent=True) or {}
-    precios = {'precio_uf': _neg_numero(c.get('precio_uf')) or 0,
-               'precio_consorcio': _neg_numero(c.get('precio_consorcio')) or 0}
-    _guardar_config_negocio('proyeccion', precios)
-    return jsonify(precios)
-
-
 # ── Plan comercial ────────────────────────────────────────────────────────────
 def _valores_metricas(u: dict, ix: dict, prospectos: list) -> dict:
     aprobados = _clientes_aprobados(u)
@@ -2314,6 +2273,8 @@ def _valores_metricas(u: dict, ix: dict, prospectos: list) -> dict:
                                  if l.get('periodo') == mes and l.get('admin_id') in ids),
         'pilotos': sum(1 for p in prospectos if p.get('etapa') == 'piloto'),
         'clientes': sum(1 for p in prospectos if p.get('etapa') == 'cliente'),
+        'pagando': sum(1 for a in aprobados
+                       if not motivo_sin_cargo(a) and ix['consorcios_por_admin'].get(a['id'])),
     }
 
 
@@ -2332,8 +2293,8 @@ def api_comercial():
     return jsonify({
         'prospectos': prospectos,
         'etapas': [{'id': k, 'nombre': v} for k, v in ETAPAS_PIPELINE],
-        'planes': _config_negocio('planes', []),
-        'unidades_plan': UNIDADES_PLAN,
+        'planes': _planes(),
+        'cobro': _config_cobro(),
         'metas': metas,
         'metricas': METRICAS_METAS,
         'valores': valores,
@@ -2393,23 +2354,6 @@ def api_comercial_borrar_prospecto(pid):
     return jsonify({'ok': True})
 
 
-@app.route('/api/superadmin/comercial/planes', methods=['PUT'])
-@require_superadmin
-def api_comercial_planes():
-    planes = []
-    for pl in ((request.get_json(silent=True) or {}).get('planes') or [])[:12]:
-        if not isinstance(pl, dict):
-            continue
-        nombre = _neg_texto(pl, 'nombre', 60)
-        if not nombre:
-            continue
-        unidad = pl.get('unidad') if pl.get('unidad') in UNIDADES_PLAN else 'uf'
-        planes.append({'nombre': nombre, 'precio': _neg_numero(pl.get('precio')) or 0,
-                       'unidad': unidad, 'descripcion': _neg_texto(pl, 'descripcion', 400)})
-    _guardar_config_negocio('planes', planes)
-    return jsonify({'planes': planes})
-
-
 @app.route('/api/superadmin/comercial/metas', methods=['PUT'])
 @require_superadmin
 def api_comercial_metas():
@@ -2433,6 +2377,384 @@ def api_comercial_notas():
     texto = str((request.get_json(silent=True) or {}).get('texto') or '')[:20000]
     _guardar_config_negocio('notas', {'texto': texto})
     return jsonify({'ok': True})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PLANES Y COBRO A ADMINISTRADORES
+# ══════════════════════════════════════════════════════════════════════════════
+# Cada edificio paga según cuántas unidades tiene: le toca el plan más chico
+# cuyo tope alcanza. El plan no se guarda en el consorcio, se deduce: así no
+# hay forma de que quede desactualizado, y "pasar de plan" pasa solo al cargar
+# unidades. El administrador paga por mes la suma de sus edificios.
+#
+# No paga: el equipo (superadmins y cuentas `siempre_gratis`) y quien tiene
+# pase gratis vigente (`gratis_hasta`): los fundadores y los nuevos en prueba.
+# La plata entra por transferencia y se marca a mano en /superadmin; al
+# marcarla, entra sola como ingreso en Finanzas.
+
+COBRO_DEFECTO = {'prueba_dias': 30, 'cbu': '', 'alias': '', 'titular': ''}
+
+
+def _planes() -> list:
+    filas = supabase.table('planes').select('*').execute().data or []
+    return sorted(filas, key=lambda p: (p.get('orden') or 0,
+                                        p.get('max_unidades') is None,
+                                        p.get('max_unidades') or 0))
+
+
+def plan_para(unidades: int, planes: list) -> Optional[dict]:
+    """El plan más chico que alcanza para esa cantidad de unidades."""
+    escalones = sorted(planes, key=lambda p: (p.get('max_unidades') is None,
+                                              p.get('max_unidades') or 0))
+    for p in escalones:
+        if p.get('max_unidades') is None or unidades <= int(p['max_unidades']):
+            return p
+    return escalones[-1] if escalones else None
+
+
+def _precio(plan: Optional[dict]) -> float:
+    return float((plan or {}).get('precio_mensual') or 0)
+
+
+def _config_cobro() -> dict:
+    return {**COBRO_DEFECTO, **(_config_negocio('cobro', {}) or {})}
+
+
+def es_del_equipo(admin: dict) -> bool:
+    return bool(admin.get('es_superadmin') or admin.get('siempre_gratis'))
+
+
+def motivo_sin_cargo(admin: dict, dia: Optional[date] = None) -> Optional[str]:
+    """Por qué este administrador no paga hoy, o None si paga."""
+    if es_del_equipo(admin):
+        return 'equipo'
+    hasta = _neg_fecha(admin.get('gratis_hasta'))
+    if hasta and hasta >= (dia or date.today()).isoformat():
+        return 'fundador' if admin.get('es_fundador') else 'prueba'
+    return None
+
+
+def _edificios_de(admin_id: str, planes: list) -> list:
+    """Cada edificio del administrador con sus unidades y el plan que le toca."""
+    cons = supabase.table('consorcios').select('id, nombre').eq('admin_id', admin_id).execute().data or []
+    if not cons:
+        return []
+    ufs = supabase.table('unidades_funcionales').select('id, consorcio_id') \
+        .in_('consorcio_id', [c['id'] for c in cons]).execute().data or []
+    por_cons = {}
+    for uf in ufs:
+        por_cons[uf['consorcio_id']] = por_cons.get(uf['consorcio_id'], 0) + 1
+    edificios = []
+    for c in sorted(cons, key=lambda c: c.get('nombre') or ''):
+        n = por_cons.get(c['id'], 0)
+        plan = plan_para(n, planes)
+        siguiente = next((p for p in sorted(planes, key=lambda p: (p.get('max_unidades') is None,
+                                                                   p.get('max_unidades') or 0))
+                          if plan and p.get('id') != plan.get('id')
+                          and (p.get('max_unidades') is None or p['max_unidades'] > n)
+                          and _precio(p) > _precio(plan)), None)
+        edificios.append({
+            'consorcio_id': c['id'], 'nombre': c.get('nombre'), 'unidades': n,
+            'plan': (plan or {}).get('nombre'), 'plan_id': (plan or {}).get('id'),
+            'tope': (plan or {}).get('max_unidades'), 'precio': _precio(plan),
+            'siguiente': {'nombre': siguiente['nombre'], 'precio': _precio(siguiente)} if siguiente else None,
+        })
+    return edificios
+
+
+def aviso_cambio_de_plan(cid: str, antes: int, despues: int) -> Optional[str]:
+    """El texto que ve el administrador cuando un edificio pasa de plan."""
+    planes = _planes()
+    viejo, nuevo = plan_para(antes, planes), plan_para(despues, planes)
+    if not nuevo or (viejo or {}).get('id') == nuevo.get('id') or _precio(nuevo) <= _precio(viejo):
+        return None
+    nombre = (supabase.table('consorcios').select('nombre').eq('id', cid).execute().data or [{}])[0].get('nombre') or 'El edificio'
+    return (f'{nombre} pasó al plan «{nuevo["nombre"]}» '
+            f'({pesos(_precio(nuevo))} por mes) porque ya tiene {despues} unidades.')
+
+
+def _unidades_de(cid: str) -> int:
+    return len(supabase.table('unidades_funcionales').select('id').eq('consorcio_id', cid).execute().data or [])
+
+
+def _armar_cobro(admin: dict, periodo: str, planes: list) -> Optional[dict]:
+    edificios = _edificios_de(admin['id'], planes)
+    if not edificios:
+        return None
+    total = round(sum(e['precio'] for e in edificios), 2)
+    # El pase gratis se mira al primer día del período: el mes en que vence
+    # todavía es gratis si vencía después del 1.
+    primero = date.fromisoformat(periodo + '-01')
+    sin_cargo = motivo_sin_cargo(admin, primero)
+    return {
+        'admin_id': admin['id'], 'periodo': periodo, 'total': total,
+        'estado': 'bonificado' if sin_cargo or total == 0 else 'pendiente',
+        'detalle': [{'consorcio': e['nombre'], 'unidades': e['unidades'],
+                     'plan': e['plan'], 'precio': e['precio']} for e in edificios],
+    }
+
+
+# ── Lo que ve el administrador ────────────────────────────────────────────────
+@app.route('/api/admin/mi-plan', methods=['GET'])
+@require_auth(allowed_roles=['admin'])
+def api_admin_mi_plan():
+    admin = cargar_admin_actual() or {}
+    planes = _planes()
+    edificios = _edificios_de(admin['id'], planes)
+    cobros = supabase.table('cobros_niddo').select('id, periodo, total, estado, detalle, pagado_at') \
+        .eq('admin_id', admin['id']).execute().data or []
+    cobros.sort(key=lambda c: c.get('periodo') or '', reverse=True)
+    cfg = _config_cobro()
+    return jsonify({
+        'edificios': edificios,
+        'total': round(sum(e['precio'] for e in edificios), 2),
+        'sin_cargo': motivo_sin_cargo(admin),
+        'gratis_hasta': admin.get('gratis_hasta'),
+        'planes': [{'nombre': p['nombre'], 'max_unidades': p.get('max_unidades'),
+                    'precio': _precio(p), 'descripcion': p.get('descripcion')} for p in planes],
+        'cobros': cobros[:12],
+        'transferencia': {k: cfg.get(k) for k in ('cbu', 'alias', 'titular')},
+    })
+
+
+# ── Superadmin: planes y forma de cobro (Comercial) ──────────────────────────
+@app.route('/api/superadmin/planes', methods=['PUT'])
+@require_superadmin
+def api_superadmin_planes():
+    entrada = (request.get_json(silent=True) or {}).get('planes') or []
+    limpios = []
+    for i, pl in enumerate(entrada[:10]):
+        if not isinstance(pl, dict) or not _neg_texto(pl, 'nombre', 60):
+            continue
+        tope = _neg_numero(pl.get('max_unidades'))
+        limpios.append({
+            'id': pl.get('id') or None,
+            'nombre': _neg_texto(pl, 'nombre', 60),
+            'max_unidades': int(tope) if tope else None,
+            'precio_mensual': round(_neg_numero(pl.get('precio_mensual')) or 0, 2),
+            'descripcion': _neg_texto(pl, 'descripcion', 400) or None,
+        })
+    if not limpios:
+        return jsonify({'error': 'Tiene que haber al menos un plan'}), 400
+    if sum(1 for p in limpios if p['max_unidades'] is None) != 1:
+        return jsonify({'error': 'Tiene que haber exactamente un plan sin tope de unidades (el más grande)'}), 400
+    topes = [p['max_unidades'] for p in limpios if p['max_unidades'] is not None]
+    if len(topes) != len(set(topes)):
+        return jsonify({'error': 'Dos planes no pueden tener el mismo tope de unidades'}), 400
+
+    limpios.sort(key=lambda p: (p['max_unidades'] is None, p['max_unidades'] or 0))
+    existentes = {p['id'] for p in _planes()}
+    seguir = set()
+    for orden, p in enumerate(limpios, start=1):
+        fila = {k: v for k, v in p.items() if k != 'id'}
+        fila['orden'] = orden
+        if p['id'] in existentes:
+            supabase.table('planes').update(fila).eq('id', p['id']).execute()
+            seguir.add(p['id'])
+        else:
+            supabase.table('planes').insert(fila).execute()
+    for pid in existentes - seguir:
+        supabase.table('planes').delete().eq('id', pid).execute()
+    return jsonify({'planes': _planes()})
+
+
+@app.route('/api/superadmin/cobro/config', methods=['PUT'])
+@require_superadmin
+def api_superadmin_cobro_config():
+    c = request.get_json(silent=True) or {}
+    cfg = {
+        'prueba_dias': int(_neg_numero(c.get('prueba_dias')) or 0),
+        'cbu': _neg_texto(c, 'cbu', 40),
+        'alias': _neg_texto(c, 'alias', 60),
+        'titular': _neg_texto(c, 'titular', 120),
+    }
+    _guardar_config_negocio('cobro', cfg)
+    return jsonify(cfg)
+
+
+# ── Superadmin: suscripciones y cobros (Finanzas, bajo llave) ────────────────
+def _suscripciones(u: dict, ix: dict, planes: list, prospectos: list) -> dict:
+    """Quién paga qué plan, y cuánto entra por mes si todos pagan lo que deben."""
+    hoy = date.today()
+    por_plan = {p['id']: {'plan': p['nombre'], 'precio': _precio(p), 'max_unidades': p.get('max_unidades'),
+                          'edificios': 0, 'pagando': 0, 'sin_cargo': 0, 'mrr': 0.0}
+                for p in planes}
+    cuentas = {'pagando': 0, 'fundador': 0, 'prueba': 0, 'equipo': 0, 'sin_edificios': 0}
+    mrr, potencial = 0.0, 0.0
+    for a in u['admins']:
+        if a.get('estado') != 'aprobado':
+            continue
+        motivo = motivo_sin_cargo(a, hoy)
+        if motivo == 'equipo':
+            cuentas['equipo'] += 1
+            continue
+        cons = ix['consorcios_por_admin'].get(a['id'], [])
+        if not cons:
+            cuentas['sin_edificios'] += 1
+            continue
+        cuentas[motivo or 'pagando'] += 1
+        for c in cons:
+            plan = plan_para(len(ix['ufs_por_consorcio'].get(c['id'], [])), planes)
+            if not plan:
+                continue
+            fila = por_plan[plan['id']]
+            fila['edificios'] += 1
+            potencial += _precio(plan)
+            if motivo:
+                fila['sin_cargo'] += 1
+            else:
+                fila['pagando'] += 1
+                fila['mrr'] += _precio(plan)
+                mrr += _precio(plan)
+
+    # Pipeline: cada prospecto con sus edificios del tamaño promedio que dijo.
+    abiertos = [p for p in prospectos if p.get('etapa') in ('contactado', 'demo', 'piloto')]
+    pipeline = 0.0
+    for p in abiertos:
+        cons, ufs = int(p.get('consorcios') or 0), int(p.get('unidades') or 0)
+        if cons:
+            pipeline += cons * _precio(plan_para(-(-ufs // cons), planes))
+        elif ufs:
+            pipeline += _precio(plan_para(ufs, planes))
+
+    return {
+        'mrr': round(mrr, 2),
+        'anual': round(mrr * 12, 2),
+        'potencial': round(potencial, 2),
+        'cuentas': cuentas,
+        'por_plan': list(por_plan.values()),
+        'pipeline': {'prospectos': len(abiertos), 'mensual': round(pipeline, 2)},
+    }
+
+
+def _nombre_admin(a: dict) -> str:
+    return a.get('nombre_contacto') or a.get('nombre') or a.get('email') or '—'
+
+
+@app.route('/api/superadmin/cobros', methods=['GET'])
+@require_superadmin
+@require_finanzas
+def api_superadmin_cobros():
+    periodo = request.args.get('periodo') or _ultimos_meses(1)[0]
+    if not re.fullmatch(r'\d{4}-\d{2}', periodo):
+        return jsonify({'error': 'Período inválido'}), 400
+    admins = supabase.table('administradores') \
+        .select('id, nombre, nombre_contacto, email, estado, es_superadmin, siempre_gratis, '
+                'gratis_hasta, es_fundador').eq('estado', 'aprobado').execute().data or []
+    cobros = {c['admin_id']: c for c in supabase.table('cobros_niddo').select('*')
+              .eq('periodo', periodo).execute().data or []}
+    filas = []
+    for a in admins:
+        if es_del_equipo(a):
+            continue
+        filas.append({'admin_id': a['id'], 'nombre': _nombre_admin(a), 'email': a.get('email'),
+                      'gratis_hasta': a.get('gratis_hasta'), 'es_fundador': bool(a.get('es_fundador')),
+                      'sin_cargo': motivo_sin_cargo(a), 'cobro': cobros.get(a['id'])})
+    orden = {'pendiente': 0, 'pagado': 1, 'bonificado': 2, None: 3}
+    filas.sort(key=lambda f: (orden[(f['cobro'] or {}).get('estado')], f['nombre'].lower()))
+    hechos = [f['cobro'] for f in filas if f['cobro']]
+    return jsonify({
+        'periodo': periodo,
+        'filas': filas,
+        'resumen': {
+            'facturado': round(sum(c['total'] for c in hechos if c['estado'] != 'bonificado'), 2),
+            'cobrado': round(sum(c['total'] for c in hechos if c['estado'] == 'pagado'), 2),
+            'pendiente': round(sum(c['total'] for c in hechos if c['estado'] == 'pendiente'), 2),
+            'bonificado': round(sum(c['total'] for c in hechos if c['estado'] == 'bonificado'), 2),
+            'sin_generar': sum(1 for f in filas if not f['cobro']),
+        },
+    })
+
+
+@app.route('/api/superadmin/cobros/generar', methods=['POST'])
+@require_superadmin
+@require_finanzas
+def api_superadmin_cobros_generar():
+    periodo = str((request.get_json(silent=True) or {}).get('periodo') or _ultimos_meses(1)[0])
+    if not re.fullmatch(r'\d{4}-\d{2}', periodo):
+        return jsonify({'error': 'Período inválido'}), 400
+    planes = _planes()
+    admins = supabase.table('administradores') \
+        .select('id, estado, es_superadmin, siempre_gratis, gratis_hasta, es_fundador') \
+        .eq('estado', 'aprobado').execute().data or []
+    ya = {c['admin_id'] for c in supabase.table('cobros_niddo').select('admin_id')
+          .eq('periodo', periodo).execute().data or []}
+    nuevos = []
+    for a in admins:
+        if a['id'] in ya or es_del_equipo(a):
+            continue
+        cobro = _armar_cobro(a, periodo, planes)
+        if cobro:
+            nuevos.append(cobro)
+    if nuevos:
+        supabase.table('cobros_niddo').insert(nuevos).execute()
+    return jsonify({'generados': len(nuevos)})
+
+
+def _cobro(cid: str) -> dict:
+    filas = supabase.table('cobros_niddo').select('*').eq('id', cid).execute().data
+    if not filas:
+        abort(404)
+    return filas[0]
+
+
+@app.route('/api/superadmin/cobros/<cid>/pagado', methods=['POST'])
+@require_superadmin
+@require_finanzas
+def api_superadmin_cobro_pagado(cid):
+    cobro = _cobro(cid)
+    if cobro['estado'] != 'pendiente':
+        return jsonify({'error': 'Ese cobro no está pendiente'}), 409
+    admin = (supabase.table('administradores').select('nombre, nombre_contacto, email')
+             .eq('id', cobro['admin_id']).execute().data or [{}])[0]
+    mov = supabase.table('negocio_movimientos').insert({
+        'tipo': 'ingreso', 'fecha': date.today().isoformat(), 'monto': cobro['total'],
+        'categoria': 'Suscripciones',
+        'nota': f'{_nombre_admin(admin)} · {cobro["periodo"]}',
+    }).execute().data
+    supabase.table('cobros_niddo').update({
+        'estado': 'pagado', 'pagado_at': now_iso(),
+        'movimiento_id': mov[0]['id'] if mov else None,
+    }).eq('id', cid).execute()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/superadmin/cobros/<cid>/deshacer', methods=['POST'])
+@require_superadmin
+@require_finanzas
+def api_superadmin_cobro_deshacer(cid):
+    cobro = _cobro(cid)
+    if cobro['estado'] != 'pagado':
+        return jsonify({'error': 'Ese cobro no está marcado como pagado'}), 409
+    if cobro.get('movimiento_id'):
+        supabase.table('negocio_movimientos').delete().eq('id', cobro['movimiento_id']).execute()
+    supabase.table('cobros_niddo').update({'estado': 'pendiente', 'pagado_at': None,
+                                           'movimiento_id': None}).eq('id', cid).execute()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/superadmin/cobros/<cid>', methods=['DELETE'])
+@require_superadmin
+@require_finanzas
+def api_superadmin_cobro_borrar(cid):
+    """Para rehacer un cobro mal armado. Uno pagado primero se deshace."""
+    cobro = _cobro(cid)
+    if cobro['estado'] == 'pagado':
+        return jsonify({'error': 'Primero deshacé el pago'}), 409
+    supabase.table('cobros_niddo').delete().eq('id', cid).execute()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/superadmin/administradores/<aid>/gratis', methods=['PUT'])
+@require_superadmin
+@require_finanzas
+def api_superadmin_admin_gratis(aid):
+    c = request.get_json(silent=True) or {}
+    hasta = _neg_fecha(c.get('gratis_hasta')) if c.get('gratis_hasta') else None
+    filas = supabase.table('administradores').update({'gratis_hasta': hasta}).eq('id', aid).execute().data
+    if not filas:
+        return jsonify({'error': 'Administrador no encontrado'}), 404
+    return jsonify({'gratis_hasta': hasta})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2528,7 +2850,7 @@ def api_superadmin_aprobar(sid):
     # email de Auth0: si la persona dio otro para que la contactemos, el aviso
     # tiene que ir ahí y no a la cuenta con la que se registró.
     fila = supabase.table('administradores') \
-        .select('id, email, email_contacto, nombre, nombre_contacto, estado') \
+        .select('id, email, email_contacto, nombre, nombre_contacto, estado, gratis_hasta') \
         .eq('id', sid).execute().data
     if not fila:
         return jsonify({'error': 'Solicitud no encontrada'}), 404
@@ -2536,12 +2858,19 @@ def api_superadmin_aprobar(sid):
     if fila['estado'] == 'aprobado':
         return jsonify({'error': 'Esa cuenta ya estaba aprobada'}), 409
 
-    supabase.table('administradores').update({
+    cambios = {
         'estado':       'aprobado',
         'aprobado_por': get_admin_id(),
         'resuelto_at':  now_iso(),
         'motivo_rechazo': None,
-    }).eq('id', sid).execute()
+    }
+    # Arranca con el período de prueba. Si ya tenía una fecha (un fundador que
+    # se rechazó y se vuelve a aprobar), se respeta.
+    if not fila.get('gratis_hasta'):
+        dias = int(_config_cobro().get('prueba_dias') or 0)
+        if dias > 0:
+            cambios['gratis_hasta'] = (date.today() + timedelta(days=dias)).isoformat()
+    supabase.table('administradores').update(cambios).eq('id', sid).execute()
 
     _auditar('aprobar', sid)
     _mail_resultado(fila, aprobado=True)
@@ -2795,8 +3124,15 @@ def api_ufs_create(cid):
     }
     if _numero_o_none(d.get('saldo_inicial')) is not None:
         payload['saldo_inicial'] = _numero_o_none(d.get('saldo_inicial'))
+    antes = _unidades_de(cid)
     res = supabase.table('unidades_funcionales').insert(payload).execute()
-    return jsonify(res.data[0] if res.data else {}), 201
+    fila = dict(res.data[0]) if res.data else {}
+    # Pasar de plan es automático: se avisa en el momento para que no sea
+    # una sorpresa en el próximo cobro.
+    aviso = aviso_cambio_de_plan(cid, antes, antes + 1)
+    if aviso:
+        fila['aviso_plan'] = aviso
+    return jsonify(fila), 201
 
 
 @app.route('/api/consorcios/<cid>/unidades/<uid>', methods=['PUT'])
@@ -2989,10 +3325,20 @@ def api_carga_masiva():
         vistas_en_archivo.add(key)
         ufs_a_insertar.append(uf)
 
+    avisos_plan = []
     if ufs_a_insertar:
+        nuevas_por_cons = {}
+        for uf in ufs_a_insertar:
+            nuevas_por_cons[uf['consorcio_id']] = nuevas_por_cons.get(uf['consorcio_id'], 0) + 1
+        antes = {c: _unidades_de(c) for c in nuevas_por_cons}
         supabase.table('unidades_funcionales').insert(ufs_a_insertar).execute()
+        for c, n in nuevas_por_cons.items():
+            aviso = aviso_cambio_de_plan(c, antes[c], antes[c] + n)
+            if aviso:
+                avisos_plan.append(aviso)
 
     return jsonify({
+        'avisos_plan': avisos_plan,
         'consorcios_creados': len(nuevos_consorcios),
         'consorcios_reutilizados': len(ids_reutilizados),
         'unidades_creadas': len(ufs_a_insertar),

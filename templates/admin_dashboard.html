@@ -560,6 +560,7 @@
         <a class="nav-link" onclick="show('comunicacion',this)"><svg class="ic"><use href="#ic-mensaje"></use></svg>Comunicación <span class="badge-count" id="nav-badge-reclamos" style="display:none"></span></a>
 
         <div class="nav-section-label">Sistema</div>
+        <a class="nav-link" onclick="show('plan',this)"><svg class="ic"><use href="#ic-balance"></use></svg>Mi plan</a>
         <a class="nav-link" onclick="show('config',this)"><svg class="ic"><use href="#ic-config"></use></svg>Configuración</a>
         {% if es_superadmin %}
         <div class="nav-section-label">Plataforma</div>
@@ -1034,6 +1035,41 @@
 <!-- ═══ MENSAJERÍA ═══ -->
 
 <!-- ═══ CONFIG ═══ -->
+<div id="sec-plan" class="section">
+    <div class="page-header"><div><h1 class="page-title">Mi plan</h1><p class="page-sub">Cuánto pagás a Niddo por mes y por qué</p></div></div>
+    <div id="plan-estado"></div>
+    <div class="kpi-row">
+        <div class="kpi"><div class="kpi-val" id="plan-total">—</div><div class="kpi-label">Total por mes</div></div>
+        <div class="kpi"><div class="kpi-val" id="plan-edificios">—</div><div class="kpi-label">Edificios</div></div>
+        <div class="kpi"><div class="kpi-val" id="plan-unidades">—</div><div class="kpi-label">Unidades</div></div>
+    </div>
+    <div class="card">
+        <div class="card-h"><span class="card-t">Tus edificios</span></div>
+        <table class="tbl">
+            <thead><tr><th>Edificio</th><th>Unidades</th><th>Plan</th><th style="text-align:right">Por mes</th></tr></thead>
+            <tbody id="tbody-plan-edificios"><tr><td colspan="4" class="tbl-empty">Cargando…</td></tr></tbody>
+        </table>
+    </div>
+    <div class="grid2">
+        <div class="card card-p">
+            <div class="card-t" style="margin-bottom:10px">Cómo se calcula</div>
+            <p style="font-size:.84rem;color:var(--muted);line-height:1.6;margin-bottom:12px">Cada edificio paga según cuántas unidades tiene. Si cargás más unidades y pasa el tope, el edificio pasa solo al plan siguiente y te avisamos en el momento.</p>
+            <div id="plan-tabla-planes"></div>
+        </div>
+        <div class="card card-p">
+            <div class="card-t" style="margin-bottom:10px">Cómo pagar</div>
+            <div id="plan-transferencia"></div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-h"><span class="card-t">Historial</span></div>
+        <table class="tbl">
+            <thead><tr><th>Mes</th><th>Estado</th><th style="text-align:right">Monto</th></tr></thead>
+            <tbody id="tbody-plan-cobros"><tr><td colspan="3" class="tbl-empty">—</td></tr></tbody>
+        </table>
+    </div>
+</div>
+
 <div id="sec-config" class="section">
     <div class="page-header"><div><h1 class="page-title">Configuración</h1><p class="page-sub">Parámetros de liquidación por consorcio</p></div></div>
     <div class="filters">
@@ -2172,6 +2208,62 @@ function navegar(id, el) {
     // La primera vez en cada sección se abre sola su explicación.
     if (window.NiddoAyuda) NiddoAyuda.alEntrar(id);
     if (id === 'config')       initConfig();
+    if (id === 'plan')         loadMiPlan();
+}
+
+// ── Mi plan ───────────────────────────────────────────────────────────────────
+/* Pasar de plan es automático: el aviso tiene que quedar a la vista más que un
+   toast común, que se va antes de terminar de leerlo. */
+function avisoPlan(msg) {
+    const t = document.createElement('div');
+    t.className = 'toast-msg warn'; t.textContent = msg;
+    t.style.cursor = 'pointer'; t.title = 'Ver Mi plan';
+    t.onclick = () => { t.remove(); show('plan'); };
+    $('toasts').appendChild(t);
+    setTimeout(() => t.remove(), 9000);
+}
+
+const MES_LARGO = p => { const [a, m] = String(p || '').split('-'); return m ? new Date(+a, +m - 1, 1).toLocaleDateString('es-AR', {month: 'long', year: 'numeric'}) : p; };
+
+async function loadMiPlan() {
+    let d;
+    try { d = await api('/api/admin/mi-plan'); } catch (e) { toast(e.message, 'err'); return; }
+    const motivos = {
+        equipo: '<b>Cuenta del equipo Niddo.</b> No pagás nada.',
+        fundador: `<b>Sos administrador fundador:</b> usás Niddo gratis hasta el ${escHtml(fmtFecha(d.gratis_hasta))}. Después se cobra lo que ves acá abajo.`,
+        prueba: `<b>Estás en el período de prueba</b> hasta el ${escHtml(fmtFecha(d.gratis_hasta))}. Después se cobra lo que ves acá abajo.`,
+    };
+    $('plan-estado').innerHTML = d.sin_cargo
+        ? `<div class="card card-p" style="background:var(--nd-verde-dim);border-color:transparent;margin-bottom:14px;font-size:.88rem">${motivos[d.sin_cargo]}</div>` : '';
+    $('plan-total').textContent = d.sin_cargo ? fmt(0) : fmt(d.total);
+    $('plan-edificios').textContent = d.edificios.length;
+    $('plan-unidades').textContent = d.edificios.reduce((s, e) => s + e.unidades, 0);
+    $('tbody-plan-edificios').innerHTML = d.edificios.length ? d.edificios.map(e => {
+        const cerca = e.tope && e.siguiente && e.unidades >= e.tope - 2;
+        return `<tr>
+            <td><b>${escHtml(e.nombre)}</b></td>
+            <td>${e.unidades}${e.tope ? ` <span style="color:var(--muted)">/ ${e.tope}</span>` : ''}</td>
+            <td>${escHtml(e.plan || '—')}${cerca ? `<div style="font-size:.74rem;color:var(--nd-terracota-hondo)">Con ${e.tope + 1 - e.unidades} unidad${e.tope + 1 - e.unidades === 1 ? '' : 'es'} más pasa a «${escHtml(e.siguiente.nombre)}» (${fmt(e.siguiente.precio)})</div>` : ''}</td>
+            <td style="text-align:right">${d.sin_cargo ? `<s style="color:var(--muted)">${fmt(e.precio)}</s>` : fmt(e.precio)}</td>
+        </tr>`; }).join('')
+        : '<tr><td colspan="4" class="tbl-empty">Todavía no cargaste edificios.</td></tr>';
+    $('plan-tabla-planes').innerHTML = d.planes.map(p => `
+        <div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid var(--border);font-size:.86rem">
+            <span>${escHtml(p.nombre)}</span><b>${fmt(p.precio)} <span style="font-weight:400;color:var(--muted)">/ edificio</span></b>
+        </div>`).join('');
+    const t = d.transferencia || {};
+    $('plan-transferencia').innerHTML = d.sin_cargo === 'equipo' ? '<p style="font-size:.84rem;color:var(--muted)">No hace falta.</p>'
+        : (t.cbu || t.alias) ? `<p style="font-size:.84rem;color:var(--muted);line-height:1.6;margin-bottom:10px">Transferí el total del mes a esta cuenta. Nosotros marcamos el pago y te queda en el historial.</p>
+            ${t.titular ? `<div style="font-size:.86rem;margin-bottom:4px">Titular: <b>${escHtml(t.titular)}</b></div>` : ''}
+            ${t.cbu ? `<div style="font-size:.86rem;margin-bottom:4px">CBU/CVU: <b style="font-family:monospace">${escHtml(t.cbu)}</b></div>` : ''}
+            ${t.alias ? `<div style="font-size:.86rem">Alias: <b>${escHtml(t.alias)}</b></div>` : ''}`
+        : '<p style="font-size:.84rem;color:var(--muted);line-height:1.6">Te vamos a escribir con los datos para transferir cuando corresponda pagar.</p>';
+    const est = {pagado: ['Pagado', 'var(--nd-verde-bosque)'], pendiente: ['A pagar', 'var(--nd-terracota-hondo)'], bonificado: ['Sin cargo', 'var(--muted)']};
+    $('tbody-plan-cobros').innerHTML = d.cobros.length ? d.cobros.map(c => `<tr>
+            <td style="text-transform:capitalize">${escHtml(MES_LARGO(c.periodo))}</td>
+            <td style="color:${est[c.estado][1]};font-weight:700">${est[c.estado][0]}</td>
+            <td style="text-align:right">${c.estado === 'bonificado' ? `<s style="color:var(--muted)">${fmt(c.total)}</s>` : fmt(c.total)}</td>
+        </tr>`).join('') : '<tr><td colspan="3" class="tbl-empty">Todavía no hay cobros.</td></tr>';
 }
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
@@ -2876,7 +2968,10 @@ async function saveUF() {
     const uid = $('m-uf-id').value;
     try {
         if (uid) await api(`/api/consorcios/${currentConsorioId}/unidades/${uid}`,{method:'PUT',body:JSON.stringify(payload)});
-        else      await api(`/api/consorcios/${currentConsorioId}/unidades`,{method:'POST',body:JSON.stringify(payload)});
+        else {
+            const creada = await api(`/api/consorcios/${currentConsorioId}/unidades`,{method:'POST',body:JSON.stringify(payload)});
+            if (creada.aviso_plan) avisoPlan(creada.aviso_plan);
+        }
         closeModal('modal-uf'); toast(uid?'UF actualizada':'UF creada'); await loadUFs();
     } catch(e) { toast(e.message,'err'); }
 }
@@ -3056,6 +3151,7 @@ async function uploadBulk() {
         if (!r.ok) { toast(d.error || 'Error al procesar el archivo','err'); return; }
         renderBulkResults(d);
         toast('Carga masiva procesada');
+        (d.avisos_plan || []).forEach(avisoPlan);
         await loadConsorcios();
     } catch(e) { toast('Error al importar','err'); }
 }
