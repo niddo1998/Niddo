@@ -13,41 +13,6 @@
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: var(--nd-crema); min-height: 100vh; }
 
-        /* ── Cabecera y navegación ── */
-        .topbar {
-            background: var(--surface); border-bottom: 1px solid var(--border);
-            padding: .9rem 1.25rem; display: flex; align-items: center; gap: .9rem;
-            position: sticky; top: 0; z-index: 20;
-        }
-        .topbar .mark {
-            width: 38px; height: 38px; border-radius: var(--r-md);
-            background: var(--nd-terracota-dim); display: flex; align-items: center;
-            justify-content: center; padding: 7px; flex-shrink: 0; text-decoration: none;
-        }
-        .topbar h1 { font-size: 1.02rem; flex: 1; }
-        .topbar .sub { display: block; font-size: .74rem; color: var(--muted); font-weight: 400; }
-        .topbar a.accion {
-            color: var(--nd-terracota-hondo); text-decoration: none;
-            font-size: .84rem; font-weight: 700; white-space: nowrap;
-        }
-        .topbar a.accion:hover { text-decoration: underline; }
-
-        .tabs {
-            background: var(--surface); border-bottom: 1px solid var(--border);
-            display: flex; gap: .2rem; padding: 0 1.25rem;
-            overflow-x: auto; position: sticky; top: 61px; z-index: 19;
-            scrollbar-width: none;
-        }
-        .tabs::-webkit-scrollbar { display: none; }
-        .tab {
-            background: none; border: none; border-bottom: 2px solid transparent;
-            padding: .75rem .85rem; font-family: var(--font); font-size: .87rem;
-            font-weight: 700; color: var(--muted); cursor: pointer; white-space: nowrap;
-            display: flex; align-items: center; gap: .4rem;
-        }
-        .tab:hover { color: var(--text); }
-        a.tab { text-decoration: none; }
-        .tab.activa { color: var(--nd-terracota-hondo); border-bottom-color: var(--nd-terracota); }
         .badge {
             background: var(--nd-terracota); color: #fff; border-radius: var(--r-pill);
             padding: .02rem .42rem; font-size: .7rem;
@@ -298,36 +263,58 @@
             .plan-editor .ancho-movil { grid-column: 1 / -1; }
         }
     </style>
+    <!-- Va después del <style> de arriba: el diseño del centro de control lo pisa. -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/superadmin.css') }}">
 </head>
 <body>
 {% include '_icons.html' %}
 
-    <div class="topbar">
-        <a href="/dashboard/admin" class="mark" aria-label="Volver a mi panel">
-            <svg class="nd-iso" style="width:100%;height:100%"><use href="#nd-isotipo"></use></svg>
+<div class="app">
+    <aside class="lateral">
+        <a href="/dashboard/admin" class="marca" aria-label="Volver a mi panel">
+            <span class="marca-iso"><svg class="nd-iso"><use href="#nd-isotipo"></use></svg></span>
+            <span class="marca-txt">Niddo<small>Centro de control</small></span>
         </a>
-        <h1>Plataforma<span class="sub">Panel de dueños</span></h1>
-        <a href="/dashboard/admin" class="accion">Mi panel</a>
-    </div>
+        <nav class="tabs" aria-label="Secciones">
+            <div class="grupo">Negocio</div>
+            <button class="tab activa" data-sec="hoy"><svg class="ic"><use href="#ic-panel"></use></svg><span>Resumen</span></button>
+            <button class="tab" data-sec="finanzas"><svg class="ic"><use href="#ic-balance"></use></svg><span>Finanzas</span><span class="candadito" aria-hidden="true">🔒</span></button>
+            <button class="tab" data-sec="comercial"><svg class="ic"><use href="#ic-rayo"></use></svg><span>Comercial</span></button>
+            <div class="grupo">Clientes</div>
+            <button class="tab" data-sec="aprobaciones"><svg class="ic"><use href="#ic-pendiente"></use></svg><span>Aprobaciones</span><span class="badge cero" id="badge-aprob">0</span></button>
+            <button class="tab" data-sec="administradores"><svg class="ic"><use href="#ic-edificio"></use></svg><span>Administradores</span></button>
+            <button class="tab" data-sec="vecinos"><svg class="ic"><use href="#ic-vecino"></use></svg><span>Vecinos</span></button>
+            <div class="grupo">Sistema</div>
+            <button class="tab" data-sec="auditoria"><svg class="ic"><use href="#ic-ojo"></use></svg><span>Auditoría</span></button>
+            <!-- Sin data-sec: no es una sección de esta página sino otra pantalla,
+                 y el handler de abajo solo engancha los tabs que sí lo tienen. -->
+            <a class="tab" href="{{ url_for('superadmin_mapa') }}"><svg class="ic"><use href="#ic-carpeta"></use></svg><span>Mapa</span></a>
+        </nav>
+        <a href="/dashboard/admin" class="volver"><svg class="ic"><use href="#ic-volver"></use></svg><span>Mi panel de administrador</span></a>
+    </aside>
 
-    <nav class="tabs">
-        <button class="tab activa" data-sec="hoy">Hoy</button>
-        <button class="tab" data-sec="aprobaciones">Aprobaciones <span class="badge cero" id="badge-aprob">0</span></button>
-        <button class="tab" data-sec="administradores">Administradores</button>
-        <button class="tab" data-sec="vecinos">Vecinos</button>
-        <button class="tab" data-sec="comercial">Comercial</button>
-        <button class="tab" data-sec="finanzas">Finanzas 🔒</button>
-        <button class="tab" data-sec="auditoria">Auditoría</button>
-        <!-- Sin data-sec: no es una sección de esta página sino otra pantalla,
-             y el handler de abajo solo engancha los tabs que sí lo tienen. -->
-        <a class="tab" href="{{ url_for('superadmin_mapa') }}">Mapa</a>
-    </nav>
+    <main class="principal">
+        <header class="cabecera">
+            <div>
+                <div class="saludo" id="saludo" data-nombre="{{ (user.name or '').split(' ')[0] }}">Hola</div>
+                <h1 id="titulo-seccion">Resumen</h1>
+                <p id="bajada-seccion">Cómo viene Niddo hoy, de un vistazo.</p>
+            </div>
+            <div class="cabecera-der">
+                <button class="chip-vivo" id="chip-pendientes" hidden>
+                    <span class="pulso"></span><span id="chip-pendientes-txt"></span>
+                </button>
+                <span class="fecha-hoy" id="fecha-hoy"></span>
+            </div>
+        </header>
 
     <div class="contenido">
         <!-- ══ HOY ══ -->
         <section class="seccion" id="sec-hoy">
             <div class="kpis" id="kpis"><div class="cargando">Cargando…</div></div>
 
+            <div class="dos-col">
+            <div>
             <h2 class="titulo">Últimos 12 meses</h2>
             <div class="panel">
                 <div class="leyenda">
@@ -338,8 +325,12 @@
                 <svg class="grafico" id="grafico" viewBox="0 0 720 170" preserveAspectRatio="none"></svg>
             </div>
 
+            </div>
+            <div>
             <h2 class="titulo">Embudo de activación</h2>
             <div class="panel" id="embudo"></div>
+            </div>
+            </div>
 
             <h2 class="titulo">Requiere atención</h2>
             <div id="atencion"></div>
@@ -491,6 +482,9 @@
         </section>
     </div>
 
+    </main>
+</div>
+
     <div class="overlay" id="overlay">
         <div class="modal">
             <h3 id="modal-titulo"></h3>
@@ -586,7 +580,7 @@
     function pintarGrafico(t) {
         const W = 720, H = 170, base = H - 22, tope = 10;
         const max = Math.max(1, ...t.flatMap((m) => [m.administradores, m.consorcios, m.liquidaciones]));
-        const paso = W / t.length, ancho = Math.min(9, paso / 4.2);
+        const paso = W / t.length, ancho = Math.min(15, paso / 4.4);
         const alto = (v) => (v / max) * (base - tope);
         const series = [['administradores', 'var(--nd-terracota)'], ['consorcios', 'var(--nd-verde)'], ['liquidaciones', 'var(--nd-amarillo)']];
 
@@ -872,5 +866,6 @@
     cargado.aprobaciones = true; cargarAprobaciones();
 </script>
 <script src="{{ url_for('static', filename='js/superadmin_negocio.js') }}"></script>
+<script src="{{ url_for('static', filename='js/superadmin_ui.js') }}"></script>
 </body>
 </html>

@@ -327,6 +327,7 @@
         $('f-contenido').hidden = true;
         $('f-candado').hidden = false;
         $('f-clave').value = '';
+        setTimeout(() => $('f-clave').focus(), 50);
     }
 
     async function cargarFinanzas() {
@@ -347,7 +348,17 @@
     $('f-form-clave').addEventListener('submit', async (e) => {
         e.preventDefault();
         const r = await pedir('/api/superadmin/finanzas/desbloquear', 'POST', { clave: $('f-clave').value });
-        if (!r.ok) { $('f-clave').value = ''; return toast(r.json.error || 'No se pudo desbloquear', true); }
+        const candado = $('f-candado');
+        if (!r.ok) {
+            $('f-clave').value = '';
+            candado.classList.remove('sacudir'); void candado.offsetWidth; candado.classList.add('sacudir');
+            return toast(r.json.error || 'No se pudo desbloquear', true);
+        }
+        // El candado se abre antes de mostrar los números.
+        candado.classList.remove('sacudir');
+        candado.classList.add('abriendo');
+        await new Promise((ok) => setTimeout(ok, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 480));
+        candado.classList.remove('abriendo');
         await cargarFinanzas();
     });
 
