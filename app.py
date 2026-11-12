@@ -1262,10 +1262,24 @@ def privacidad():
     return render_template('legal_privacidad.html', legal=datos_legales())
 
 
+def es_superadmin_aprobado(auth0_id: Optional[str]) -> bool:
+    """Si esa identidad de Auth0 es un superadmin aprobado.
+
+    Se busca por `auth0_id` y no por mail: es la misma identidad que se aprobó,
+    y un mail sin verificar en Auth0 no alcanza para entrar al panel del equipo.
+    """
+    if not auth0_id:
+        return False
+    fila = _fila_admin('auth0_id', auth0_id)
+    return bool(fila and fila.get('es_superadmin') and fila.get('estado') == 'aprobado')
+
+
 @app.route('/login')
 def login():
     user = session.get('user')
     if user:
+        if user.get('role') == 'admin' and es_superadmin_aprobado(user.get('sub')):
+            return redirect(url_for('superadmin_panel'))
         return redirect(url_for('dashboard', role=user['role']))
     return render_template('login.html')
 
@@ -1293,8 +1307,17 @@ def auth_callback():
     email    = userinfo.get('email', '')
     nombre   = userinfo.get('name', email)
     role     = session.pop('pending_role', 'vecino')
+    # Un superadmin va directo a su panel, haya elegido el rol que haya elegido
+    # en el login: entra como admin (el panel lo exige) y no se le crea una
+    # fila de vecino que no corresponde.
+    superadmin = es_superadmin_aprobado(auth0_id)
+    if superadmin:
+        role = 'admin'
     fila     = upsert_user(role, auth0_id, email, nombre)
     session['user'] = {'sub': auth0_id, 'email': email, 'name': nombre, 'role': role}
+
+    if superadmin:
+        return redirect(url_for('superadmin_panel'))
 
     # El administrador que todavía no fue aprobado no ve el dashboard: va a
     # completar sus datos de contacto o a esperar respuesta.
