@@ -1316,7 +1316,11 @@ def auth_callback():
     if superadmin:
         role = 'admin'
     fila     = upsert_user(role, auth0_id, email, nombre)
-    session['user'] = {'sub': auth0_id, 'email': email, 'name': nombre, 'role': role}
+    # La foto de la cuenta de Google (u otro proveedor de Auth0), para el avatar
+    # del panel. Sólo se acepta https: va directo a un <img src>.
+    foto = userinfo.get('picture') or ''
+    session['user'] = {'sub': auth0_id, 'email': email, 'name': nombre, 'role': role,
+                       'picture': foto if foto.startswith('https://') else ''}
 
     if superadmin:
         return redirect(url_for('superadmin_panel'))

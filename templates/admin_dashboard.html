@@ -162,6 +162,52 @@
         .topbar-btn.profile-circle:hover {
             transform: scale(1.05);
         }
+        /* La foto de Google ocupa todo el círculo; si no carga quedan las iniciales. */
+        .topbar-btn.profile-circle { overflow: hidden; padding: 0; transition: transform .2s, box-shadow .2s; }
+        .topbar-btn.profile-circle.abierto { box-shadow: 0 0 0 3px var(--nd-terracota-dim), 0 0 0 1px var(--nd-terracota); }
+        .profile-circle img, .mc-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+        /* ── Menú de la cuenta ── */
+        .menu-cuenta {
+            position: fixed; top: 58px; right: 16px; width: 320px; max-width: calc(100vw - 24px); z-index: 120;
+            background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+            box-shadow: 0 2px 6px rgba(42,33,28,.06), 0 24px 48px -16px rgba(42,33,28,.32);
+            overflow: hidden; transform-origin: top right;
+            animation: mcEntrar .22s cubic-bezier(.22,1,.36,1);
+        }
+        .menu-cuenta[hidden] { display: none; }
+        .menu-cuenta.saliendo { animation: mcSalir .16s ease forwards; }
+        @keyframes mcEntrar { from { opacity: 0; transform: translateY(-6px) scale(.96); } to { opacity: 1; transform: none; } }
+        @keyframes mcSalir { to { opacity: 0; transform: translateY(-4px) scale(.97); } }
+        .mc-cab { display: flex; gap: 12px; align-items: center; padding: 16px 16px 12px; }
+        .mc-avatar { width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
+                     background: var(--nd-verde); color: var(--nd-crema); display: flex; align-items: center;
+                     justify-content: center; font-weight: 800; font-size: 1.15rem; }
+        .mc-quien { min-width: 0; }
+        .mc-nombre { font-weight: 800; font-size: .95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .mc-email { font-size: .78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .mc-rol { display: inline-block; margin-top: 5px; font-size: .68rem; font-weight: 800; letter-spacing: .03em;
+                  padding: 2px 8px; border-radius: 999px; background: var(--nd-verde-dim); color: var(--nd-verde-bosque); }
+        .mc-plan { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; width: calc(100% - 24px); margin: 0 12px 8px;
+                   padding: 12px 14px; border: 0; border-radius: 14px; cursor: pointer; text-align: left; font-family: var(--font);
+                   background: linear-gradient(135deg, #2A211C, #3A2C24); color: #F6EFE7; transition: transform .2s; }
+        .mc-plan:hover { transform: translateY(-1px); }
+        .mc-plan-etq { font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: rgba(246,239,231,.6); }
+        .mc-plan-total { grid-row: span 2; align-self: center; font-family: var(--font-display, var(--font)); font-size: 1.15rem; font-weight: 700; }
+        .mc-plan-det { font-size: .78rem; color: rgba(246,239,231,.82); }
+        .mc-items { padding: 4px 6px; border-top: 1px solid var(--border); }
+        .mc-items > *, .mc-salir {
+            display: grid; grid-template-columns: 22px 1fr; column-gap: 10px; align-items: center; width: 100%;
+            padding: 9px 10px; border: 0; border-radius: 12px; background: transparent; cursor: pointer; text-align: left;
+            font-family: var(--font); font-size: .86rem; font-weight: 700; color: var(--text); text-decoration: none;
+            transition: background .15s;
+        }
+        .mc-items > * small { grid-column: 2; font-size: .74rem; font-weight: 500; color: var(--muted); }
+        .mc-items > * .ic, .mc-salir .ic { grid-row: span 2; width: 18px; height: 18px; color: var(--nd-terracota-hondo); }
+        .mc-items > *:hover, .mc-items > *:focus-visible, .mc-salir:hover { background: var(--nd-crema); outline: none; }
+        .mc-pie { padding: 4px 6px 6px; border-top: 1px solid var(--border); }
+        .mc-salir .ic { grid-row: auto; }
+        @media (prefers-reduced-motion: reduce) { .menu-cuenta, .menu-cuenta.saliendo { animation: none; } }
 
         /* ── Main ── */
         .main { margin-left: var(--sidebar-w); padding: 68px 26px 22px; min-height: 100vh; }
@@ -574,7 +620,35 @@
 
 <div class="topbar">
     <button class="topbar-btn" onclick="ayudaDeLaSeccion()" title="Ayuda" aria-label="Ayuda"><svg class="ic"><use href="#ic-ayuda"></use></svg></button>
-    <button class="topbar-btn profile-circle" id="topbar-perfil-btn" onclick="openModal('modal-perfil'); pintarPerfilPush(); cargarDatosAdministracion()" title="Mi Perfil">—</button>
+    <button class="topbar-btn profile-circle" id="topbar-perfil-btn" onclick="toggleMenuCuenta(event)" title="Mi cuenta"
+            aria-haspopup="menu" aria-expanded="false" aria-controls="menu-cuenta">—</button>
+    <div class="menu-cuenta" id="menu-cuenta" role="menu" hidden>
+        <div class="mc-cab">
+            <span class="mc-avatar" id="mc-avatar"></span>
+            <div class="mc-quien">
+                <div class="mc-nombre" id="mc-nombre"></div>
+                <div class="mc-email" id="mc-email"></div>
+                <span class="mc-rol">{% if es_superadmin %}Super administrador{% else %}Administrador{% endif %}</span>
+            </div>
+        </div>
+        <button class="mc-plan" id="mc-plan" role="menuitem" onclick="irAMiPlan()">
+            <span class="mc-plan-etq">Tu plan</span>
+            <span class="mc-plan-total" id="mc-plan-total">—</span>
+            <span class="mc-plan-det" id="mc-plan-det">Cargando…</span>
+        </button>
+        <div class="mc-items">
+            <button role="menuitem" onclick="cerrarMenuCuenta(); openModal('modal-perfil'); pintarPerfilPush(); cargarDatosAdministracion()"><svg class="ic"><use href="#ic-vecino"></use></svg>Mi cuenta<small>Datos de la administración y notificaciones</small></button>
+            <button role="menuitem" onclick="irAMiPlan()"><svg class="ic"><use href="#ic-balance"></use></svg>Mi plan y pagos<small>Cuánto pagás, débito automático e historial</small></button>
+            <button role="menuitem" onclick="irAMiPlan('plan-tabla-planes')"><svg class="ic"><use href="#ic-liquidacion"></use></svg>Ver todos los planes<small>Precios por edificio según unidades</small></button>
+            <button role="menuitem" onclick="cerrarMenuCuenta(); show('config')"><svg class="ic"><use href="#ic-config"></use></svg>Configuración de consorcios<small>Reparto, intereses y vencimientos</small></button>
+            {% if es_superadmin %}
+            <a role="menuitem" href="/superadmin"><svg class="ic"><use href="#ic-panel"></use></svg>Centro de control<small>Panel de dueños de Niddo</small></a>
+            {% endif %}
+        </div>
+        <div class="mc-pie">
+            <button role="menuitem" class="mc-salir" onclick="window.location.href='/auth/logout'"><svg class="ic"><use href="#ic-salir"></use></svg>Cerrar sesión</button>
+        </div>
+    </div>
 </div>
 
 <!-- Cuatro destinos, no cinco: "Más" dejó de ser un tab y su contenido pasó
@@ -6110,7 +6184,72 @@ async function guardarAgendado() {
     }
     const topBtn = $('topbar-perfil-btn');
     if (topBtn) topBtn.textContent = initials;
+
+    // La foto de Google, si la hay. Si no carga, quedan las iniciales.
+    const foto = {{ (user.picture or '') | tojson }};
+    $('mc-nombre').textContent = userName || '';
+    $('mc-email').textContent = userEmail || '';
+    $('mc-avatar').textContent = initials;
+    if (foto) {
+        for (const [el, txt] of [[topBtn, initials], [$('mc-avatar'), initials], [$('perfil-avatar'), (userName || 'A')[0].toUpperCase()]]) {
+            if (!el) continue;
+            const img = new Image();
+            img.alt = ''; img.referrerPolicy = 'no-referrer';
+            img.onload = () => { el.textContent = ''; el.appendChild(img); el.style.overflow = 'hidden'; };
+            img.src = foto;
+        }
+    }
 })();
+
+/* ── Menú de la cuenta (la carita de arriba a la derecha) ── */
+function toggleMenuCuenta(e) {
+    e && e.stopPropagation();
+    $('menu-cuenta').hidden ? abrirMenuCuenta() : cerrarMenuCuenta();
+}
+function abrirMenuCuenta() {
+    const m = $('menu-cuenta');
+    m.classList.remove('saliendo'); m.hidden = false;
+    $('topbar-perfil-btn').classList.add('abierto');
+    $('topbar-perfil-btn').setAttribute('aria-expanded', 'true');
+    pintarPlanEnMenu();
+    m.querySelector('.mc-items > *')?.focus({preventScroll: true});
+}
+function cerrarMenuCuenta() {
+    const m = $('menu-cuenta');
+    if (m.hidden) return;
+    $('topbar-perfil-btn').classList.remove('abierto');
+    $('topbar-perfil-btn').setAttribute('aria-expanded', 'false');
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { m.hidden = true; return; }
+    m.classList.add('saliendo');
+    setTimeout(() => { m.hidden = true; m.classList.remove('saliendo'); }, 150);
+}
+document.addEventListener('click', (e) => { if (!e.target.closest('#menu-cuenta, #topbar-perfil-btn')) cerrarMenuCuenta(); });
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('menu-cuenta').hidden) { cerrarMenuCuenta(); $('topbar-perfil-btn').focus(); }
+});
+
+function irAMiPlan(ancla) {
+    cerrarMenuCuenta();
+    show('plan');
+    if (ancla) setTimeout(() => $(ancla)?.scrollIntoView({behavior: 'smooth', block: 'center'}), 350);
+}
+
+async function pintarPlanEnMenu() {
+    try {
+        const d = await api('/api/admin/mi-plan');
+        const s = (d.mercadopago || {}).suscripcion;
+        const n = d.edificios.length;
+        $('mc-plan-total').textContent = d.sin_cargo ? fmt(0) : fmt(d.total);
+        let det = `${n} edificio${n === 1 ? '' : 's'}`;
+        if (d.sin_cargo === 'equipo') det = 'Cuenta del equipo, sin cargo';
+        else if (d.sin_cargo) det += ` · gratis hasta el ${fmtFecha(d.gratis_hasta)}`;
+        else if (s && s.estado === 'authorized') det += ' · débito automático activo';
+        else if (n) det += ' · por mes';
+        $('mc-plan-det').textContent = det;
+    } catch (e) {
+        $('mc-plan-det').textContent = 'Tocá para ver tu plan';
+    }
+}
 
 /* Matrícula, CUIT y dirección: van al encabezado del PDF de la liquidación. */
 async function cargarDatosAdministracion() {
